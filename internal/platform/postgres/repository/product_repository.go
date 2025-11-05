@@ -22,7 +22,7 @@ type productModel struct {
 	ID        string     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	Name      string     `gorm:"type:varchar(255);not null"`
 	Category  string     `gorm:"type:varchar(100);not null"`
-	Version   string     `gorm:"type:varchar(50);not null"`
+	Version   int        `gorm:"type:integer;not null"`
 	Price     float64    `gorm:"type:double precision;not null"`
 	VAT       float64    `gorm:"type:double precision;not null"`
 	CreatedAt time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
@@ -59,6 +59,66 @@ func (r *ProductRepository) FindByID(ctx context.Context, id string) (*dto.Produ
 	}
 
 	return r.toDTO(&model), nil
+}
+
+func (r *ProductRepository) Create(ctx context.Context, product *dto.Product) error {
+	model := &productModel{
+		Name:      product.Name,
+		Category:  product.Category,
+		Version:   product.Version,
+		Price:     product.Price,
+		VAT:       product.VAT,
+		CreatedAt: product.CreatedAt,
+		UpdatedAt: product.UpdatedAt,
+	}
+
+	if err := r.db.WithContext(ctx).Create(model).Error; err != nil {
+		return err
+	}
+
+	product.ID = model.ID
+	return nil
+}
+
+func (r *ProductRepository) Update(ctx context.Context, id string, product *dto.Product) error {
+	updateData := map[string]interface{}{
+		"name":       product.Name,
+		"category":   product.Category,
+		"version":    product.Version,
+		"price":      product.Price,
+		"vat":        product.VAT,
+		"updated_at": product.UpdatedAt,
+	}
+
+	return r.db.WithContext(ctx).
+		Model(&productModel{}).
+		Where("id = ? AND deleted_at IS NULL", id).
+		Updates(updateData).Error
+}
+
+func (r *ProductRepository) Delete(ctx context.Context, id string) error {
+	now := time.Now()
+	return r.db.WithContext(ctx).
+		Model(&productModel{}).
+		Where("id = ? AND deleted_at IS NULL", id).
+		Updates(map[string]interface{}{
+			"deleted_at": &now,
+			"updated_at": now,
+		}).Error
+}
+
+func (r *ProductRepository) FindAll(ctx context.Context) ([]*dto.Product, error) {
+	var models []productModel
+	if err := r.db.WithContext(ctx).Where("deleted_at IS NULL").Find(&models).Error; err != nil {
+		return nil, err
+	}
+
+	products := make([]*dto.Product, len(models))
+	for i, model := range models {
+		products[i] = r.toDTO(&model)
+	}
+
+	return products, nil
 }
 
 func (r *ProductRepository) toDTO(model *productModel) *dto.Product {

@@ -20,8 +20,23 @@ type MockProductRepository struct {
 	mock.Mock
 }
 
-func (m *MockProductRepository) FindByIDs(ctx context.Context, ids []string) ([]*dto.Product, error) {
-	args := m.Called(ctx, ids)
+func (m *MockProductRepository) Create(ctx context.Context, product *dto.Product) error {
+	args := m.Called(ctx, product)
+	return args.Error(0)
+}
+
+func (m *MockProductRepository) Update(ctx context.Context, id string, product *dto.Product) error {
+	args := m.Called(ctx, id, product)
+	return args.Error(0)
+}
+
+func (m *MockProductRepository) Delete(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockProductRepository) FindAll(ctx context.Context) ([]*dto.Product, error) {
+	args := m.Called(ctx)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -34,6 +49,14 @@ func (m *MockProductRepository) FindByID(ctx context.Context, id string) (*dto.P
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*dto.Product), args.Error(1)
+}
+
+func (m *MockProductRepository) FindByIDs(ctx context.Context, ids []string) ([]*dto.Product, error) {
+	args := m.Called(ctx, ids)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*dto.Product), args.Error(1)
 }
 
 // MockOpenBillRepository is a mock implementation of ports.OpenBillRepository
@@ -72,7 +95,7 @@ func createTestContext() context.Context {
 	return context.Background()
 }
 
-func createTestProduct(id, name, category, version string, price, vat float64) *dto.Product {
+func createTestProduct(id, name, category string, version int, price, vat float64) *dto.Product {
 	return &dto.Product{
 		ID:        id,
 		Name:      name,
@@ -134,7 +157,7 @@ func TestCreateOrder_SingleProduct(t *testing.T) {
 
 	productID := "product-1"
 	productPrice := 100.0
-	product := createTestProduct(productID, "Test Product", "Category", "v1", productPrice, 19.0)
+	product := createTestProduct(productID, "Test Product", "Category", 1, productPrice, 19.0)
 
 	req := &dto.CreateOrderRequest{
 		ProductIDs: []string{productID},
@@ -175,9 +198,9 @@ func TestCreateOrder_MultipleProducts(t *testing.T) {
 	mockOpenBillRepo := new(MockOpenBillRepository)
 	service := createTestService(mockProductRepo, mockOpenBillRepo)
 
-	product1 := createTestProduct("product-1", "Product 1", "Category", "v1", 50.0, 9.5)
-	product2 := createTestProduct("product-2", "Product 2", "Category", "v1", 75.0, 14.25)
-	product3 := createTestProduct("product-3", "Product 3", "Category", "v1", 25.0, 4.75)
+	product1 := createTestProduct("product-1", "Product 1", "Category", 1, 50.0, 9.5)
+	product2 := createTestProduct("product-2", "Product 2", "Category", 1, 75.0, 14.25)
+	product3 := createTestProduct("product-3", "Product 3", "Category", 1, 25.0, 4.75)
 
 	productIDs := []string{"product-1", "product-2", "product-3"}
 	expectedTotal := 150.0
@@ -230,7 +253,7 @@ func TestCreateOrder_ProductNotFound_Partial(t *testing.T) {
 	mockOpenBillRepo := new(MockOpenBillRepository)
 	service := createTestService(mockProductRepo, mockOpenBillRepo)
 
-	product1 := createTestProduct("product-1", "Product 1", "Category", "v1", 50.0, 9.5)
+	product1 := createTestProduct("product-1", "Product 1", "Category", 1, 50.0, 9.5)
 	productIDs := []string{"product-1", "product-2"}
 
 	req := &dto.CreateOrderRequest{
@@ -329,7 +352,7 @@ func TestCreateOrder_RepositoryError_OpenBillCreate(t *testing.T) {
 	service := createTestService(mockProductRepo, mockOpenBillRepo)
 
 	productID := "product-1"
-	product := createTestProduct(productID, "Test Product", "Category", "v1", 100.0, 19.0)
+	product := createTestProduct(productID, "Test Product", "Category", 1, 100.0, 19.0)
 	repoError := errors.New("failed to insert open bill")
 
 	req := &dto.CreateOrderRequest{
@@ -400,7 +423,7 @@ func TestCreateOrder_TaxCalculations(t *testing.T) {
 			mockProductRepo.ExpectedCalls = nil
 			mockOpenBillRepo.ExpectedCalls = nil
 
-			product := createTestProduct("product-1", "Test Product", "Category", "v1", tc.price, tc.expectedVAT)
+			product := createTestProduct("product-1", "Test Product", "Category", 1, tc.price, tc.expectedVAT)
 			req := &dto.CreateOrderRequest{
 				ProductIDs: []string{"product-1"},
 			}
@@ -491,7 +514,7 @@ func TestCreateOrder_ZeroPriceProducts(t *testing.T) {
 	mockOpenBillRepo := new(MockOpenBillRepository)
 	service := createTestService(mockProductRepo, mockOpenBillRepo)
 
-	product := createTestProduct("product-1", "Free Product", "Category", "v1", 0.0, 0.0)
+	product := createTestProduct("product-1", "Free Product", "Category", 1, 0.0, 0.0)
 
 	req := &dto.CreateOrderRequest{
 		ProductIDs: []string{"product-1"},
@@ -526,7 +549,7 @@ func TestCreateOrder_LargePriceValues(t *testing.T) {
 	service := createTestService(mockProductRepo, mockOpenBillRepo)
 
 	largePrice := 999999999.99
-	product := createTestProduct("product-1", "Expensive Product", "Category", "v1", largePrice, 189999999.998)
+	product := createTestProduct("product-1", "Expensive Product", "Category", 1, largePrice, 189999999.998)
 
 	req := &dto.CreateOrderRequest{
 		ProductIDs: []string{"product-1"},
@@ -680,7 +703,7 @@ func TestUpdateOrder_SingleProduct(t *testing.T) {
 
 	productID := "product-1"
 	productPrice := 100.0
-	product := createTestProduct(productID, "Test Product", "Category", "v1", productPrice, 19.0)
+	product := createTestProduct(productID, "Test Product", "Category", 1, productPrice, 19.0)
 
 	req := &dto.UpdateOrderRequest{
 		Products: []dto.OrderProductItem{
@@ -733,8 +756,8 @@ func TestUpdateOrder_MultipleProductsWithQuantities(t *testing.T) {
 		UpdatedAt:          time.Now(),
 	}
 
-	product1 := createTestProduct("product-1", "Product 1", "Category", "v1", 50.0, 9.5)
-	product2 := createTestProduct("product-2", "Product 2", "Category", "v1", 75.0, 14.25)
+	product1 := createTestProduct("product-1", "Product 1", "Category", 1, 50.0, 9.5)
+	product2 := createTestProduct("product-2", "Product 2", "Category", 1, 75.0, 14.25)
 
 	req := &dto.UpdateOrderRequest{
 		Products: []dto.OrderProductItem{
@@ -793,7 +816,7 @@ func TestUpdateOrder_UpdateQuantity(t *testing.T) {
 
 	productID := "product-1"
 	productPrice := 50.0
-	product := createTestProduct(productID, "Test Product", "Category", "v1", productPrice, 9.5)
+	product := createTestProduct(productID, "Test Product", "Category", 1, productPrice, 9.5)
 
 	req := &dto.UpdateOrderRequest{
 		Products: []dto.OrderProductItem{
@@ -881,7 +904,7 @@ func TestUpdateOrder_ProductNotFound(t *testing.T) {
 		UpdatedAt:          time.Now(),
 	}
 
-	product1 := createTestProduct("product-1", "Product 1", "Category", "v1", 50.0, 9.5)
+	product1 := createTestProduct("product-1", "Product 1", "Category", 1, 50.0, 9.5)
 
 	req := &dto.UpdateOrderRequest{
 		Products: []dto.OrderProductItem{
@@ -978,7 +1001,7 @@ func TestUpdateOrder_RepositoryError_Update(t *testing.T) {
 
 	productID := "product-1"
 	productPrice := 100.0
-	product := createTestProduct(productID, "Test Product", "Category", "v1", productPrice, 19.0)
+	product := createTestProduct(productID, "Test Product", "Category", 1, productPrice, 19.0)
 
 	req := &dto.UpdateOrderRequest{
 		Products: []dto.OrderProductItem{
