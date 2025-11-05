@@ -1,0 +1,47 @@
+-- Migration: create_bills_tables
+-- Version: 000002
+
+CREATE TABLE IF NOT EXISTS bills (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    total_price DOUBLE PRECISION NOT NULL,
+    vat DOUBLE PRECISION NOT NULL,
+    ico DOUBLE PRECISION NOT NULL,
+    tip DOUBLE PRECISION NOT NULL,
+    document_url TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP NULL
+);
+
+CREATE TABLE IF NOT EXISTS bill_products (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    bill_id UUID NOT NULL REFERENCES bills(id) ON DELETE CASCADE,
+    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP NULL,
+    UNIQUE(bill_id, product_id)
+);
+
+CREATE TABLE IF NOT EXISTS open_bills (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    total_price DOUBLE PRECISION NOT NULL,
+    vat DOUBLE PRECISION NOT NULL,
+    ico DOUBLE PRECISION NOT NULL,
+    tip DOUBLE PRECISION NOT NULL,
+    document_url TEXT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP NULL
+);
+
+CREATE TABLE IF NOT EXISTS open_bills_products (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    open_bill_id UUID NOT NULL REFERENCES open_bills(id) ON DELETE CASCADE,
+    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP NULL,
+    UNIQUE(open_bill_id, product_id)
+);
+
