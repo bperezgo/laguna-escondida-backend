@@ -1,0 +1,218 @@
+# Laguna Escondida Backend - Hexagonal Architecture Rules
+
+## Architecture Overview
+
+This project follows **Hexagonal Architecture (Ports and Adapters)** principles with a clean separation between domain logic and infrastructure concerns.
+
+### Directory Structure
+
+```
+internal/
+├── domain/          # Core business logic (use cases layer)
+│   ├── ports/       # Interfaces (ports) - define contracts
+│   ├── service/     # Use cases - business logic implementation
+│   ├── dto/         # Data Transfer Objects - plain structs, no logic
+│   └── error/       # Custom domain errors
+└── platform/        # Implementation layer (adapters)
+    ├── handler/     # HTTP handlers (primary adapters)
+    └── postgres/    # Database implementations (secondary adapters)
+        ├── migrations/
+        └── repository/
+```
+
+## Dependency Rules (Critical)
+
+### Dependency Flow (Dependency Inversion Principle)
+- **Domain layer** (`internal/domain/`) MUST NOT depend on platform layer (`internal/platform/`)
+- **Platform layer** (`internal/platform/`) CAN depend on domain layer
+- **Domain** defines interfaces (ports), **Platform** implements them (adapters)
+- Dependencies flow INWARD: Platform → Domain (never Domain → Platform)
+
+### Import Rules
+- ✅ `platform/handler` can import `domain/service`, `domain/dto`, `domain/error`
+- ✅ `platform/postgres/repository` can import `domain/ports`
+- ❌ `domain/service` MUST NOT import `platform/*`
+- ❌ `domain/ports` MUST NOT import `platform/*`
+- ❌ `domain/dto` MUST NOT import `platform/*`
+- ❌ `domain/error` MUST NOT import `platform/*`
+
+## Domain Layer Guidelines
+
+### `domain/ports/` - Interfaces (Ports)
+- Define **interfaces only** - no implementations
+- Use descriptive names ending with the entity/service (e.g., `ProductRepository`, `BillService`)
+- Keep interfaces focused and single-purpose (Interface Segregation Principle)
+- Example structure:
+  ```go
+  // domain/ports/product_repository.go
+  type ProductRepository interface {
+      Create(ctx context.Context, product *dto.Product) error
+      FindByID(ctx context.Context, id string) (*dto.Product, error)
+      // ... other methods
+  }
+  ```
+
+### `domain/service/` - Use Cases (Business Logic)
+- Contains **all business logic** and use case implementations
+- **MUST** depend on interfaces from `domain/ports/`, never concrete implementations
+- Use dependency injection to receive port implementations
+- Example structure:
+  ```go
+  // domain/service/product_service.go
+  type ProductService struct {
+      repo ports.ProductRepository
+  }
+  
+  func NewProductService(repo ports.ProductRepository) *ProductService {
+      return &ProductService{repo: repo}
+  }
+  
+  func (s *ProductService) CreateProduct(ctx context.Context, req *dto.CreateProductRequest) (*dto.Product, error) {
+      // Business logic here
+      // Validate, transform, orchestrate
+      return s.repo.Create(ctx, product)
+  }
+  ```
+
+### `domain/dto/` - Data Transfer Objects
+- **Plain structs only** - no methods, no business logic
+- Used for data transfer between layers
+- Can include validation tags (e.g., `validate`, `json`)
+- Example:
+  ```go
+  // domain/dto/product.go
+  type Product struct {
+      ID          string    `json:"id"`
+      Name        string    `json:"name"`
+      Price       float64   `json:"price"`
+      CreatedAt   time.Time `json:"created_at"`
+  }
+  
+  type CreateProductRequest struct {
+      Name  string  `json:"name" validate:"required,min=1,max=100"`
+      Price float64 `json:"price" validate:"required,gt=0"`
+  }
+  ```
+
+### `domain/error/` - Custom Errors
+- Define domain-specific errors
+- Use error wrapping for context
+- Example:
+  ```go
+  // domain/error/product_error.go
+  var (
+      ErrProductNotFound = errors.New("product not found")
+      ErrInvalidProduct  = errors.New("invalid product data")
+  )
+  ```
+
+## Platform Layer Guidelines
+
+### `platform/handler/` - HTTP Handlers (Primary Adapters)
+- Handle HTTP requests/responses only
+- **MUST** call domain services, not repositories directly
+- Transform HTTP requests to DTOs and DTOs to HTTP responses
+- Keep handlers thin - delegate to domain services
+- Example:
+  ```go
+  // platform/handler/product_handler.go
+  func CreateProductHandler(service *service.ProductService) http.HandlerFunc {
+      return func(w http.ResponseWriter, r *http.Request) {
+          var req dto.CreateProductRequest
+          if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+              http.Error(w, err.Error(), http.StatusBadRequest)
+              return
+          }
+          
+          product, err := service.CreateProduct(r.Context(), &req)
+          if err != nil {
+              // Handle error appropriately
+              return
+          }
+          
+          json.NewEncoder(w).Encode(product)
+      }
+  }
+  ```
+
+### `platform/postgres/repository/` - Database Implementations (Secondary Adapters)
+- Implement interfaces from `domain/ports/`
+- Handle all database-specific logic (SQL queries, transactions, etc.)
+- Convert between database models and domain DTOs
+- Example:
+  ```go
+  // platform/postgres/repository/product_repository.go
+  type ProductRepository struct {
+      db *sql.DB
+  }
+  
+  func NewProductRepository(db *sql.DB) ports.ProductRepository {
+      return &ProductRepository{db: db}
+  }
+  
+  func (r *ProductRepository) Create(ctx context.Context, product *dto.Product) error {
+      // SQL implementation
+  }
+  ```
+
+## General Guidelines
+
+### Naming Conventions
+- **Interfaces**: Use descriptive names without `Interface` suffix (e.g., `ProductRepository`, not `ProductRepositoryInterface`)
+- **Implementations**: Use descriptive names (e.g., `ProductRepository` struct that implements `ports.ProductRepository`)
+- **Services**: End with `Service` (e.g., `ProductService`)
+- **Handlers**: End with `Handler` (e.g., `CreateProductHandler`)
+- **DTOs**: Use descriptive names (e.g., `Product`, `CreateProductRequest`, `UpdateProductRequest`)
+
+### Context Usage
+- **Always** pass `context.Context` as the first parameter in:
+  - Repository methods
+  - Service methods
+  - Handler methods (extract from request)
+- Use context for cancellation, timeouts, and request-scoped values
+
+### Error Handling
+- Use domain errors from `domain/error/` for business logic errors
+- Use standard library errors for infrastructure errors
+- Wrap errors with context using `fmt.Errorf` with `%w` verb
+- Return errors to handlers, don't log in domain layer (log in handlers/adapters)
+
+### Dependency Injection
+- Use constructor functions (e.g., `NewProductService`, `NewProductRepository`)
+- Wire dependencies in `cmd/main.go` or a separate wiring file
+- Pass interfaces, not concrete types
+
+### Testing
+- Domain services should be easily testable with mock implementations of ports
+- Use interfaces to enable easy mocking
+- Platform layer tests may require integration tests with actual database
+
+## Example Flow
+
+1. **HTTP Request** → `platform/handler/ProductHandler`
+2. **Handler** → Validates request, converts to DTO
+3. **Handler** → Calls `domain/service/ProductService.CreateProduct()`
+4. **Service** → Contains business logic, validates domain rules
+5. **Service** → Calls `ports.ProductRepository` (interface)
+6. **Repository** → `platform/postgres/repository/ProductRepository` (implementation)
+7. **Repository** → Executes SQL, returns DTO
+8. **Service** → Returns DTO to handler
+9. **Handler** → Converts DTO to HTTP response
+
+## Code Generation & Tooling
+
+- Use `go generate` for code generation if needed
+- Keep migrations in `platform/postgres/migrations/`
+- Use SQL migrations for database schema changes
+
+## When Adding New Features
+
+1. **Define DTOs** in `domain/dto/`
+2. **Define port interface** in `domain/ports/`
+3. **Implement use case** in `domain/service/`
+4. **Implement repository** in `platform/postgres/repository/`
+5. **Create handler** in `platform/handler/`
+6. **Wire dependencies** in `cmd/main.go`
+
+Remember: **Domain is the heart, Platform is the shell**. Keep domain pure and independent.
+

@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS bill_products (
 
 CREATE TABLE IF NOT EXISTS open_bills (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    temporal_identifier VARCHAR(255),
     total_price DOUBLE PRECISION NOT NULL,
     vat DOUBLE PRECISION NOT NULL,
     ico DOUBLE PRECISION NOT NULL,
