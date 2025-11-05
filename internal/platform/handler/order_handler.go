@@ -104,3 +104,41 @@ func (h *OrderHandler) UpdateOrderHandler(w http.ResponseWriter, r *http.Request
 		log.Printf("Error encoding response: %v", err)
 	}
 }
+
+func (h *OrderHandler) PayOrderHandler(w http.ResponseWriter, r *http.Request) {
+	// Extract open_bill_id from URL path
+	vars := mux.Vars(r)
+	openBillID := vars["id"]
+	if openBillID == "" {
+		http.Error(w, "Order ID is required", http.StatusBadRequest)
+		return
+	}
+
+	var req dto.PayOrderRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("Error decoding request: %v", err)
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	bill, err := h.orderService.PayOrder(r.Context(), openBillID, &req)
+	if err != nil {
+		log.Printf("Error paying order: %v", err)
+
+		if errors.Is(err, orderError.ErrOrderNotFound) {
+			http.Error(w, "Order not found", http.StatusNotFound)
+			return
+		}
+		if errors.Is(err, orderError.ErrOrderPaymentFailed) {
+			http.Error(w, "Failed to pay order", http.StatusInternalServerError)
+			return
+		}
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(bill); err != nil {
+		log.Printf("Error encoding response: %v", err)
+	}
+}

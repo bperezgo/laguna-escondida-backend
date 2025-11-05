@@ -59,6 +59,14 @@ func (m *MockOpenBillRepository) Update(ctx context.Context, openBillID string, 
 	return args.Error(0)
 }
 
+func (m *MockOpenBillRepository) PayOrder(ctx context.Context, openBillID string, documentURL string) (*dto.Bill, error) {
+	args := m.Called(ctx, openBillID, documentURL)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*dto.Bill), args.Error(1)
+}
+
 // Test helpers
 func createTestContext() context.Context {
 	return context.Background()
@@ -992,6 +1000,198 @@ func TestUpdateOrder_RepositoryError_Update(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.ErrorIs(t, err, orderError.ErrOrderUpdateFailed)
+
+	// Verify mocks
+	mockProductRepo.AssertExpectations(t)
+	mockOpenBillRepo.AssertExpectations(t)
+}
+
+// PayOrder Tests
+
+// Success Cases
+
+func TestPayOrder_Success(t *testing.T) {
+	// Setup
+	ctx := createTestContext()
+	mockProductRepo := new(MockProductRepository)
+	mockOpenBillRepo := new(MockOpenBillRepository)
+	service := createTestService(mockProductRepo, mockOpenBillRepo)
+
+	openBillID := "bill-1"
+	documentURL := "https://example.com/document.pdf"
+	existingBill := &dto.OpenBill{
+		ID:                 openBillID,
+		TemporalIdentifier: "ORDER-123",
+		TotalPrice:         100.0,
+		VAT:                19.0,
+		ICO:                8.0,
+		Tip:                10.0,
+		CreatedAt:          time.Now(),
+		UpdatedAt:          time.Now(),
+	}
+
+	expectedBill := &dto.Bill{
+		ID:          "paid-bill-1",
+		TotalPrice:  100.0,
+		VAT:         19.0,
+		ICO:         8.0,
+		Tip:         10.0,
+		DocumentURL: documentURL,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	req := &dto.PayOrderRequest{
+		DocumentURL: documentURL,
+	}
+
+	// Mock expectations
+	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(existingBill, nil)
+	mockOpenBillRepo.On("PayOrder", ctx, openBillID, documentURL).Return(expectedBill, nil)
+
+	// Execute
+	result, err := service.PayOrder(ctx, openBillID, req)
+
+	// Assert
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, expectedBill.ID, result.ID)
+	assert.Equal(t, existingBill.TotalPrice, result.TotalPrice)
+	assert.Equal(t, existingBill.VAT, result.VAT)
+	assert.Equal(t, existingBill.ICO, result.ICO)
+	assert.Equal(t, existingBill.Tip, result.Tip)
+	assert.Equal(t, documentURL, result.DocumentURL)
+
+	// Verify mocks
+	mockProductRepo.AssertExpectations(t)
+	mockOpenBillRepo.AssertExpectations(t)
+}
+
+func TestPayOrder_EmptyOrder(t *testing.T) {
+	// Setup
+	ctx := createTestContext()
+	mockProductRepo := new(MockProductRepository)
+	mockOpenBillRepo := new(MockOpenBillRepository)
+	service := createTestService(mockProductRepo, mockOpenBillRepo)
+
+	openBillID := "bill-1"
+	documentURL := "https://example.com/document.pdf"
+	existingBill := &dto.OpenBill{
+		ID:                 openBillID,
+		TemporalIdentifier: "ORDER-123",
+		TotalPrice:         0.0,
+		VAT:                0.0,
+		ICO:                0.0,
+		Tip:                0.0,
+		CreatedAt:          time.Now(),
+		UpdatedAt:          time.Now(),
+	}
+
+	expectedBill := &dto.Bill{
+		ID:          "paid-bill-1",
+		TotalPrice:  0.0,
+		VAT:         0.0,
+		ICO:         0.0,
+		Tip:         0.0,
+		DocumentURL: documentURL,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	req := &dto.PayOrderRequest{
+		DocumentURL: documentURL,
+	}
+
+	// Mock expectations
+	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(existingBill, nil)
+	mockOpenBillRepo.On("PayOrder", ctx, openBillID, documentURL).Return(expectedBill, nil)
+
+	// Execute
+	result, err := service.PayOrder(ctx, openBillID, req)
+
+	// Assert
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, 0.0, result.TotalPrice)
+	assert.Equal(t, documentURL, result.DocumentURL)
+
+	// Verify mocks
+	mockProductRepo.AssertExpectations(t)
+	mockOpenBillRepo.AssertExpectations(t)
+}
+
+// Error Cases
+
+func TestPayOrder_OrderNotFound(t *testing.T) {
+	// Setup
+	ctx := createTestContext()
+	mockProductRepo := new(MockProductRepository)
+	mockOpenBillRepo := new(MockOpenBillRepository)
+	service := createTestService(mockProductRepo, mockOpenBillRepo)
+
+	openBillID := "bill-1"
+	documentURL := "https://example.com/document.pdf"
+
+	req := &dto.PayOrderRequest{
+		DocumentURL: documentURL,
+	}
+
+	// Mock expectations - order not found
+	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(nil, errors.New("not found"))
+
+	// Execute
+	result, err := service.PayOrder(ctx, openBillID, req)
+
+	// Assert
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, orderError.ErrOrderNotFound)
+
+	// Verify PayOrder was not called
+	mockOpenBillRepo.AssertNotCalled(t, "PayOrder")
+
+	// Verify mocks
+	mockProductRepo.AssertExpectations(t)
+	mockOpenBillRepo.AssertExpectations(t)
+}
+
+func TestPayOrder_RepositoryError_Payment(t *testing.T) {
+	// Setup
+	ctx := createTestContext()
+	mockProductRepo := new(MockProductRepository)
+	mockOpenBillRepo := new(MockOpenBillRepository)
+	service := createTestService(mockProductRepo, mockOpenBillRepo)
+
+	openBillID := "bill-1"
+	documentURL := "https://example.com/document.pdf"
+	existingBill := &dto.OpenBill{
+		ID:                 openBillID,
+		TemporalIdentifier: "ORDER-123",
+		TotalPrice:         100.0,
+		VAT:                19.0,
+		ICO:                8.0,
+		Tip:                10.0,
+		CreatedAt:          time.Now(),
+		UpdatedAt:          time.Now(),
+	}
+
+	req := &dto.PayOrderRequest{
+		DocumentURL: documentURL,
+	}
+
+	repoError := errors.New("payment failed")
+
+	// Mock expectations
+	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(existingBill, nil)
+	mockOpenBillRepo.On("PayOrder", ctx, openBillID, documentURL).Return(nil, repoError)
+
+	// Execute
+	result, err := service.PayOrder(ctx, openBillID, req)
+
+	// Assert
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, orderError.ErrOrderPaymentFailed)
 
 	// Verify mocks
 	mockProductRepo.AssertExpectations(t)

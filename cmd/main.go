@@ -38,10 +38,12 @@ func main() {
 	healthMiddleware := handler.CORSMiddleware([]string{"GET", "OPTIONS"})
 	orderMiddleware := handler.CORSMiddleware([]string{"POST", "OPTIONS"})
 	updateOrderMiddleware := handler.CORSMiddleware([]string{"PUT", "OPTIONS"})
+	payOrderMiddleware := handler.CORSMiddleware([]string{"POST", "OPTIONS"})
 
 	router.HandleFunc("/api/health", healthMiddleware(http.HandlerFunc(handler.HealthCheckHandler)).ServeHTTP).Methods("GET", "OPTIONS")
 	router.HandleFunc("/api/orders", orderMiddleware(http.HandlerFunc(orderHandler.CreateOrderHandler)).ServeHTTP).Methods("POST", "OPTIONS")
 	router.HandleFunc("/api/orders/{id}", updateOrderMiddleware(http.HandlerFunc(orderHandler.UpdateOrderHandler)).ServeHTTP).Methods("PUT", "OPTIONS")
+	router.HandleFunc("/api/orders/{id}/pay", payOrderMiddleware(http.HandlerFunc(orderHandler.PayOrderHandler)).ServeHTTP).Methods("POST", "OPTIONS")
 
 	port := os.Getenv("PORT")
 	if port == "" {
