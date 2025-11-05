@@ -72,8 +72,17 @@ func (s *OrderService) CreateOrder(ctx context.Context, req *dto.CreateOrderRequ
 		UpdatedAt:          time.Now(),
 	}
 
+	// Convert product IDs to OrderProductItem format with default quantity of 1
+	orderProducts := make([]dto.OrderProductItem, len(req.ProductIDs))
+	for i, productID := range req.ProductIDs {
+		orderProducts[i] = dto.OrderProductItem{
+			ProductID: productID,
+			Quantity:  1, // Default quantity for CreateOrder
+		}
+	}
+
 	// Create the open bill in the repository
-	if err := s.openBillRepo.Create(ctx, openBill, req.ProductIDs); err != nil {
+	if err := s.openBillRepo.Create(ctx, openBill, orderProducts); err != nil {
 		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
 	}
 
@@ -87,4 +96,79 @@ func (s *OrderService) CreateOrder(ctx context.Context, req *dto.CreateOrderRequ
 	}
 
 	return openBill, nil
+}
+
+// UpdateOrder updates an existing open order with new products and quantities
+// If product is new, creates it with quantity
+// If product exists with different quantity, updates the quantity
+// If product is removed, soft deletes it (sets deleted_at)
+func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *dto.UpdateOrderRequest) (*dto.OpenBill, error) {
+	// Validate that the open bill exists
+	existingBill, err := s.openBillRepo.FindByID(ctx, openBillID)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
+	}
+
+	// If no products provided, treat as empty order (all products will be soft deleted)
+	var products []*dto.Product
+	var totalPrice float64
+	var productIDs []string
+
+	if len(req.Products) > 0 {
+		// Extract product IDs from request
+		productIDs = make([]string, len(req.Products))
+		for i, item := range req.Products {
+			productIDs[i] = item.ProductID
+		}
+
+		// Fetch and validate products
+		products, err = s.productRepo.FindByIDs(ctx, productIDs)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
+		}
+
+		// Validate that all products were found
+		if len(products) != len(req.Products) {
+			return nil, orderError.ErrProductNotFound
+		}
+
+		// Calculate total price from products with quantities
+		for i, product := range products {
+			totalPrice += product.Price * float64(req.Products[i].Quantity)
+		}
+	}
+
+	// Calculate taxes and tip based on total_price
+	vat := totalPrice * s.taxConfig.VATPercent
+	ico := totalPrice * s.taxConfig.ICOPercent
+	tip := totalPrice * s.taxConfig.TipPercent
+
+	// Prepare updated open bill
+	updatedBill := &dto.OpenBill{
+		ID:                 existingBill.ID,
+		TemporalIdentifier: existingBill.TemporalIdentifier,
+		TotalPrice:         totalPrice,
+		VAT:                vat,
+		ICO:                ico,
+		Tip:                tip,
+		DocumentURL:        existingBill.DocumentURL,
+		CreatedAt:          existingBill.CreatedAt,
+		UpdatedAt:          time.Now(),
+	}
+
+	// Update the open bill in the repository
+	if err := s.openBillRepo.Update(ctx, openBillID, updatedBill, req.Products); err != nil {
+		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
+	}
+
+	// Populate products in the response
+	if len(products) > 0 {
+		productDTOs := make([]dto.Product, len(products))
+		for i, p := range products {
+			productDTOs[i] = *p
+		}
+		updatedBill.Products = productDTOs
+	}
+
+	return updatedBill, nil
 }

@@ -18,3 +18,12 @@ type OpenBill struct {
 type CreateOrderRequest struct {
 	ProductIDs []string `json:"product_ids" validate:"dive,uuid"`
 }
+
+type OrderProductItem struct {
+	ProductID string `json:"product_id" validate:"required,uuid"`
+	Quantity  int    `json:"quantity" validate:"required,min=1"`
+}
+
+type UpdateOrderRequest struct {
+	Products []OrderProductItem `json:"products" validate:"dive"`
+}

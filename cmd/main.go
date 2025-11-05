@@ -37,9 +37,11 @@ func main() {
 	// Apply CORS middleware to routes
 	healthMiddleware := handler.CORSMiddleware([]string{"GET", "OPTIONS"})
 	orderMiddleware := handler.CORSMiddleware([]string{"POST", "OPTIONS"})
+	updateOrderMiddleware := handler.CORSMiddleware([]string{"PUT", "OPTIONS"})
 
 	router.HandleFunc("/api/health", healthMiddleware(http.HandlerFunc(handler.HealthCheckHandler)).ServeHTTP).Methods("GET", "OPTIONS")
 	router.HandleFunc("/api/orders", orderMiddleware(http.HandlerFunc(orderHandler.CreateOrderHandler)).ServeHTTP).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/orders/{id}", updateOrderMiddleware(http.HandlerFunc(orderHandler.UpdateOrderHandler)).ServeHTTP).Methods("PUT", "OPTIONS")
 
 	port := os.Getenv("PORT")
 	if port == "" {
