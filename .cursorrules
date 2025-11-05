@@ -183,9 +183,62 @@ internal/
 - Pass interfaces, not concrete types
 
 ### Testing
-- Domain services should be easily testable with mock implementations of ports
-- Use interfaces to enable easy mocking
+
+#### Unit Testing Strategy
+- **Every service MUST have comprehensive unit tests** - Create `*_service_test.go` files alongside each service file
+- **Every new use case MUST include tests** - When implementing a new use case, create corresponding test cases
+- **Test coverage target: 90%+** for service methods
+- Use **testify** libraries: `assert`, `mock`, `require`, `suite`
+- Mock all repository dependencies using `testify/mock`
+- Test all code paths: success cases, error cases, edge cases, and calculation validations
+
+#### Test Structure
+- Use table-driven tests for multiple similar scenarios
+- Organize tests by category: Success Cases, Error Cases, Calculation Validation, Edge Cases
+- Create reusable test helpers: `createTestContext()`, `createTestProduct()`, `createTestService()`, etc.
+- Use mock structs implementing port interfaces (e.g., `MockProductRepository`, `MockOpenBillRepository`)
+
+#### Test Modification Protocol
+- **ALWAYS ask before modifying existing unit tests** when changing service implementations
+- When adding new functionality to an existing service:
+  1. Check if existing tests cover the new behavior
+  2. If modifying behavior, ask: "Is it OK to update the existing unit tests for [ServiceName] to reflect the new behavior?"
+  3. Only proceed with test modifications after user confirmation
+- When fixing bugs, update tests to cover the bug fix
+
+#### Test File Naming
+- Test files: `{service_name}_test.go` (e.g., `order_service_test.go`)
+- Test functions: `Test{ServiceName}_{MethodName}_{Scenario}` (e.g., `TestCreateOrder_EmptyOrder`)
+
+#### Example Test Structure
+```go
+// Mock repositories
+type MockProductRepository struct {
+    mock.Mock
+}
+func (m *MockProductRepository) FindByIDs(ctx context.Context, ids []string) ([]*dto.Product, error) {
+    args := m.Called(ctx, ids)
+    return args.Get(0).([]*dto.Product), args.Error(1)
+}
+
+// Test helpers
+func createTestProduct(...) *dto.Product { ... }
+func createTestService(...) *OrderService { ... }
+
+// Success Cases
+func TestCreateOrder_EmptyOrder(t *testing.T) { ... }
+func TestCreateOrder_SingleProduct(t *testing.T) { ... }
+
+// Error Cases
+func TestCreateOrder_ProductNotFound(t *testing.T) { ... }
+
+// Calculation Validation
+func TestCreateOrder_TaxCalculations(t *testing.T) { ... }
+```
+
+#### Integration Testing
 - Platform layer tests may require integration tests with actual database
+- Use separate test files or build tags for integration tests
 
 ## Example Flow
 
@@ -210,9 +263,12 @@ internal/
 1. **Define DTOs** in `domain/dto/`
 2. **Define port interface** in `domain/ports/`
 3. **Implement use case** in `domain/service/`
-4. **Implement repository** in `platform/postgres/repository/`
-5. **Create handler** in `platform/handler/`
-6. **Wire dependencies** in `cmd/main.go`
+4. **Create unit tests** in `domain/service/{service_name}_test.go` (MANDATORY)
+5. **Implement repository** in `platform/postgres/repository/`
+6. **Create handler** in `platform/handler/`
+7. **Wire dependencies** in `cmd/main.go`
+
+**Note**: When modifying existing services, always ask before updating existing unit tests.
 
 Remember: **Domain is the heart, Platform is the shell**. Keep domain pure and independent.
 
