@@ -109,7 +109,7 @@ func createTestProduct(id, name, category string, version int, price, vat float6
 }
 
 func createTestService(productRepo ports.ProductRepository, openBillRepo ports.OpenBillRepository) *OrderService {
-	return NewOrderService(openBillRepo, productRepo)
+	return NewOrderService(openBillRepo, productRepo, nil)
 }
 
 // Success Cases

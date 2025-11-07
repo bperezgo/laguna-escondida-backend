@@ -11,19 +11,22 @@ import (
 )
 
 type OrderService struct {
-	openBillRepo ports.OpenBillRepository
-	productRepo  ports.ProductRepository
-	taxConfig    dto.TaxConfig
+	openBillRepo   ports.OpenBillRepository
+	productRepo    ports.ProductRepository
+	invoiceService *InvoiceService
+	taxConfig      dto.TaxConfig
 }
 
 func NewOrderService(
 	openBillRepo ports.OpenBillRepository,
 	productRepo ports.ProductRepository,
+	invoiceService *InvoiceService,
 ) *OrderService {
 	return &OrderService{
-		openBillRepo: openBillRepo,
-		productRepo:  productRepo,
-		taxConfig:    dto.GetDefaultTaxConfig(),
+		openBillRepo:   openBillRepo,
+		productRepo:    productRepo,
+		taxConfig:      dto.GetDefaultTaxConfig(),
+		invoiceService: invoiceService,
 	}
 }
 
@@ -180,6 +183,20 @@ func (s *OrderService) PayOrder(ctx context.Context, openBillID string, req *dto
 	// Validate that the open bill exists
 	if _, err := s.openBillRepo.FindByID(ctx, openBillID); err != nil {
 		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
+	}
+
+	err := s.invoiceService.CreateElectronicInvoice(ctx, &dto.Bill{
+		ID: openBillID,
+		// TotalPrice: existingBill.TotalPrice,
+		// VAT: existingBill.VAT,
+		// ICO: existingBill.ICO,
+		// Tip: existingBill.Tip,
+		// DocumentURL: req.DocumentURL,
+		// Products: existingBill.Products,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
 	}
 
 	// Consolidate the open bill into a bill

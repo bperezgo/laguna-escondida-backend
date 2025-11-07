@@ -7,7 +7,9 @@ import (
 	"os"
 
 	"laguna-escondida/backend/internal/domain/service"
+	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/handler"
+	"laguna-escondida/backend/internal/platform/httpclient"
 	"laguna-escondida/backend/internal/platform/postgres/repository"
 
 	"github.com/gorilla/mux"
@@ -21,12 +23,19 @@ func main() {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 
+	cfg, err := config.NewConfig()
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
+
 	// Initialize repositories
 	productRepo := repository.NewProductRepository(db.DB)
 	openBillRepo := repository.NewOpenBillRepository(db.DB)
+	electronicInvoiceClient := httpclient.NewElectronicInvoiceClient(cfg)
+	invoiceService := service.NewInvoiceService(electronicInvoiceClient)
 
 	// Initialize services
-	orderService := service.NewOrderService(openBillRepo, productRepo)
+	orderService := service.NewOrderService(openBillRepo, productRepo, invoiceService)
 	productService := service.NewProductService(productRepo)
 
 	// Initialize handlers

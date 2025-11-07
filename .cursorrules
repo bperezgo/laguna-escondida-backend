@@ -182,6 +182,53 @@ internal/
 - Wire dependencies in `cmd/main.go` or a separate wiring file
 - Pass interfaces, not concrete types
 
+### Code Comments
+- **Avoid line-by-line comments** - If the code is explicit and self-documenting, comments are not needed for every line
+- **Function-level comments are acceptable** - Add comments for functions when they provide value (explain "why" not "what")
+- **Prefer clear code over comments** - Write code that is self-explanatory through good naming and structure
+- **Add comments only when necessary** - Use comments to explain complex business logic, non-obvious decisions, or important context
+- **Example of good commenting**:
+  ```go
+  // CreateProduct creates a new product with version = 1
+  // All products are created with version 1 as per business requirements
+  func (s *ProductService) CreateProduct(ctx context.Context, req *dto.CreateProductRequest) (*dto.Product, error) {
+      product := &dto.Product{
+          Name:      req.Name,
+          Category:  req.Category,
+          Version:   1,
+          Price:     req.Price,
+          VAT:       req.VAT,
+          CreatedAt: time.Now(),
+          UpdatedAt: time.Now(),
+      }
+      return s.productRepo.Create(ctx, product)
+  }
+  ```
+- **Example of excessive commenting (avoid)**:
+  ```go
+  func (s *ProductService) CreateProduct(ctx context.Context, req *dto.CreateProductRequest) (*dto.Product, error) {
+      // Create a new product struct
+      product := &dto.Product{
+          // Set the name from request
+          Name:      req.Name,
+          // Set the category from request
+          Category:  req.Category,
+          // Set version to 1
+          Version:   1,
+          // Set the price from request
+          Price:     req.Price,
+          // Set the VAT from request
+          VAT:       req.VAT,
+          // Set created at to current time
+          CreatedAt: time.Now(),
+          // Set updated at to current time
+          UpdatedAt: time.Now(),
+      }
+      // Call repository to create the product
+      return s.productRepo.Create(ctx, product)
+  }
+  ```
+
 ### Testing
 
 #### Unit Testing Strategy
