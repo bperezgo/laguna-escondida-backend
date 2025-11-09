@@ -11,17 +11,27 @@ export interface Product {
 }
 
 export interface CreateProductRequest {
-  Name: string;
-  Category: string;
-  Price: number;
-  VAT: number;
+  name: string;
+  category: string;
+  vat: number;
+  ico: number;
+  description?: string | null;
+  brand?: string | null;
+  model?: string | null;
+  sku: string;
+  total_price_with_taxes: number;
 }
 
 export interface UpdateProductRequest {
-  Name?: string;
-  Category?: string;
-  Price?: number;
-  VAT?: number;
+  name: string;
+  category?: string;
+  vat?: number;
+  ico?: number;
+  description?: string | null;
+  brand?: string | null;
+  model?: string | null;
+  sku: string;
+  total_price_with_taxes: number;
 }
 
 export interface ProductListResponse {

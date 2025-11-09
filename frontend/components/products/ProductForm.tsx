@@ -12,10 +12,15 @@ interface ProductFormProps {
 
 export default function ProductForm({ product, onSubmit, onCancel, isLoading = false }: ProductFormProps) {
   const [formData, setFormData] = useState({
-    Name: product?.Name || '',
-    Category: product?.Category || '',
-    Price: product?.Price?.toString() || '',
-    VAT: product?.VAT?.toString() || '',
+    name: product?.Name || '',
+    category: product?.Category || '',
+    vat: product?.VAT?.toString() || '',
+    ico: '',
+    description: '',
+    brand: '',
+    model: '',
+    sku: '',
+    total_price_with_taxes: product?.Price?.toString() || '',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -23,10 +28,15 @@ export default function ProductForm({ product, onSubmit, onCancel, isLoading = f
   useEffect(() => {
     if (product) {
       setFormData({
-        Name: product.Name || '',
-        Category: product.Category || '',
-        Price: product.Price?.toString() || '',
-        VAT: product.VAT?.toString() || '',
+        name: product.Name || '',
+        category: product.Category || '',
+        vat: product.VAT?.toString() || '',
+        ico: '',
+        description: '',
+        brand: '',
+        model: '',
+        sku: '',
+        total_price_with_taxes: product.Price?.toString() || '',
       });
     }
   }, [product]);
@@ -34,22 +44,43 @@ export default function ProductForm({ product, onSubmit, onCancel, isLoading = f
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.Name.trim()) {
-      newErrors.Name = 'Product name is required';
+    // Name: required, min=1, max=255
+    if (!formData.name.trim()) {
+      newErrors.name = 'Product name is required';
+    } else if (formData.name.length > 255) {
+      newErrors.name = 'Product name must be 255 characters or less';
     }
 
-    if (!formData.Category.trim()) {
-      newErrors.Category = 'Category is required';
+    // Category: required, min=1, max=100
+    if (!formData.category.trim()) {
+      newErrors.category = 'Category is required';
+    } else if (formData.category.length > 100) {
+      newErrors.category = 'Category must be 100 characters or less';
     }
 
-    const price = parseFloat(formData.Price);
-    if (isNaN(price) || price < 0) {
-      newErrors.Price = 'Price must be a valid positive number';
+    // VAT: required, gte=0
+    const vat = parseFloat(formData.vat);
+    if (isNaN(vat) || vat < 0) {
+      newErrors.vat = 'VAT must be a valid number greater than or equal to 0';
     }
 
-    const vat = parseFloat(formData.VAT);
-    if (isNaN(vat) || vat < 0 || vat > 100) {
-      newErrors.VAT = 'VAT must be a valid number between 0 and 100';
+    // ICO: required, gte=0
+    const ico = parseFloat(formData.ico);
+    if (isNaN(ico) || ico < 0) {
+      newErrors.ico = 'ICO must be a valid number greater than or equal to 0';
+    }
+
+    // SKU: required, min=1, max=255
+    if (!formData.sku.trim()) {
+      newErrors.sku = 'SKU is required';
+    } else if (formData.sku.length > 255) {
+      newErrors.sku = 'SKU must be 255 characters or less';
+    }
+
+    // TotalPriceWithTaxes: required, gt=0
+    const totalPriceWithTaxes = parseFloat(formData.total_price_with_taxes);
+    if (isNaN(totalPriceWithTaxes) || totalPriceWithTaxes <= 0) {
+      newErrors.total_price_with_taxes = 'Total price with taxes must be a valid number greater than 0';
     }
 
     setErrors(newErrors);
@@ -63,14 +94,58 @@ export default function ProductForm({ product, onSubmit, onCancel, isLoading = f
       return;
     }
 
-    const submitData = {
-      Name: formData.Name.trim(),
-      Category: formData.Category.trim(),
-      Price: parseFloat(formData.Price),
-      VAT: parseFloat(formData.VAT),
+    // Build base data with required fields
+    const baseData = {
+      name: formData.name.trim(),
+      sku: formData.sku.trim(),
+      total_price_with_taxes: parseFloat(formData.total_price_with_taxes),
     };
 
-    await onSubmit(submitData);
+    // For updates, name, sku, and total_price_with_taxes are always required
+    // For creates, all fields are required
+    if (product) {
+      // Update request - name, sku, and total_price_with_taxes are mandatory
+      const submitData: UpdateProductRequest = {
+        ...baseData,
+        category: formData.category.trim() || undefined,
+        vat: parseFloat(formData.vat) || undefined,
+        ico: parseFloat(formData.ico) || undefined,
+      };
+
+      // Add optional fields only if they have values
+      if (formData.description.trim()) {
+        submitData.description = formData.description.trim();
+      }
+      if (formData.brand.trim()) {
+        submitData.brand = formData.brand.trim();
+      }
+      if (formData.model.trim()) {
+        submitData.model = formData.model.trim();
+      }
+
+      await onSubmit(submitData);
+    } else {
+      // Create request - all fields are required
+      const submitData: CreateProductRequest = {
+        ...baseData,
+        category: formData.category.trim(),
+        vat: parseFloat(formData.vat),
+        ico: parseFloat(formData.ico),
+      };
+
+      // Add optional fields only if they have values
+      if (formData.description.trim()) {
+        submitData.description = formData.description.trim();
+      }
+      if (formData.brand.trim()) {
+        submitData.brand = formData.brand.trim();
+      }
+      if (formData.model.trim()) {
+        submitData.model = formData.model.trim();
+      }
+
+      await onSubmit(submitData);
+    }
   };
 
   const handleChange = (field: string, value: string) => {
@@ -120,21 +195,22 @@ export default function ProductForm({ product, onSubmit, onCancel, isLoading = f
             </label>
             <input
               type="text"
-              value={formData.Name}
-              onChange={(e) => handleChange('Name', e.target.value)}
+              value={formData.name}
+              onChange={(e) => handleChange('name', e.target.value)}
               style={{
                 width: '100%',
                 padding: '0.75rem',
-                border: `1px solid ${errors.Name ? '#dc3545' : '#ced4da'}`,
+                border: `1px solid ${errors.name ? '#dc3545' : '#ced4da'}`,
                 borderRadius: '4px',
                 fontSize: '1rem',
                 boxSizing: 'border-box',
               }}
               placeholder="Enter product name"
+              maxLength={255}
             />
-            {errors.Name && (
+            {errors.name && (
               <p style={{ margin: '0.25rem 0 0 0', color: '#dc3545', fontSize: '0.875rem' }}>
-                {errors.Name}
+                {errors.name}
               </p>
             )}
           </div>
@@ -145,76 +221,205 @@ export default function ProductForm({ product, onSubmit, onCancel, isLoading = f
             </label>
             <input
               type="text"
-              value={formData.Category}
-              onChange={(e) => handleChange('Category', e.target.value)}
+              value={formData.category}
+              onChange={(e) => handleChange('category', e.target.value)}
               style={{
                 width: '100%',
                 padding: '0.75rem',
-                border: `1px solid ${errors.Category ? '#dc3545' : '#ced4da'}`,
+                border: `1px solid ${errors.category ? '#dc3545' : '#ced4da'}`,
                 borderRadius: '4px',
                 fontSize: '1rem',
                 boxSizing: 'border-box',
               }}
               placeholder="Enter category"
+              maxLength={100}
             />
-            {errors.Category && (
+            {errors.category && (
               <p style={{ margin: '0.25rem 0 0 0', color: '#dc3545', fontSize: '0.875rem' }}>
-                {errors.Category}
+                {errors.category}
               </p>
             )}
           </div>
 
           <div style={{ marginBottom: '1.5rem' }}>
             <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333' }}>
-              Price *
+              SKU *
             </label>
             <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={formData.Price}
-              onChange={(e) => handleChange('Price', e.target.value)}
+              type="text"
+              value={formData.sku}
+              onChange={(e) => handleChange('sku', e.target.value)}
               style={{
                 width: '100%',
                 padding: '0.75rem',
-                border: `1px solid ${errors.Price ? '#dc3545' : '#ced4da'}`,
+                border: `1px solid ${errors.sku ? '#dc3545' : '#ced4da'}`,
                 borderRadius: '4px',
                 fontSize: '1rem',
                 boxSizing: 'border-box',
               }}
-              placeholder="0.00"
+              placeholder="Enter SKU"
+              maxLength={255}
             />
-            {errors.Price && (
+            {errors.sku && (
               <p style={{ margin: '0.25rem 0 0 0', color: '#dc3545', fontSize: '0.875rem' }}>
-                {errors.Price}
+                {errors.sku}
               </p>
             )}
           </div>
 
           <div style={{ marginBottom: '1.5rem' }}>
             <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333' }}>
-              VAT (%) *
+              Total Price with Taxes *
             </label>
             <input
               type="number"
               step="0.01"
-              min="0"
-              max="100"
-              value={formData.VAT}
-              onChange={(e) => handleChange('VAT', e.target.value)}
+              min="0.01"
+              value={formData.total_price_with_taxes}
+              onChange={(e) => handleChange('total_price_with_taxes', e.target.value)}
               style={{
                 width: '100%',
                 padding: '0.75rem',
-                border: `1px solid ${errors.VAT ? '#dc3545' : '#ced4da'}`,
+                border: `1px solid ${errors.total_price_with_taxes ? '#dc3545' : '#ced4da'}`,
                 borderRadius: '4px',
                 fontSize: '1rem',
                 boxSizing: 'border-box',
               }}
               placeholder="0.00"
             />
-            {errors.VAT && (
+            {errors.total_price_with_taxes && (
               <p style={{ margin: '0.25rem 0 0 0', color: '#dc3545', fontSize: '0.875rem' }}>
-                {errors.VAT}
+                {errors.total_price_with_taxes}
+              </p>
+            )}
+          </div>
+
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333' }}>
+              VAT *
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={formData.vat}
+              onChange={(e) => handleChange('vat', e.target.value)}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                border: `1px solid ${errors.vat ? '#dc3545' : '#ced4da'}`,
+                borderRadius: '4px',
+                fontSize: '1rem',
+                boxSizing: 'border-box',
+              }}
+              placeholder="0.00"
+            />
+            {errors.vat && (
+              <p style={{ margin: '0.25rem 0 0 0', color: '#dc3545', fontSize: '0.875rem' }}>
+                {errors.vat}
+              </p>
+            )}
+          </div>
+
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333' }}>
+              ICO *
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={formData.ico}
+              onChange={(e) => handleChange('ico', e.target.value)}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                border: `1px solid ${errors.ico ? '#dc3545' : '#ced4da'}`,
+                borderRadius: '4px',
+                fontSize: '1rem',
+                boxSizing: 'border-box',
+              }}
+              placeholder="0.00"
+            />
+            {errors.ico && (
+              <p style={{ margin: '0.25rem 0 0 0', color: '#dc3545', fontSize: '0.875rem' }}>
+                {errors.ico}
+              </p>
+            )}
+          </div>
+
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333' }}>
+              Description
+            </label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => handleChange('description', e.target.value)}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                border: `1px solid ${errors.description ? '#dc3545' : '#ced4da'}`,
+                borderRadius: '4px',
+                fontSize: '1rem',
+                boxSizing: 'border-box',
+                minHeight: '80px',
+                resize: 'vertical',
+              }}
+              placeholder="Enter product description (optional)"
+            />
+            {errors.description && (
+              <p style={{ margin: '0.25rem 0 0 0', color: '#dc3545', fontSize: '0.875rem' }}>
+                {errors.description}
+              </p>
+            )}
+          </div>
+
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333' }}>
+              Brand
+            </label>
+            <input
+              type="text"
+              value={formData.brand}
+              onChange={(e) => handleChange('brand', e.target.value)}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                border: `1px solid ${errors.brand ? '#dc3545' : '#ced4da'}`,
+                borderRadius: '4px',
+                fontSize: '1rem',
+                boxSizing: 'border-box',
+              }}
+              placeholder="Enter brand (optional)"
+            />
+            {errors.brand && (
+              <p style={{ margin: '0.25rem 0 0 0', color: '#dc3545', fontSize: '0.875rem' }}>
+                {errors.brand}
+              </p>
+            )}
+          </div>
+
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333' }}>
+              Model
+            </label>
+            <input
+              type="text"
+              value={formData.model}
+              onChange={(e) => handleChange('model', e.target.value)}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                border: `1px solid ${errors.model ? '#dc3545' : '#ced4da'}`,
+                borderRadius: '4px',
+                fontSize: '1rem',
+                boxSizing: 'border-box',
+              }}
+              placeholder="Enter model (optional)"
+            />
+            {errors.model && (
+              <p style={{ margin: '0.25rem 0 0 0', color: '#dc3545', fontSize: '0.875rem' }}>
+                {errors.model}
               </p>
             )}
           </div>
