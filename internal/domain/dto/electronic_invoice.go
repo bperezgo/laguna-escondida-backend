@@ -63,7 +63,7 @@ type ElectronicInvoice struct {
 	IssueDate   string                       `json:"issue_date"`
 	IssueTime   string                       `json:"issue_time"`
 	PaymentCode ElectronicInvoicePaymentCode `json:"payment_code"`
-	Customer    Customer                     `json:"customer"`
+	Customer    *Customer                    `json:"customer"`
 	Amounts     InvoiceAmounts               `json:"amounts"`
 	Items       []InvoiceItem                `json:"items"`
 }
