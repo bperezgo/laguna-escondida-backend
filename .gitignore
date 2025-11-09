@@ -20,3 +20,6 @@ go.work
 # Config file
 .env
 
+# Postgres data
+postgres_data/
+

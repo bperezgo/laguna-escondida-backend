@@ -97,14 +97,14 @@ func createTestContext() context.Context {
 
 func createTestProduct(id, name, category string, version int, price, vat float64) *dto.Product {
 	return &dto.Product{
-		ID:        id,
-		Name:      name,
-		Category:  category,
-		Version:   version,
-		Price:     price,
-		VAT:       vat,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ID:                  id,
+		Name:                name,
+		Category:            category,
+		Version:             version,
+		TotalPriceWithTaxes: price,
+		VAT:                 vat,
+		CreatedAt:           time.Now(),
+		UpdatedAt:           time.Now(),
 	}
 }
 

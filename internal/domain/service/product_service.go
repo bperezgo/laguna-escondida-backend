@@ -23,13 +23,18 @@ func NewProductService(productRepo ports.ProductRepository) *ProductService {
 // CreateProduct creates a new product with version = 1
 func (s *ProductService) CreateProduct(ctx context.Context, req *dto.CreateProductRequest) (*dto.Product, error) {
 	product := &dto.Product{
-		Name:      req.Name,
-		Category:  req.Category,
-		Version:   1, // Always set version to 1 for new products
-		Price:     req.Price,
-		VAT:       req.VAT,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		Name:                req.Name,
+		Category:            req.Category,
+		Version:             1, // Always set version to 1 for new products
+		TotalPriceWithTaxes: req.TotalPriceWithTaxes,
+		VAT:                 req.VAT,
+		ICO:                 req.ICO,
+		Description:         req.Description,
+		Brand:               req.Brand,
+		Model:               req.Model,
+		SKU:                 req.SKU,
+		CreatedAt:           time.Now(),
+		UpdatedAt:           time.Now(),
 	}
 
 	if err := s.productRepo.Create(ctx, product); err != nil {
@@ -51,8 +56,14 @@ func (s *ProductService) UpdateProduct(ctx context.Context, id string, req *dto.
 	existing.Name = req.Name
 	existing.Category = req.Category
 	existing.Version = 1 // Always keep version at 1
-	existing.Price = req.Price
+	existing.TotalPriceWithTaxes = req.TotalPriceWithTaxes
 	existing.VAT = req.VAT
+	existing.ICO = req.ICO
+	existing.Description = req.Description
+	existing.Brand = req.Brand
+	existing.Model = req.Model
+	existing.SKU = req.SKU
+	existing.TotalPriceWithTaxes = req.TotalPriceWithTaxes
 	existing.UpdatedAt = time.Now()
 
 	if err := s.productRepo.Update(ctx, id, existing); err != nil {

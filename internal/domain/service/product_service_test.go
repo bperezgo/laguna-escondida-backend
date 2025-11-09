@@ -66,14 +66,14 @@ func createTestProductService(productRepo ports.ProductRepository) *ProductServi
 
 func createTestProductDTO(id, name, category string, version int, price, vat float64) *dto.Product {
 	return &dto.Product{
-		ID:        id,
-		Name:      name,
-		Category:  category,
-		Version:   version,
-		Price:     price,
-		VAT:       vat,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ID:                  id,
+		Name:                name,
+		Category:            category,
+		Version:             version,
+		TotalPriceWithTaxes: price,
+		VAT:                 vat,
+		CreatedAt:           time.Now(),
+		UpdatedAt:           time.Now(),
 	}
 }
 
@@ -86,15 +86,15 @@ func TestCreateProduct_Success(t *testing.T) {
 	service := createTestProductService(mockRepo)
 
 	req := &dto.CreateProductRequest{
-		Name:     "Test Product",
-		Category: "Category A",
-		Price:    100.0,
-		VAT:      19.0,
+		Name:                "Test Product",
+		Category:            "Category A",
+		TotalPriceWithTaxes: 100.0,
+		VAT:                 19.0,
 	}
 
 	mockRepo.On("Create", ctx, mock.MatchedBy(func(p *dto.Product) bool {
 		return p.Name == req.Name && p.Category == req.Category &&
-			p.Price == req.Price && p.VAT == req.VAT &&
+			p.TotalPriceWithTaxes == req.TotalPriceWithTaxes && p.VAT == req.VAT &&
 			p.Version == 1 // Version should always be 1
 	})).Return(nil).Run(func(args mock.Arguments) {
 		product := args.Get(1).(*dto.Product)
@@ -109,7 +109,7 @@ func TestCreateProduct_Success(t *testing.T) {
 	assert.Equal(t, req.Name, result.Name)
 	assert.Equal(t, req.Category, result.Category)
 	assert.Equal(t, 1, result.Version) // Version should be 1
-	assert.Equal(t, req.Price, result.Price)
+	assert.Equal(t, req.TotalPriceWithTaxes, result.TotalPriceWithTaxes)
 	assert.Equal(t, req.VAT, result.VAT)
 
 	mockRepo.AssertExpectations(t)
@@ -122,10 +122,15 @@ func TestCreateProduct_RepositoryError(t *testing.T) {
 	service := createTestProductService(mockRepo)
 
 	req := &dto.CreateProductRequest{
-		Name:     "Test Product",
-		Category: "Category A",
-		Price:    100.0,
-		VAT:      19.0,
+		Name:                "Test Product",
+		Category:            "Category A",
+		TotalPriceWithTaxes: 100.0,
+		VAT:                 19.0,
+		ICO:                 8.0,
+		Description:         nil,
+		Brand:               nil,
+		Model:               nil,
+		SKU:                 "SKU-1",
 	}
 
 	repoError := errors.New("database error")
@@ -152,16 +157,21 @@ func TestUpdateProduct_Success(t *testing.T) {
 	existingProduct := createTestProductDTO(productID, "Old Name", "Old Category", 1, 50.0, 9.5)
 
 	req := &dto.UpdateProductRequest{
-		Name:     "New Name",
-		Category: "New Category",
-		Price:    200.0,
-		VAT:      38.0,
+		Name:                "New Name",
+		Category:            "New Category",
+		TotalPriceWithTaxes: 200.0,
+		VAT:                 38.0,
+		ICO:                 16.0,
+		Description:         nil,
+		Brand:               nil,
+		Model:               nil,
+		SKU:                 "SKU-1",
 	}
 
 	mockRepo.On("FindByID", ctx, productID).Return(existingProduct, nil)
 	mockRepo.On("Update", ctx, productID, mock.MatchedBy(func(p *dto.Product) bool {
 		return p.Name == req.Name && p.Category == req.Category &&
-			p.Price == req.Price && p.VAT == req.VAT &&
+			p.TotalPriceWithTaxes == req.TotalPriceWithTaxes && p.VAT == req.VAT &&
 			p.Version == 1 // Version should remain 1
 	})).Return(nil)
 
@@ -173,7 +183,7 @@ func TestUpdateProduct_Success(t *testing.T) {
 	assert.Equal(t, req.Name, result.Name)
 	assert.Equal(t, req.Category, result.Category)
 	assert.Equal(t, 1, result.Version) // Version should remain 1
-	assert.Equal(t, req.Price, result.Price)
+	assert.Equal(t, req.TotalPriceWithTaxes, result.TotalPriceWithTaxes)
 	assert.Equal(t, req.VAT, result.VAT)
 
 	mockRepo.AssertExpectations(t)
@@ -391,4 +401,3 @@ func TestGetProductByID_ProductNotFound(t *testing.T) {
 
 	mockRepo.AssertExpectations(t)
 }
-

@@ -51,7 +51,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, req *dto.CreateOrderRequ
 
 		// Calculate total price from products
 		for _, product := range products {
-			totalPrice += product.Price
+			totalPrice += product.TotalPriceWithTaxes
 		}
 	}
 
@@ -137,7 +137,7 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 
 		// Calculate total price from products with quantities
 		for i, product := range products {
-			totalPrice += product.Price * float64(req.Products[i].Quantity)
+			totalPrice += product.TotalPriceWithTaxes * float64(req.Products[i].Quantity)
 		}
 	}
 

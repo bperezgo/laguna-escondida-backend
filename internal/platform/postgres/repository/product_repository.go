@@ -19,15 +19,21 @@ func NewProductRepository(db *gorm.DB) ports.ProductRepository {
 }
 
 type productModel struct {
-	ID        string     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	Name      string     `gorm:"type:varchar(255);not null"`
-	Category  string     `gorm:"type:varchar(100);not null"`
-	Version   int        `gorm:"type:integer;not null"`
-	Price     float64    `gorm:"type:double precision;not null"`
-	VAT       float64    `gorm:"type:double precision;not null"`
-	CreatedAt time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
-	UpdatedAt time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
-	DeletedAt *time.Time `gorm:"type:timestamp"`
+	ID                  string     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	Name                string     `gorm:"type:varchar(255);not null"`
+	Category            string     `gorm:"type:varchar(100);not null"`
+	Version             int        `gorm:"type:integer;not null"`
+	UnitPrice           float64    `gorm:"type:double precision;not null;column:unit_price"`
+	VAT                 float64    `gorm:"type:double precision;not null"`
+	ICO                 float64    `gorm:"type:double precision;not null"`
+	Description         *string    `gorm:"type:text"`
+	Brand               *string    `gorm:"type:varchar(255)"`
+	Model               *string    `gorm:"type:varchar(255)"`
+	SKU                 string     `gorm:"type:varchar(255);not null"`
+	TotalPriceWithTaxes float64    `gorm:"type:double precision;not null;column:total_price_with_taxes"`
+	CreatedAt           time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	UpdatedAt           time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	DeletedAt           *time.Time `gorm:"type:timestamp"`
 }
 
 func (productModel) TableName() string {
@@ -63,13 +69,19 @@ func (r *ProductRepository) FindByID(ctx context.Context, id string) (*dto.Produ
 
 func (r *ProductRepository) Create(ctx context.Context, product *dto.Product) error {
 	model := &productModel{
-		Name:      product.Name,
-		Category:  product.Category,
-		Version:   product.Version,
-		Price:     product.Price,
-		VAT:       product.VAT,
-		CreatedAt: product.CreatedAt,
-		UpdatedAt: product.UpdatedAt,
+		Name:                product.Name,
+		Category:            product.Category,
+		Version:             product.Version,
+		UnitPrice:           product.UnitPrice,
+		VAT:                 product.VAT,
+		ICO:                 product.ICO,
+		Description:         product.Description,
+		Brand:               product.Brand,
+		Model:               product.Model,
+		SKU:                 product.SKU,
+		TotalPriceWithTaxes: product.TotalPriceWithTaxes,
+		CreatedAt:           product.CreatedAt,
+		UpdatedAt:           product.UpdatedAt,
 	}
 
 	if err := r.db.WithContext(ctx).Create(model).Error; err != nil {
@@ -82,12 +94,18 @@ func (r *ProductRepository) Create(ctx context.Context, product *dto.Product) er
 
 func (r *ProductRepository) Update(ctx context.Context, id string, product *dto.Product) error {
 	updateData := map[string]interface{}{
-		"name":       product.Name,
-		"category":   product.Category,
-		"version":    product.Version,
-		"price":      product.Price,
-		"vat":        product.VAT,
-		"updated_at": product.UpdatedAt,
+		"name":                   product.Name,
+		"category":               product.Category,
+		"version":                product.Version,
+		"unit_price":             product.UnitPrice,
+		"vat":                    product.VAT,
+		"ico":                    product.ICO,
+		"description":            product.Description,
+		"brand":                  product.Brand,
+		"model":                  product.Model,
+		"sku":                    product.SKU,
+		"total_price_with_taxes": product.TotalPriceWithTaxes,
+		"updated_at":             product.UpdatedAt,
 	}
 
 	return r.db.WithContext(ctx).
@@ -123,13 +141,19 @@ func (r *ProductRepository) FindAll(ctx context.Context) ([]*dto.Product, error)
 
 func (r *ProductRepository) toDTO(model *productModel) *dto.Product {
 	return &dto.Product{
-		ID:        model.ID,
-		Name:      model.Name,
-		Category:  model.Category,
-		Version:   model.Version,
-		Price:     model.Price,
-		VAT:       model.VAT,
-		CreatedAt: model.CreatedAt,
-		UpdatedAt: model.UpdatedAt,
+		ID:                  model.ID,
+		Name:                model.Name,
+		Category:            model.Category,
+		Version:             model.Version,
+		UnitPrice:           model.UnitPrice,
+		VAT:                 model.VAT,
+		ICO:                 model.ICO,
+		Description:         model.Description,
+		Brand:               model.Brand,
+		Model:               model.Model,
+		SKU:                 model.SKU,
+		TotalPriceWithTaxes: model.TotalPriceWithTaxes,
+		CreatedAt:           model.CreatedAt,
+		UpdatedAt:           model.UpdatedAt,
 	}
 }
