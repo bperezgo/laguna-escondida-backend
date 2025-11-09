@@ -24,7 +24,7 @@ export default function ProductCard({ product, onEdit, onDelete }: ProductCardPr
     });
   };
 
-  const totalPrice = product.Price + (product.Price * product.VAT / 100);
+  const totalPrice = product.total_price_with_taxes;
 
   return (
     <div style={{
@@ -46,13 +46,13 @@ export default function ProductCard({ product, onEdit, onDelete }: ProductCardPr
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
         <div style={{ flex: 1 }}>
           <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.25rem', fontWeight: 'bold', color: '#333' }}>
-            {product.Name}
+            {product.name}
           </h3>
           <p style={{ margin: '0 0 0.5rem 0', color: '#666', fontSize: '0.9rem' }}>
-            <strong>Category:</strong> {product.Category}
+            <strong>Category:</strong> {product.category}
           </p>
           <p style={{ margin: '0 0 0.5rem 0', color: '#666', fontSize: '0.9rem' }}>
-            <strong>Version:</strong> {product.Version}
+            <strong>Version:</strong> {product.version}
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -78,7 +78,7 @@ export default function ProductCard({ product, onEdit, onDelete }: ProductCardPr
             Edit
           </button>
           <button
-            onClick={() => onDelete(product.ID)}
+            onClick={() => onDelete(product.id)}
             style={{
               padding: '0.5rem 1rem',
               backgroundColor: '#dc3545',
@@ -112,13 +112,13 @@ export default function ProductCard({ product, onEdit, onDelete }: ProductCardPr
         <div>
           <p style={{ margin: '0 0 0.25rem 0', color: '#666', fontSize: '0.85rem' }}>Base Price</p>
           <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: 'bold', color: '#333' }}>
-            {formatCurrency(product.Price)}
+            {formatCurrency(product.unit_price)}
           </p>
         </div>
         <div>
-          <p style={{ margin: '0 0 0.25rem 0', color: '#666', fontSize: '0.85rem' }}>VAT ({product.VAT}%)</p>
+          <p style={{ margin: '0 0 0.25rem 0', color: '#666', fontSize: '0.85rem' }}>VAT ({product.vat}%)</p>
           <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: 'bold', color: '#333' }}>
-            {formatCurrency(product.Price * product.VAT / 100)}
+            {formatCurrency(product.unit_price * product.vat / 100)}
           </p>
         </div>
         <div style={{ gridColumn: '1 / -1', borderTop: '1px solid #dee2e6', paddingTop: '0.5rem' }}>
@@ -131,10 +131,10 @@ export default function ProductCard({ product, onEdit, onDelete }: ProductCardPr
       
       <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #e0e0e0' }}>
         <p style={{ margin: '0.25rem 0', color: '#999', fontSize: '0.75rem' }}>
-          Created: {formatDate(product.CreatedAt)}
+          Created: {formatDate(product.created_at)}
         </p>
         <p style={{ margin: '0.25rem 0', color: '#999', fontSize: '0.75rem' }}>
-          Updated: {formatDate(product.UpdatedAt)}
+          Updated: {formatDate(product.updated_at)}
         </p>
       </div>
     </div>

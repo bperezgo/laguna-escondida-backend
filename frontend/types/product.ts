@@ -1,13 +1,16 @@
 export interface Product {
-  ID: string;
-  Name: string;
-  Category: string;
-  Version: number;
-  Price: number;
-  VAT: number;
-  CreatedAt: string;
-  UpdatedAt: string;
-  DeletedAt?: string | null;
+  id: string;
+  name: string;
+  category: string;
+  version: number;
+  sku: string;
+  total_price_with_taxes: number;
+  unit_price: number;
+  description?: string;
+  vat: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
 }
 
 export interface CreateProductRequest {

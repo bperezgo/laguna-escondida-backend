@@ -12,15 +12,15 @@ interface ProductFormProps {
 
 export default function ProductForm({ product, onSubmit, onCancel, isLoading = false }: ProductFormProps) {
   const [formData, setFormData] = useState({
-    name: product?.Name || '',
-    category: product?.Category || '',
-    vat: product?.VAT?.toString() || '',
+    name: product?.name || '',
+    category: product?.category || '',
+    vat: product?.vat?.toString() || '',
     ico: '',
     description: '',
     brand: '',
     model: '',
     sku: '',
-    total_price_with_taxes: product?.Price?.toString() || '',
+    total_price_with_taxes: product?.total_price_with_taxes?.toString() || '',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -28,15 +28,15 @@ export default function ProductForm({ product, onSubmit, onCancel, isLoading = f
   useEffect(() => {
     if (product) {
       setFormData({
-        name: product.Name || '',
-        category: product.Category || '',
-        vat: product.VAT?.toString() || '',
+        name: product.name || '',
+        category: product.category || '',
+        vat: product.vat?.toString() || '',
         ico: '',
         description: '',
         brand: '',
         model: '',
         sku: '',
-        total_price_with_taxes: product.Price?.toString() || '',
+        total_price_with_taxes: product.total_price_with_taxes?.toString() || '',
       });
     }
   }, [product]);

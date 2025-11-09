@@ -4,11 +4,11 @@ import { useState } from 'react';
 import type { OrderItem } from '@/types/order';
 
 interface Product {
-  ID: string;
-  Name: string;
-  Image?: string;
-  Price: number;
-  VAT: number;
+  id: string;
+  name: string;
+  image?: string;
+  price: number;
+  vat: number;
 }
 
 interface OrderItemCardProps {
@@ -31,14 +31,14 @@ export default function OrderItemCard({
 
   const handleCommentChange = (value: string) => {
     setLocalComment(value);
-    onCommentChange(product.ID, value);
+    onCommentChange(product.id, value);
     // Auto-expand if comment is getting long
     if (value.length > 30 && !isCommentExpanded) {
       setIsCommentExpanded(true);
     }
   };
 
-  const totalPrice = (product.Price + (product.Price * product.VAT / 100)) * quantity;
+  const totalPrice = (product.price + (product.price * product.vat / 100)) * quantity;
 
   return (
     <div style={{
@@ -65,10 +65,10 @@ export default function OrderItemCard({
         overflow: 'hidden',
         border: '1px solid #e0e0e0',
       }}>
-        {product.Image ? (
+        {product.image ? (
           <img
-            src={product.Image}
-            alt={product.Name}
+            src={product.image}
+            alt={product.name}
             style={{
               width: '100%',
               height: '100%',
@@ -85,10 +85,10 @@ export default function OrderItemCard({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div style={{ flex: 1 }}>
             <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 'bold', color: '#333' }}>
-              {product.Name}
+              {product.name}
             </h3>
             <p style={{ margin: '0.25rem 0 0 0', color: '#666', fontSize: '0.9rem' }}>
-              ${product.Price.toFixed(2)} + {product.VAT}% VAT
+              ${product.price.toFixed(2)} + {product.vat}% VAT
             </p>
           </div>
           <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#28a745' }}>
@@ -106,7 +106,7 @@ export default function OrderItemCard({
         }}>
           {/* Decrease Button */}
           <button
-            onClick={() => onQuantityChange(product.ID, -1)}
+            onClick={() => onQuantityChange(product.id, -1)}
             disabled={quantity <= 0}
             style={{
               width: '36px',
@@ -150,7 +150,7 @@ export default function OrderItemCard({
 
           {/* Increase Button */}
           <button
-            onClick={() => onQuantityChange(product.ID, 1)}
+            onClick={() => onQuantityChange(product.id, 1)}
             style={{
               width: '36px',
               height: '36px',

@@ -16,13 +16,15 @@ export default function ProductList({ products, onEdit, onDelete, isLoading = fa
   const [filterCategory, setFilterCategory] = useState('');
 
   // Get unique categories from products
-  const categories = Array.from(new Set(products.map(p => p.Category))).sort();
+  const categories = Array.from(new Set(products.map(p => p.category))).sort();
+
+  console.log('products', products);
 
   // Filter products based on search term and category
   const filteredProducts = products.filter(product => {
-    const matchesSearch = product.Name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.Category.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = !filterCategory || product.Category === filterCategory;
+    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         product.category.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = !filterCategory || product.category === filterCategory;
     return matchesSearch && matchesCategory;
   });
 
@@ -117,7 +119,7 @@ export default function ProductList({ products, onEdit, onDelete, isLoading = fa
         <div>
           {filteredProducts.map(product => (
             <ProductCard
-              key={product.ID}
+              key={product.id}
               product={product}
               onEdit={onEdit}
               onDelete={onDelete}
