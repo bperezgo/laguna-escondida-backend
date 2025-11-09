@@ -41,6 +41,7 @@ func main() {
 	// Initialize handlers
 	orderHandler := handler.NewOrderHandler(orderService)
 	productHandler := handler.NewProductHandler(productService)
+	invoiceHandler := handler.NewInvoiceHandler(invoiceService)
 
 	// Setup routes
 	router := mux.NewRouter()
@@ -54,6 +55,7 @@ func main() {
 	productPostMiddleware := handler.CORSMiddleware([]string{"POST", "OPTIONS"})
 	productPutMiddleware := handler.CORSMiddleware([]string{"PUT", "OPTIONS"})
 	productDeleteMiddleware := handler.CORSMiddleware([]string{"DELETE", "OPTIONS"})
+	invoicePostMiddleware := handler.CORSMiddleware([]string{"POST", "OPTIONS"})
 
 	router.HandleFunc("/api/health", healthMiddleware(http.HandlerFunc(handler.HealthCheckHandler)).ServeHTTP).Methods("GET", "OPTIONS")
 
@@ -68,6 +70,9 @@ func main() {
 	router.HandleFunc("/api/products/{id}", productGetMiddleware(http.HandlerFunc(productHandler.GetProductByIDHandler)).ServeHTTP).Methods("GET", "OPTIONS")
 	router.HandleFunc("/api/products/{id}", productPutMiddleware(http.HandlerFunc(productHandler.UpdateProductHandler)).ServeHTTP).Methods("PUT", "OPTIONS")
 	router.HandleFunc("/api/products/{id}", productDeleteMiddleware(http.HandlerFunc(productHandler.DeleteProductHandler)).ServeHTTP).Methods("DELETE", "OPTIONS")
+
+	// Invoice routes
+	router.HandleFunc("/api/invoices/electronic", invoicePostMiddleware(http.HandlerFunc(invoiceHandler.CreateElectronicInvoiceHandler)).ServeHTTP).Methods("POST", "OPTIONS")
 
 	port := os.Getenv("PORT")
 	if port == "" {
