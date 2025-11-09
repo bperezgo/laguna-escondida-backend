@@ -13,9 +13,15 @@ import (
 	"laguna-escondida/backend/internal/platform/postgres/repository"
 
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	// Load environment variables from .env file
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found, using system environment variables")
+	}
+
 	// Database connection
 	dsn := getDSN()
 	db, err := repository.NewDatabase(dsn)
@@ -76,7 +82,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080"
+		panic("PORT is not set")
 	}
 
 	log.Printf("Server starting on port %s", port)

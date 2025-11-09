@@ -43,3 +43,8 @@ type UpdateProductRequest struct {
 	SKU                 string  `json:"sku" validate:"required,min=1,max=255"`
 	TotalPriceWithTaxes float64 `json:"total_price_with_taxes" validate:"required,gt=0"`
 }
+
+type ProductListResponse struct {
+	Products []*Product `json:"products"`
+	Total    *int       `json:"total,omitempty"`
+}

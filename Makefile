@@ -9,3 +9,7 @@ migrate-up:
 migrate-down:
 	@echo "Migrating down"
 	scripts/migrate-down.sh
+
+run:
+	@echo "Running the application"
+	go run cmd/main.go

@@ -121,8 +121,14 @@ func (h *ProductHandler) ListProductsHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	total := len(products)
+	response := dto.ProductListResponse{
+		Products: products,
+		Total:    &total,
+	}
+
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(products); err != nil {
+	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Printf("Error encoding response: %v", err)
 	}
 }
