@@ -6,6 +6,6 @@ import (
 )
 
 type ElectronicInvoiceClient interface {
-	Create(ctx context.Context, bill *dto.Bill) error
-	Get(ctx context.Context, billID string) (*dto.Bill, error)
+	Create(ctx context.Context, bill *dto.ElectronicInvoice) error
+	Get(ctx context.Context, billID string) (*dto.ElectronicInvoice, error)
 }

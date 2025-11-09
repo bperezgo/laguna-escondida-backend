@@ -16,6 +16,6 @@ func NewInvoiceService(electronicInvoiceClient ports.ElectronicInvoiceClient) *I
 	}
 }
 
-func (s *InvoiceService) CreateElectronicInvoice(ctx context.Context, bill *dto.Bill) error {
-	return s.electronicInvoiceClient.Create(ctx, bill)
+func (s *InvoiceService) CreateElectronicInvoice(ctx context.Context, invoice *dto.ElectronicInvoice) error {
+	return s.electronicInvoiceClient.Create(ctx, invoice)
 }

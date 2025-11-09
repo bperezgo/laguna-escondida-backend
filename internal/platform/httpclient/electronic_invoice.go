@@ -13,6 +13,8 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/samber/lo"
 )
 
 type ElectronicInvoiceClient struct {
@@ -43,7 +45,6 @@ type invoiceRequestData struct {
 	PaymentType string          `json:"paymentType"`
 	PaymentCode string          `json:"paymentCode"`
 	Note1       string          `json:"note1"`
-	Note2       string          `json:"note2"`
 	Customer    invoiceCustomer `json:"customer"`
 	Amounts     invoiceAmounts  `json:"amounts"`
 	Items       []invoiceItem   `json:"items"`
@@ -167,75 +168,70 @@ type invoicePrefix struct {
 	Auth        string `json:"auth"`
 }
 
-func (c *ElectronicInvoiceClient) Create(ctx context.Context, bill *dto.Bill) error {
+func (c *ElectronicInvoiceClient) Create(ctx context.Context, invoice *dto.ElectronicInvoice) error {
+	prefix := "SETP"
 	now := time.Now()
 	issueDate := now.Format("20060102")
 	issueTime := now.Format("150405")
 
-	totalAmount := bill.TotalPrice
-	discountAmount := 0.0
-	taxAmount := bill.VAT
-	payAmount := totalAmount + taxAmount + bill.ICO + bill.Tip
-
-	var items []invoiceItem
-	for _, product := range bill.Products {
-		quantity := 1.0
-		unitPrice := product.Price
-		itemTotal := unitPrice * quantity
-
-		item := invoiceItem{
-			Quantity:    formatFloat(quantity),
-			UnitPrice:   formatFloat(unitPrice),
-			Total:       formatFloat(itemTotal),
-			Description: product.Name,
-			Brand:       "LF",
-			Model:       product.Category,
-			Code:        product.ID[:8],
-		}
-
-		if product.VAT > 0 {
-			vatPercent := (product.VAT / product.Price) * 100
-			vatAmount := itemTotal * (vatPercent / 100)
-			item.Taxes = []invoiceTax{
-				{
-					ID:        "01",
-					TaxAmount: formatFloat(vatAmount),
-					Percent:   formatFloat(vatPercent),
-				},
-			}
-		}
-
-		items = append(items, item)
-	}
+	totalAmount := invoice.Amounts.TotalAmount
+	discountAmount := invoice.Amounts.DiscountAmount
+	taxAmount := invoice.Amounts.TaxAmount
+	payAmount := invoice.Amounts.PayAmount
 
 	requestData := invoiceRequest{
 		Invoice: invoiceRequestData{
-			Prefix:      "SETP",
-			IntID:       "1",
+			Prefix:      prefix,
+			IntID:       strconv.Itoa(invoice.Consecutive),
 			IssueDate:   issueDate,
 			IssueTime:   issueTime,
-			PaymentType: "2",
-			PaymentCode: "1",
+			PaymentType: "1", // Contado->1 / Credito->2 // We are not using loans to pay anything in our system
+			PaymentCode: paymentCode(invoice.PaymentCode),
 			Note1:       utils.NumberToWords(payAmount),
-			Note2:       "",
 			Customer: invoiceCustomer{
 				AdditionalAccountID: "1",
-				Name:                "Cliente General",
-				City:                "Bogotá D.C.",
-				CountrySubentity:    "11001",
-				AddressLine:         "Calle Principal",
-				DocumentNumber:      "900900651",
-				DocumentType:        "31",
-				Telephone:           "3112196952",
-				Email:               "cliente@ejemplo.com",
+				Name:                invoice.Customer.Name,
+				City:                "No reporta",
+				CountrySubentity:    "No reporta",
+				AddressLine:         "No reporta",
+				DocumentNumber:      invoice.Customer.DocumentNumber,
+				DocumentType:        string(invoice.Customer.DocumentType),
+				Telephone:           "No reporta",
+				Email:               invoice.Customer.Email,
 			},
 			Amounts: invoiceAmounts{
-				TotalAmount:    formatFloat(totalAmount),
-				DiscountAmount: formatFloat(discountAmount),
-				TaxAmount:      formatFloat(taxAmount),
-				PayAmount:      formatFloat(payAmount),
+				TotalAmount:    totalAmount,
+				DiscountAmount: discountAmount,
+				TaxAmount:      taxAmount,
+				PayAmount:      payAmount,
 			},
-			Items: items,
+			Items: lo.Map(invoice.Items, func(item dto.InvoiceItem, _ int) invoiceItem {
+				return invoiceItem{
+					Quantity:    item.Quantity,
+					UnitPrice:   item.UnitPrice,
+					Total:       item.Total,
+					Description: item.Description,
+					Brand:       item.Brand,
+					Model:       item.Model,
+					Code:        item.Code,
+					Allowance: lo.Map(item.Allowance, func(allowance dto.InvoiceAllowance, _ int) invoiceAllowance {
+						return invoiceAllowance{
+							Charge:      allowance.Charge,
+							ReasonCode:  allowance.ReasonCode,
+							Description: allowance.Description,
+							BaseAmount:  allowance.BaseAmount,
+							Amount:      allowance.Amount,
+						}
+					}),
+					Taxes: lo.Map(item.Taxes, func(tax dto.InvoiceTax, _ int) invoiceTax {
+						return invoiceTax{
+							ID:        tax.ID,
+							TaxAmount: tax.TaxAmount,
+							Percent:   tax.Percent,
+						}
+					}),
+				}
+			}),
 		},
 	}
 
@@ -280,10 +276,10 @@ func (c *ElectronicInvoiceClient) Create(ctx context.Context, bill *dto.Bill) er
 	return nil
 }
 
-func (c *ElectronicInvoiceClient) Get(ctx context.Context, billID string) (*dto.Bill, error) {
+func (c *ElectronicInvoiceClient) Get(ctx context.Context, invoiceID string) (*dto.ElectronicInvoice, error) {
 	requestData := verifyStatusRequest{
 		VerifyStatus: verifyStatusData{
-			Tascode: billID,
+			Tascode: invoiceID,
 		},
 	}
 
@@ -325,14 +321,5 @@ func (c *ElectronicInvoiceClient) Get(ctx context.Context, billID string) (*dto.
 		return nil, fmt.Errorf("invoice API error: %s", verifyResp.InvoiceResult.Status.Text)
 	}
 
-	document := verifyResp.InvoiceResult.Document
-	bill := &dto.Bill{
-		DocumentURL: document.PDF,
-	}
-
-	return bill, nil
-}
-
-func formatFloat(f float64) string {
-	return strconv.FormatFloat(f, 'f', 2, 64)
+	return &dto.ElectronicInvoice{}, nil
 }

@@ -185,20 +185,6 @@ func (s *OrderService) PayOrder(ctx context.Context, openBillID string, req *dto
 		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
 	}
 
-	err := s.invoiceService.CreateElectronicInvoice(ctx, &dto.Bill{
-		ID: openBillID,
-		// TotalPrice: existingBill.TotalPrice,
-		// VAT: existingBill.VAT,
-		// ICO: existingBill.ICO,
-		// Tip: existingBill.Tip,
-		// DocumentURL: req.DocumentURL,
-		// Products: existingBill.Products,
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
-	}
-
 	// Consolidate the open bill into a bill
 	bill, err := s.openBillRepo.PayOrder(ctx, openBillID, req.DocumentURL)
 	if err != nil {

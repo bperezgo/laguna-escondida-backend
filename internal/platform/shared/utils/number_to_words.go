@@ -2,11 +2,15 @@ package utils
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
-func NumberToWords(num float64) string {
-	integerPart := int(num)
+func NumberToWords(num string) string {
+	integerPart, err := strconv.Atoi(num)
+	if err != nil {
+		return ""
+	}
 
 	if integerPart == 0 {
 		return "cero pesos"
@@ -50,7 +54,7 @@ func NumberToWords(num float64) string {
 		if remainder == 0 {
 			return hundredsWord + " pesos"
 		}
-		remainderStr := NumberToWords(float64(remainder))
+		remainderStr := NumberToWords(strconv.Itoa(remainder))
 		remainderStr = strings.TrimSuffix(remainderStr, " pesos")
 		return hundredsWord + " " + remainderStr + " pesos"
 	}
@@ -60,14 +64,14 @@ func NumberToWords(num float64) string {
 		remainder := integerPart % 1000
 		thousandsWord := "mil"
 		if thousands > 1 {
-			thousandsStr := NumberToWords(float64(thousands))
+			thousandsStr := NumberToWords(strconv.Itoa(thousands))
 			thousandsStr = strings.TrimSuffix(thousandsStr, " pesos")
 			thousandsWord = thousandsStr + " mil"
 		}
 		if remainder == 0 {
 			return thousandsWord + " pesos"
 		}
-		remainderStr := NumberToWords(float64(remainder))
+		remainderStr := NumberToWords(strconv.Itoa(remainder))
 		remainderStr = strings.TrimSuffix(remainderStr, " pesos")
 		return thousandsWord + " " + remainderStr + " pesos"
 	}
