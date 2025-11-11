@@ -104,7 +104,10 @@ func NewAggregateFromCreateProductRequest(req *dto.CreateProductRequest) (*Aggre
 	if req.TaxesFormat != "percentage" {
 		return nil, productError.NewInvalidTaxCalculationErrorWithField("taxes_format must be 'percentage'", req.TaxesFormat)
 	}
-	unitPrice := totalPriceWithTaxes / (vat + ico)
+	varPercentage := vat / 100
+	icoPercentage := ico / 100
+	taxSumPercentage := (vat + ico) / 100
+	unitPrice := totalPriceWithTaxes / (1 + taxSumPercentage)
 
 	// Handle nullable fields (Description, Brand, Model)
 	description := ""
@@ -129,8 +132,8 @@ func NewAggregateFromCreateProductRequest(req *dto.CreateProductRequest) (*Aggre
 		category:            req.Category,
 		version:             1,
 		unitPrice:           unitPrice,
-		vat:                 vat,
-		ico:                 ico,
+		vat:                 varPercentage,
+		ico:                 icoPercentage,
 		description:         description,
 		brand:               brand,
 		model:               model,

@@ -89,9 +89,9 @@ func TestCreateProduct_Success(t *testing.T) {
 	req := &dto.CreateProductRequest{
 		Name:                "Test Product",
 		Category:            "Category A",
-		TotalPriceWithTaxes: "100.0",
-		VAT:                 "0.19",
-		ICO:                 "0.08",
+		TotalPriceWithTaxes: "127.0",
+		VAT:                 "19",
+		ICO:                 "8",
 		TaxesFormat:         "percentage",
 		SKU:                 "SKU-001",
 	}
@@ -99,7 +99,7 @@ func TestCreateProduct_Success(t *testing.T) {
 	mockRepo.On("Create", ctx, mock.MatchedBy(func(p *product.Aggregate) bool {
 		dto := p.ToDTO()
 		return dto.Name == req.Name && dto.Category == req.Category &&
-			dto.TotalPriceWithTaxes == 100.0 && dto.VAT == 0.19 &&
+			dto.TotalPriceWithTaxes == 127.0 && dto.VAT == 0.19 &&
 			dto.Version == 1 // Version should always be 1
 	})).Return(nil)
 
@@ -111,9 +111,10 @@ func TestCreateProduct_Success(t *testing.T) {
 	assert.Equal(t, req.Name, result.Name)
 	assert.Equal(t, req.Category, result.Category)
 	assert.Equal(t, 1, result.Version) // Version should be 1
-	assert.Equal(t, 100.0, result.TotalPriceWithTaxes)
+	assert.Equal(t, 127.0, result.TotalPriceWithTaxes)
 	assert.Equal(t, 0.19, result.VAT)
 	assert.Equal(t, 0.08, result.ICO)
+	assert.Equal(t, 100, result.UnitPrice)
 	assert.Equal(t, req.SKU, result.SKU)
 
 	mockRepo.AssertExpectations(t)
