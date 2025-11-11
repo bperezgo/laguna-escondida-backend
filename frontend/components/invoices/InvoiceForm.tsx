@@ -1,7 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { CreateElectronicInvoiceRequest, ElectronicInvoicePaymentCode, DocumentType, InvoiceItem, InvoiceAllowance, InvoiceTax } from '@/types/invoice';
+import type { Product } from '@/types/product';
+import { productsApi } from '@/lib/api/products';
 
 interface InvoiceFormProps {
   onSubmit: (data: CreateElectronicInvoiceRequest) => Promise<void>;
@@ -45,6 +47,93 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [products, setProducts] = useState<Product[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [itemProductSearch, setItemProductSearch] = useState<Record<number, string>>({});
+  const [itemSelectedProduct, setItemSelectedProduct] = useState<Record<number, Product | null>>({});
+  const [itemDropdownOpen, setItemDropdownOpen] = useState<Record<number, boolean>>({});
+
+  // Fetch products on mount
+  useEffect(() => {
+    const fetchProducts = async () => {
+      setProductsLoading(true);
+      try {
+        const fetchedProducts = await productsApi.getAll();
+        setProducts(fetchedProducts);
+      } catch (error) {
+        console.error('Error fetching products:', error);
+      } finally {
+        setProductsLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
+  // Filter products based on search query for a specific item
+  const getFilteredProducts = (itemIndex: number): Product[] => {
+    const searchQuery = itemProductSearch[itemIndex] || '';
+    if (!searchQuery.trim()) {
+      return products;
+    }
+    const query = searchQuery.toLowerCase();
+    return products.filter(product =>
+      product.name.toLowerCase().includes(query) ||
+      product.sku.toLowerCase().includes(query) ||
+      (product.description && product.description.toLowerCase().includes(query)) ||
+      (product.brand && product.brand.toLowerCase().includes(query)) ||
+      (product.model && product.model.toLowerCase().includes(query))
+    );
+  };
+
+  // Handle product selection for an item
+  const handleProductSelect = (itemIndex: number, product: Product) => {
+    setItemSelectedProduct(prev => ({
+      ...prev,
+      [itemIndex]: product,
+    }));
+    setItemProductSearch(prev => ({
+      ...prev,
+      [itemIndex]: product.name,
+    }));
+    setItemDropdownOpen(prev => ({
+      ...prev,
+      [itemIndex]: false,
+    }));
+
+    // Auto-populate item fields from product
+    updateItem(itemIndex, 'description', product.description || product.name);
+    updateItem(itemIndex, 'unitPrice', product.unit_price.toString());
+    updateItem(itemIndex, 'brand', product.brand || '');
+    updateItem(itemIndex, 'model', product.model || '');
+    updateItem(itemIndex, 'code', product.sku);
+    
+    // Recalculate total if quantity is already set
+    const currentItem = formData.items[itemIndex];
+    if (currentItem.quantity) {
+      calculateItemTotal(itemIndex);
+    }
+  };
+
+  // Handle clearing product selection for an item
+  const handleClearProduct = (itemIndex: number) => {
+    setItemSelectedProduct(prev => {
+      const newState = { ...prev };
+      delete newState[itemIndex];
+      return newState;
+    });
+    setItemProductSearch(prev => ({
+      ...prev,
+      [itemIndex]: '',
+    }));
+    // Clear auto-populated fields
+    updateItem(itemIndex, 'description', '');
+    updateItem(itemIndex, 'unitPrice', '');
+    updateItem(itemIndex, 'brand', '');
+    updateItem(itemIndex, 'model', '');
+    updateItem(itemIndex, 'code', '');
+    updateItem(itemIndex, 'total', '');
+  };
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -192,6 +281,7 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
   };
 
   const addItem = () => {
+    const newIndex = formData.items.length;
     setFormData(prev => ({
       ...prev,
       items: [
@@ -207,6 +297,15 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
         },
       ],
     }));
+    // Initialize product search state for new item
+    setItemProductSearch(prev => ({
+      ...prev,
+      [newIndex]: '',
+    }));
+    setItemSelectedProduct(prev => ({
+      ...prev,
+      [newIndex]: null,
+    }));
   };
 
   const removeItem = (index: number) => {
@@ -214,6 +313,37 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
       ...prev,
       items: prev.items.filter((_, i) => i !== index),
     }));
+    // Clean up product search state
+    setItemProductSearch(prev => {
+      const newState = { ...prev };
+      delete newState[index];
+      // Reindex remaining items
+      const reindexed: Record<number, string> = {};
+      Object.keys(newState).forEach(key => {
+        const oldIndex = parseInt(key);
+        if (oldIndex > index) {
+          reindexed[oldIndex - 1] = newState[oldIndex];
+        } else if (oldIndex < index) {
+          reindexed[oldIndex] = newState[oldIndex];
+        }
+      });
+      return reindexed;
+    });
+    setItemSelectedProduct(prev => {
+      const newState = { ...prev };
+      delete newState[index];
+      // Reindex remaining items
+      const reindexed: Record<number, Product | null> = {};
+      Object.keys(newState).forEach(key => {
+        const oldIndex = parseInt(key);
+        if (oldIndex > index) {
+          reindexed[oldIndex - 1] = newState[oldIndex];
+        } else if (oldIndex < index) {
+          reindexed[oldIndex] = newState[oldIndex];
+        }
+      });
+      return reindexed;
+    });
   };
 
   const updateItem = (index: number, field: keyof InvoiceItem, value: string) => {
@@ -574,6 +704,137 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
                     Remove
                   </button>
                 </div>
+                
+                {/* Product Selector */}
+                <div style={{ marginBottom: '1rem', position: 'relative' }}>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333', fontSize: '0.875rem' }}>
+                    Select Product
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="text"
+                      value={itemProductSearch[index] || ''}
+                      onChange={(e) => {
+                        setItemProductSearch(prev => ({
+                          ...prev,
+                          [index]: e.target.value,
+                        }));
+                      }}
+                      onFocus={() => {
+                        // Ensure search is visible when focused
+                        if (!itemProductSearch[index]) {
+                          setItemProductSearch(prev => ({
+                            ...prev,
+                            [index]: '',
+                          }));
+                        }
+                      }}
+                      placeholder={productsLoading ? 'Loading products...' : 'Search and select a product'}
+                      disabled={productsLoading}
+                      style={{
+                        width: '100%',
+                        padding: '0.5rem',
+                        border: '1px solid #ced4da',
+                        borderRadius: '4px',
+                        fontSize: '0.875rem',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                    {itemProductSearch[index] !== undefined && itemProductSearch[index] !== '' && getFilteredProducts(index).length > 0 && (
+                      <div style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        backgroundColor: 'white',
+                        border: '1px solid #ced4da',
+                        borderRadius: '4px',
+                        maxHeight: '200px',
+                        overflowY: 'auto',
+                        zIndex: 1000,
+                        marginTop: '0.25rem',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                      }}>
+                        {getFilteredProducts(index).map((product) => (
+                          <div
+                            key={product.id}
+                            onClick={() => handleProductSelect(index, product)}
+                            style={{
+                              padding: '0.75rem',
+                              cursor: 'pointer',
+                              borderBottom: '1px solid #f0f0f0',
+                              transition: 'background-color 0.2s',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = '#f8f9fa';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = 'white';
+                            }}
+                          >
+                            <div style={{ fontWeight: '500', fontSize: '0.875rem', marginBottom: '0.25rem' }}>
+                              {product.name}
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: '#666' }}>
+                              SKU: {product.sku} | Price: ${product.unit_price.toFixed(2)}
+                              {product.description && ` | ${product.description.substring(0, 50)}${product.description.length > 50 ? '...' : ''}`}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Display selected product information */}
+                  {itemSelectedProduct[index] && (
+                    <div style={{
+                      marginTop: '0.75rem',
+                      padding: '0.75rem',
+                      backgroundColor: '#e7f3ff',
+                      borderRadius: '4px',
+                      border: '1px solid #b3d9ff',
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                        <div style={{ fontSize: '0.875rem', fontWeight: '500', color: '#0066cc' }}>
+                          Selected Product:
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleClearProduct(index)}
+                          style={{
+                            padding: '0.25rem 0.5rem',
+                            backgroundColor: '#dc3545',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.75rem',
+                          }}
+                          title="Clear product selection"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                      <div style={{ fontSize: '0.875rem', lineHeight: '1.6' }}>
+                        <div><strong>Name:</strong> {itemSelectedProduct[index]!.name}</div>
+                        <div><strong>SKU:</strong> {itemSelectedProduct[index]!.sku}</div>
+                        <div><strong>Unit Price:</strong> ${itemSelectedProduct[index]!.unit_price.toFixed(2)}</div>
+                        {itemSelectedProduct[index]!.description && (
+                          <div><strong>Description:</strong> {itemSelectedProduct[index]!.description}</div>
+                        )}
+                        {itemSelectedProduct[index]!.brand && (
+                          <div><strong>Brand:</strong> {itemSelectedProduct[index]!.brand}</div>
+                        )}
+                        {itemSelectedProduct[index]!.model && (
+                          <div><strong>Model:</strong> {itemSelectedProduct[index]!.model}</div>
+                        )}
+                        <div><strong>Category:</strong> {itemSelectedProduct[index]!.category}</div>
+                        <div><strong>VAT:</strong> {itemSelectedProduct[index]!.vat}%</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                   <div>
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333', fontSize: '0.875rem' }}>
@@ -604,7 +865,7 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
                   </div>
                   <div>
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333', fontSize: '0.875rem' }}>
-                      Unit Price *
+                      Unit Price * {itemSelectedProduct[index] && <span style={{ fontSize: '0.75rem', color: '#666', fontWeight: 'normal' }}>(from product)</span>}
                     </label>
                     <input
                       type="text"
@@ -613,6 +874,7 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
                         updateItem(index, 'unitPrice', e.target.value);
                         calculateItemTotal(index);
                       }}
+                      readOnly={!!itemSelectedProduct[index]}
                       style={{
                         width: '100%',
                         padding: '0.5rem',
@@ -620,6 +882,7 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
                         borderRadius: '4px',
                         fontSize: '0.875rem',
                         boxSizing: 'border-box',
+                        backgroundColor: itemSelectedProduct[index] ? '#e9ecef' : 'white',
                       }}
                       placeholder="0.00"
                     />
@@ -651,12 +914,13 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
                 </div>
                 <div style={{ marginBottom: '1rem' }}>
                   <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333', fontSize: '0.875rem' }}>
-                    Description *
+                    Description * {itemSelectedProduct[index] && <span style={{ fontSize: '0.75rem', color: '#666', fontWeight: 'normal' }}>(from product)</span>}
                   </label>
                   <input
                     type="text"
                     value={item.description}
                     onChange={(e) => updateItem(index, 'description', e.target.value)}
+                    readOnly={!!itemSelectedProduct[index]}
                     style={{
                       width: '100%',
                       padding: '0.5rem',
@@ -664,6 +928,7 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
                       borderRadius: '4px',
                       fontSize: '0.875rem',
                       boxSizing: 'border-box',
+                      backgroundColor: itemSelectedProduct[index] ? '#e9ecef' : 'white',
                     }}
                     placeholder="Enter item description"
                   />
@@ -676,12 +941,13 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
                   <div>
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333', fontSize: '0.875rem' }}>
-                      Brand
+                      Brand {itemSelectedProduct[index] && <span style={{ fontSize: '0.75rem', color: '#666', fontWeight: 'normal' }}>(from product)</span>}
                     </label>
                     <input
                       type="text"
                       value={item.brand}
                       onChange={(e) => updateItem(index, 'brand', e.target.value)}
+                      readOnly={!!itemSelectedProduct[index]}
                       style={{
                         width: '100%',
                         padding: '0.5rem',
@@ -689,18 +955,20 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
                         borderRadius: '4px',
                         fontSize: '0.875rem',
                         boxSizing: 'border-box',
+                        backgroundColor: itemSelectedProduct[index] ? '#e9ecef' : 'white',
                       }}
                       placeholder="Enter brand"
                     />
                   </div>
                   <div>
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333', fontSize: '0.875rem' }}>
-                      Model
+                      Model {itemSelectedProduct[index] && <span style={{ fontSize: '0.75rem', color: '#666', fontWeight: 'normal' }}>(from product)</span>}
                     </label>
                     <input
                       type="text"
                       value={item.model}
                       onChange={(e) => updateItem(index, 'model', e.target.value)}
+                      readOnly={!!itemSelectedProduct[index]}
                       style={{
                         width: '100%',
                         padding: '0.5rem',
@@ -708,18 +976,20 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
                         borderRadius: '4px',
                         fontSize: '0.875rem',
                         boxSizing: 'border-box',
+                        backgroundColor: itemSelectedProduct[index] ? '#e9ecef' : 'white',
                       }}
                       placeholder="Enter model"
                     />
                   </div>
                   <div>
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333', fontSize: '0.875rem' }}>
-                      Code
+                      Code {itemSelectedProduct[index] && <span style={{ fontSize: '0.75rem', color: '#666', fontWeight: 'normal' }}>(from product)</span>}
                     </label>
                     <input
                       type="text"
                       value={item.code}
                       onChange={(e) => updateItem(index, 'code', e.target.value)}
+                      readOnly={!!itemSelectedProduct[index]}
                       style={{
                         width: '100%',
                         padding: '0.5rem',
@@ -727,6 +997,7 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
                         borderRadius: '4px',
                         fontSize: '0.875rem',
                         boxSizing: 'border-box',
+                        backgroundColor: itemSelectedProduct[index] ? '#e9ecef' : 'white',
                       }}
                       placeholder="Enter code"
                     />

@@ -15,7 +15,7 @@ export default function ProductForm({ product, onSubmit, onCancel, isLoading = f
     name: product?.name || '',
     category: product?.category || '',
     vat: product?.vat?.toString() || '',
-    ico: '',
+    ico: product?.ico?.toString() || '',
     description: '',
     brand: '',
     model: '',
@@ -31,7 +31,7 @@ export default function ProductForm({ product, onSubmit, onCancel, isLoading = f
         name: product.name || '',
         category: product.category || '',
         vat: product.vat?.toString() || '',
-        ico: '',
+        ico: product.ico?.toString() || '',
         description: '',
         brand: '',
         model: '',
@@ -104,12 +104,18 @@ export default function ProductForm({ product, onSubmit, onCancel, isLoading = f
     // For updates, name, sku, and total_price_with_taxes are always required
     // For creates, all fields are required
     if (product) {
+      const vat = parseFloat(formData.vat);
+      const ico = parseFloat(formData.ico);
+
+      const vatPercentage = vat / 100;
+      const icoPercentage = ico / 100;
+
       // Update request - name, sku, and total_price_with_taxes are mandatory
       const submitData: UpdateProductRequest = {
         ...baseData,
         category: formData.category.trim() || undefined,
-        vat: parseFloat(formData.vat) || undefined,
-        ico: parseFloat(formData.ico) || undefined,
+        vat: vatPercentage,
+        ico: icoPercentage,
       };
 
       // Add optional fields only if they have values
@@ -125,12 +131,18 @@ export default function ProductForm({ product, onSubmit, onCancel, isLoading = f
 
       await onSubmit(submitData);
     } else {
+      const vat = parseFloat(formData.vat);
+      const ico = parseFloat(formData.ico);
+
+      const vatPercentage = vat / 100;
+      const icoPercentage = ico / 100;
+
       // Create request - all fields are required
       const submitData: CreateProductRequest = {
         ...baseData,
         category: formData.category.trim(),
-        vat: parseFloat(formData.vat),
-        ico: parseFloat(formData.ico),
+        vat: vatPercentage,
+        ico: icoPercentage,
       };
 
       // Add optional fields only if they have values

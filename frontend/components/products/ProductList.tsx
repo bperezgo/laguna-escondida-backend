@@ -18,8 +18,6 @@ export default function ProductList({ products, onEdit, onDelete, isLoading = fa
   // Get unique categories from products
   const categories = Array.from(new Set(products.map(p => p.category))).sort();
 
-  console.log('products', products);
-
   // Filter products based on search term and category
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -46,7 +44,6 @@ export default function ProductList({ products, onEdit, onDelete, isLoading = fa
 
   return (
     <div>
-      {/* Filters */}
       <div style={{
         marginBottom: '2rem',
         padding: '1.5rem',
@@ -103,12 +100,10 @@ export default function ProductList({ products, onEdit, onDelete, isLoading = fa
         </div>
       </div>
 
-      {/* Results count */}
       <div style={{ marginBottom: '1rem', color: '#666', fontSize: '0.9rem' }}>
         Showing {filteredProducts.length} of {products.length} product{products.length !== 1 ? 's' : ''}
       </div>
 
-      {/* Product Cards */}
       {filteredProducts.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '3rem' }}>
           <p style={{ fontSize: '1.1rem', color: '#666' }}>
