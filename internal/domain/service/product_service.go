@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 	"fmt"
-	"time"
 
+	"laguna-escondida/backend/internal/domain/aggregate/product"
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
@@ -22,52 +22,34 @@ func NewProductService(productRepo ports.ProductRepository) *ProductService {
 
 // CreateProduct creates a new product with version = 1
 func (s *ProductService) CreateProduct(ctx context.Context, req *dto.CreateProductRequest) (*dto.Product, error) {
-	product := &dto.Product{
-		Name:                req.Name,
-		Category:            req.Category,
-		Version:             1, // Always set version to 1 for new products
-		TotalPriceWithTaxes: req.TotalPriceWithTaxes,
-		VAT:                 req.VAT,
-		ICO:                 req.ICO,
-		Description:         req.Description,
-		Brand:               req.Brand,
-		Model:               req.Model,
-		SKU:                 req.SKU,
-		CreatedAt:           time.Now(),
-		UpdatedAt:           time.Now(),
+	product, err := product.NewAggregateFromCreateProductRequest(req)
+	if err != nil {
+		return nil, err
 	}
 
 	if err := s.productRepo.Create(ctx, product); err != nil {
-		return nil, fmt.Errorf("%w: %w", domainError.ErrProductCreationFailed, err)
+		return nil, err
 	}
 
-	return product, nil
+	return product.ToDTO(), nil
 }
 
 // UpdateProduct updates an existing product, keeping version = 1
 func (s *ProductService) UpdateProduct(ctx context.Context, id string, req *dto.UpdateProductRequest) (*dto.Product, error) {
-	// Check if product exists
 	existing, err := s.productRepo.FindByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", domainError.ErrProductNotFound, err)
 	}
 
-	// Update product fields but keep version = 1
-	existing.Name = req.Name
-	existing.Category = req.Category
-	existing.Version = 1 // Always keep version at 1
-	existing.TotalPriceWithTaxes = req.TotalPriceWithTaxes
-	existing.VAT = req.VAT
-	existing.ICO = req.ICO
-	existing.Description = req.Description
-	existing.Brand = req.Brand
-	existing.Model = req.Model
-	existing.SKU = req.SKU
-	existing.TotalPriceWithTaxes = req.TotalPriceWithTaxes
-	existing.UpdatedAt = time.Now()
+	currentProduct := product.NewAggregateFromDTO(existing)
 
-	if err := s.productRepo.Update(ctx, id, existing); err != nil {
-		return nil, fmt.Errorf("%w: %w", domainError.ErrProductUpdateFailed, err)
+	newProduct, err := currentProduct.Update(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.productRepo.Update(ctx, id, newProduct); err != nil {
+		return nil, err
 	}
 
 	return existing, nil

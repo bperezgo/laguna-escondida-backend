@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"laguna-escondida/backend/internal/domain/aggregate/product"
 	"laguna-escondida/backend/internal/domain/dto"
 	orderError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
@@ -20,12 +21,12 @@ type MockProductRepository struct {
 	mock.Mock
 }
 
-func (m *MockProductRepository) Create(ctx context.Context, product *dto.Product) error {
+func (m *MockProductRepository) Create(ctx context.Context, product *product.Aggregate) error {
 	args := m.Called(ctx, product)
 	return args.Error(0)
 }
 
-func (m *MockProductRepository) Update(ctx context.Context, id string, product *dto.Product) error {
+func (m *MockProductRepository) Update(ctx context.Context, id string, product *product.Aggregate) error {
 	args := m.Called(ctx, id, product)
 	return args.Error(0)
 }

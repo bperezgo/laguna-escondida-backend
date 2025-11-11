@@ -22,26 +22,28 @@ type Product struct {
 type CreateProductRequest struct {
 	Name                string  `json:"name" validate:"required,min=1,max=255"`
 	Category            string  `json:"category" validate:"required,min=1,max=100"`
-	VAT                 float64 `json:"vat" validate:"required,gte=0"`
-	ICO                 float64 `json:"ico" validate:"required,gte=0"`
+	VAT                 string  `json:"vat" validate:"required,gte=0"`
+	ICO                 string  `json:"ico" validate:"required,gte=0"`
+	TaxesFormat         string  `json:"taxes_format" validate:"required,oneof=percentage fixed"`
 	Description         *string `json:"description"`
 	Brand               *string `json:"brand"`
 	Model               *string `json:"model"`
 	SKU                 string  `json:"sku" validate:"required,min=1,max=255"`
-	TotalPriceWithTaxes float64 `json:"total_price_with_taxes" validate:"required,gt=0"`
+	TotalPriceWithTaxes string  `json:"total_price_with_taxes" validate:"required,gt=0"`
 }
 
 type UpdateProductRequest struct {
 	Name                string  `json:"name" validate:"required,min=1,max=255"`
 	Category            string  `json:"category" validate:"required,min=1,max=100"`
 	Price               float64 `json:"price" validate:"required,gt=0"`
-	VAT                 float64 `json:"vat" validate:"required,gte=0"`
-	ICO                 float64 `json:"ico" validate:"required,gte=0"`
+	VAT                 string  `json:"vat" validate:"required,gte=0"`
+	ICO                 string  `json:"ico" validate:"required,gte=0"`
+	TaxesFormat         string  `json:"taxes_format" validate:"required,oneof=percentage fixed"`
 	Description         *string `json:"description"`
 	Brand               *string `json:"brand"`
 	Model               *string `json:"model"`
 	SKU                 string  `json:"sku" validate:"required,min=1,max=255"`
-	TotalPriceWithTaxes float64 `json:"total_price_with_taxes" validate:"required,gt=0"`
+	TotalPriceWithTaxes string  `json:"total_price_with_taxes" validate:"required,gt=0"`
 }
 
 type ProductListResponse struct {

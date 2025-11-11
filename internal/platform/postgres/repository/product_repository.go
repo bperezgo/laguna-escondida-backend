@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"laguna-escondida/backend/internal/domain/aggregate/product"
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
 
@@ -67,45 +68,47 @@ func (r *ProductRepository) FindByID(ctx context.Context, id string) (*dto.Produ
 	return r.toDTO(&model), nil
 }
 
-func (r *ProductRepository) Create(ctx context.Context, product *dto.Product) error {
+func (r *ProductRepository) Create(ctx context.Context, product *product.Aggregate) error {
+	productDTO := product.ToDTO()
 	model := &productModel{
-		Name:                product.Name,
-		Category:            product.Category,
-		Version:             product.Version,
-		UnitPrice:           product.UnitPrice,
-		VAT:                 product.VAT,
-		ICO:                 product.ICO,
-		Description:         product.Description,
-		Brand:               product.Brand,
-		Model:               product.Model,
-		SKU:                 product.SKU,
-		TotalPriceWithTaxes: product.TotalPriceWithTaxes,
-		CreatedAt:           product.CreatedAt,
-		UpdatedAt:           product.UpdatedAt,
+		ID:                  productDTO.ID,
+		Name:                productDTO.Name,
+		Category:            productDTO.Category,
+		Version:             productDTO.Version,
+		UnitPrice:           productDTO.UnitPrice,
+		VAT:                 productDTO.VAT,
+		ICO:                 productDTO.ICO,
+		Description:         productDTO.Description,
+		Brand:               productDTO.Brand,
+		Model:               productDTO.Model,
+		SKU:                 productDTO.SKU,
+		TotalPriceWithTaxes: productDTO.TotalPriceWithTaxes,
+		CreatedAt:           productDTO.CreatedAt,
+		UpdatedAt:           productDTO.UpdatedAt,
 	}
 
 	if err := r.db.WithContext(ctx).Create(model).Error; err != nil {
 		return err
 	}
 
-	product.ID = model.ID
 	return nil
 }
 
-func (r *ProductRepository) Update(ctx context.Context, id string, product *dto.Product) error {
+func (r *ProductRepository) Update(ctx context.Context, id string, product *product.Aggregate) error {
+	productDTO := product.ToDTO()
 	updateData := map[string]interface{}{
-		"name":                   product.Name,
-		"category":               product.Category,
-		"version":                product.Version,
-		"unit_price":             product.UnitPrice,
-		"vat":                    product.VAT,
-		"ico":                    product.ICO,
-		"description":            product.Description,
-		"brand":                  product.Brand,
-		"model":                  product.Model,
-		"sku":                    product.SKU,
-		"total_price_with_taxes": product.TotalPriceWithTaxes,
-		"updated_at":             product.UpdatedAt,
+		"name":                   productDTO.Name,
+		"category":               productDTO.Category,
+		"version":                productDTO.Version,
+		"unit_price":             productDTO.UnitPrice,
+		"vat":                    productDTO.VAT,
+		"ico":                    productDTO.ICO,
+		"description":            productDTO.Description,
+		"brand":                  productDTO.Brand,
+		"model":                  productDTO.Model,
+		"sku":                    productDTO.SKU,
+		"total_price_with_taxes": productDTO.TotalPriceWithTaxes,
+		"updated_at":             productDTO.UpdatedAt,
 	}
 
 	return r.db.WithContext(ctx).
