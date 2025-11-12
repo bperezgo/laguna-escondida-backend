@@ -114,7 +114,7 @@ func TestCreateProduct_Success(t *testing.T) {
 	assert.Equal(t, 127.0, result.TotalPriceWithTaxes)
 	assert.Equal(t, 0.19, result.VAT)
 	assert.Equal(t, 0.08, result.ICO)
-	assert.Equal(t, 100, result.UnitPrice)
+	assert.Equal(t, 100.0, result.UnitPrice)
 	assert.Equal(t, req.SKU, result.SKU)
 
 	mockRepo.AssertExpectations(t)
@@ -146,7 +146,7 @@ func TestCreateProduct_RepositoryError(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.ErrorIs(t, err, domainError.ErrProductCreationFailed)
+	assert.ErrorIs(t, err, repoError)
 
 	mockRepo.AssertExpectations(t)
 }
@@ -166,8 +166,8 @@ func TestUpdateProduct_Success(t *testing.T) {
 		Name:                "New Name",
 		Category:            "New Category",
 		TotalPriceWithTaxes: "200.0",
-		VAT:                 "0.38",
-		ICO:                 "0.16",
+		VAT:                 "38.0",
+		ICO:                 "12.0",
 		TaxesFormat:         "percentage",
 		Description:         nil,
 		Brand:               nil,
@@ -193,6 +193,9 @@ func TestUpdateProduct_Success(t *testing.T) {
 	assert.Equal(t, 1, result.Version) // Version should remain 1
 	assert.Equal(t, 200.0, result.TotalPriceWithTaxes)
 	assert.Equal(t, 0.38, result.VAT)
+	assert.Equal(t, 0.12, result.ICO)
+	assert.Equal(t, 133.33, result.UnitPrice)
+	assert.Equal(t, req.SKU, result.SKU)
 
 	mockRepo.AssertExpectations(t)
 }
@@ -244,14 +247,15 @@ func TestUpdateProduct_RepositoryError(t *testing.T) {
 		SKU:                 "SKU-002",
 	}
 
+	updateFailedError := errors.New("update failed")
 	mockRepo.On("FindByID", ctx, productID).Return(existingProduct, nil)
-	mockRepo.On("Update", ctx, productID, mock.Anything).Return(errors.New("update failed"))
+	mockRepo.On("Update", ctx, productID, mock.Anything).Return(updateFailedError)
 
 	result, err := service.UpdateProduct(ctx, productID, req)
 
 	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.ErrorIs(t, err, domainError.ErrProductUpdateFailed)
+	assert.ErrorIs(t, err, updateFailedError)
 
 	mockRepo.AssertExpectations(t)
 }

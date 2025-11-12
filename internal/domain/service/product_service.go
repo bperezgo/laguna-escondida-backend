@@ -52,7 +52,7 @@ func (s *ProductService) UpdateProduct(ctx context.Context, id string, req *dto.
 		return nil, err
 	}
 
-	return existing, nil
+	return newProduct.ToDTO(), nil
 }
 
 // DeleteProduct soft deletes a product

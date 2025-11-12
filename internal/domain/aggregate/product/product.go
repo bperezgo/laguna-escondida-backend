@@ -3,6 +3,7 @@ package product
 import (
 	productError "laguna-escondida/backend/internal/domain/aggregate/product/error"
 	"laguna-escondida/backend/internal/domain/dto"
+	"math"
 	"strconv"
 	"time"
 
@@ -24,6 +25,53 @@ type Aggregate struct {
 	totalPriceWithTaxes float64
 	createdAt           time.Time
 	updatedAt           time.Time
+}
+
+// calculateTaxesAndUnitPrice parses and validates tax values, then calculates unit price
+// Returns: totalPriceWithTaxes, vat (as decimal), ico (as decimal), unitPrice, error
+func calculateTaxesAndUnitPrice(totalPriceWithTaxesStr, vatStr, icoStr, taxesFormat string) (float64, float64, float64, float64, error) {
+	totalPriceWithTaxes, err := strconv.ParseFloat(totalPriceWithTaxesStr, 64)
+	if err != nil {
+		return 0, 0, 0, 0, productError.NewInvalidPriceErrorWithField("total_price_with_taxes must be a number", totalPriceWithTaxesStr)
+	}
+	if totalPriceWithTaxes <= 0 {
+		return 0, 0, 0, 0, productError.NewInvalidPriceErrorWithField("total_price_with_taxes must be greater than 0", totalPriceWithTaxesStr)
+	}
+
+	vat, err := strconv.ParseFloat(vatStr, 64)
+	if err != nil {
+		return 0, 0, 0, 0, productError.NewInvalidVATError("vat must be a number", vatStr)
+	}
+	if vat < 0 {
+		return 0, 0, 0, 0, productError.NewInvalidVATError("vat must be greater than or equal to 0", vatStr)
+	}
+
+	ico, err := strconv.ParseFloat(icoStr, 64)
+	if err != nil {
+		return 0, 0, 0, 0, productError.NewInvalidICOError("ico must be a number", icoStr)
+	}
+	if ico < 0 {
+		return 0, 0, 0, 0, productError.NewInvalidICOError("ico must be greater than or equal to 0", icoStr)
+	}
+
+	taxSum := vat + ico
+	if taxSum == 0 {
+		return 0, 0, 0, 0, productError.NewInvalidTaxCalculationErrorWithField("vat and ico cannot both be 0 (would result in division by zero)", map[string]string{"vat": vatStr, "ico": icoStr})
+	}
+
+	if taxesFormat != "percentage" {
+		return 0, 0, 0, 0, productError.NewInvalidTaxCalculationErrorWithField("taxes_format must be 'percentage'", taxesFormat)
+	}
+
+	vatPercentage := vat / 100
+	icoPercentage := ico / 100
+	taxSumPercentage := (vat + ico) / 100
+	unitPrice := totalPriceWithTaxes / (1 + taxSumPercentage)
+
+	// Round unitPrice to 2 decimal places
+	unitPrice = math.Round(unitPrice*100) / 100
+
+	return totalPriceWithTaxes, vatPercentage, icoPercentage, unitPrice, nil
 }
 
 func NewAggregateFromDTO(dto *dto.Product) *Aggregate {
@@ -72,42 +120,16 @@ func NewAggregateFromCreateProductRequest(req *dto.CreateProductRequest) (*Aggre
 	if req.SKU == "" {
 		return nil, productError.NewMissingSKUError()
 	}
-	totalPriceWithTaxes, err := strconv.ParseFloat(req.TotalPriceWithTaxes, 64)
-	if err != nil {
-		return nil, productError.NewInvalidPriceErrorWithField("total_price_with_taxes must be a number", req.TotalPriceWithTaxes)
-	}
-	if totalPriceWithTaxes <= 0 {
-		return nil, productError.NewInvalidPriceErrorWithField("total_price_with_taxes must be greater than 0", req.TotalPriceWithTaxes)
-	}
-	vat, err := strconv.ParseFloat(req.VAT, 64)
-	if err != nil {
-		return nil, productError.NewInvalidVATError("vat must be a number", req.VAT)
-	}
-	if vat < 0 {
-		return nil, productError.NewInvalidVATError("vat must be greater than or equal to 0", req.VAT)
-	}
-	ico, err := strconv.ParseFloat(req.ICO, 64)
-	if err != nil {
-		return nil, productError.NewInvalidICOError("ico must be a number", req.ICO)
-	}
-	if ico < 0 {
-		return nil, productError.NewInvalidICOError("ico must be greater than or equal to 0", req.ICO)
-	}
 
-	// Calculate unitPrice from totalPriceWithTaxes
-	// Formula: unitPrice = TotalPriceWithTaxes / (VAT + ICO)
-	// Where totalPriceWithTaxes = unitPrice * (VAT + ICO)
-	taxSum := vat + ico
-	if taxSum == 0 {
-		return nil, productError.NewInvalidTaxCalculationErrorWithField("vat and ico cannot both be 0 (would result in division by zero)", map[string]string{"vat": req.VAT, "ico": req.ICO})
+	totalPriceWithTaxes, vatDecimal, icoDecimal, unitPrice, err := calculateTaxesAndUnitPrice(
+		req.TotalPriceWithTaxes,
+		req.VAT,
+		req.ICO,
+		req.TaxesFormat,
+	)
+	if err != nil {
+		return nil, err
 	}
-	if req.TaxesFormat != "percentage" {
-		return nil, productError.NewInvalidTaxCalculationErrorWithField("taxes_format must be 'percentage'", req.TaxesFormat)
-	}
-	varPercentage := vat / 100
-	icoPercentage := ico / 100
-	taxSumPercentage := (vat + ico) / 100
-	unitPrice := totalPriceWithTaxes / (1 + taxSumPercentage)
 
 	// Handle nullable fields (Description, Brand, Model)
 	description := ""
@@ -132,8 +154,8 @@ func NewAggregateFromCreateProductRequest(req *dto.CreateProductRequest) (*Aggre
 		category:            req.Category,
 		version:             1,
 		unitPrice:           unitPrice,
-		vat:                 varPercentage,
-		ico:                 icoPercentage,
+		vat:                 vatDecimal,
+		ico:                 icoDecimal,
 		description:         description,
 		brand:               brand,
 		model:               model,
@@ -182,32 +204,24 @@ func (a *Aggregate) Update(req *dto.UpdateProductRequest) (*Aggregate, error) {
 	//  To validate how the system behaves with different prices (Split Tests)
 	a.version = 1
 
-	totalPriceWithTaxes, err := strconv.ParseFloat(req.TotalPriceWithTaxes, 64)
+	totalPriceWithTaxes, vatDecimal, icoDecimal, unitPrice, err := calculateTaxesAndUnitPrice(
+		req.TotalPriceWithTaxes,
+		req.VAT,
+		req.ICO,
+		req.TaxesFormat,
+	)
 	if err != nil {
-		return nil, productError.NewInvalidPriceErrorWithField("total_price_with_taxes must be a number", req.TotalPriceWithTaxes)
+		return nil, err
 	}
-	vat, err := strconv.ParseFloat(req.VAT, 64)
-	if err != nil {
-		return nil, productError.NewInvalidVATError("vat must be a number", req.VAT)
-	}
-	ico, err := strconv.ParseFloat(req.ICO, 64)
-	if err != nil {
-		return nil, productError.NewInvalidICOError("ico must be a number", req.ICO)
-	}
-	taxSum := vat + ico
-	if taxSum == 0 {
-		return nil, productError.NewInvalidTaxCalculationErrorWithField("vat and ico cannot both be 0 (would result in division by zero)", map[string]float64{"vat": vat, "ico": ico})
-	}
-	unitPrice := totalPriceWithTaxes / taxSum
+
 	a.totalPriceWithTaxes = totalPriceWithTaxes
-	a.vat = vat
-	a.ico = ico
+	a.vat = vatDecimal
+	a.ico = icoDecimal
 	a.description = description
 	a.brand = brand
 	a.model = model
 	a.sku = req.SKU
 	a.unitPrice = unitPrice
-	a.totalPriceWithTaxes = totalPriceWithTaxes
 	a.updatedAt = time.Now()
 
 	return a, nil
