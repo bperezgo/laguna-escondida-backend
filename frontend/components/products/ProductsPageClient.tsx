@@ -50,7 +50,7 @@ export default function ProductsPageClient({ initialProducts }: ProductsPageClie
 
       if (editingProduct) {
         // Update existing product
-        await productsApi.update(editingProduct.id, data);
+        await productsApi.update(editingProduct.id, data as UpdateProductRequest);
       } else {
         // Create new product
         await productsApi.create(data as CreateProductRequest);

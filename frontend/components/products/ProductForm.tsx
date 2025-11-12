@@ -14,12 +14,13 @@ export default function ProductForm({ product, onSubmit, onCancel, isLoading = f
   const [formData, setFormData] = useState({
     name: product?.name || '',
     category: product?.category || '',
+    price: product?.unit_price?.toString() || '',
     vat: product?.vat?.toString() || '',
     ico: product?.ico?.toString() || '',
-    description: '',
-    brand: '',
-    model: '',
-    sku: '',
+    description: product?.description || '',
+    brand: product?.brand || '',
+    model: product?.model || '',
+    sku: product?.sku || '',
     total_price_with_taxes: product?.total_price_with_taxes?.toString() || '',
   });
 
@@ -30,12 +31,13 @@ export default function ProductForm({ product, onSubmit, onCancel, isLoading = f
       setFormData({
         name: product.name || '',
         category: product.category || '',
+        price: product.unit_price?.toString() || '',
         vat: product.vat?.toString() || '',
         ico: product.ico?.toString() || '',
-        description: '',
-        brand: '',
-        model: '',
-        sku: '',
+        description: product.description || '',
+        brand: product.brand || '',
+        model: product.model || '',
+        sku: product.sku || '',
         total_price_with_taxes: product.total_price_with_taxes?.toString() || '',
       });
     }
@@ -58,16 +60,24 @@ export default function ProductForm({ product, onSubmit, onCancel, isLoading = f
       newErrors.category = 'Category must be 100 characters or less';
     }
 
-    // VAT: required, gte=0
-    const vat = parseFloat(formData.vat);
-    if (isNaN(vat) || vat < 0) {
-      newErrors.vat = 'VAT must be a valid number greater than or equal to 0';
+    // VAT: required, gte=0 (as string)
+    if (!formData.vat.trim()) {
+      newErrors.vat = 'VAT is required';
+    } else {
+      const vat = parseFloat(formData.vat);
+      if (isNaN(vat) || vat < 0) {
+        newErrors.vat = 'VAT must be a valid number greater than or equal to 0';
+      }
     }
 
-    // ICO: required, gte=0
-    const ico = parseFloat(formData.ico);
-    if (isNaN(ico) || ico < 0) {
-      newErrors.ico = 'ICO must be a valid number greater than or equal to 0';
+    // ICO: required, gte=0 (as string)
+    if (!formData.ico.trim()) {
+      newErrors.ico = 'ICO is required';
+    } else {
+      const ico = parseFloat(formData.ico);
+      if (isNaN(ico) || ico < 0) {
+        newErrors.ico = 'ICO must be a valid number greater than or equal to 0';
+      }
     }
 
     // SKU: required, min=1, max=255
@@ -77,10 +87,26 @@ export default function ProductForm({ product, onSubmit, onCancel, isLoading = f
       newErrors.sku = 'SKU must be 255 characters or less';
     }
 
-    // TotalPriceWithTaxes: required, gt=0
-    const totalPriceWithTaxes = parseFloat(formData.total_price_with_taxes);
-    if (isNaN(totalPriceWithTaxes) || totalPriceWithTaxes <= 0) {
-      newErrors.total_price_with_taxes = 'Total price with taxes must be a valid number greater than 0';
+    // TotalPriceWithTaxes: required, gt=0 (as string)
+    if (!formData.total_price_with_taxes.trim()) {
+      newErrors.total_price_with_taxes = 'Total price with taxes is required';
+    } else {
+      const totalPriceWithTaxes = parseFloat(formData.total_price_with_taxes);
+      if (isNaN(totalPriceWithTaxes) || totalPriceWithTaxes <= 0) {
+        newErrors.total_price_with_taxes = 'Total price with taxes must be a valid number greater than 0';
+      }
+    }
+
+    // Price: required for updates, gt=0
+    if (product) {
+      if (!formData.price.trim()) {
+        newErrors.price = 'Price is required';
+      } else {
+        const price = parseFloat(formData.price);
+        if (isNaN(price) || price <= 0) {
+          newErrors.price = 'Price must be a valid number greater than 0';
+        }
+      }
     }
 
     setErrors(newErrors);
@@ -94,28 +120,18 @@ export default function ProductForm({ product, onSubmit, onCancel, isLoading = f
       return;
     }
 
-    // Build base data with required fields
-    const baseData = {
-      name: formData.name.trim(),
-      sku: formData.sku.trim(),
-      total_price_with_taxes: parseFloat(formData.total_price_with_taxes),
-    };
-
-    // For updates, name, sku, and total_price_with_taxes are always required
-    // For creates, all fields are required
+    // Build submit data
     if (product) {
-      const vat = parseFloat(formData.vat);
-      const ico = parseFloat(formData.ico);
-
-      const vatPercentage = vat / 100;
-      const icoPercentage = ico / 100;
-
-      // Update request - name, sku, and total_price_with_taxes are mandatory
+      // Update request - all fields are required
       const submitData: UpdateProductRequest = {
-        ...baseData,
-        category: formData.category.trim() || undefined,
-        vat: vatPercentage,
-        ico: icoPercentage,
+        name: formData.name.trim(),
+        category: formData.category.trim(),
+        price: parseFloat(formData.price),
+        vat: formData.vat.trim(),
+        ico: formData.ico.trim(),
+        taxes_format: 'percentage',
+        sku: formData.sku.trim(),
+        total_price_with_taxes: formData.total_price_with_taxes.trim(),
       };
 
       // Add optional fields only if they have values
@@ -131,18 +147,15 @@ export default function ProductForm({ product, onSubmit, onCancel, isLoading = f
 
       await onSubmit(submitData);
     } else {
-      const vat = parseFloat(formData.vat);
-      const ico = parseFloat(formData.ico);
-
-      const vatPercentage = vat / 100;
-      const icoPercentage = ico / 100;
-
       // Create request - all fields are required
       const submitData: CreateProductRequest = {
-        ...baseData,
+        name: formData.name.trim(),
         category: formData.category.trim(),
-        vat: vatPercentage,
-        ico: icoPercentage,
+        vat: formData.vat.trim(),
+        ico: formData.ico.trim(),
+        taxes_format: 'percentage',
+        sku: formData.sku.trim(),
+        total_price_with_taxes: formData.total_price_with_taxes.trim(),
       };
 
       // Add optional fields only if they have values
@@ -279,14 +292,41 @@ export default function ProductForm({ product, onSubmit, onCancel, isLoading = f
             )}
           </div>
 
+          {product && (
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333' }}>
+                Price *
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={formData.price}
+                onChange={(e) => handleChange('price', e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: `1px solid ${errors.price ? '#dc3545' : '#ced4da'}`,
+                  borderRadius: '4px',
+                  fontSize: '1rem',
+                  boxSizing: 'border-box',
+                }}
+                placeholder="0.00"
+              />
+              {errors.price && (
+                <p style={{ margin: '0.25rem 0 0 0', color: '#dc3545', fontSize: '0.875rem' }}>
+                  {errors.price}
+                </p>
+              )}
+            </div>
+          )}
+
           <div style={{ marginBottom: '1.5rem' }}>
             <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333' }}>
               Total Price with Taxes *
             </label>
             <input
-              type="number"
-              step="0.01"
-              min="0.01"
+              type="text"
               value={formData.total_price_with_taxes}
               onChange={(e) => handleChange('total_price_with_taxes', e.target.value)}
               style={{
@@ -311,9 +351,7 @@ export default function ProductForm({ product, onSubmit, onCancel, isLoading = f
               VAT *
             </label>
             <input
-              type="number"
-              step="0.01"
-              min="0"
+              type="text"
               value={formData.vat}
               onChange={(e) => handleChange('vat', e.target.value)}
               style={{
@@ -338,9 +376,7 @@ export default function ProductForm({ product, onSubmit, onCancel, isLoading = f
               ICO *
             </label>
             <input
-              type="number"
-              step="0.01"
-              min="0"
+              type="text"
               value={formData.ico}
               onChange={(e) => handleChange('ico', e.target.value)}
               style={{

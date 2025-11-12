@@ -103,7 +103,7 @@ export default function ProductCard({ product, onEdit, onDelete }: ProductCardPr
       
       <div style={{ 
         display: 'grid', 
-        gridTemplateColumns: 'repeat(2, 1fr)', 
+        gridTemplateColumns: 'repeat(3, 1fr)', 
         gap: '1rem',
         padding: '1rem',
         backgroundColor: '#f8f9fa',
@@ -116,9 +116,15 @@ export default function ProductCard({ product, onEdit, onDelete }: ProductCardPr
           </p>
         </div>
         <div>
-          <p style={{ margin: '0 0 0.25rem 0', color: '#666', fontSize: '0.85rem' }}>VAT ({product.vat}%)</p>
+          <p style={{ margin: '0 0 0.25rem 0', color: '#666', fontSize: '0.85rem' }}>VAT ({product.vat*100}%)</p>
           <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: 'bold', color: '#333' }}>
-            {formatCurrency(product.unit_price * product.vat / 100)}
+            {formatCurrency(product.unit_price * product.vat)}
+          </p>
+        </div>
+        <div>
+          <p style={{ margin: '0 0 0.25rem 0', color: '#666', fontSize: '0.85rem' }}>ICO ({product.ico*100}%)</p>
+          <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: 'bold', color: '#333' }}>
+            {formatCurrency(product.unit_price * product.ico)}
           </p>
         </div>
         <div style={{ gridColumn: '1 / -1', borderTop: '1px solid #dee2e6', paddingTop: '0.5rem' }}>

@@ -19,25 +19,28 @@ export interface Product {
 export interface CreateProductRequest {
   name: string;
   category: string;
-  vat: number;
-  ico: number;
+  vat: string;
+  ico: string;
+  taxes_format: string;
   description?: string | null;
   brand?: string | null;
   model?: string | null;
   sku: string;
-  total_price_with_taxes: number;
+  total_price_with_taxes: string;
 }
 
 export interface UpdateProductRequest {
   name: string;
-  category?: string;
-  vat?: number;
-  ico?: number;
+  category: string;
+  price: number;
+  vat: string;
+  ico: string;
+  taxes_format: string;
   description?: string | null;
   brand?: string | null;
   model?: string | null;
   sku: string;
-  total_price_with_taxes: number;
+  total_price_with_taxes: string;
 }
 
 export interface ProductListResponse {
