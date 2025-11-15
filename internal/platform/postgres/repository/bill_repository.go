@@ -20,46 +20,88 @@ func NewBillRepository(db *gorm.DB, electronicInvoiceClient ports.ElectronicInvo
 	return &BillRepository{db: db, electronicInvoiceClient: electronicInvoiceClient}
 }
 
-func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, products []*dto.Product) error {
-	billDTO := bill.ToDTO()
-	billModel := &billModel{
-		ID:             billDTO.ID,
-		TotalAmount:    billDTO.TotalAmount,
-		DiscountAmount: billDTO.DiscountAmount,
-		VAT:            billDTO.VAT,
-		ICO:            billDTO.ICO,
-		Tip:            billDTO.Tip,
-		DocumentURL:    billDTO.DocumentURL,
-		CreatedAt:      billDTO.CreatedAt,
-		UpdatedAt:      billDTO.UpdatedAt,
+func (r *BillRepository) GetNextConsecutive(ctx context.Context, prefix string) (int, error) {
+	var lastConsecutive int
+	err := r.db.WithContext(ctx).
+		Raw("UPDATE invoice_sequences SET last_consecutive = last_consecutive + 1 WHERE prefix = ? RETURNING last_consecutive", prefix).
+		Scan(&lastConsecutive).Error
+	if err != nil {
+		return 0, err
 	}
+	return lastConsecutive, nil
+}
 
-	if err := r.db.WithContext(ctx).Create(billModel).Error; err != nil {
+func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, products []*dto.Product) error {
+	consecutive, err := r.GetNextConsecutive(ctx, constants.InvoicePrefix)
+	if err != nil {
 		return err
 	}
 
-	for _, product := range products {
-		billProduct := &billProductModel{
-			BillID:    billModel.ID,
-			ProductID: product.ID,
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
+	billDTO := bill.ToDTO()
+
+	var response *dto.CreateElectronicInvoiceResponse
+	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		billModel := &billModel{
+			ID:             billDTO.ID,
+			TotalAmount:    billDTO.TotalAmount,
+			DiscountAmount: billDTO.DiscountAmount,
+			VAT:            billDTO.VAT,
+			ICO:            billDTO.ICO,
+			Tip:            billDTO.Tip,
+			DocumentURL:    billDTO.DocumentURL,
+			CreatedAt:      billDTO.CreatedAt,
+			UpdatedAt:      billDTO.UpdatedAt,
 		}
-		if err := r.db.WithContext(ctx).Create(billProduct).Error; err != nil {
+
+		if err := tx.Create(billModel).Error; err != nil {
+			return err
+		}
+
+		for _, product := range products {
+			billProduct := &billProductModel{
+				BillID:    billModel.ID,
+				ProductID: product.ID,
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			}
+			if err := tx.Create(billProduct).Error; err != nil {
+				return err
+			}
+		}
+
+		req := &dto.CreateElectronicInvoiceRequest{
+			Prefix:      constants.InvoicePrefix,
+			Consecutive: consecutive,
+			PaymentCode: bill.PaymentCode(),
+			Bill:        billDTO,
+			Products:    products,
+		}
+
+		apiResponse, err := r.electronicInvoiceClient.Create(ctx, req)
+		if err != nil {
+			return err
+		}
+		response = apiResponse
+
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
+
+	if response != nil {
+		if err := r.db.WithContext(ctx).Model(&billModel{}).
+			Where("id = ?", billDTO.ID).
+			Updates(map[string]any{
+				"cufe":    response.CUFE,
+				"tascode": response.Tascode,
+			}).Error; err != nil {
 			return err
 		}
 	}
 
-	// TODO: consecutive needs to be provided from the ElectronicInvoice service
-	// For now, using zero value - this needs to be passed from the service layer
-	req := &dto.CreateElectronicInvoiceRequest{
-		Prefix:      constants.InvoicePrefix,
-		Consecutive: 0,
-		PaymentCode: bill.PaymentCode(),
-		Bill:        billDTO,
-		Products:    products,
-	}
-	return r.electronicInvoiceClient.Create(ctx, req)
+	return nil
 }
 
 func (r *BillRepository) FindByID(ctx context.Context, id string) (*dto.Bill, error) {

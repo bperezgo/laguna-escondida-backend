@@ -57,6 +57,8 @@ type billModel struct {
 	ICO            float64    `gorm:"type:double precision;not null"`
 	Tip            float64    `gorm:"type:double precision;not null"`
 	DocumentURL    *string    `gorm:"type:text"`
+	CUFE           *string    `gorm:"type:varchar(255)"`
+	Tascode        *string    `gorm:"type:varchar(255)"`
 	CreatedAt      time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
 	UpdatedAt      time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
 	DeletedAt      *time.Time `gorm:"type:timestamp"`

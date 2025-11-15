@@ -77,3 +77,8 @@ type CreateElectronicInvoiceRequest struct {
 	Bill        *Bill
 	Products    []*Product
 }
+
+type CreateElectronicInvoiceResponse struct {
+	Tascode string
+	CUFE    string
+}

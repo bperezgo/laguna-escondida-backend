@@ -204,7 +204,7 @@ type invoicePrefix struct {
 func (c *ElectronicInvoiceClient) Create(
 	ctx context.Context,
 	createReq *dto.CreateElectronicInvoiceRequest,
-) error {
+) (*dto.CreateElectronicInvoiceResponse, error) {
 	now := time.Now()
 	issueDate := now.Format("20060102")
 	issueTime := now.Format("150405")
@@ -301,12 +301,12 @@ func (c *ElectronicInvoiceClient) Create(
 
 	jsonData, err := json.Marshal(requestData)
 	if err != nil {
-		return fmt.Errorf("failed to marshal invoice request: %w", err)
+		return nil, fmt.Errorf("failed to marshal invoice request: %w", err)
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("%s/facturacion.v30/invoice/", c.url), bytes.NewBuffer(jsonData))
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	auth := base64.StdEncoding.EncodeToString([]byte(c.user + ":" + c.password))
@@ -315,29 +315,32 @@ func (c *ElectronicInvoiceClient) Create(
 
 	resp, err := c.client.Do(httpReq)
 	if err != nil {
-		return fmt.Errorf("failed to send request: %w", err)
+		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("failed to read response: %w", err)
+		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("invoice API returned status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("invoice API returned status %d: %s", resp.StatusCode, string(body))
 	}
 
 	var invoiceResp invoiceResponse
 	if err := json.Unmarshal(body, &invoiceResp); err != nil {
-		return fmt.Errorf("failed to unmarshal response: %w", err)
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
 	if invoiceResp.InvoiceResult.Status.Code != 200 {
-		return fmt.Errorf("invoice API error: %s", invoiceResp.InvoiceResult.Status.Text)
+		return nil, fmt.Errorf("invoice API error: %s", invoiceResp.InvoiceResult.Status.Text)
 	}
 
-	return nil
+	return &dto.CreateElectronicInvoiceResponse{
+		Tascode: invoiceResp.InvoiceResult.Document.Tascode,
+		CUFE:    invoiceResp.InvoiceResult.Document.CUFE,
+	}, nil
 }
 
 func (c *ElectronicInvoiceClient) Get(ctx context.Context, invoiceID string) (*dto.ElectronicInvoice, error) {
