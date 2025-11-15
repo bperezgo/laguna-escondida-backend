@@ -50,15 +50,16 @@ func (openBillProductModel) TableName() string {
 }
 
 type billModel struct {
-	ID          string     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	TotalPrice  float64    `gorm:"type:double precision;not null"`
-	VAT         float64    `gorm:"type:double precision;not null"`
-	ICO         float64    `gorm:"type:double precision;not null"`
-	Tip         float64    `gorm:"type:double precision;not null"`
-	DocumentURL string     `gorm:"type:text;not null"`
-	CreatedAt   time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
-	UpdatedAt   time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
-	DeletedAt   *time.Time `gorm:"type:timestamp"`
+	ID             string     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	TotalAmount    float64    `gorm:"type:double precision;not null;column:total_amount"`
+	DiscountAmount float64    `gorm:"type:double precision;not null;default:0;column:discount_amount"`
+	VAT            float64    `gorm:"type:double precision;not null"`
+	ICO            float64    `gorm:"type:double precision;not null"`
+	Tip            float64    `gorm:"type:double precision;not null"`
+	DocumentURL    *string    `gorm:"type:text"`
+	CreatedAt      time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	UpdatedAt      time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	DeletedAt      *time.Time `gorm:"type:timestamp"`
 }
 
 func (billModel) TableName() string {
@@ -228,7 +229,7 @@ func (r *OpenBillRepository) Update(ctx context.Context, openBillID string, open
 	})
 }
 
-func (r *OpenBillRepository) PayOrder(ctx context.Context, openBillID string, documentURL string) (*dto.Bill, error) {
+func (r *OpenBillRepository) PayOrder(ctx context.Context, openBillID string) (*dto.Bill, error) {
 	var bill *dto.Bill
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Fetch the open bill
@@ -246,13 +247,14 @@ func (r *OpenBillRepository) PayOrder(ctx context.Context, openBillID string, do
 		// Create the bill from open_bill data
 		now := time.Now()
 		billModel := &billModel{
-			TotalPrice:  openBillModel.TotalPrice,
-			VAT:         openBillModel.VAT,
-			ICO:         openBillModel.ICO,
-			Tip:         openBillModel.Tip,
-			DocumentURL: documentURL,
-			CreatedAt:   now,
-			UpdatedAt:   now,
+			TotalAmount:    openBillModel.TotalPrice,
+			DiscountAmount: 0.0,
+			VAT:            openBillModel.VAT,
+			ICO:            openBillModel.ICO,
+			Tip:            openBillModel.Tip,
+			DocumentURL:    nil,
+			CreatedAt:      now,
+			UpdatedAt:      now,
 		}
 
 		if err := tx.Create(billModel).Error; err != nil {
@@ -275,14 +277,15 @@ func (r *OpenBillRepository) PayOrder(ctx context.Context, openBillID string, do
 
 		// Convert to DTO
 		bill = &dto.Bill{
-			ID:          billModel.ID,
-			TotalPrice:  billModel.TotalPrice,
-			VAT:         billModel.VAT,
-			ICO:         billModel.ICO,
-			Tip:         billModel.Tip,
-			DocumentURL: billModel.DocumentURL,
-			CreatedAt:   billModel.CreatedAt,
-			UpdatedAt:   billModel.UpdatedAt,
+			ID:             billModel.ID,
+			TotalAmount:    billModel.TotalAmount,
+			DiscountAmount: billModel.DiscountAmount,
+			VAT:            billModel.VAT,
+			ICO:            billModel.ICO,
+			Tip:            billModel.Tip,
+			DocumentURL:    billModel.DocumentURL,
+			CreatedAt:      billModel.CreatedAt,
+			UpdatedAt:      billModel.UpdatedAt,
 		}
 
 		return nil

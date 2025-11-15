@@ -90,7 +90,7 @@ const (
 	DebitCard              = "49"
 )
 
-func paymentCode(paymentCode dto.ElectronicInvoicePaymentCode) string {
+func paymentCodeToCode(paymentCode dto.ElectronicInvoicePaymentCode) string {
 	switch paymentCode {
 	case dto.ElectronicInvoicePaymentCodeCreditCard:
 		return CrediCard

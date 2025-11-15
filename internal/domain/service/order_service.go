@@ -179,14 +179,14 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 // PayOrder consolidates an open_bill into a bill
 // Moves all information from open_bill to bill (except temporal_identifier)
 // Only moves open_bill_products where deleted_at IS NULL to bill_products
-func (s *OrderService) PayOrder(ctx context.Context, openBillID string, req *dto.PayOrderRequest) (*dto.Bill, error) {
+func (s *OrderService) PayOrder(ctx context.Context, openBillID string) (*dto.Bill, error) {
 	// Validate that the open bill exists
 	if _, err := s.openBillRepo.FindByID(ctx, openBillID); err != nil {
 		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
 	}
 
 	// Consolidate the open bill into a bill
-	bill, err := s.openBillRepo.PayOrder(ctx, openBillID, req.DocumentURL)
+	bill, err := s.openBillRepo.PayOrder(ctx, openBillID)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
 	}

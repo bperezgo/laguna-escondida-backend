@@ -29,17 +29,17 @@ type UpdateOrderRequest struct {
 }
 
 type Bill struct {
-	ID          string    `json:"id"`
-	TotalPrice  float64   `json:"total_price"`
-	VAT         float64   `json:"vat"`
-	ICO         float64   `json:"ico"`
-	Tip         float64   `json:"tip"`
-	DocumentURL string    `json:"document_url"`
-	Products    []Product `json:"products,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-}
-
-type PayOrderRequest struct {
-	DocumentURL string `json:"document_url" validate:"required"`
+	ID             string                  `json:"id"`
+	TotalAmount    float64                 `json:"total_amount"`
+	DiscountAmount float64                 `json:"discount_amount"`
+	TaxAmount      float64                 `json:"tax_amount"`
+	PayAmount      float64                 `json:"pay_amount"`
+	VAT            float64                 `json:"vat"`
+	ICO            float64                 `json:"ico"`
+	Tip            float64                 `json:"tip"`
+	DocumentURL    *string                 `json:"document_url,omitempty"`
+	Customer       *Customer               `json:"customer,omitempty"`
+	Products       []BillProductForInvoice `json:"products,omitempty"`
+	CreatedAt      time.Time               `json:"created_at"`
+	UpdatedAt      time.Time               `json:"updated_at"`
 }

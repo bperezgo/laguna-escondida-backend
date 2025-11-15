@@ -35,6 +35,7 @@ internal/
 - ❌ `domain/ports` MUST NOT import `platform/*`
 - ❌ `domain/dto` MUST NOT import `platform/*`
 - ❌ `domain/error` MUST NOT import `platform/*`
+- ❌ `domain/dto` MUST NOT import anything outside of `domain/dto` package (only import standard library packages and other files within the same `dto` folder)
 
 ## Domain Layer Guidelines
 

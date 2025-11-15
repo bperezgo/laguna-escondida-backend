@@ -1,5 +1,7 @@
 package dto
 
+import "time"
+
 type ElectronicInvoicePaymentCode string
 
 const (
@@ -16,6 +18,13 @@ type DocumentType string
 const (
 	DocumentTypeNationalIdentificationNumber DocumentType = "CC"
 	DocumentTypeNIT                          DocumentType = "NIT"
+)
+
+type TaxCode string
+
+const (
+	TaxCodeVAT TaxCode = "VAT"
+	TaxCodeICO TaxCode = "ICO"
 )
 
 type Customer struct {
@@ -41,21 +50,16 @@ type InvoiceAllowance struct {
 }
 
 type InvoiceTax struct {
-	ID        string `json:"ID"`
-	TaxAmount string `json:"taxAmount"`
-	Percent   string `json:"percent"`
+	TaxCode   TaxCode `json:"taxCode"`
+	TaxAmount string  `json:"taxAmount"`
+	Percent   string  `json:"percent"`
 }
 
 type InvoiceItem struct {
-	Quantity    string             `json:"quantity"`
-	UnitPrice   string             `json:"unitPrice"`
-	Total       string             `json:"total"`
-	Description string             `json:"description"`
-	Brand       string             `json:"brand"`
-	Model       string             `json:"model"`
-	Code        string             `json:"code"`
-	Allowance   []InvoiceAllowance `json:"allowance,omitempty"`
-	Taxes       []InvoiceTax       `json:"taxes,omitempty"`
+	Quantity  int                `json:"quantity"`
+	ProductID string             `json:"product_id"`
+	Allowance []InvoiceAllowance `json:"allowance,omitempty"`
+	Taxes     []InvoiceTax       `json:"taxes,omitempty"`
 }
 
 type ElectronicInvoice struct {
@@ -66,4 +70,36 @@ type ElectronicInvoice struct {
 	Customer    *Customer                    `json:"customer"`
 	Amounts     InvoiceAmounts               `json:"amounts"`
 	Items       []InvoiceItem                `json:"items"`
+}
+
+type BillProductForInvoice struct {
+	ProductID string
+	Quantity  int
+	UnitPrice float64
+	Allowance []InvoiceAllowance
+	Taxes     []InvoiceTax
+}
+
+type BillForInvoice struct {
+	ID             string
+	TotalAmount    float64
+	DiscountAmount float64
+	TaxAmount      float64
+	PayAmount      float64
+	VAT            float64
+	ICO            float64
+	Tip            float64
+	DocumentURL    *string
+	Customer       *Customer
+	Products       []BillProductForInvoice
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+type CreateElectronicInvoiceRequest struct {
+	Prefix      string
+	Consecutive int
+	PaymentCode ElectronicInvoicePaymentCode
+	Bill        *BillForInvoice
+	Products    []*Product
 }

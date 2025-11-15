@@ -33,6 +33,17 @@ func NewElectronicInvoiceClient(cfg *config.Config) *ElectronicInvoiceClient {
 	}
 }
 
+func mapTaxCodeToID(taxCode dto.TaxCode) string {
+	switch string(taxCode) {
+	case "IVA":
+		return "01"
+	case "ICO":
+		return "04"
+	default:
+		return string(taxCode)
+	}
+}
+
 type invoiceRequest struct {
 	Invoice invoiceRequestData `json:"invoice"`
 }
@@ -168,36 +179,50 @@ type invoicePrefix struct {
 	Auth        string `json:"auth"`
 }
 
-func (c *ElectronicInvoiceClient) Create(ctx context.Context, invoice *dto.ElectronicInvoice) error {
-	prefix := "SETP"
+func (c *ElectronicInvoiceClient) Create(
+	ctx context.Context,
+	createReq *dto.CreateElectronicInvoiceRequest,
+) error {
 	now := time.Now()
 	issueDate := now.Format("20060102")
 	issueTime := now.Format("150405")
 
-	totalAmount := invoice.Amounts.TotalAmount
-	discountAmount := invoice.Amounts.DiscountAmount
-	taxAmount := invoice.Amounts.TaxAmount
-	payAmount := invoice.Amounts.PayAmount
+	totalAmount := strconv.FormatFloat(createReq.Bill.TotalAmount, 'f', -1, 64)
+	discountAmount := strconv.FormatFloat(createReq.Bill.DiscountAmount, 'f', -1, 64)
+	taxAmount := strconv.FormatFloat(createReq.Bill.TaxAmount, 'f', -1, 64)
+	payAmount := strconv.FormatFloat(createReq.Bill.PayAmount, 'f', -1, 64)
+
+	productMap := make(map[string]*dto.Product)
+	for _, product := range createReq.Products {
+		productMap[product.ID] = product
+	}
+
+	customer := createReq.Bill.Customer
+	if customer == nil {
+		return fmt.Errorf("customer is required")
+	}
 
 	requestData := invoiceRequest{
 		Invoice: invoiceRequestData{
-			Prefix:      prefix,
-			IntID:       strconv.Itoa(invoice.Consecutive),
+			Prefix:      createReq.Prefix,
+			IntID:       strconv.Itoa(createReq.Consecutive),
 			IssueDate:   issueDate,
 			IssueTime:   issueTime,
 			PaymentType: "1", // Contado->1 / Credito->2 // We are not using loans to pay anything in our system
-			PaymentCode: paymentCode(invoice.PaymentCode),
+			PaymentCode: paymentCodeToCode(createReq.PaymentCode),
 			Note1:       utils.NumberToWords(payAmount),
 			Customer: invoiceCustomer{
+				// TODO: map additional account id to code
 				AdditionalAccountID: "1",
-				Name:                invoice.Customer.Name,
+				Name:                customer.Name,
 				City:                "No reporta",
 				CountrySubentity:    "No reporta",
 				AddressLine:         "No reporta",
-				DocumentNumber:      invoice.Customer.DocumentNumber,
-				DocumentType:        string(invoice.Customer.DocumentType),
-				Telephone:           "No reporta",
-				Email:               invoice.Customer.Email,
+				DocumentNumber:      customer.DocumentNumber,
+				// TODO: map document type to code
+				DocumentType: string(customer.DocumentType),
+				Telephone:    "No reporta",
+				Email:        customer.Email,
 			},
 			Amounts: invoiceAmounts{
 				TotalAmount:    totalAmount,
@@ -205,16 +230,39 @@ func (c *ElectronicInvoiceClient) Create(ctx context.Context, invoice *dto.Elect
 				TaxAmount:      taxAmount,
 				PayAmount:      payAmount,
 			},
-			Items: lo.Map(invoice.Items, func(item dto.InvoiceItem, _ int) invoiceItem {
+			Items: lo.Map(createReq.Bill.Products, func(billProduct dto.BillProductForInvoice, _ int) invoiceItem {
+				product := productMap[billProduct.ProductID]
+				total := billProduct.UnitPrice * float64(billProduct.Quantity)
+
+				description := ""
+				if product != nil && product.Description != nil {
+					description = *product.Description
+				}
+
+				brand := ""
+				if product != nil && product.Brand != nil {
+					brand = *product.Brand
+				}
+
+				model := ""
+				if product != nil && product.Model != nil {
+					model = *product.Model
+				}
+
+				code := ""
+				if product != nil {
+					code = product.SKU
+				}
+
 				return invoiceItem{
-					Quantity:    item.Quantity,
-					UnitPrice:   item.UnitPrice,
-					Total:       item.Total,
-					Description: item.Description,
-					Brand:       item.Brand,
-					Model:       item.Model,
-					Code:        item.Code,
-					Allowance: lo.Map(item.Allowance, func(allowance dto.InvoiceAllowance, _ int) invoiceAllowance {
+					Quantity:    strconv.Itoa(billProduct.Quantity),
+					UnitPrice:   strconv.FormatFloat(billProduct.UnitPrice, 'f', -1, 64),
+					Total:       strconv.FormatFloat(total, 'f', -1, 64),
+					Description: description,
+					Brand:       brand,
+					Model:       model,
+					Code:        code,
+					Allowance: lo.Map(billProduct.Allowance, func(allowance dto.InvoiceAllowance, index int) invoiceAllowance {
 						return invoiceAllowance{
 							Charge:      allowance.Charge,
 							ReasonCode:  allowance.ReasonCode,
@@ -223,9 +271,9 @@ func (c *ElectronicInvoiceClient) Create(ctx context.Context, invoice *dto.Elect
 							Amount:      allowance.Amount,
 						}
 					}),
-					Taxes: lo.Map(item.Taxes, func(tax dto.InvoiceTax, _ int) invoiceTax {
+					Taxes: lo.Map(billProduct.Taxes, func(tax dto.InvoiceTax, index int) invoiceTax {
 						return invoiceTax{
-							ID:        tax.ID,
+							ID:        mapTaxCodeToID(tax.TaxCode),
 							TaxAmount: tax.TaxAmount,
 							Percent:   tax.Percent,
 						}
@@ -240,16 +288,16 @@ func (c *ElectronicInvoiceClient) Create(ctx context.Context, invoice *dto.Elect
 		return fmt.Errorf("failed to marshal invoice request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("%s/facturacion.v30/invoice/", c.url), bytes.NewBuffer(jsonData))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("%s/facturacion.v30/invoice/", c.url), bytes.NewBuffer(jsonData))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
 	auth := base64.StdEncoding.EncodeToString([]byte(c.user + ":" + c.password))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Basic "+auth)
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Basic "+auth)
 
-	resp, err := c.client.Do(req)
+	resp, err := c.client.Do(httpReq)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}

@@ -38,7 +38,8 @@ func main() {
 	productRepo := repository.NewProductRepository(db.DB)
 	openBillRepo := repository.NewOpenBillRepository(db.DB)
 	electronicInvoiceClient := httpclient.NewElectronicInvoiceClient(cfg)
-	invoiceService := service.NewInvoiceService(electronicInvoiceClient)
+	billRepo := repository.NewBillRepository(db.DB, electronicInvoiceClient)
+	invoiceService := service.NewInvoiceService(electronicInvoiceClient, productRepo, billRepo)
 
 	// Initialize services
 	orderService := service.NewOrderService(openBillRepo, productRepo, invoiceService)

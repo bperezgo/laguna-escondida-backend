@@ -114,14 +114,7 @@ func (h *OrderHandler) PayOrderHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req dto.PayOrderRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Printf("Error decoding request: %v", err)
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	bill, err := h.orderService.PayOrder(r.Context(), openBillID, &req)
+	bill, err := h.orderService.PayOrder(r.Context(), openBillID)
 	if err != nil {
 		log.Printf("Error paying order: %v", err)
 
