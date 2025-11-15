@@ -59,12 +59,8 @@ export interface ElectronicInvoice {
 }
 
 export interface CreateElectronicInvoiceRequest {
-  consecutive: number;
-  issue_date: string;
-  issue_time: string;
   payment_code: ElectronicInvoicePaymentCode;
   customer?: Customer;
-  amounts: InvoiceAmounts;
   items: InvoiceItem[];
 }
 

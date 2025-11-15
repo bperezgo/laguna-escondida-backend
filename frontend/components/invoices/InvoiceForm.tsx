@@ -27,21 +27,12 @@ const DOCUMENT_TYPES: { value: DocumentType; label: string }[] = [
 
 export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: InvoiceFormProps) {
   const [formData, setFormData] = useState({
-    consecutive: '',
-    issue_date: '',
-    issue_time: '',
     payment_code: 'cash' as ElectronicInvoicePaymentCode,
     customer: {
       id: '',
       document_type: 'CC' as DocumentType,
       name: '',
       email: '',
-    },
-    amounts: {
-      totalAmount: '',
-      discountAmount: '',
-      taxAmount: '',
-      payAmount: '',
     },
     items: [] as InvoiceItem[],
   });
@@ -51,7 +42,6 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
   const [productsLoading, setProductsLoading] = useState(false);
   const [itemProductSearch, setItemProductSearch] = useState<Record<number, string>>({});
   const [itemSelectedProduct, setItemSelectedProduct] = useState<Record<number, Product | null>>({});
-  const [itemDropdownOpen, setItemDropdownOpen] = useState<Record<number, boolean>>({});
 
   // Fetch products on mount
   useEffect(() => {
@@ -96,10 +86,6 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
       ...prev,
       [itemIndex]: product.name,
     }));
-    setItemDropdownOpen(prev => ({
-      ...prev,
-      [itemIndex]: false,
-    }));
 
     // Auto-populate item fields from product
     updateItem(itemIndex, 'description', product.description || product.name);
@@ -138,20 +124,6 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    // Validate consecutive
-    const consecutive = parseInt(formData.consecutive);
-    if (isNaN(consecutive) || consecutive < 0) {
-      newErrors.consecutive = 'Consecutive must be a valid positive number';
-    }
-
-    // Validate dates
-    if (!formData.issue_date.trim()) {
-      newErrors.issue_date = 'Issue date is required';
-    }
-    if (!formData.issue_time.trim()) {
-      newErrors.issue_time = 'Issue time is required';
-    }
-
     // Validate customer (optional - if any field is filled, all are required)
     const hasCustomerData = 
       formData.customer.id.trim() || 
@@ -170,14 +142,6 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
       } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.customer.email)) {
         newErrors['customer.email'] = 'Invalid email format';
       }
-    }
-
-    // Validate amounts
-    if (!formData.amounts.totalAmount.trim()) {
-      newErrors['amounts.totalAmount'] = 'Total amount is required';
-    }
-    if (!formData.amounts.payAmount.trim()) {
-      newErrors['amounts.payAmount'] = 'Pay amount is required';
     }
 
     // Validate items
@@ -215,9 +179,6 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
       formData.customer.email.trim();
 
     const submitData: CreateElectronicInvoiceRequest = {
-      consecutive: parseInt(formData.consecutive),
-      issue_date: formData.issue_date.trim(),
-      issue_time: formData.issue_time.trim(),
       payment_code: formData.payment_code,
       ...(hasCustomerData && {
         customer: {
@@ -227,12 +188,6 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
           email: formData.customer.email.trim(),
         },
       }),
-      amounts: {
-        totalAmount: formData.amounts.totalAmount.trim(),
-        discountAmount: formData.amounts.discountAmount.trim() || '0',
-        taxAmount: formData.amounts.taxAmount.trim() || '0',
-        payAmount: formData.amounts.payAmount.trim(),
-      },
       items: formData.items.map(item => ({
         quantity: item.quantity.trim(),
         unitPrice: item.unitPrice.trim(),
@@ -259,14 +214,6 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
         [keys[0]]: {
           ...prev[keys[0] as keyof typeof prev] as any,
           [keys[1]]: value,
-        },
-      }));
-    } else if (keys.length === 3 && keys[0] === 'amounts') {
-      setFormData(prev => ({
-        ...prev,
-        amounts: {
-          ...prev.amounts,
-          [keys[2]]: value,
         },
       }));
     }
@@ -372,23 +319,6 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
     updateItem(index, 'total', total);
   };
 
-  const getCurrentDateTime = () => {
-    const now = new Date();
-    return {
-      date: now.toISOString().split('T')[0],
-      time: now.toTimeString().split(' ')[0].substring(0, 5),
-    };
-  };
-
-  const setCurrentDateTime = () => {
-    const { date, time } = getCurrentDateTime();
-    setFormData(prev => ({
-      ...prev,
-      issue_date: date,
-      issue_time: time,
-    }));
-  };
-
   return (
     <div style={{
       position: 'fixed',
@@ -426,99 +356,6 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
               Invoice Details
             </h3>
             
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333' }}>
-                  Consecutive *
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={formData.consecutive}
-                  onChange={(e) => handleChange('consecutive', e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    border: `1px solid ${errors.consecutive ? '#dc3545' : '#ced4da'}`,
-                    borderRadius: '4px',
-                    fontSize: '1rem',
-                    boxSizing: 'border-box',
-                  }}
-                />
-                {errors.consecutive && (
-                  <p style={{ margin: '0.25rem 0 0 0', color: '#dc3545', fontSize: '0.875rem' }}>
-                    {errors.consecutive}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333' }}>
-                  Issue Date *
-                </label>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <input
-                    type="date"
-                    value={formData.issue_date}
-                    onChange={(e) => handleChange('issue_date', e.target.value)}
-                    style={{
-                      flex: 1,
-                      padding: '0.75rem',
-                      border: `1px solid ${errors.issue_date ? '#dc3545' : '#ced4da'}`,
-                      borderRadius: '4px',
-                      fontSize: '1rem',
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={setCurrentDateTime}
-                    style={{
-                      padding: '0.75rem',
-                      backgroundColor: '#6c757d',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      fontSize: '0.875rem',
-                    }}
-                    title="Set to current date/time"
-                  >
-                    Now
-                  </button>
-                </div>
-                {errors.issue_date && (
-                  <p style={{ margin: '0.25rem 0 0 0', color: '#dc3545', fontSize: '0.875rem' }}>
-                    {errors.issue_date}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333' }}>
-                  Issue Time *
-                </label>
-                <input
-                  type="time"
-                  value={formData.issue_time}
-                  onChange={(e) => handleChange('issue_time', e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    border: `1px solid ${errors.issue_time ? '#dc3545' : '#ced4da'}`,
-                    borderRadius: '4px',
-                    fontSize: '1rem',
-                    boxSizing: 'border-box',
-                  }}
-                />
-                {errors.issue_time && (
-                  <p style={{ margin: '0.25rem 0 0 0', color: '#dc3545', fontSize: '0.875rem' }}>
-                    {errors.issue_time}
-                  </p>
-                )}
-              </div>
-            </div>
-
             <div>
               <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333' }}>
                 Payment Code *
@@ -740,7 +577,7 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
                         boxSizing: 'border-box',
                       }}
                     />
-                    {itemProductSearch[index] !== undefined && itemProductSearch[index] !== '' && getFilteredProducts(index).length > 0 && (
+                    {!itemSelectedProduct[index] && itemProductSearch[index] !== undefined && itemProductSearch[index] !== '' && getFilteredProducts(index).length > 0 && (
                       <div style={{
                         position: 'absolute',
                         top: '100%',
@@ -870,7 +707,7 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
                     <input
                       type="text"
                       value={item.unitPrice}
-                      onChange={(e) => {
+                      onChange={itemSelectedProduct[index] ? undefined : (e) => {
                         updateItem(index, 'unitPrice', e.target.value);
                         calculateItemTotal(index);
                       }}
@@ -883,6 +720,7 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
                         fontSize: '0.875rem',
                         boxSizing: 'border-box',
                         backgroundColor: itemSelectedProduct[index] ? '#e9ecef' : 'white',
+                        cursor: itemSelectedProduct[index] ? 'not-allowed' : 'text',
                       }}
                       placeholder="0.00"
                     />
@@ -946,7 +784,7 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
                     <input
                       type="text"
                       value={item.brand}
-                      onChange={(e) => updateItem(index, 'brand', e.target.value)}
+                      onChange={itemSelectedProduct[index] ? undefined : (e) => updateItem(index, 'brand', e.target.value)}
                       readOnly={!!itemSelectedProduct[index]}
                       style={{
                         width: '100%',
@@ -956,6 +794,7 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
                         fontSize: '0.875rem',
                         boxSizing: 'border-box',
                         backgroundColor: itemSelectedProduct[index] ? '#e9ecef' : 'white',
+                        cursor: itemSelectedProduct[index] ? 'not-allowed' : 'text',
                       }}
                       placeholder="Enter brand"
                     />
@@ -967,7 +806,7 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
                     <input
                       type="text"
                       value={item.model}
-                      onChange={(e) => updateItem(index, 'model', e.target.value)}
+                      onChange={itemSelectedProduct[index] ? undefined : (e) => updateItem(index, 'model', e.target.value)}
                       readOnly={!!itemSelectedProduct[index]}
                       style={{
                         width: '100%',
@@ -977,6 +816,7 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
                         fontSize: '0.875rem',
                         boxSizing: 'border-box',
                         backgroundColor: itemSelectedProduct[index] ? '#e9ecef' : 'white',
+                        cursor: itemSelectedProduct[index] ? 'not-allowed' : 'text',
                       }}
                       placeholder="Enter model"
                     />
@@ -988,7 +828,7 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
                     <input
                       type="text"
                       value={item.code}
-                      onChange={(e) => updateItem(index, 'code', e.target.value)}
+                      onChange={itemSelectedProduct[index] ? undefined : (e) => updateItem(index, 'code', e.target.value)}
                       readOnly={!!itemSelectedProduct[index]}
                       style={{
                         width: '100%',
@@ -998,6 +838,7 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
                         fontSize: '0.875rem',
                         boxSizing: 'border-box',
                         backgroundColor: itemSelectedProduct[index] ? '#e9ecef' : 'white',
+                        cursor: itemSelectedProduct[index] ? 'not-allowed' : 'text',
                       }}
                       placeholder="Enter code"
                     />
@@ -1005,105 +846,6 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
                 </div>
               </div>
             ))}
-          </div>
-
-          {/* Amounts Section */}
-          <div style={{ marginBottom: '2rem' }}>
-            <h3 style={{ marginTop: 0, marginBottom: '1rem', fontSize: '1.2rem', fontWeight: '600' }}>
-              Invoice Amounts
-            </h3>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333' }}>
-                  Total Amount *
-                </label>
-                <input
-                  type="text"
-                  value={formData.amounts.totalAmount}
-                  onChange={(e) => handleChange('amounts.totalAmount', e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    border: `1px solid ${errors['amounts.totalAmount'] ? '#dc3545' : '#ced4da'}`,
-                    borderRadius: '4px',
-                    fontSize: '1rem',
-                    boxSizing: 'border-box',
-                  }}
-                  placeholder="0.00"
-                />
-                {errors['amounts.totalAmount'] && (
-                  <p style={{ margin: '0.25rem 0 0 0', color: '#dc3545', fontSize: '0.875rem' }}>
-                    {errors['amounts.totalAmount']}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333' }}>
-                  Discount Amount
-                </label>
-                <input
-                  type="text"
-                  value={formData.amounts.discountAmount}
-                  onChange={(e) => handleChange('amounts.discountAmount', e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    border: '1px solid #ced4da',
-                    borderRadius: '4px',
-                    fontSize: '1rem',
-                    boxSizing: 'border-box',
-                  }}
-                  placeholder="0.00"
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333' }}>
-                  Tax Amount
-                </label>
-                <input
-                  type="text"
-                  value={formData.amounts.taxAmount}
-                  onChange={(e) => handleChange('amounts.taxAmount', e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    border: '1px solid #ced4da',
-                    borderRadius: '4px',
-                    fontSize: '1rem',
-                    boxSizing: 'border-box',
-                  }}
-                  placeholder="0.00"
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333' }}>
-                  Pay Amount *
-                </label>
-                <input
-                  type="text"
-                  value={formData.amounts.payAmount}
-                  onChange={(e) => handleChange('amounts.payAmount', e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    border: `1px solid ${errors['amounts.payAmount'] ? '#dc3545' : '#ced4da'}`,
-                    borderRadius: '4px',
-                    fontSize: '1rem',
-                    boxSizing: 'border-box',
-                  }}
-                  placeholder="0.00"
-                />
-                {errors['amounts.payAmount'] && (
-                  <p style={{ margin: '0.25rem 0 0 0', color: '#dc3545', fontSize: '0.875rem' }}>
-                    {errors['amounts.payAmount']}
-                  </p>
-                )}
-              </div>
-            </div>
           </div>
 
           {/* Form Actions */}
