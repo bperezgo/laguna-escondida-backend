@@ -79,7 +79,7 @@ func main() {
 	router.HandleFunc("/api/products/{id}", productDeleteMiddleware(http.HandlerFunc(productHandler.DeleteProductHandler)).ServeHTTP).Methods("DELETE", "OPTIONS")
 
 	// Invoice routes
-	router.HandleFunc("/api/invoices/electronic", invoicePostMiddleware(http.HandlerFunc(invoiceHandler.CreateElectronicInvoiceHandler)).ServeHTTP).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/invoices", invoicePostMiddleware(http.HandlerFunc(invoiceHandler.CreateElectronicInvoiceHandler)).ServeHTTP).Methods("POST", "OPTIONS")
 
 	port := os.Getenv("PORT")
 	if port == "" {

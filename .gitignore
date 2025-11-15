@@ -23,3 +23,5 @@ go.work
 # Postgres data
 postgres_data/
 
+__debug_bin*
+
