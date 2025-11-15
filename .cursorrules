@@ -31,11 +31,13 @@ internal/
 ### Import Rules
 - ✅ `platform/handler` can import `domain/service`, `domain/dto`, `domain/error`
 - ✅ `platform/postgres/repository` can import `domain/ports`
+- ✅ `platform/dto` can import `domain/dto`
 - ❌ `domain/service` MUST NOT import `platform/*`
 - ❌ `domain/ports` MUST NOT import `platform/*`
-- ❌ `domain/dto` MUST NOT import `platform/*`
+- ❌ `domain/dto` MUST NOT import `platform/*` or `platform/dto`
 - ❌ `domain/error` MUST NOT import `platform/*`
 - ❌ `domain/dto` MUST NOT import anything outside of `domain/dto` package (only import standard library packages and other files within the same `dto` folder)
+- ❌ `platform/dto` MUST NOT import anything from `platform/*` except standard library packages (can import `domain/dto`)
 
 ## Domain Layer Guidelines
 
@@ -79,6 +81,8 @@ internal/
 - **Plain structs only** - no methods, no business logic
 - Used for data transfer between layers
 - Can include validation tags (e.g., `validate`, `json`)
+- **MUST NOT import** anything from `platform/*` or `platform/dto`
+- **CAN import** standard library packages and other files within the same `dto` folder
 - Example:
   ```go
   // domain/dto/product.go
@@ -136,10 +140,31 @@ internal/
   }
   ```
 
+### `platform/dto/` - Platform-Specific Data Transfer Objects
+- **Plain structs only** - no methods, no business logic
+- Used for data transfer within platform adapters (handlers, repositories, http clients)
+- **CAN import** `domain/dto` to reference domain types
+- **MUST NOT import** anything from `platform/*` except standard library packages
+- These DTOs are adapter-specific and should not be used by domain services
+- Example:
+  ```go
+  // platform/dto/electronic_invoice.go
+  import "laguna-escondida/backend/internal/domain/dto"
+  
+  type CreateElectronicInvoiceRequest struct {
+      Prefix      string
+      Consecutive int
+      PaymentCode dto.ElectronicInvoicePaymentCode
+      Bill        *BillForInvoice
+      Products    []*dto.Product
+  }
+  ```
+
 ### `platform/postgres/repository/` - Database Implementations (Secondary Adapters)
 - Implement interfaces from `domain/ports/`
 - Handle all database-specific logic (SQL queries, transactions, etc.)
 - Convert between database models and domain DTOs
+- Can use `platform/dto` for adapter-specific data structures
 - Example:
   ```go
   // platform/postgres/repository/product_repository.go
@@ -177,6 +202,32 @@ internal/
 - Use standard library errors for infrastructure errors
 - Wrap errors with context using `fmt.Errorf` with `%w` verb
 - Return errors to handlers, don't log in domain layer (log in handlers/adapters)
+
+### Type Safety Rules
+- **NEVER use `interface{}` or `any` in function signatures, ports, or interfaces** unless explicitly requested by the user
+- **Always use concrete types** - Type safety should be enforced at compile time, not runtime
+- **Avoid runtime type assertions** - If you need to validate types, use concrete structs instead
+- **Port interfaces MUST use concrete types** - Ports define contracts that should be type-safe
+- **Only use `interface{}` or `any` when explicitly asked** - The user will explicitly request it if needed for a specific use case
+- Example of what to avoid:
+  ```go
+  // BAD - Using interface{} requires runtime type checking
+  func Create(ctx context.Context, req interface{}) error {
+      createReq, ok := req.(*SomeRequest)
+      if !ok {
+          return fmt.Errorf("invalid type")
+      }
+      // ...
+  }
+  ```
+- Example of what to do:
+  ```go
+  // GOOD - Using concrete type provides compile-time safety
+  func Create(ctx context.Context, req *CreateRequest) error {
+      // Type is guaranteed at compile time
+      // ...
+  }
+  ```
 
 ### Dependency Injection
 - Use constructor functions (e.g., `NewProductService`, `NewProductRepository`)

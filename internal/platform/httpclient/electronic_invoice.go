@@ -44,6 +44,28 @@ func mapTaxCodeToID(taxCode dto.TaxCode) string {
 	}
 }
 
+func mapDocumentTypeToCode(documentType dto.DocumentType) string {
+	switch documentType {
+	case dto.DocumentTypeNIT:
+		return "31"
+	case dto.DocumentTypeNationalIdentificationNumber:
+		return "13"
+	default:
+		return "13"
+	}
+}
+
+func mapDocumentTypeToAdditionalAccountID(documentType dto.DocumentType) string {
+	switch documentType {
+	case dto.DocumentTypeNIT:
+		return "1"
+	case dto.DocumentTypeNationalIdentificationNumber:
+		return "2"
+	default:
+		return "2"
+	}
+}
+
 type invoiceRequest struct {
 	Invoice invoiceRequestData `json:"invoice"`
 }
@@ -111,9 +133,9 @@ type invoiceResponse struct {
 }
 
 type invoiceResult struct {
-	Status    invoiceStatus    `json:"status"`
-	Documento invoiceDocumento `json:"documento"`
-	Prefix    invoicePrefix    `json:"prefix"`
+	Status   invoiceStatus   `json:"status"`
+	Document invoiceDocument `json:"document"`
+	Prefix   invoicePrefix   `json:"prefix"`
 }
 
 type invoiceStatus struct {
@@ -121,7 +143,7 @@ type invoiceStatus struct {
 	Text string `json:"text"`
 }
 
-type invoiceDocumento struct {
+type invoiceDocument struct {
 	Type     string `json:"type"`
 	Mode     string `json:"mode"`
 	Tascode  string `json:"tascode"`
@@ -192,14 +214,14 @@ func (c *ElectronicInvoiceClient) Create(
 	taxAmount := strconv.FormatFloat(createReq.Bill.TaxAmount, 'f', -1, 64)
 	payAmount := strconv.FormatFloat(createReq.Bill.PayAmount, 'f', -1, 64)
 
-	productMap := make(map[string]*dto.Product)
-	for _, product := range createReq.Products {
-		productMap[product.ID] = product
-	}
-
 	customer := createReq.Bill.Customer
 	if customer == nil {
-		return fmt.Errorf("customer is required")
+		customer = &dto.Customer{
+			DocumentNumber: "222222222222",
+			DocumentType:   dto.DocumentTypeNIT,
+			Name:           "consumidor final",
+			Email:          "noenviar@noenviar.com",
+		}
 	}
 
 	requestData := invoiceRequest{
@@ -208,21 +230,19 @@ func (c *ElectronicInvoiceClient) Create(
 			IntID:       strconv.Itoa(createReq.Consecutive),
 			IssueDate:   issueDate,
 			IssueTime:   issueTime,
-			PaymentType: "1", // Contado->1 / Credito->2 // We are not using loans to pay anything in our system
+			PaymentType: "1", // Contado->1 / Credito->2 // We are not using loans to pay anything in our system so always use "1"
 			PaymentCode: paymentCodeToCode(createReq.PaymentCode),
 			Note1:       utils.NumberToWords(payAmount),
 			Customer: invoiceCustomer{
-				// TODO: map additional account id to code
-				AdditionalAccountID: "1",
+				AdditionalAccountID: mapDocumentTypeToAdditionalAccountID(customer.DocumentType),
 				Name:                customer.Name,
-				City:                "No reporta",
-				CountrySubentity:    "No reporta",
-				AddressLine:         "No reporta",
+				City:                "No Reporta",
+				CountrySubentity:    "11001",
+				AddressLine:         "No Reporta",
 				DocumentNumber:      customer.DocumentNumber,
-				// TODO: map document type to code
-				DocumentType: string(customer.DocumentType),
-				Telephone:    "No reporta",
-				Email:        customer.Email,
+				DocumentType:        mapDocumentTypeToCode(customer.DocumentType),
+				Telephone:           "00000000",
+				Email:               customer.Email,
 			},
 			Amounts: invoiceAmounts{
 				TotalAmount:    totalAmount,
@@ -230,29 +250,25 @@ func (c *ElectronicInvoiceClient) Create(
 				TaxAmount:      taxAmount,
 				PayAmount:      payAmount,
 			},
-			Items: lo.Map(createReq.Bill.Products, func(billProduct dto.BillProductForInvoice, _ int) invoiceItem {
-				product := productMap[billProduct.ProductID]
+			Items: lo.Map(createReq.Bill.Products, func(billProduct dto.BillProduct, _ int) invoiceItem {
 				total := billProduct.UnitPrice * float64(billProduct.Quantity)
 
 				description := ""
-				if product != nil && product.Description != nil {
-					description = *product.Description
+				if billProduct.Description != nil {
+					description = *billProduct.Description
 				}
 
 				brand := ""
-				if product != nil && product.Brand != nil {
-					brand = *product.Brand
+				if billProduct.Brand != nil {
+					brand = *billProduct.Brand
 				}
 
 				model := ""
-				if product != nil && product.Model != nil {
-					model = *product.Model
+				if billProduct.Model != nil {
+					model = *billProduct.Model
 				}
 
-				code := ""
-				if product != nil {
-					code = product.SKU
-				}
+				code := billProduct.Code
 
 				return invoiceItem{
 					Quantity:    strconv.Itoa(billProduct.Quantity),

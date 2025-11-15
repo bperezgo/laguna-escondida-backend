@@ -21,6 +21,7 @@ type Aggregate struct {
 	tip            float64
 	documentURL    *string
 	customer       *dto.Customer
+	paymentCode    dto.ElectronicInvoicePaymentCode
 	products       []*BillProduct
 	createdAt      time.Time
 	updatedAt      time.Time
@@ -77,6 +78,8 @@ func NewBillFromCreateElectronicInvoiceRequest(invoice *dto.ElectronicInvoice, p
 		ico:            totalIco,
 		tip:            totalTip,
 		documentURL:    nil,
+		customer:       invoice.Customer,
+		paymentCode:    invoice.PaymentCode,
 		products:       products,
 		createdAt:      time.Now(),
 		updatedAt:      time.Now(),
@@ -97,13 +100,17 @@ func (a *Aggregate) ToDTO() *dto.Bill {
 		Tip:            a.tip,
 		DocumentURL:    a.documentURL,
 		Customer:       a.customer,
-		Products: lo.Map(a.products, func(product *BillProduct, _ int) dto.BillProductForInvoice {
-			return dto.BillProductForInvoice{
-				ProductID: product.id,
-				Quantity:  product.quantity,
-				UnitPrice: product.unitPrice,
-				Allowance: product.allowance,
-				Taxes:     product.taxes,
+		Products: lo.Map(a.products, func(product *BillProduct, _ int) dto.BillProduct {
+			return dto.BillProduct{
+				ProductID:   product.id,
+				Quantity:    product.quantity,
+				UnitPrice:   product.unitPrice,
+				Description: product.description,
+				Brand:       product.brand,
+				Model:       product.model,
+				Code:        product.code,
+				Allowance:   product.allowance,
+				Taxes:       product.taxes,
 			}
 		}),
 	}
@@ -111,4 +118,8 @@ func (a *Aggregate) ToDTO() *dto.Bill {
 
 func (a *Aggregate) Products() []*BillProduct {
 	return a.products
+}
+
+func (a *Aggregate) PaymentCode() dto.ElectronicInvoicePaymentCode {
+	return a.paymentCode
 }

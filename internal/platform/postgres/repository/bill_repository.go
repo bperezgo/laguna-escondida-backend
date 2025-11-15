@@ -5,6 +5,7 @@ import (
 	"laguna-escondida/backend/internal/domain/aggregate/bill"
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
+	"laguna-escondida/backend/internal/platform/shared/constants"
 	"time"
 
 	"gorm.io/gorm"
@@ -49,41 +50,13 @@ func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, produ
 		}
 	}
 
-	billProducts := make([]dto.BillProductForInvoice, 0, len(bill.Products()))
-	for _, bp := range bill.Products() {
-		billProducts = append(billProducts, dto.BillProductForInvoice{
-			ProductID: bp.ID(),
-			Quantity:  bp.Quantity(),
-			UnitPrice: bp.UnitPrice(),
-			Allowance: bp.Allowance(),
-			Taxes:     bp.Taxes(),
-		})
-	}
-
-	billForInvoice := &dto.BillForInvoice{
-		ID:             billDTO.ID,
-		TotalAmount:    billDTO.TotalAmount,
-		DiscountAmount: billDTO.DiscountAmount,
-		TaxAmount:      billDTO.TaxAmount,
-		PayAmount:      billDTO.PayAmount,
-		VAT:            billDTO.VAT,
-		ICO:            billDTO.ICO,
-		Tip:            billDTO.Tip,
-		DocumentURL:    billDTO.DocumentURL,
-		Customer:       billDTO.Customer,
-		Products:       billProducts,
-		CreatedAt:      billDTO.CreatedAt,
-		UpdatedAt:      billDTO.UpdatedAt,
-	}
-
-	// TODO: prefix, consecutive, and paymentCode need to be provided
-	// These should come from the ElectronicInvoice DTO or be stored in the bill aggregate
-	// For now, using empty/zero values - these need to be passed from the service layer
+	// TODO: consecutive needs to be provided from the ElectronicInvoice service
+	// For now, using zero value - this needs to be passed from the service layer
 	req := &dto.CreateElectronicInvoiceRequest{
-		Prefix:      "",                                   // TODO: get from bill aggregate or ElectronicInvoice DTO
-		Consecutive: 0,                                    // TODO: get from bill aggregate or ElectronicInvoice DTO
-		PaymentCode: dto.ElectronicInvoicePaymentCodeCash, // TODO: get from bill aggregate or ElectronicInvoice DTO
-		Bill:        billForInvoice,
+		Prefix:      constants.InvoicePrefix,
+		Consecutive: 0,
+		PaymentCode: bill.PaymentCode(),
+		Bill:        billDTO,
 		Products:    products,
 	}
 	return r.electronicInvoiceClient.Create(ctx, req)

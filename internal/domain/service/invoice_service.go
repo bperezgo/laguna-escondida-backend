@@ -37,7 +37,18 @@ func (s *InvoiceService) CreateElectronicInvoice(ctx context.Context, invoice *d
 	}
 
 	bill, err := bill.NewBillFromCreateElectronicInvoiceRequest(invoice, lo.Map(invoice.Items, func(item dto.InvoiceItem, idx int) *bill.BillProduct {
-		return bill.NewBillProduct(item.ProductID, item.Quantity, products[idx].UnitPrice, item.Allowance, item.Taxes)
+		product := products[idx]
+		return bill.NewBillProduct(
+			item.ProductID,
+			item.Quantity,
+			product.UnitPrice,
+			product.Description,
+			product.Brand,
+			product.Model,
+			product.SKU,
+			item.Allowance,
+			item.Taxes,
+		)
 	}))
 
 	if err != nil {

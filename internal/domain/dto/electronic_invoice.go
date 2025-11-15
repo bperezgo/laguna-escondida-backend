@@ -1,7 +1,5 @@
 package dto
 
-import "time"
-
 type ElectronicInvoicePaymentCode string
 
 const (
@@ -72,34 +70,10 @@ type ElectronicInvoice struct {
 	Items       []InvoiceItem                `json:"items"`
 }
 
-type BillProductForInvoice struct {
-	ProductID string
-	Quantity  int
-	UnitPrice float64
-	Allowance []InvoiceAllowance
-	Taxes     []InvoiceTax
-}
-
-type BillForInvoice struct {
-	ID             string
-	TotalAmount    float64
-	DiscountAmount float64
-	TaxAmount      float64
-	PayAmount      float64
-	VAT            float64
-	ICO            float64
-	Tip            float64
-	DocumentURL    *string
-	Customer       *Customer
-	Products       []BillProductForInvoice
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-}
-
 type CreateElectronicInvoiceRequest struct {
 	Prefix      string
 	Consecutive int
 	PaymentCode ElectronicInvoicePaymentCode
-	Bill        *BillForInvoice
+	Bill        *Bill
 	Products    []*Product
 }
