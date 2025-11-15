@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type BillRepository struct {
@@ -65,6 +66,31 @@ func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, produ
 				UpdatedAt: time.Now(),
 			}
 			if err := tx.Create(billProduct).Error; err != nil {
+				return err
+			}
+		}
+
+		if billDTO.Customer != nil {
+			identificationType := string(billDTO.Customer.DocumentType)
+			now := time.Now()
+			billOwner := &billOwnerModel{
+				ID:                 billDTO.Customer.DocumentNumber,
+				Email:              billDTO.Customer.Email,
+				Name:               billDTO.Customer.Name,
+				IdentificationType: &identificationType,
+				CreatedAt:          now,
+				UpdatedAt:          now,
+			}
+
+			if err := tx.Clauses(clause.OnConflict{
+				Columns: []clause.Column{{Name: "id"}},
+				DoUpdates: clause.Assignments(map[string]any{
+					"email":               billOwner.Email,
+					"name":                billOwner.Name,
+					"identification_type": billOwner.IdentificationType,
+					"updated_at":          now,
+				}),
+			}).Create(billOwner).Error; err != nil {
 				return err
 			}
 		}
