@@ -38,6 +38,7 @@ func (s *InvoiceService) CreateElectronicInvoice(ctx context.Context, invoice *d
 
 	bill, err := bill.NewBillFromCreateElectronicInvoiceRequest(invoice, lo.Map(invoice.Items, func(item dto.InvoiceItem, idx int) *bill.BillProduct {
 		product := products[idx]
+
 		return bill.NewBillProduct(
 			item.ProductID,
 			item.Quantity,
@@ -47,7 +48,8 @@ func (s *InvoiceService) CreateElectronicInvoice(ctx context.Context, invoice *d
 			product.Model,
 			product.SKU,
 			item.Allowance,
-			item.Taxes,
+			product.VAT,
+			product.ICO,
 		)
 	}))
 

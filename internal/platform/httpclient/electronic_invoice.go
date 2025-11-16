@@ -34,10 +34,10 @@ func NewElectronicInvoiceClient(cfg *config.Config) *ElectronicInvoiceClient {
 }
 
 func mapTaxCodeToID(taxCode dto.TaxCode) string {
-	switch string(taxCode) {
-	case "IVA":
+	switch taxCode {
+	case dto.TaxCodeVAT:
 		return "01"
-	case "ICO":
+	case dto.TaxCodeICO:
 		return "04"
 	default:
 		return string(taxCode)
@@ -209,10 +209,10 @@ func (c *ElectronicInvoiceClient) Create(
 	issueDate := now.Format("20060102")
 	issueTime := now.Format("150405")
 
-	totalAmount := strconv.FormatFloat(createReq.Bill.TotalAmount, 'f', -1, 64)
-	discountAmount := strconv.FormatFloat(createReq.Bill.DiscountAmount, 'f', -1, 64)
-	taxAmount := strconv.FormatFloat(createReq.Bill.TaxAmount, 'f', -1, 64)
-	payAmount := strconv.FormatFloat(createReq.Bill.PayAmount, 'f', -1, 64)
+	totalAmount := strconv.FormatFloat(createReq.Bill.TotalAmount, 'f', 2, 64)
+	discountAmount := strconv.FormatFloat(createReq.Bill.DiscountAmount, 'f', 2, 64)
+	taxAmount := strconv.FormatFloat(createReq.Bill.TaxAmount, 'f', 2, 64)
+	payAmount := strconv.FormatFloat(createReq.Bill.PayAmount, 'f', 2, 64)
 
 	customer := createReq.Bill.Customer
 	if customer == nil {
@@ -258,12 +258,16 @@ func (c *ElectronicInvoiceClient) Create(
 					description = *billProduct.Description
 				}
 
-				brand := ""
+				if description == "" {
+					description = "unknown"
+				}
+
+				brand := "unknown"
 				if billProduct.Brand != nil {
 					brand = *billProduct.Brand
 				}
 
-				model := ""
+				model := "unknown"
 				if billProduct.Model != nil {
 					model = *billProduct.Model
 				}
@@ -271,7 +275,7 @@ func (c *ElectronicInvoiceClient) Create(
 				code := billProduct.Code
 
 				return invoiceItem{
-					Quantity:    strconv.Itoa(billProduct.Quantity),
+					Quantity:    strconv.FormatFloat(float64(billProduct.Quantity), 'f', 2, 64),
 					UnitPrice:   strconv.FormatFloat(billProduct.UnitPrice, 'f', -1, 64),
 					Total:       strconv.FormatFloat(total, 'f', -1, 64),
 					Description: description,

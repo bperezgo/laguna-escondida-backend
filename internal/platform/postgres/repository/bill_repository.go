@@ -96,7 +96,8 @@ func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, produ
 		}
 
 		req := &dto.CreateElectronicInvoiceRequest{
-			Prefix:      constants.InvoicePrefix,
+			// Prefix:      constants.InvoicePrefix,
+			Prefix:      "SETP",
 			Consecutive: consecutive,
 			PaymentCode: bill.PaymentCode(),
 			Bill:        billDTO,

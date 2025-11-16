@@ -2,6 +2,7 @@ package bill
 
 import (
 	"laguna-escondida/backend/internal/domain/dto"
+	"strconv"
 	"time"
 )
 
@@ -19,7 +20,28 @@ type BillProduct struct {
 	updatedAt   time.Time
 }
 
-func NewBillProduct(productID string, quantity int, unitPrice float64, description *string, brand *string, model *string, code string, allowance []dto.InvoiceAllowance, taxes []dto.InvoiceTax) *BillProduct {
+func NewBillProduct(productID string, quantity int, unitPrice float64, description *string, brand *string, model *string, code string, allowance []dto.InvoiceAllowance, vat float64, ico float64) *BillProduct {
+	baseAmount := unitPrice * float64(quantity)
+	taxes := []dto.InvoiceTax{}
+
+	if vat > 0 {
+		vatAmount := baseAmount * vat
+		taxes = append(taxes, dto.InvoiceTax{
+			TaxCode:   dto.TaxCodeVAT,
+			TaxAmount: strconv.FormatFloat(vatAmount, 'f', 2, 64),
+			Percent:   strconv.FormatFloat(vat*100, 'f', 2, 64),
+		})
+	}
+
+	if ico > 0 {
+		icoAmount := baseAmount * ico
+		taxes = append(taxes, dto.InvoiceTax{
+			TaxCode:   dto.TaxCodeICO,
+			TaxAmount: strconv.FormatFloat(icoAmount, 'f', 2, 64),
+			Percent:   strconv.FormatFloat(ico*100, 'f', 2, 64),
+		})
+	}
+
 	return &BillProduct{
 		id:          productID,
 		quantity:    quantity,

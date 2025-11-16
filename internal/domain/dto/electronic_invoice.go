@@ -57,16 +57,11 @@ type InvoiceItem struct {
 	Quantity  int                `json:"quantity"`
 	ProductID string             `json:"product_id"`
 	Allowance []InvoiceAllowance `json:"allowance,omitempty"`
-	Taxes     []InvoiceTax       `json:"taxes,omitempty"`
 }
 
 type ElectronicInvoice struct {
-	Consecutive int                          `json:"consecutive"`
-	IssueDate   string                       `json:"issue_date"`
-	IssueTime   string                       `json:"issue_time"`
 	PaymentCode ElectronicInvoicePaymentCode `json:"payment_code"`
 	Customer    *Customer                    `json:"customer"`
-	Amounts     InvoiceAmounts               `json:"amounts"`
 	Items       []InvoiceItem                `json:"items"`
 }
 

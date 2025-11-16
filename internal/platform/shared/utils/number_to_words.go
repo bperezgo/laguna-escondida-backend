@@ -7,14 +7,16 @@ import (
 )
 
 func NumberToWords(num string) string {
-	integerPart, err := strconv.Atoi(num)
+	floatPart, err := strconv.ParseFloat(num, 64)
 	if err != nil {
 		return ""
 	}
 
-	if integerPart == 0 {
+	if floatPart == 0 {
 		return "cero pesos"
 	}
+
+	integerPart := int(floatPart)
 
 	ones := []string{"", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve"}
 	tens := []string{"", "diez", "veinte", "treinta", "cuarenta", "cincuenta", "sesenta", "setenta", "ochenta", "noventa"}

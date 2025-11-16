@@ -52,17 +52,18 @@ func NewBillFromCreateElectronicInvoiceRequest(invoice *dto.ElectronicInvoice, p
 		}
 
 		for _, tax := range product.taxes {
-			taxAmount, err := strconv.ParseFloat(tax.TaxAmount, 64)
+			parsedTaxAmount, err := strconv.ParseFloat(tax.TaxAmount, 64)
 			if err != nil {
 				return nil, billError.NewInvalidTaxAmountError(tax.TaxAmount)
 			}
 
-			if tax.TaxCode == dto.TaxCodeVAT {
-				totalVat += taxAmount
-			} else if tax.TaxCode == dto.TaxCodeICO {
-				totalIco += taxAmount
+			switch tax.TaxCode {
+			case dto.TaxCodeVAT:
+				totalVat += parsedTaxAmount
+			case dto.TaxCodeICO:
+				totalIco += parsedTaxAmount
 			}
-			taxAmount += taxAmount
+			taxAmount += parsedTaxAmount
 		}
 	}
 
