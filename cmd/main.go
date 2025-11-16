@@ -53,33 +53,24 @@ func main() {
 	// Setup routes
 	router := mux.NewRouter()
 
-	// Apply CORS middleware to routes
-	healthMiddleware := handler.CORSMiddleware([]string{"GET", "OPTIONS"})
-	orderMiddleware := handler.CORSMiddleware([]string{"POST", "OPTIONS"})
-	updateOrderMiddleware := handler.CORSMiddleware([]string{"PUT", "OPTIONS"})
-	payOrderMiddleware := handler.CORSMiddleware([]string{"POST", "OPTIONS"})
-	productGetMiddleware := handler.CORSMiddleware([]string{"GET", "OPTIONS"})
-	productPostMiddleware := handler.CORSMiddleware([]string{"POST", "OPTIONS"})
-	productPutMiddleware := handler.CORSMiddleware([]string{"PUT", "OPTIONS"})
-	productDeleteMiddleware := handler.CORSMiddleware([]string{"DELETE", "OPTIONS"})
-	invoicePostMiddleware := handler.CORSMiddleware([]string{"POST", "OPTIONS"})
+	router.Use(handler.CORSMiddleware())
 
-	router.HandleFunc("/api/health", healthMiddleware(http.HandlerFunc(handler.HealthCheckHandler)).ServeHTTP).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/health", handler.HealthCheckHandler).Methods("GET")
 
 	// Order routes
-	router.HandleFunc("/api/orders", orderMiddleware(http.HandlerFunc(orderHandler.CreateOrderHandler)).ServeHTTP).Methods("POST", "OPTIONS")
-	router.HandleFunc("/api/orders/{id}", updateOrderMiddleware(http.HandlerFunc(orderHandler.UpdateOrderHandler)).ServeHTTP).Methods("PUT", "OPTIONS")
-	router.HandleFunc("/api/orders/{id}/pay", payOrderMiddleware(http.HandlerFunc(orderHandler.PayOrderHandler)).ServeHTTP).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/orders", orderHandler.CreateOrderHandler).Methods("POST")
+	router.HandleFunc("/api/orders/{id}", orderHandler.UpdateOrderHandler).Methods("PUT")
+	router.HandleFunc("/api/orders/{id}/pay", orderHandler.PayOrderHandler).Methods("POST")
 
 	// Product routes
-	router.HandleFunc("/api/products", productPostMiddleware(http.HandlerFunc(productHandler.CreateProductHandler)).ServeHTTP).Methods("POST", "OPTIONS")
-	router.HandleFunc("/api/products", productGetMiddleware(http.HandlerFunc(productHandler.ListProductsHandler)).ServeHTTP).Methods("GET", "OPTIONS")
-	router.HandleFunc("/api/products/{id}", productGetMiddleware(http.HandlerFunc(productHandler.GetProductByIDHandler)).ServeHTTP).Methods("GET", "OPTIONS")
-	router.HandleFunc("/api/products/{id}", productPutMiddleware(http.HandlerFunc(productHandler.UpdateProductHandler)).ServeHTTP).Methods("PUT", "OPTIONS")
-	router.HandleFunc("/api/products/{id}", productDeleteMiddleware(http.HandlerFunc(productHandler.DeleteProductHandler)).ServeHTTP).Methods("DELETE", "OPTIONS")
+	router.HandleFunc("/api/products", productHandler.CreateProductHandler).Methods("POST")
+	router.HandleFunc("/api/products", productHandler.ListProductsHandler).Methods("GET")
+	router.HandleFunc("/api/products/{id}", productHandler.GetProductByIDHandler).Methods("GET")
+	router.HandleFunc("/api/products/{id}", productHandler.UpdateProductHandler).Methods("PUT")
+	router.HandleFunc("/api/products/{id}", productHandler.DeleteProductHandler).Methods("DELETE")
 
 	// Invoice routes
-	router.HandleFunc("/api/invoices", invoicePostMiddleware(http.HandlerFunc(invoiceHandler.CreateElectronicInvoiceHandler)).ServeHTTP).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/invoices", invoiceHandler.CreateElectronicInvoiceHandler).Methods("POST")
 
 	port := os.Getenv("PORT")
 	if port == "" {
