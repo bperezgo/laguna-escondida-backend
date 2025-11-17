@@ -41,7 +41,10 @@ func (s *ProductService) UpdateProduct(ctx context.Context, id string, req *dto.
 		return nil, fmt.Errorf("%w: %w", domainError.ErrProductNotFound, err)
 	}
 
-	currentProduct := product.NewAggregateFromDTO(existing)
+	currentProduct, err := product.NewAggregateFromDTO(existing)
+	if err != nil {
+		return nil, err
+	}
 
 	newProduct, err := currentProduct.Update(req)
 	if err != nil {

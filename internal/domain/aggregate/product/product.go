@@ -21,7 +21,7 @@ type Aggregate struct {
 	description         string
 	brand               string
 	model               string
-	sku                 string
+	sku                 *SKU
 	totalPriceWithTaxes float64
 	createdAt           time.Time
 	updatedAt           time.Time
@@ -65,7 +65,7 @@ func calculateTaxesAndUnitPrice(totalPriceWithTaxesStr, vatStr, icoStr, taxesFor
 
 	vatPercentage := vat / 100
 	icoPercentage := ico / 100
-	taxSumPercentage := (vat + ico) / 100
+	taxSumPercentage := vatPercentage + icoPercentage
 	unitPrice := totalPriceWithTaxes / (1 + taxSumPercentage)
 
 	// Round unitPrice to 2 decimal places
@@ -74,7 +74,7 @@ func calculateTaxesAndUnitPrice(totalPriceWithTaxesStr, vatStr, icoStr, taxesFor
 	return totalPriceWithTaxes, vatPercentage, icoPercentage, unitPrice, nil
 }
 
-func NewAggregateFromDTO(dto *dto.Product) *Aggregate {
+func NewAggregateFromDTO(dto *dto.Product) (*Aggregate, error) {
 	description := ""
 	if dto.Description != nil {
 		description = *dto.Description
@@ -87,6 +87,10 @@ func NewAggregateFromDTO(dto *dto.Product) *Aggregate {
 	if dto.Model != nil {
 		model = *dto.Model
 	}
+	sku, err := NewSKU(dto.SKU)
+	if err != nil {
+		return nil, productError.NewInvalidSKUError(dto.SKU)
+	}
 	return &Aggregate{
 		id:                  dto.ID,
 		name:                dto.Name,
@@ -98,11 +102,11 @@ func NewAggregateFromDTO(dto *dto.Product) *Aggregate {
 		description:         description,
 		brand:               brand,
 		model:               model,
-		sku:                 dto.SKU,
+		sku:                 sku,
 		totalPriceWithTaxes: dto.TotalPriceWithTaxes,
 		createdAt:           dto.CreatedAt,
 		updatedAt:           dto.UpdatedAt,
-	}
+	}, nil
 }
 
 func NewAggregateFromCreateProductRequest(req *dto.CreateProductRequest) (*Aggregate, error) {
@@ -117,8 +121,11 @@ func NewAggregateFromCreateProductRequest(req *dto.CreateProductRequest) (*Aggre
 	if req.Category == "" {
 		return nil, productError.NewMissingCategoryError()
 	}
-	if req.SKU == "" {
-		return nil, productError.NewMissingSKUError()
+
+	// Create and validate SKU value object
+	sku, err := NewSKU(req.SKU)
+	if err != nil {
+		return nil, err
 	}
 
 	totalPriceWithTaxes, vatDecimal, icoDecimal, unitPrice, err := calculateTaxesAndUnitPrice(
@@ -159,7 +166,7 @@ func NewAggregateFromCreateProductRequest(req *dto.CreateProductRequest) (*Aggre
 		description:         description,
 		brand:               brand,
 		model:               model,
-		sku:                 req.SKU,
+		sku:                 sku,
 		totalPriceWithTaxes: totalPriceWithTaxes,
 		createdAt:           now,
 		updatedAt:           now,
@@ -178,7 +185,7 @@ func (a *Aggregate) ToDTO() *dto.Product {
 		Description:         &a.description,
 		Brand:               &a.brand,
 		Model:               &a.model,
-		SKU:                 a.sku,
+		SKU:                 a.sku.Value(),
 		TotalPriceWithTaxes: a.totalPriceWithTaxes,
 		CreatedAt:           a.createdAt,
 		UpdatedAt:           a.updatedAt,
@@ -186,6 +193,12 @@ func (a *Aggregate) ToDTO() *dto.Product {
 }
 
 func (a *Aggregate) Update(req *dto.UpdateProductRequest) (*Aggregate, error) {
+	// Create and validate SKU value object
+	sku, err := NewSKU(req.SKU)
+	if err != nil {
+		return nil, err
+	}
+
 	description := ""
 	if req.Description != nil {
 		description = *req.Description
@@ -220,7 +233,7 @@ func (a *Aggregate) Update(req *dto.UpdateProductRequest) (*Aggregate, error) {
 	a.description = description
 	a.brand = brand
 	a.model = model
-	a.sku = req.SKU
+	a.sku = sku
 	a.unitPrice = unitPrice
 	a.updatedAt = time.Now()
 

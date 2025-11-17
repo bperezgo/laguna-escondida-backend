@@ -12,6 +12,7 @@ const (
 	CodeMissingName           ProductErrorCode = "PRODUCT_MISSING_NAME"
 	CodeMissingCategory       ProductErrorCode = "PRODUCT_MISSING_CATEGORY"
 	CodeMissingSKU            ProductErrorCode = "PRODUCT_MISSING_SKU"
+	CodeInvalidSKU            ProductErrorCode = "PRODUCT_INVALID_SKU"
 	CodeInvalidPrice          ProductErrorCode = "PRODUCT_INVALID_PRICE"
 	CodeInvalidVAT            ProductErrorCode = "PRODUCT_INVALID_VAT"
 	CodeInvalidICO            ProductErrorCode = "PRODUCT_INVALID_ICO"
@@ -41,6 +42,11 @@ func NewMissingCategoryError() *baseError.BaseError {
 // NewMissingSKUError creates an error for missing SKU
 func NewMissingSKUError() *baseError.BaseError {
 	return baseError.NewBaseError(baseError.ErrorCode(CodeMissingSKU), "sku is required")
+}
+
+// NewInvalidSKUError creates an error for invalid SKU format
+func NewInvalidSKUError(sku string) *baseError.BaseError {
+	return baseError.NewBaseErrorWithField(baseError.ErrorCode(CodeInvalidSKU), "sku must contain only alphanumeric characters (a-z, A-Z, 0-9)", sku)
 }
 
 // NewInvalidPriceErrorWithField creates an error for invalid price with field value context
