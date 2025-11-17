@@ -16,4 +16,12 @@ run:
 
 test:
 	@echo "Running tests"
-	go test ./...
+	go test ./... -v -race -coverprofile=coverage.out
+
+lint:
+	@echo "Running linter"
+	golangci-lint run --timeout=5m
+
+lint-fix:
+	@echo "Running linter with auto-fix"
+	golangci-lint run --timeout=5m --fix
