@@ -6,10 +6,11 @@ import type { UpdateProductRequest } from '@/types/product';
 // GET /api/products/[id] - Get a product by ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const product = await serverApiRequest<any>(`/products/${params.id}`);
+    const { id } = (await params);
+    const product = await serverApiRequest<any>(`/products/${id}`);
     const transformed = transformProduct(product);
     return NextResponse.json(transformed);
   } catch (error) {
@@ -24,16 +25,13 @@ export async function GET(
 // PUT /api/products/[id] - Update a product
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = (await params);
     const body: UpdateProductRequest = await request.json();
-    const product = await serverApiRequest<any>(`/products/${params.id}`, {
-      method: 'PUT',
-      body: JSON.stringify(body),
-    });
-    const transformed = transformProduct(product);
-    return NextResponse.json(transformed);
+    const product = await serverApiRequest<any>(`/products/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+    return NextResponse.json(transformProduct(product));
   } catch (error) {
     console.error('Error updating product:', error);
     return NextResponse.json(
@@ -46,10 +44,11 @@ export async function PUT(
 // DELETE /api/products/[id] - Delete a product
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await serverApiRequest<void>(`/products/${params.id}`, {
+    const { id } = (await params);
+    await serverApiRequest<void>(`/products/${id}`, {
       method: 'DELETE',
     });
     return NextResponse.json({ success: true });

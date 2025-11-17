@@ -14,7 +14,6 @@ export default function ProductForm({ product, onSubmit, onCancel, isLoading = f
   const [formData, setFormData] = useState({
     name: product?.name || '',
     category: product?.category || '',
-    price: product?.unit_price?.toString() || '',
     vat: product?.vat?.toString() || '',
     ico: product?.ico?.toString() || '',
     description: product?.description || '',
@@ -31,7 +30,6 @@ export default function ProductForm({ product, onSubmit, onCancel, isLoading = f
       setFormData({
         name: product.name || '',
         category: product.category || '',
-        price: product.unit_price?.toString() || '',
         vat: product.vat?.toString() || '',
         ico: product.ico?.toString() || '',
         description: product.description || '',
@@ -97,18 +95,6 @@ export default function ProductForm({ product, onSubmit, onCancel, isLoading = f
       }
     }
 
-    // Price: required for updates, gt=0
-    if (product) {
-      if (!formData.price.trim()) {
-        newErrors.price = 'Price is required';
-      } else {
-        const price = parseFloat(formData.price);
-        if (isNaN(price) || price <= 0) {
-          newErrors.price = 'Price must be a valid number greater than 0';
-        }
-      }
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -126,7 +112,6 @@ export default function ProductForm({ product, onSubmit, onCancel, isLoading = f
       const submitData: UpdateProductRequest = {
         name: formData.name.trim(),
         category: formData.category.trim(),
-        price: parseFloat(formData.price),
         vat: formData.vat.trim(),
         ico: formData.ico.trim(),
         taxes_format: 'percentage',
@@ -292,35 +277,6 @@ export default function ProductForm({ product, onSubmit, onCancel, isLoading = f
             )}
           </div>
 
-          {product && (
-            <div style={{ marginBottom: '1.5rem' }}>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333' }}>
-                Price *
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0.01"
-                value={formData.price}
-                onChange={(e) => handleChange('price', e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  border: `1px solid ${errors.price ? '#dc3545' : '#ced4da'}`,
-                  borderRadius: '4px',
-                  fontSize: '1rem',
-                  boxSizing: 'border-box',
-                }}
-                placeholder="0.00"
-              />
-              {errors.price && (
-                <p style={{ margin: '0.25rem 0 0 0', color: '#dc3545', fontSize: '0.875rem' }}>
-                  {errors.price}
-                </p>
-              )}
-            </div>
-          )}
-
           <div style={{ marginBottom: '1.5rem' }}>
             <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333' }}>
               Total Price with Taxes *
@@ -348,7 +304,7 @@ export default function ProductForm({ product, onSubmit, onCancel, isLoading = f
 
           <div style={{ marginBottom: '1.5rem' }}>
             <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333' }}>
-              VAT *
+              VAT (%) *
             </label>
             <input
               type="text"
@@ -373,7 +329,7 @@ export default function ProductForm({ product, onSubmit, onCancel, isLoading = f
 
           <div style={{ marginBottom: '1.5rem' }}>
             <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333' }}>
-              ICO *
+              ICO (%) *
             </label>
             <input
               type="text"

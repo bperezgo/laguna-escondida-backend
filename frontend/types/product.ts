@@ -32,7 +32,6 @@ export interface CreateProductRequest {
 export interface UpdateProductRequest {
   name: string;
   category: string;
-  price: number;
   vat: string;
   ico: string;
   taxes_format: string;
