@@ -204,7 +204,7 @@ type invoicePrefix struct {
 func (c *ElectronicInvoiceClient) Create(
 	ctx context.Context,
 	createReq *dto.CreateElectronicInvoiceRequest,
-) (*dto.CreateElectronicInvoiceResponse, error) {
+) (res *dto.CreateElectronicInvoiceResponse, err error) {
 	now := time.Now()
 	issueDate := now.Format("20060102")
 	issueTime := now.Format("150405")
@@ -321,7 +321,11 @@ func (c *ElectronicInvoiceClient) Create(
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			err = closeErr
+		}
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -347,7 +351,7 @@ func (c *ElectronicInvoiceClient) Create(
 	}, nil
 }
 
-func (c *ElectronicInvoiceClient) Get(ctx context.Context, invoiceID string) (*dto.ElectronicInvoice, error) {
+func (c *ElectronicInvoiceClient) Get(ctx context.Context, invoiceID string) (res *dto.ElectronicInvoice, err error) {
 	requestData := verifyStatusRequest{
 		VerifyStatus: verifyStatusData{
 			Tascode: invoiceID,
@@ -372,7 +376,11 @@ func (c *ElectronicInvoiceClient) Get(ctx context.Context, invoiceID string) (*d
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			err = closeErr
+		}
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
