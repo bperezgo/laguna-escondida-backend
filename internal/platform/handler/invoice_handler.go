@@ -1,12 +1,13 @@
 package handler
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/service"
+
+	"github.com/gin-gonic/gin"
 )
 
 type InvoiceHandler struct {
@@ -19,19 +20,19 @@ func NewInvoiceHandler(invoiceService *service.InvoiceService) *InvoiceHandler {
 	}
 }
 
-func (h *InvoiceHandler) CreateElectronicInvoiceHandler(w http.ResponseWriter, r *http.Request) {
+func (h *InvoiceHandler) CreateElectronicInvoiceHandler(c *gin.Context) {
 	var invoice dto.ElectronicInvoice
-	if err := json.NewDecoder(r.Body).Decode(&invoice); err != nil {
+	if err := c.ShouldBindJSON(&invoice); err != nil {
 		log.Printf("Error decoding request: %v", err)
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
 
-	if err := h.invoiceService.CreateElectronicInvoice(r.Context(), &invoice); err != nil {
+	if err := h.invoiceService.CreateElectronicInvoice(c.Request.Context(), &invoice); err != nil {
 		log.Printf("Error creating electronic invoice: %v", err)
-		http.Error(w, "Failed to create electronic invoice", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create electronic invoice"})
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
+	c.Status(http.StatusCreated)
 }

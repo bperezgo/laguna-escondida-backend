@@ -1,18 +1,15 @@
 package handler
 
 import (
-	"encoding/json"
-	"net/http"
+	"github.com/gin-gonic/gin"
 )
 
 type HealthCheckResponse struct {
 	Status string `json:"status"`
 }
 
-func HealthCheckHandler(w http.ResponseWriter, r *http.Request) {
-	response := HealthCheckResponse{
+func HealthCheckHandler(c *gin.Context) {
+	c.JSON(200, HealthCheckResponse{
 		Status: "ok",
-	}
-
-	json.NewEncoder(w).Encode(response)
+	})
 }

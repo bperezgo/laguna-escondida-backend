@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -10,7 +9,7 @@ import (
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/service"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
 type ProductHandler struct {
@@ -23,101 +22,93 @@ func NewProductHandler(productService *service.ProductService) *ProductHandler {
 	}
 }
 
-func (h *ProductHandler) CreateProductHandler(w http.ResponseWriter, r *http.Request) {
+func (h *ProductHandler) CreateProductHandler(c *gin.Context) {
 	var req dto.CreateProductRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Printf("Error decoding request: %v", err)
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
 
-	product, err := h.productService.CreateProduct(r.Context(), &req)
+	product, err := h.productService.CreateProduct(c.Request.Context(), &req)
 	if err != nil {
 		log.Printf("Error creating product: %v", err)
 
 		if errors.Is(err, domainError.ErrProductCreationFailed) {
-			http.Error(w, "Failed to create product", http.StatusInternalServerError)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create product"})
 			return
 		}
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(product); err != nil {
-		log.Printf("Error encoding response: %v", err)
-	}
+	c.JSON(http.StatusCreated, product)
 }
 
-func (h *ProductHandler) UpdateProductHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	productID := vars["id"]
+func (h *ProductHandler) UpdateProductHandler(c *gin.Context) {
+	productID := c.Param("id")
 	if productID == "" {
-		http.Error(w, "Product ID is required", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Product ID is required"})
 		return
 	}
 
 	var req dto.UpdateProductRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Printf("Error decoding request: %v", err)
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
 
-	product, err := h.productService.UpdateProduct(r.Context(), productID, &req)
+	product, err := h.productService.UpdateProduct(c.Request.Context(), productID, &req)
 	if err != nil {
 		log.Printf("Error updating product: %v", err)
 
 		if errors.Is(err, domainError.ErrProductNotFound) {
-			http.Error(w, "Product not found", http.StatusNotFound)
+			c.JSON(http.StatusNotFound, gin.H{"error": "Product not found"})
 			return
 		}
 		if errors.Is(err, domainError.ErrProductUpdateFailed) {
-			http.Error(w, "Failed to update product", http.StatusInternalServerError)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update product"})
 			return
 		}
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(product); err != nil {
-		log.Printf("Error encoding response: %v", err)
-	}
+	c.JSON(http.StatusOK, product)
 }
 
-func (h *ProductHandler) DeleteProductHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	productID := vars["id"]
+func (h *ProductHandler) DeleteProductHandler(c *gin.Context) {
+	productID := c.Param("id")
 	if productID == "" {
-		http.Error(w, "Product ID is required", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Product ID is required"})
 		return
 	}
 
-	err := h.productService.DeleteProduct(r.Context(), productID)
+	err := h.productService.DeleteProduct(c.Request.Context(), productID)
 	if err != nil {
 		log.Printf("Error deleting product: %v", err)
 
 		if errors.Is(err, domainError.ErrProductNotFound) {
-			http.Error(w, "Product not found", http.StatusNotFound)
+			c.JSON(http.StatusNotFound, gin.H{"error": "Product not found"})
 			return
 		}
 		if errors.Is(err, domainError.ErrProductDeleteFailed) {
-			http.Error(w, "Failed to delete product", http.StatusInternalServerError)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete product"})
 			return
 		}
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	c.Status(http.StatusNoContent)
 }
 
-func (h *ProductHandler) ListProductsHandler(w http.ResponseWriter, r *http.Request) {
-	products, err := h.productService.ListProducts(r.Context())
+func (h *ProductHandler) ListProductsHandler(c *gin.Context) {
+	products, err := h.productService.ListProducts(c.Request.Context())
 	if err != nil {
 		log.Printf("Error listing products: %v", err)
-		http.Error(w, "Failed to list products", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list products"})
 		return
 	}
 
@@ -127,34 +118,27 @@ func (h *ProductHandler) ListProductsHandler(w http.ResponseWriter, r *http.Requ
 		Total:    &total,
 	}
 
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		log.Printf("Error encoding response: %v", err)
-	}
+	c.JSON(http.StatusOK, response)
 }
 
-func (h *ProductHandler) GetProductByIDHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	productID := vars["id"]
+func (h *ProductHandler) GetProductByIDHandler(c *gin.Context) {
+	productID := c.Param("id")
 	if productID == "" {
-		http.Error(w, "Product ID is required", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Product ID is required"})
 		return
 	}
 
-	product, err := h.productService.GetProductByID(r.Context(), productID)
+	product, err := h.productService.GetProductByID(c.Request.Context(), productID)
 	if err != nil {
 		log.Printf("Error getting product: %v", err)
 
 		if errors.Is(err, domainError.ErrProductNotFound) {
-			http.Error(w, "Product not found", http.StatusNotFound)
+			c.JSON(http.StatusNotFound, gin.H{"error": "Product not found"})
 			return
 		}
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(product); err != nil {
-		log.Printf("Error encoding response: %v", err)
-	}
+	c.JSON(http.StatusOK, product)
 }

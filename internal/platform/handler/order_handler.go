@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -10,7 +9,7 @@ import (
 	orderError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/service"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
 type OrderHandler struct {
@@ -23,11 +22,11 @@ func NewOrderHandler(orderService *service.OrderService) *OrderHandler {
 	}
 }
 
-func (h *OrderHandler) CreateOrderHandler(w http.ResponseWriter, r *http.Request) {
+func (h *OrderHandler) CreateOrderHandler(c *gin.Context) {
 	var req dto.CreateOrderRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Printf("Error decoding request: %v", err)
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
 
@@ -36,41 +35,36 @@ func (h *OrderHandler) CreateOrderHandler(w http.ResponseWriter, r *http.Request
 		req.ProductIDs = []string{} // Allow empty order
 	}
 
-	openBill, err := h.orderService.CreateOrder(r.Context(), &req)
+	openBill, err := h.orderService.CreateOrder(c.Request.Context(), &req)
 	if err != nil {
 		log.Printf("Error creating order: %v", err)
 
 		if errors.Is(err, orderError.ErrProductNotFound) {
-			http.Error(w, "One or more products not found", http.StatusNotFound)
+			c.JSON(http.StatusNotFound, gin.H{"error": "One or more products not found"})
 			return
 		}
 		if errors.Is(err, orderError.ErrOrderCreationFailed) {
-			http.Error(w, "Failed to create order", http.StatusInternalServerError)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create order"})
 			return
 		}
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(openBill); err != nil {
-		log.Printf("Error encoding response: %v", err)
-	}
+	c.JSON(http.StatusCreated, openBill)
 }
 
-func (h *OrderHandler) UpdateOrderHandler(w http.ResponseWriter, r *http.Request) {
-	// Extract open_bill_id from URL path
-	vars := mux.Vars(r)
-	openBillID := vars["id"]
+func (h *OrderHandler) UpdateOrderHandler(c *gin.Context) {
+	openBillID := c.Param("id")
 	if openBillID == "" {
-		http.Error(w, "Order ID is required", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Order ID is required"})
 		return
 	}
 
 	var req dto.UpdateOrderRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Printf("Error decoding request: %v", err)
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
 
@@ -79,59 +73,51 @@ func (h *OrderHandler) UpdateOrderHandler(w http.ResponseWriter, r *http.Request
 		req.Products = []dto.OrderProductItem{}
 	}
 
-	openBill, err := h.orderService.UpdateOrder(r.Context(), openBillID, &req)
+	openBill, err := h.orderService.UpdateOrder(c.Request.Context(), openBillID, &req)
 	if err != nil {
 		log.Printf("Error updating order: %v", err)
 
 		if errors.Is(err, orderError.ErrOrderNotFound) {
-			http.Error(w, "Order not found", http.StatusNotFound)
+			c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
 			return
 		}
 		if errors.Is(err, orderError.ErrProductNotFound) {
-			http.Error(w, "One or more products not found", http.StatusNotFound)
+			c.JSON(http.StatusNotFound, gin.H{"error": "One or more products not found"})
 			return
 		}
 		if errors.Is(err, orderError.ErrOrderUpdateFailed) {
-			http.Error(w, "Failed to update order", http.StatusInternalServerError)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update order"})
 			return
 		}
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(openBill); err != nil {
-		log.Printf("Error encoding response: %v", err)
-	}
+	c.JSON(http.StatusOK, openBill)
 }
 
-func (h *OrderHandler) PayOrderHandler(w http.ResponseWriter, r *http.Request) {
-	// Extract open_bill_id from URL path
-	vars := mux.Vars(r)
-	openBillID := vars["id"]
+func (h *OrderHandler) PayOrderHandler(c *gin.Context) {
+	openBillID := c.Param("id")
 	if openBillID == "" {
-		http.Error(w, "Order ID is required", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Order ID is required"})
 		return
 	}
 
-	bill, err := h.orderService.PayOrder(r.Context(), openBillID)
+	bill, err := h.orderService.PayOrder(c.Request.Context(), openBillID)
 	if err != nil {
 		log.Printf("Error paying order: %v", err)
 
 		if errors.Is(err, orderError.ErrOrderNotFound) {
-			http.Error(w, "Order not found", http.StatusNotFound)
+			c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
 			return
 		}
 		if errors.Is(err, orderError.ErrOrderPaymentFailed) {
-			http.Error(w, "Failed to pay order", http.StatusInternalServerError)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to pay order"})
 			return
 		}
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(bill); err != nil {
-		log.Printf("Error encoding response: %v", err)
-	}
+	c.JSON(http.StatusCreated, bill)
 }

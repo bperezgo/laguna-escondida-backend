@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 
 	"laguna-escondida/backend/internal/domain/service"
@@ -12,7 +11,7 @@ import (
 	"laguna-escondida/backend/internal/platform/httpclient"
 	"laguna-escondida/backend/internal/platform/postgres/repository"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
 
@@ -51,26 +50,28 @@ func main() {
 	invoiceHandler := handler.NewInvoiceHandler(invoiceService)
 
 	// Setup routes
-	router := mux.NewRouter()
+	router := gin.Default()
 
+	// Apply CORS middleware globally
 	router.Use(handler.CORSMiddleware())
 
-	router.HandleFunc("/api/health", handler.HealthCheckHandler).Methods("GET")
+	// Health check
+	router.GET("/api/health", handler.HealthCheckHandler)
 
 	// Order routes
-	router.HandleFunc("/api/orders", orderHandler.CreateOrderHandler).Methods("POST")
-	router.HandleFunc("/api/orders/{id}", orderHandler.UpdateOrderHandler).Methods("PUT")
-	router.HandleFunc("/api/orders/{id}/pay", orderHandler.PayOrderHandler).Methods("POST")
+	router.POST("/api/orders", orderHandler.CreateOrderHandler)
+	router.PUT("/api/orders/:id", orderHandler.UpdateOrderHandler)
+	router.POST("/api/orders/:id/pay", orderHandler.PayOrderHandler)
 
 	// Product routes
-	router.HandleFunc("/api/products", productHandler.CreateProductHandler).Methods("POST")
-	router.HandleFunc("/api/products", productHandler.ListProductsHandler).Methods("GET")
-	router.HandleFunc("/api/products/{id}", productHandler.GetProductByIDHandler).Methods("GET")
-	router.HandleFunc("/api/products/{id}", productHandler.UpdateProductHandler).Methods("PUT")
-	router.HandleFunc("/api/products/{id}", productHandler.DeleteProductHandler).Methods("DELETE")
+	router.POST("/api/products", productHandler.CreateProductHandler)
+	router.GET("/api/products", productHandler.ListProductsHandler)
+	router.GET("/api/products/:id", productHandler.GetProductByIDHandler)
+	router.PUT("/api/products/:id", productHandler.UpdateProductHandler)
+	router.DELETE("/api/products/:id", productHandler.DeleteProductHandler)
 
 	// Invoice routes
-	router.HandleFunc("/api/invoices", invoiceHandler.CreateElectronicInvoiceHandler).Methods("POST")
+	router.POST("/api/invoices", invoiceHandler.CreateElectronicInvoiceHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -78,7 +79,7 @@ func main() {
 	}
 
 	log.Printf("Server starting on port %s", port)
-	log.Fatal(http.ListenAndServe(":"+port, router))
+	log.Fatal(router.Run(":" + port))
 }
 
 func getDSN() string {
