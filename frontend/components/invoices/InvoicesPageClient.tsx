@@ -23,6 +23,8 @@ export default function InvoicesPageClient() {
       setError('');
       setSuccess('');
 
+      console.log('data', data);
+
       await invoicesApi.create(data);
 
       setSuccess('Invoice created successfully!');

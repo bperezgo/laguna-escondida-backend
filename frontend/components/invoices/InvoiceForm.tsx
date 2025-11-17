@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import type { CreateElectronicInvoiceRequest, ElectronicInvoicePaymentCode, DocumentType, InvoiceItem, InvoiceAllowance, InvoiceTax } from '@/types/invoice';
 import type { Product } from '@/types/product';
 import { productsApi } from '@/lib/api/products';
@@ -60,6 +60,32 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
     fetchProducts();
   }, []);
 
+  // Create a stable dependency string for quantity and totalPriceWithTaxes
+  const itemsDependency = useMemo(
+    () => formData.items.map(item => `${item.quantity}|${item.totalPriceWithTaxes}`).join('|'),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [formData.items]
+  );
+
+  // Auto-calculate totals when quantity or totalPriceWithTaxes changes
+  useEffect(() => {
+    formData.items.forEach((item, index) => {
+      const quantity = item.quantity || 0;
+      const totalPriceWithTaxes = parseFloat(item.totalPriceWithTaxes) || 0;
+      const calculatedTotal = (quantity * totalPriceWithTaxes).toFixed(2);
+      
+      // Only update if the total has changed to avoid infinite loops
+      if (item.total !== calculatedTotal) {
+        setFormData(prev => ({
+          ...prev,
+          items: prev.items.map((it, i) =>
+            i === index ? { ...it, total: calculatedTotal } : it
+          ),
+        }));
+      }
+    });
+  }, [itemsDependency, formData.items.length]);
+
   // Filter products based on search query for a specific item
   const getFilteredProducts = (itemIndex: number): Product[] => {
     const searchQuery = itemProductSearch[itemIndex] || '';
@@ -88,17 +114,14 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
     }));
 
     // Auto-populate item fields from product
+    updateItem(itemIndex, 'product_id', product.id);
     updateItem(itemIndex, 'description', product.description || product.name);
-    updateItem(itemIndex, 'unitPrice', product.unit_price.toString());
+    updateItem(itemIndex, 'totalPriceWithTaxes', product.total_price_with_taxes.toString());
     updateItem(itemIndex, 'brand', product.brand || '');
     updateItem(itemIndex, 'model', product.model || '');
     updateItem(itemIndex, 'code', product.sku);
     
-    // Recalculate total if quantity is already set
-    const currentItem = formData.items[itemIndex];
-    if (currentItem.quantity) {
-      calculateItemTotal(itemIndex);
-    }
+    // Note: Total will be automatically recalculated by useEffect when totalPriceWithTaxes is set
   };
 
   // Handle clearing product selection for an item
@@ -114,7 +137,7 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
     }));
     // Clear auto-populated fields
     updateItem(itemIndex, 'description', '');
-    updateItem(itemIndex, 'unitPrice', '');
+    updateItem(itemIndex, 'totalPriceWithTaxes', '');
     updateItem(itemIndex, 'brand', '');
     updateItem(itemIndex, 'model', '');
     updateItem(itemIndex, 'code', '');
@@ -150,11 +173,11 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
     }
 
     formData.items.forEach((item, index) => {
-      if (!item.quantity.trim()) {
-        newErrors[`items.${index}.quantity`] = 'Quantity is required';
+      if (!item.quantity || item.quantity <= 0) {
+        newErrors[`items.${index}.quantity`] = 'Quantity must be greater than 0';
       }
-      if (!item.unitPrice.trim()) {
-        newErrors[`items.${index}.unitPrice`] = 'Unit price is required';
+      if (!item.totalPriceWithTaxes.trim()) {
+        newErrors[`items.${index}.totalPriceWithTaxes`] = 'Total price with taxes is required';
       }
       if (!item.description.trim()) {
         newErrors[`items.${index}.description`] = 'Description is required';
@@ -189,8 +212,9 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
         },
       }),
       items: formData.items.map(item => ({
-        quantity: item.quantity.trim(),
-        unitPrice: item.unitPrice.trim(),
+        product_id: item.product_id.trim(),
+        quantity: item.quantity,
+        totalPriceWithTaxes: item.totalPriceWithTaxes.trim(),
         total: item.total.trim(),
         description: item.description.trim(),
         brand: item.brand.trim(),
@@ -234,8 +258,9 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
       items: [
         ...prev.items,
         {
-          quantity: '',
-          unitPrice: '',
+          product_id: '',
+          quantity: 0,
+          totalPriceWithTaxes: '',
           total: '',
           description: '',
           brand: '',
@@ -293,7 +318,7 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
     });
   };
 
-  const updateItem = (index: number, field: keyof InvoiceItem, value: string) => {
+  const updateItem = (index: number, field: keyof InvoiceItem, value: string | number) => {
     setFormData(prev => ({
       ...prev,
       items: prev.items.map((item, i) =>
@@ -313,9 +338,9 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
 
   const calculateItemTotal = (index: number) => {
     const item = formData.items[index];
-    const quantity = parseFloat(item.quantity) || 0;
-    const unitPrice = parseFloat(item.unitPrice) || 0;
-    const total = (quantity * unitPrice).toFixed(2);
+    const quantity = item.quantity || 0;
+    const totalPriceWithTaxes = parseFloat(item.totalPriceWithTaxes) || 0;
+    const total = (quantity * totalPriceWithTaxes).toFixed(2);
     updateItem(index, 'total', total);
   };
 
@@ -655,7 +680,7 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
                       <div style={{ fontSize: '0.875rem', lineHeight: '1.6' }}>
                         <div><strong>Name:</strong> {itemSelectedProduct[index]!.name}</div>
                         <div><strong>SKU:</strong> {itemSelectedProduct[index]!.sku}</div>
-                        <div><strong>Unit Price:</strong> ${itemSelectedProduct[index]!.unit_price.toFixed(2)}</div>
+                        <div><strong>Unit Price with Taxes:</strong> ${itemSelectedProduct[index]!.total_price_with_taxes.toFixed(2)}</div>
                         {itemSelectedProduct[index]!.description && (
                           <div><strong>Description:</strong> {itemSelectedProduct[index]!.description}</div>
                         )}
@@ -666,7 +691,7 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
                           <div><strong>Model:</strong> {itemSelectedProduct[index]!.model}</div>
                         )}
                         <div><strong>Category:</strong> {itemSelectedProduct[index]!.category}</div>
-                        <div><strong>VAT:</strong> {itemSelectedProduct[index]!.vat}%</div>
+                        <div><strong>VAT:</strong> {itemSelectedProduct[index]!.vat*100}%</div>
                       </div>
                     </div>
                   )}
@@ -678,10 +703,13 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
                       Quantity *
                     </label>
                     <input
-                      type="text"
-                      value={item.quantity}
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={item.quantity ?? ''}
                       onChange={(e) => {
-                        updateItem(index, 'quantity', e.target.value);
+                        const numValue = e.target.value === '' ? 0 : parseInt(e.target.value, 10) || 0;
+                        updateItem(index, 'quantity', numValue);
                         calculateItemTotal(index);
                       }}
                       style={{
@@ -702,20 +730,20 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
                   </div>
                   <div>
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#333', fontSize: '0.875rem' }}>
-                      Unit Price * {itemSelectedProduct[index] && <span style={{ fontSize: '0.75rem', color: '#666', fontWeight: 'normal' }}>(from product)</span>}
+                      Total Price with Taxes * {itemSelectedProduct[index] && <span style={{ fontSize: '0.75rem', color: '#666', fontWeight: 'normal' }}>(from product)</span>}
                     </label>
                     <input
                       type="text"
-                      value={item.unitPrice}
+                      value={item.totalPriceWithTaxes}
                       onChange={itemSelectedProduct[index] ? undefined : (e) => {
-                        updateItem(index, 'unitPrice', e.target.value);
+                        updateItem(index, 'totalPriceWithTaxes', e.target.value);
                         calculateItemTotal(index);
                       }}
                       readOnly={!!itemSelectedProduct[index]}
                       style={{
                         width: '100%',
                         padding: '0.5rem',
-                        border: `1px solid ${errors[`items.${index}.unitPrice`] ? '#dc3545' : '#ced4da'}`,
+                        border: `1px solid ${errors[`items.${index}.totalPriceWithTaxes`] ? '#dc3545' : '#ced4da'}`,
                         borderRadius: '4px',
                         fontSize: '0.875rem',
                         boxSizing: 'border-box',
@@ -724,9 +752,9 @@ export default function InvoiceForm({ onSubmit, onCancel, isLoading = false }: I
                       }}
                       placeholder="0.00"
                     />
-                    {errors[`items.${index}.unitPrice`] && (
+                    {errors[`items.${index}.totalPriceWithTaxes`] && (
                       <p style={{ margin: '0.25rem 0 0 0', color: '#dc3545', fontSize: '0.75rem' }}>
-                        {errors[`items.${index}.unitPrice`]}
+                        {errors[`items.${index}.totalPriceWithTaxes`]}
                       </p>
                     )}
                   </div>

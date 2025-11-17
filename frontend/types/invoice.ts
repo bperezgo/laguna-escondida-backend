@@ -37,8 +37,9 @@ export interface InvoiceTax {
 }
 
 export interface InvoiceItem {
-  quantity: string;
-  unitPrice: string;
+  product_id: string;
+  quantity: number;
+  totalPriceWithTaxes: string;
   total: string;
   description: string;
   brand: string;
