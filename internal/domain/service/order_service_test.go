@@ -104,6 +104,7 @@ func createTestProduct(id, name, category string, version int, price, vat float6
 		Version:             version,
 		TotalPriceWithTaxes: price,
 		VAT:                 vat,
+		SKU:                 "SKU001",
 		CreatedAt:           time.Now(),
 		UpdatedAt:           time.Now(),
 	}

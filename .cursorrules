@@ -290,6 +290,7 @@ internal/
 - Use **testify** libraries: `assert`, `mock`, `require`, `suite`
 - Mock all repository dependencies using `testify/mock`
 - Test all code paths: success cases, error cases, edge cases, and calculation validations
+- **NEVER test aggregates individually** - Always test aggregates through services. Aggregates should be tested as part of service tests, not in separate test files. Do not create test files in the `domain/aggregate/` folder.
 
 #### Test Structure
 - Use table-driven tests for multiple similar scenarios

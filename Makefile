@@ -13,3 +13,7 @@ migrate-down:
 run:
 	@echo "Running the application"
 	go run cmd/main.go
+
+test:
+	@echo "Running tests"
+	go test ./...

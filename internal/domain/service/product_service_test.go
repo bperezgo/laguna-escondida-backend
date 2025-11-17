@@ -73,6 +73,7 @@ func createTestProductDTO(id, name, category string, version int, price, vat flo
 		Version:             version,
 		TotalPriceWithTaxes: price,
 		VAT:                 vat,
+		SKU:                 "SKU001",
 		CreatedAt:           time.Now(),
 		UpdatedAt:           time.Now(),
 	}
@@ -93,7 +94,7 @@ func TestCreateProduct_Success(t *testing.T) {
 		VAT:                 "19",
 		ICO:                 "8",
 		TaxesFormat:         "percentage",
-		SKU:                 "SKU-001",
+		SKU:                 "SKU001",
 	}
 
 	mockRepo.On("Create", ctx, mock.MatchedBy(func(p *product.Aggregate) bool {
@@ -121,6 +122,106 @@ func TestCreateProduct_Success(t *testing.T) {
 }
 
 // Error Cases
+func TestCreateProduct_InvalidSKU_WithHyphen(t *testing.T) {
+	ctx := context.Background()
+	mockRepo := new(MockProductRepositoryForService)
+	service := createTestProductService(mockRepo)
+
+	req := &dto.CreateProductRequest{
+		Name:                "Test Product",
+		Category:            "Category A",
+		TotalPriceWithTaxes: "127.0",
+		VAT:                 "19",
+		ICO:                 "8",
+		TaxesFormat:         "percentage",
+		SKU:                 "SKU-001",
+	}
+
+	result, err := service.CreateProduct(ctx, req)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "PRODUCT_INVALID_SKU")
+
+	mockRepo.AssertNotCalled(t, "Create")
+	mockRepo.AssertExpectations(t)
+}
+
+func TestCreateProduct_InvalidSKU_WithSpace(t *testing.T) {
+	ctx := context.Background()
+	mockRepo := new(MockProductRepositoryForService)
+	service := createTestProductService(mockRepo)
+
+	req := &dto.CreateProductRequest{
+		Name:                "Test Product",
+		Category:            "Category A",
+		TotalPriceWithTaxes: "127.0",
+		VAT:                 "19",
+		ICO:                 "8",
+		TaxesFormat:         "percentage",
+		SKU:                 "SKU 001",
+	}
+
+	result, err := service.CreateProduct(ctx, req)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "PRODUCT_INVALID_SKU")
+
+	mockRepo.AssertNotCalled(t, "Create")
+	mockRepo.AssertExpectations(t)
+}
+
+func TestCreateProduct_InvalidSKU_WithSpecialChar(t *testing.T) {
+	ctx := context.Background()
+	mockRepo := new(MockProductRepositoryForService)
+	service := createTestProductService(mockRepo)
+
+	req := &dto.CreateProductRequest{
+		Name:                "Test Product",
+		Category:            "Category A",
+		TotalPriceWithTaxes: "127.0",
+		VAT:                 "19",
+		ICO:                 "8",
+		TaxesFormat:         "percentage",
+		SKU:                 "SKU@001",
+	}
+
+	result, err := service.CreateProduct(ctx, req)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "PRODUCT_INVALID_SKU")
+
+	mockRepo.AssertNotCalled(t, "Create")
+	mockRepo.AssertExpectations(t)
+}
+
+func TestCreateProduct_MissingSKU(t *testing.T) {
+	ctx := context.Background()
+	mockRepo := new(MockProductRepositoryForService)
+	service := createTestProductService(mockRepo)
+
+	req := &dto.CreateProductRequest{
+		Name:                "Test Product",
+		Category:            "Category A",
+		TotalPriceWithTaxes: "127.0",
+		VAT:                 "19",
+		ICO:                 "8",
+		TaxesFormat:         "percentage",
+		SKU:                 "",
+	}
+
+	result, err := service.CreateProduct(ctx, req)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "PRODUCT_MISSING_SKU")
+
+	mockRepo.AssertNotCalled(t, "Create")
+	mockRepo.AssertExpectations(t)
+}
+
 func TestCreateProduct_RepositoryError(t *testing.T) {
 	ctx := context.Background()
 	mockRepo := new(MockProductRepositoryForService)
@@ -136,7 +237,7 @@ func TestCreateProduct_RepositoryError(t *testing.T) {
 		Description:         nil,
 		Brand:               nil,
 		Model:               nil,
-		SKU:                 "SKU-1",
+		SKU:                 "SKU1",
 	}
 
 	repoError := errors.New("database error")
@@ -148,6 +249,66 @@ func TestCreateProduct_RepositoryError(t *testing.T) {
 	assert.Nil(t, result)
 	assert.ErrorIs(t, err, repoError)
 
+	mockRepo.AssertExpectations(t)
+}
+
+func TestUpdateProduct_InvalidSKU_WithHyphen(t *testing.T) {
+	ctx := context.Background()
+	mockRepo := new(MockProductRepositoryForService)
+	service := createTestProductService(mockRepo)
+
+	productID := "product-1"
+	existingProduct := createTestProductDTO(productID, "Old Name", "Old Category", 1, 50.0, 9.5)
+
+	req := &dto.UpdateProductRequest{
+		Name:                "New Name",
+		Category:            "New Category",
+		TotalPriceWithTaxes: "200.0",
+		VAT:                 "38.0",
+		ICO:                 "12.0",
+		TaxesFormat:         "percentage",
+		SKU:                 "SKU-002",
+	}
+
+	mockRepo.On("FindByID", ctx, productID).Return(existingProduct, nil)
+
+	result, err := service.UpdateProduct(ctx, productID, req)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "PRODUCT_INVALID_SKU")
+
+	mockRepo.AssertNotCalled(t, "Update")
+	mockRepo.AssertExpectations(t)
+}
+
+func TestUpdateProduct_MissingSKU(t *testing.T) {
+	ctx := context.Background()
+	mockRepo := new(MockProductRepositoryForService)
+	service := createTestProductService(mockRepo)
+
+	productID := "product-1"
+	existingProduct := createTestProductDTO(productID, "Old Name", "Old Category", 1, 50.0, 9.5)
+
+	req := &dto.UpdateProductRequest{
+		Name:                "New Name",
+		Category:            "New Category",
+		TotalPriceWithTaxes: "200.0",
+		VAT:                 "38.0",
+		ICO:                 "12.0",
+		TaxesFormat:         "percentage",
+		SKU:                 "",
+	}
+
+	mockRepo.On("FindByID", ctx, productID).Return(existingProduct, nil)
+
+	result, err := service.UpdateProduct(ctx, productID, req)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "PRODUCT_MISSING_SKU")
+
+	mockRepo.AssertNotCalled(t, "Update")
 	mockRepo.AssertExpectations(t)
 }
 
@@ -172,7 +333,7 @@ func TestUpdateProduct_Success(t *testing.T) {
 		Description:         nil,
 		Brand:               nil,
 		Model:               nil,
-		SKU:                 "SKU-1",
+		SKU:                 "SKU002",
 	}
 
 	mockRepo.On("FindByID", ctx, productID).Return(existingProduct, nil)
@@ -214,7 +375,7 @@ func TestUpdateProduct_ProductNotFound(t *testing.T) {
 		VAT:                 "0.38",
 		ICO:                 "0.16",
 		TaxesFormat:         "percentage",
-		SKU:                 "SKU-002",
+		SKU:                 "SKU003",
 	}
 
 	mockRepo.On("FindByID", ctx, productID).Return(nil, errors.New("not found"))
@@ -244,7 +405,7 @@ func TestUpdateProduct_RepositoryError(t *testing.T) {
 		VAT:                 "0.38",
 		ICO:                 "0.16",
 		TaxesFormat:         "percentage",
-		SKU:                 "SKU-002",
+		SKU:                 "SKU004",
 	}
 
 	updateFailedError := errors.New("update failed")
