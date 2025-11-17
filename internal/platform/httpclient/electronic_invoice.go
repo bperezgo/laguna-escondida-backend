@@ -218,7 +218,7 @@ func (c *ElectronicInvoiceClient) Create(
 	if customer == nil {
 		customer = &dto.Customer{
 			DocumentNumber: "222222222222",
-			DocumentType:   dto.DocumentTypeNIT,
+			DocumentType:   dto.DocumentTypeNationalIdentificationNumber,
 			Name:           "consumidor final",
 			Email:          "noenviar@noenviar.com",
 		}
