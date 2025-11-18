@@ -1,8 +1,10 @@
 import { config } from '@/lib/config/config';
+import { getAccessToken } from '@/lib/auth';
 
 /**
  * Server-side API client that calls the Golang backend directly
  * This should only be used in Next.js API routes and server components
+ * Automatically includes the JWT token from cookies in the Authorization header
  */
 export async function serverApiRequest<T>(
   endpoint: string,
@@ -10,12 +12,22 @@ export async function serverApiRequest<T>(
 ): Promise<T> {
   const url = `${config.apiUrl}${endpoint}`;
   
+  // Get the JWT token from cookies
+  const token = await getAccessToken();
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...options?.headers,
+  };
+
+  // Add Authorization header if token exists
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const response = await fetch(url, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
+    headers,
   });
 
   if (!response.ok) {
