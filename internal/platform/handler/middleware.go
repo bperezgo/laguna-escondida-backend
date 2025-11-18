@@ -3,6 +3,8 @@ package handler
 import (
 	"net/http"
 
+	"laguna-escondida/backend/internal/platform/config"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -17,6 +19,26 @@ func CORSMiddleware() gin.HandlerFunc {
 		// Handle OPTIONS preflight requests
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(http.StatusOK)
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// AdminAPIKeyMiddleware validates the admin API key from the request header
+func AdminAPIKeyMiddleware(cfg *config.Config) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		apiKey := c.GetHeader("X-API-Key")
+		if apiKey == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "API key is required"})
+			c.Abort()
+			return
+		}
+
+		if apiKey != cfg.AdminAPIKey {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid API key"})
+			c.Abort()
 			return
 		}
 

@@ -9,6 +9,7 @@ type Config struct {
 	ElectronicInvoiceURL      string
 	ElectronicInvoiceUser     string
 	ElectronicInvoicePassword string
+	AdminAPIKey               string
 }
 
 func NewConfig() (*Config, error) {
@@ -24,10 +25,15 @@ func NewConfig() (*Config, error) {
 	if password == "" {
 		return nil, errors.New("ELECTRONIC_INVOICE_PASSWORD is not set")
 	}
+	adminAPIKey := os.Getenv("ADMIN_API_KEY")
+	if adminAPIKey == "" {
+		return nil, errors.New("ADMIN_API_KEY is not set")
+	}
 
 	return &Config{
 		ElectronicInvoiceURL:      url,
 		ElectronicInvoiceUser:     user,
 		ElectronicInvoicePassword: password,
+		AdminAPIKey:               adminAPIKey,
 	}, nil
 }

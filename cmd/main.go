@@ -42,6 +42,9 @@ func main() {
 	productRepo := repository.NewProductRepository(db.DB)
 	openBillRepo := repository.NewOpenBillRepository(db.DB)
 	stockRepo := repository.NewStockRepository(db.DB)
+	userRepo := repository.NewUserRepository(db.DB)
+	roleRepo := repository.NewRoleRepository(db.DB)
+	userRoleRepo := repository.NewUserRoleRepository(db.DB)
 	electronicInvoiceClient := httpclient.NewElectronicInvoiceClient(cfg)
 	billRepo := repository.NewBillRepository(db.DB, electronicInvoiceClient)
 	invoiceService := service.NewInvoiceService(electronicInvoiceClient, productRepo, billRepo)
@@ -50,12 +53,14 @@ func main() {
 	orderService := service.NewOrderService(openBillRepo, productRepo, invoiceService)
 	productService := service.NewProductService(productRepo)
 	stockService := service.NewStockService(stockRepo, productRepo)
+	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo)
 
 	// Initialize handlers
 	orderHandler := handler.NewOrderHandler(orderService)
 	productHandler := handler.NewProductHandler(productService)
 	stockHandler := handler.NewStockHandler(stockService)
 	invoiceHandler := handler.NewInvoiceHandler(invoiceService)
+	userHandler := handler.NewUserHandler(userService)
 
 	// Setup routes
 	router := gin.Default()
@@ -87,6 +92,9 @@ func main() {
 	router.DELETE("/api/stock/:product_id", stockHandler.DeleteStockHandler)
 	router.GET("/api/stock", stockHandler.GetAllStocksHandler)
 	router.POST("/api/stock/bulk", stockHandler.BulkStockCreationOrUpdatingHandler)
+
+	// User routes (protected with admin API key)
+	router.POST("/api/users", handler.AdminAPIKeyMiddleware(cfg), userHandler.CreateUserHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {
