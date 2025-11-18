@@ -41,6 +41,7 @@ func main() {
 	// Initialize repositories
 	productRepo := repository.NewProductRepository(db.DB)
 	openBillRepo := repository.NewOpenBillRepository(db.DB)
+	stockRepo := repository.NewStockRepository(db.DB)
 	electronicInvoiceClient := httpclient.NewElectronicInvoiceClient(cfg)
 	billRepo := repository.NewBillRepository(db.DB, electronicInvoiceClient)
 	invoiceService := service.NewInvoiceService(electronicInvoiceClient, productRepo, billRepo)
@@ -48,10 +49,12 @@ func main() {
 	// Initialize services
 	orderService := service.NewOrderService(openBillRepo, productRepo, invoiceService)
 	productService := service.NewProductService(productRepo)
+	stockService := service.NewStockService(stockRepo, productRepo)
 
 	// Initialize handlers
 	orderHandler := handler.NewOrderHandler(orderService)
 	productHandler := handler.NewProductHandler(productService)
+	stockHandler := handler.NewStockHandler(stockService)
 	invoiceHandler := handler.NewInvoiceHandler(invoiceService)
 
 	// Setup routes
@@ -77,6 +80,13 @@ func main() {
 
 	// Invoice routes
 	router.POST("/api/invoices", invoiceHandler.CreateElectronicInvoiceHandler)
+
+	// Stock routes
+	router.POST("/api/stock", stockHandler.CreateStockHandler)
+	router.PUT("/api/stock/:product_id/add-or-decrease", stockHandler.AddOrDecreaseStockHandler)
+	router.DELETE("/api/stock/:product_id", stockHandler.DeleteStockHandler)
+	router.GET("/api/stock", stockHandler.GetAllStocksHandler)
+	router.POST("/api/stock/bulk", stockHandler.BulkStockCreationOrUpdatingHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {
