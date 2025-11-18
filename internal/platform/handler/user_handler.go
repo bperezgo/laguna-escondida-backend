@@ -57,3 +57,25 @@ func (h *UserHandler) CreateUserHandler(c *gin.Context) {
 	c.JSON(http.StatusCreated, userWithRoles)
 }
 
+func (h *UserHandler) SignInHandler(c *gin.Context) {
+	var req dto.SignInRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("Error decoding request: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	signInResponse, err := h.userService.SignIn(c.Request.Context(), &req)
+	if err != nil {
+		log.Printf("Error signing in: %v", err)
+
+		if errors.Is(err, domainError.ErrInvalidCredentials) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid username or password"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, signInResponse)
+}

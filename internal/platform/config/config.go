@@ -10,6 +10,7 @@ type Config struct {
 	ElectronicInvoiceUser     string
 	ElectronicInvoicePassword string
 	AdminAPIKey               string
+	JWTSecret                 string
 }
 
 func NewConfig() (*Config, error) {
@@ -29,11 +30,16 @@ func NewConfig() (*Config, error) {
 	if adminAPIKey == "" {
 		return nil, errors.New("ADMIN_API_KEY is not set")
 	}
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		return nil, errors.New("JWT_SECRET is not set")
+	}
 
 	return &Config{
 		ElectronicInvoiceURL:      url,
 		ElectronicInvoiceUser:     user,
 		ElectronicInvoicePassword: password,
 		AdminAPIKey:               adminAPIKey,
+		JWTSecret:                 jwtSecret,
 	}, nil
 }

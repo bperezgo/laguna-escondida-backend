@@ -58,3 +58,20 @@ func (a *Aggregate) ToDTO() *dto.User {
 		UpdatedAt: a.updatedAt,
 	}
 }
+
+func (a *Aggregate) ComparePassword(password string) error {
+	if err := bcrypt.CompareHashAndPassword([]byte(a.password), []byte(password)); err != nil {
+		return userError.NewInvalidPasswordError("password does not match")
+	}
+	return nil
+}
+
+func NewAggregateFromDTO(user *dto.User) *Aggregate {
+	return &Aggregate{
+		id:        user.ID,
+		username:  user.Username,
+		password:  user.Password,
+		createdAt: user.CreatedAt,
+		updatedAt: user.UpdatedAt,
+	}
+}

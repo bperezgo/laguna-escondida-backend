@@ -93,7 +93,8 @@ func (m *MockUserRoleRepository) FindRolesByUserID(ctx context.Context, userID s
 }
 
 func createTestUserService(userRepo *MockUserRepository, roleRepo *MockRoleRepository, userRoleRepo *MockUserRoleRepository) *UserService {
-	return NewUserService(userRepo, roleRepo, userRoleRepo)
+	jwtService := NewJWTService("test-secret-key-for-testing")
+	return NewUserService(userRepo, roleRepo, userRoleRepo, jwtService)
 }
 
 func createTestRole(id int, name string) *dto.Role {

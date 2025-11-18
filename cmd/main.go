@@ -49,11 +49,14 @@ func main() {
 	billRepo := repository.NewBillRepository(db.DB, electronicInvoiceClient)
 	invoiceService := service.NewInvoiceService(electronicInvoiceClient, productRepo, billRepo)
 
+	// Initialize JWT service
+	jwtService := service.NewJWTService(cfg.JWTSecret)
+
 	// Initialize services
 	orderService := service.NewOrderService(openBillRepo, productRepo, invoiceService)
 	productService := service.NewProductService(productRepo)
 	stockService := service.NewStockService(stockRepo, productRepo)
-	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo)
+	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, jwtService)
 
 	// Initialize handlers
 	orderHandler := handler.NewOrderHandler(orderService)
@@ -71,30 +74,34 @@ func main() {
 	// Health check
 	router.GET("/api/health", handler.HealthCheckHandler)
 
-	// Order routes
-	router.POST("/api/orders", orderHandler.CreateOrderHandler)
-	router.PUT("/api/orders/:id", orderHandler.UpdateOrderHandler)
-	router.POST("/api/orders/:id/pay", orderHandler.PayOrderHandler)
-
-	// Product routes
-	router.POST("/api/products", productHandler.CreateProductHandler)
-	router.GET("/api/products", productHandler.ListProductsHandler)
-	router.GET("/api/products/:id", productHandler.GetProductByIDHandler)
-	router.PUT("/api/products/:id", productHandler.UpdateProductHandler)
-	router.DELETE("/api/products/:id", productHandler.DeleteProductHandler)
-
-	// Invoice routes
-	router.POST("/api/invoices", invoiceHandler.CreateElectronicInvoiceHandler)
-
-	// Stock routes
-	router.POST("/api/stock", stockHandler.CreateStockHandler)
-	router.PUT("/api/stock/:product_id/add-or-decrease", stockHandler.AddOrDecreaseStockHandler)
-	router.DELETE("/api/stock/:product_id", stockHandler.DeleteStockHandler)
-	router.GET("/api/stock", stockHandler.GetAllStocksHandler)
-	router.POST("/api/stock/bulk", stockHandler.BulkStockCreationOrUpdatingHandler)
+	// Auth routes (no authentication required)
+	router.POST("/api/auth/signin", userHandler.SignInHandler)
 
 	// User routes (protected with admin API key)
 	router.POST("/api/users", handler.AdminAPIKeyMiddleware(cfg), userHandler.CreateUserHandler)
+
+	// Protected routes (require JWT authentication)
+	// Order routes
+	router.POST("/api/orders", handler.JWTAuthMiddleware(jwtService), orderHandler.CreateOrderHandler)
+	router.PUT("/api/orders/:id", handler.JWTAuthMiddleware(jwtService), orderHandler.UpdateOrderHandler)
+	router.POST("/api/orders/:id/pay", handler.JWTAuthMiddleware(jwtService), orderHandler.PayOrderHandler)
+
+	// Product routes
+	router.POST("/api/products", handler.JWTAuthMiddleware(jwtService), productHandler.CreateProductHandler)
+	router.GET("/api/products", handler.JWTAuthMiddleware(jwtService), productHandler.ListProductsHandler)
+	router.GET("/api/products/:id", handler.JWTAuthMiddleware(jwtService), productHandler.GetProductByIDHandler)
+	router.PUT("/api/products/:id", handler.JWTAuthMiddleware(jwtService), productHandler.UpdateProductHandler)
+	router.DELETE("/api/products/:id", handler.JWTAuthMiddleware(jwtService), productHandler.DeleteProductHandler)
+
+	// Invoice routes
+	router.POST("/api/invoices", handler.JWTAuthMiddleware(jwtService), invoiceHandler.CreateElectronicInvoiceHandler)
+
+	// Stock routes
+	router.POST("/api/stock", handler.JWTAuthMiddleware(jwtService), stockHandler.CreateStockHandler)
+	router.PUT("/api/stock/:product_id/add-or-decrease", handler.JWTAuthMiddleware(jwtService), stockHandler.AddOrDecreaseStockHandler)
+	router.DELETE("/api/stock/:product_id", handler.JWTAuthMiddleware(jwtService), stockHandler.DeleteStockHandler)
+	router.GET("/api/stock", handler.JWTAuthMiddleware(jwtService), stockHandler.GetAllStocksHandler)
+	router.POST("/api/stock/bulk", handler.JWTAuthMiddleware(jwtService), stockHandler.BulkStockCreationOrUpdatingHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {

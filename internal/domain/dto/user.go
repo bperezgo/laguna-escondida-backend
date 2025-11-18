@@ -33,3 +33,14 @@ type UserWithRoles struct {
 	User  *User   `json:"user"`
 	Roles []*Role `json:"roles"`
 }
+
+type SignInRequest struct {
+	Username string `json:"username" validate:"required"`
+	Password string `json:"password" validate:"required"`
+}
+
+type SignInResponse struct {
+	Token    string  `json:"token"`
+	Username string  `json:"username"`
+	Roles    []*Role `json:"roles"`
+}

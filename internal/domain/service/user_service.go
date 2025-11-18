@@ -15,13 +15,15 @@ type UserService struct {
 	userRepo     ports.UserRepository
 	roleRepo     ports.RoleRepository
 	userRoleRepo ports.UserRoleRepository
+	jwtService   *JWTService
 }
 
-func NewUserService(userRepo ports.UserRepository, roleRepo ports.RoleRepository, userRoleRepo ports.UserRoleRepository) *UserService {
+func NewUserService(userRepo ports.UserRepository, roleRepo ports.RoleRepository, userRoleRepo ports.UserRoleRepository, jwtService *JWTService) *UserService {
 	return &UserService{
 		userRepo:     userRepo,
 		roleRepo:     roleRepo,
 		userRoleRepo: userRoleRepo,
+		jwtService:   jwtService,
 	}
 }
 
@@ -65,5 +67,38 @@ func (s *UserService) CreateUser(ctx context.Context, req *dto.CreateUserRequest
 	return &dto.UserWithRoles{
 		User:  userDTO,
 		Roles: roles,
+	}, nil
+}
+
+func (s *UserService) SignIn(ctx context.Context, req *dto.SignInRequest) (*dto.SignInResponse, error) {
+	userDTO, err := s.userRepo.FindByUsername(ctx, req.Username)
+	if err != nil {
+		return nil, domainError.ErrInvalidCredentials
+	}
+
+	userAggregate := user.NewAggregateFromDTO(userDTO)
+	if err := userAggregate.ComparePassword(req.Password); err != nil {
+		return nil, domainError.ErrInvalidCredentials
+	}
+
+	roles, err := s.userRoleRepo.FindRolesByUserID(ctx, userDTO.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user roles: %w", err)
+	}
+
+	roleIDs := make([]int, len(roles))
+	for i, role := range roles {
+		roleIDs[i] = role.ID
+	}
+
+	token, err := s.jwtService.GenerateToken(userDTO.Username, roleIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate token: %w", err)
+	}
+
+	return &dto.SignInResponse{
+		Token:    token,
+		Username: userDTO.Username,
+		Roles:    roles,
 	}, nil
 }

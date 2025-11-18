@@ -8,4 +8,5 @@ var (
 	ErrUserCreationFailed = errors.New("failed to create user")
 	ErrRoleNotFound       = errors.New("role not found")
 	ErrInvalidRoleIDs     = errors.New("invalid role IDs provided")
+	ErrInvalidCredentials = errors.New("invalid username or password")
 )
