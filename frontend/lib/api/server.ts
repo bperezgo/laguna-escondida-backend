@@ -1,5 +1,5 @@
-import { config } from '@/lib/config/config';
-import { getAccessToken } from '@/lib/auth';
+import { config } from "@/lib/config/config";
+import { getAccessToken } from "@/lib/auth";
 
 /**
  * Server-side API client that calls the Golang backend directly
@@ -11,18 +11,18 @@ export async function serverApiRequest<T>(
   options?: RequestInit
 ): Promise<T> {
   const url = `${config.apiUrl}${endpoint}`;
-  
+
   // Get the JWT token from cookies
   const token = await getAccessToken();
-  
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    ...options?.headers,
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options?.headers as Record<string, string>),
   };
 
   // Add Authorization header if token exists
   if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+    headers["Authorization"] = `Bearer ${token}`;
   }
 
   const response = await fetch(url, {
@@ -31,10 +31,11 @@ export async function serverApiRequest<T>(
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: response.statusText }));
+    const error = await response
+      .json()
+      .catch(() => ({ message: response.statusText }));
     throw new Error(error.message || `HTTP error! status: ${response.status}`);
   }
 
   return response.json();
 }
-
