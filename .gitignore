@@ -25,3 +25,5 @@ postgres_data/
 
 __debug_bin*
 
+./main
+
