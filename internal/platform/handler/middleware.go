@@ -4,11 +4,13 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"time"
 
 	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/platform/config"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 // CORSMiddleware handles CORS headers and OPTIONS requests
@@ -93,5 +95,29 @@ func JWTAuthMiddleware(jwtService *service.JWTService, requiredRoles ...int) gin
 		c.Set("username", claims.Username)
 		c.Set("role_ids", claims.RoleIDs)
 		c.Next()
+	}
+}
+
+// LoggerMiddleware logs HTTP requests using Zap logger in JSON format
+func LoggerMiddleware(logger *zap.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+		path := c.Request.URL.Path
+		method := c.Request.Method
+
+		c.Next()
+
+		statusCode := c.Writer.Status()
+		duration := time.Since(start)
+
+		success := statusCode >= 200 && statusCode < 400
+
+		logger.Info("HTTP Request",
+			zap.String("method", method),
+			zap.String("path", path),
+			zap.Int("status_code", statusCode),
+			zap.Duration("duration", duration),
+			zap.Bool("success", success),
+		)
 	}
 }

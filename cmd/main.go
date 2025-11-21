@@ -21,6 +21,7 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/joho/godotenv"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -28,6 +29,13 @@ func main() {
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, using system environment variables")
 	}
+
+	// Initialize Zap logger (production config uses JSON format)
+	logger, err := zap.NewProduction()
+	if err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
+	defer logger.Sync()
 
 	// Database connection
 	dsn := getDSN()
@@ -80,6 +88,9 @@ func main() {
 
 	// Apply CORS middleware globally
 	router.Use(handler.CORSMiddleware())
+
+	// Apply Logger middleware globally
+	router.Use(handler.LoggerMiddleware(logger))
 
 	// Health check
 	router.GET("/api/health", handler.HealthCheckHandler)
