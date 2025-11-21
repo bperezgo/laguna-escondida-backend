@@ -134,7 +134,7 @@ type invoiceResponse struct {
 
 type invoiceResult struct {
 	Status   invoiceStatus   `json:"status"`
-	Document invoiceDocument `json:"document"`
+	Document invoiceDocument `json:"documento"`
 	Prefix   invoicePrefix   `json:"prefix"`
 }
 
