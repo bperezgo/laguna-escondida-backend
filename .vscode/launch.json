@@ -10,7 +10,8 @@
       "envFile": "${workspaceFolder}/.env",
       "args": [],
       "showLog": true,
-      "trace": "verbose"
+      "trace": "verbose",
+      "cwd": "${workspaceFolder}"
     },
     {
       "name": "Attach to Process",

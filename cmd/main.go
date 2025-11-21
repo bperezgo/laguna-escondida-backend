@@ -151,13 +151,16 @@ func main() {
 }
 
 func runMigrations(dsn string) error {
-	// Convert PostgreSQL DSN to migration URL format
-	// DSN format: host=X port=X user=X password=X dbname=X sslmode=X
-	// Migration URL format: postgres://user:password@host:port/dbname?sslmode=X
 	migrationURL := convertDSNToURL(dsn)
+	migrationsPath, err := getMigrationsPath()
+	if err != nil {
+		return fmt.Errorf("failed to locate migrations directory: %w", err)
+	}
+
+	log.Printf("Using migrations from: %s", migrationsPath)
 
 	m, err := migrate.New(
-		"file://internal/platform/postgres/migrations",
+		migrationsPath,
 		migrationURL,
 	)
 	if err != nil {
@@ -176,6 +179,26 @@ func runMigrations(dsn string) error {
 	}
 
 	return nil
+}
+
+func getMigrationsPath() (string, error) {
+	// Get current working directory
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	// Try relative path from current directory (works for both local and Docker)
+	relativePath := "internal/platform/postgres/migrations"
+	fullPath := fmt.Sprintf("%s/%s", cwd, relativePath)
+
+	// Check if migrations directory exists
+	if _, err := os.Stat(fullPath); err == nil {
+		return fmt.Sprintf("file://%s", fullPath), nil
+	}
+
+	// If not found, return error with helpful message
+	return "", fmt.Errorf("migrations directory not found at %s", fullPath)
 }
 
 func convertDSNToURL(dsn string) string {

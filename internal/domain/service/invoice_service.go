@@ -4,6 +4,7 @@ import (
 	"context"
 	"laguna-escondida/backend/internal/domain/aggregate/bill"
 	"laguna-escondida/backend/internal/domain/dto"
+	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
 
 	"github.com/samber/lo"
@@ -34,6 +35,10 @@ func (s *InvoiceService) CreateElectronicInvoice(ctx context.Context, invoice *d
 
 	if err != nil {
 		return err
+	}
+
+	if len(products) != len(invoice.Items) {
+		return domainError.ErrProductNotFound
 	}
 
 	bill, err := bill.NewBillFromCreateElectronicInvoiceRequest(invoice, lo.Map(invoice.Items, func(item dto.InvoiceItem, idx int) *bill.BillProduct {
