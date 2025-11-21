@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/service"
@@ -35,4 +37,47 @@ func (h *InvoiceHandler) CreateElectronicInvoiceHandler(c *gin.Context) {
 	}
 
 	c.Status(http.StatusCreated)
+}
+
+func (h *InvoiceHandler) ListInvoicesHandler(c *gin.Context) {
+	var req dto.ListInvoicesRequest
+
+	if pageStr := c.Query("page"); pageStr != "" {
+		var page int
+		if _, err := fmt.Sscanf(pageStr, "%d", &page); err == nil {
+			req.Page = page
+		}
+	}
+
+	if pageSizeStr := c.Query("page_size"); pageSizeStr != "" {
+		var pageSize int
+		if _, err := fmt.Sscanf(pageSizeStr, "%d", &pageSize); err == nil {
+			req.PageSize = pageSize
+		}
+	}
+
+	if createdAtStartStr := c.Query("created_at_start"); createdAtStartStr != "" {
+		if parsedTime, err := time.Parse(time.RFC3339, createdAtStartStr); err == nil {
+			req.CreatedAtStart = &parsedTime
+		}
+	}
+
+	if createdAtEndStr := c.Query("created_at_end"); createdAtEndStr != "" {
+		if parsedTime, err := time.Parse(time.RFC3339, createdAtEndStr); err == nil {
+			req.CreatedAtEnd = &parsedTime
+		}
+	}
+
+	if nationalID := c.Query("national_identification"); nationalID != "" {
+		req.NationalIdentification = &nationalID
+	}
+
+	response, err := h.invoiceService.ListInvoices(c.Request.Context(), &req)
+	if err != nil {
+		log.Printf("Error listing invoices: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list invoices"})
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
 }

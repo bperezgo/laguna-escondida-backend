@@ -9,4 +9,5 @@ import (
 type BillRepository interface {
 	Create(ctx context.Context, bill *bill.Aggregate, products []*dto.Product) error
 	FindByID(ctx context.Context, id string) (*dto.Bill, error)
+	FindByCriteria(ctx context.Context, criteria *dto.BillCriteria) ([]dto.InvoiceListItem, int64, error)
 }

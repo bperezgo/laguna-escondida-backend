@@ -64,3 +64,36 @@ func (s *InvoiceService) CreateElectronicInvoice(ctx context.Context, invoice *d
 
 	return s.billRepo.Create(ctx, bill, products)
 }
+
+func (s *InvoiceService) ListInvoices(ctx context.Context, req *dto.ListInvoicesRequest) (*dto.ListInvoicesResponse, error) {
+	criteria := dto.NewBillCriteria().
+		WithPage(req.Page).
+		WithPageSize(req.PageSize).
+		WithCreatedAtRange(req.CreatedAtStart, req.CreatedAtEnd).
+		WithNationalIdentification(req.NationalIdentification)
+
+	if criteria.Page == 0 {
+		criteria.Page = 1
+	}
+	if criteria.PageSize == 0 {
+		criteria.PageSize = 20
+	}
+
+	invoices, totalCount, err := s.billRepo.FindByCriteria(ctx, criteria)
+	if err != nil {
+		return nil, err
+	}
+
+	totalPages := int(totalCount) / criteria.PageSize
+	if int(totalCount)%criteria.PageSize != 0 {
+		totalPages++
+	}
+
+	return &dto.ListInvoicesResponse{
+		Invoices:   invoices,
+		TotalCount: totalCount,
+		Page:       criteria.Page,
+		PageSize:   criteria.PageSize,
+		TotalPages: totalPages,
+	}, nil
+}

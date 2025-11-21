@@ -51,6 +51,7 @@ func (openBillProductModel) TableName() string {
 
 type billModel struct {
 	ID             string     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	BillOwnerID    *string    `gorm:"type:varchar(255)"`
 	TotalAmount    float64    `gorm:"type:double precision;not null;column:total_amount"`
 	DiscountAmount float64    `gorm:"type:double precision;not null;default:0;column:discount_amount"`
 	VAT            float64    `gorm:"type:double precision;not null"`

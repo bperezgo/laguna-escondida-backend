@@ -40,10 +40,16 @@ func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, produ
 
 	billDTO := bill.ToDTO()
 
+	var billOwnerID *string
+	if billDTO.Customer != nil {
+		billOwnerID = &billDTO.Customer.DocumentNumber
+	}
+
 	var response *dto.CreateElectronicInvoiceResponse
 	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		billModel := &billModel{
 			ID:             billDTO.ID,
+			BillOwnerID:    billOwnerID,
 			TotalAmount:    billDTO.TotalAmount,
 			DiscountAmount: billDTO.DiscountAmount,
 			VAT:            billDTO.VAT,
@@ -52,10 +58,6 @@ func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, produ
 			DocumentURL:    billDTO.DocumentURL,
 			CreatedAt:      billDTO.CreatedAt,
 			UpdatedAt:      billDTO.UpdatedAt,
-		}
-
-		if err := tx.Create(billModel).Error; err != nil {
-			return err
 		}
 
 		for _, product := range products {
@@ -93,6 +95,10 @@ func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, produ
 			}).Create(billOwner).Error; err != nil {
 				return err
 			}
+		}
+
+		if err := tx.Create(billModel).Error; err != nil {
+			return err
 		}
 
 		req := &dto.CreateElectronicInvoiceRequest{
@@ -148,4 +154,92 @@ func (r *BillRepository) FindByID(ctx context.Context, id string) (*dto.Bill, er
 		CreatedAt:      billModel.CreatedAt,
 		UpdatedAt:      billModel.UpdatedAt,
 	}, nil
+}
+
+func (r *BillRepository) FindByCriteria(ctx context.Context, criteria *dto.BillCriteria) ([]dto.InvoiceListItem, int64, error) {
+	query := r.db.WithContext(ctx).Model(&billModel{})
+
+	if criteria.CreatedAtStart != nil {
+		query = query.Where("created_at >= ?", criteria.CreatedAtStart)
+	}
+
+	if criteria.CreatedAtEnd != nil {
+		query = query.Where("created_at <= ?", criteria.CreatedAtEnd)
+	}
+
+	if criteria.NationalIdentification != nil && *criteria.NationalIdentification != "" {
+		query = query.Where("bill_owner_id = ?", *criteria.NationalIdentification)
+	}
+
+	var totalCount int64
+	if err := query.Count(&totalCount).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var bills []billModel
+	if err := query.
+		Order("created_at DESC").
+		Offset(criteria.GetOffset()).
+		Limit(criteria.GetLimit()).
+		Find(&bills).Error; err != nil {
+		return nil, 0, err
+	}
+
+	billOwnerIDs := make([]string, 0)
+	for _, bill := range bills {
+		if bill.BillOwnerID != nil {
+			billOwnerIDs = append(billOwnerIDs, *bill.BillOwnerID)
+		}
+	}
+
+	billOwnersMap := make(map[string]*billOwnerModel)
+	if len(billOwnerIDs) > 0 {
+		var billOwners []billOwnerModel
+		if err := r.db.WithContext(ctx).
+			Model(&billOwnerModel{}).
+			Where("id IN ?", billOwnerIDs).
+			Find(&billOwners).Error; err != nil {
+			return nil, 0, err
+		}
+
+		for i := range billOwners {
+			billOwnersMap[billOwners[i].ID] = &billOwners[i]
+		}
+	}
+
+	invoices := make([]dto.InvoiceListItem, len(bills))
+	for i, bill := range bills {
+		var customerID *string
+		if bill.BillOwnerID != nil {
+			if _, exists := billOwnersMap[*bill.BillOwnerID]; exists {
+				customerID = bill.BillOwnerID
+			}
+		}
+
+		cufe := ""
+		if bill.CUFE != nil {
+			cufe = *bill.CUFE
+		}
+
+		tascode := ""
+		if bill.Tascode != nil {
+			tascode = *bill.Tascode
+		}
+
+		invoices[i] = dto.InvoiceListItem{
+			ID:             bill.ID,
+			TotalAmount:    bill.TotalAmount,
+			DiscountAmount: bill.DiscountAmount,
+			VAT:            bill.VAT,
+			ICO:            bill.ICO,
+			Tip:            bill.Tip,
+			DocumentURL:    bill.DocumentURL,
+			CUFE:           cufe,
+			Tascode:        tascode,
+			CustomerID:     customerID,
+			CreatedAt:      bill.CreatedAt,
+		}
+	}
+
+	return invoices, totalCount, nil
 }
