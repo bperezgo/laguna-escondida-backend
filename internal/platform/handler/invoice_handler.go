@@ -81,3 +81,14 @@ func (h *InvoiceHandler) ListInvoicesHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, response)
 }
+
+func (h *InvoiceHandler) UpdateMissingDocumentURLsHandler(c *gin.Context) {
+	response, err := h.invoiceService.UpdateMissingDocumentURLs(c.Request.Context())
+	if err != nil {
+		log.Printf("Error updating missing document URLs: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update missing document URLs"})
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}

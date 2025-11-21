@@ -101,6 +101,9 @@ func main() {
 	// User routes (protected with admin API key)
 	router.POST("/api/users", handler.AdminAPIKeyMiddleware(cfg), userHandler.CreateUserHandler)
 
+	// Admin routes (protected with admin API key)
+	router.POST("/api/invoices/update-missing-document-urls", handler.AdminAPIKeyMiddleware(cfg), invoiceHandler.UpdateMissingDocumentURLsHandler)
+
 	// Protected routes (require JWT authentication)
 	// Order routes
 	router.POST("/api/orders", handler.JWTAuthMiddleware(jwtService), orderHandler.CreateOrderHandler)

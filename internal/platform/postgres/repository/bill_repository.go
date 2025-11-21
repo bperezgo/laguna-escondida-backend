@@ -248,3 +248,32 @@ func (r *BillRepository) FindByCriteria(ctx context.Context, criteria *dto.BillC
 
 	return invoices, totalCount, nil
 }
+
+func (r *BillRepository) FindByNullDocumentURL(ctx context.Context) ([]*dto.BillWithTascode, error) {
+	var bills []billModel
+	if err := r.db.WithContext(ctx).
+		Where("document_url IS NULL AND tascode IS NOT NULL AND deleted_at IS NULL").
+		Find(&bills).Error; err != nil {
+		return nil, err
+	}
+
+	result := make([]*dto.BillWithTascode, 0, len(bills))
+	for _, bill := range bills {
+		if bill.Tascode != nil {
+			result = append(result, &dto.BillWithTascode{
+				ID:      bill.ID,
+				Tascode: *bill.Tascode,
+			})
+		}
+	}
+
+	return result, nil
+}
+
+func (r *BillRepository) UpdateDocumentURL(ctx context.Context, billID string, documentURL string) error {
+	return r.db.WithContext(ctx).
+		Model(&billModel{}).
+		Where("id = ?", billID).
+		Update("document_url", documentURL).
+		Error
+}

@@ -97,3 +97,55 @@ func (s *InvoiceService) ListInvoices(ctx context.Context, req *dto.ListInvoices
 		TotalPages: totalPages,
 	}, nil
 }
+
+func (s *InvoiceService) UpdateMissingDocumentURLs(ctx context.Context) (*dto.UpdateDocumentURLsResponse, error) {
+	bills, err := s.billRepo.FindByNullDocumentURL(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	updatedCount := 0
+	var failedBills []dto.UpdateDocumentURLsFailedBill
+
+	for _, bill := range bills {
+		verifyResp, err := s.electronicInvoiceClient.Get(ctx, bill.Tascode)
+		if err != nil {
+			failedBills = append(failedBills, dto.UpdateDocumentURLsFailedBill{
+				BillID: bill.ID,
+				Error:  err.Error(),
+			})
+			continue
+		}
+
+		if verifyResp.StatusCode != 200 {
+			failedBills = append(failedBills, dto.UpdateDocumentURLsFailedBill{
+				BillID: bill.ID,
+				Error:  verifyResp.StatusText,
+			})
+			continue
+		}
+
+		if verifyResp.PDF == "" {
+			failedBills = append(failedBills, dto.UpdateDocumentURLsFailedBill{
+				BillID: bill.ID,
+				Error:  "PDF URL is empty",
+			})
+			continue
+		}
+
+		if err := s.billRepo.UpdateDocumentURL(ctx, bill.ID, verifyResp.PDF); err != nil {
+			failedBills = append(failedBills, dto.UpdateDocumentURLsFailedBill{
+				BillID: bill.ID,
+				Error:  err.Error(),
+			})
+			continue
+		}
+
+		updatedCount++
+	}
+
+	return &dto.UpdateDocumentURLsResponse{
+		UpdatedCount: updatedCount,
+		FailedBills:  failedBills,
+	}, nil
+}

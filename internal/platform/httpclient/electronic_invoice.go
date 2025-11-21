@@ -355,7 +355,7 @@ func (c *ElectronicInvoiceClient) Create(
 	}, nil
 }
 
-func (c *ElectronicInvoiceClient) Get(ctx context.Context, invoiceID string) (res *dto.ElectronicInvoice, err error) {
+func (c *ElectronicInvoiceClient) Get(ctx context.Context, invoiceID string) (res *dto.VerifyInvoiceStatusResponse, err error) {
 	requestData := verifyStatusRequest{
 		VerifyStatus: verifyStatusData{
 			Tascode: invoiceID,
@@ -400,9 +400,9 @@ func (c *ElectronicInvoiceClient) Get(ctx context.Context, invoiceID string) (re
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
-	if verifyResp.InvoiceResult.Status.Code != 200 {
-		return nil, fmt.Errorf("invoice API error: %s", verifyResp.InvoiceResult.Status.Text)
-	}
-
-	return &dto.ElectronicInvoice{}, nil
+	return &dto.VerifyInvoiceStatusResponse{
+		StatusCode: verifyResp.InvoiceResult.Status.Code,
+		StatusText: verifyResp.InvoiceResult.Status.Text,
+		PDF:        verifyResp.InvoiceResult.Document.PDF,
+	}, nil
 }

@@ -77,3 +77,24 @@ type CreateElectronicInvoiceResponse struct {
 	Tascode string
 	CUFE    string
 }
+
+type BillWithTascode struct {
+	ID      string
+	Tascode string
+}
+
+type VerifyInvoiceStatusResponse struct {
+	StatusCode int
+	StatusText string
+	PDF        string
+}
+
+type UpdateDocumentURLsResponse struct {
+	UpdatedCount int                            `json:"updated_count"`
+	FailedBills  []UpdateDocumentURLsFailedBill `json:"failed_bills"`
+}
+
+type UpdateDocumentURLsFailedBill struct {
+	BillID string `json:"bill_id"`
+	Error  string `json:"error"`
+}

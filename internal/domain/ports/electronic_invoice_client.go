@@ -7,5 +7,5 @@ import (
 
 type ElectronicInvoiceClient interface {
 	Create(ctx context.Context, req *dto.CreateElectronicInvoiceRequest) (*dto.CreateElectronicInvoiceResponse, error)
-	Get(ctx context.Context, billID string) (*dto.ElectronicInvoice, error)
+	Get(ctx context.Context, tascode string) (*dto.VerifyInvoiceStatusResponse, error)
 }
