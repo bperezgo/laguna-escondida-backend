@@ -205,7 +205,11 @@ func (c *ElectronicInvoiceClient) Create(
 	ctx context.Context,
 	createReq *dto.CreateElectronicInvoiceRequest,
 ) (res *dto.CreateElectronicInvoiceResponse, err error) {
-	now := time.Now()
+	loc, locErr := time.LoadLocation("America/Bogota")
+	if locErr != nil {
+		loc = time.FixedZone("UTC-5", -5*60*60)
+	}
+	now := time.Now().In(loc)
 	issueDate := now.Format("20060102")
 	issueTime := now.Format("150405")
 
