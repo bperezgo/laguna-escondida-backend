@@ -5,6 +5,7 @@ import (
 	"laguna-escondida/backend/internal/domain/aggregate/bill"
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
+	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/shared/constants"
 	"time"
 
@@ -15,10 +16,15 @@ import (
 type BillRepository struct {
 	db                      *gorm.DB
 	electronicInvoiceClient ports.ElectronicInvoiceClient
+	config                  *config.Config
 }
 
-func NewBillRepository(db *gorm.DB, electronicInvoiceClient ports.ElectronicInvoiceClient) ports.BillRepository {
-	return &BillRepository{db: db, electronicInvoiceClient: electronicInvoiceClient}
+func NewBillRepository(db *gorm.DB, electronicInvoiceClient ports.ElectronicInvoiceClient, cfg *config.Config) ports.BillRepository {
+	return &BillRepository{
+		db:                      db,
+		electronicInvoiceClient: electronicInvoiceClient,
+		config:                  cfg,
+	}
 }
 
 func (r *BillRepository) GetNextConsecutive(ctx context.Context, prefix string) (int, error) {
@@ -102,8 +108,7 @@ func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, produ
 		}
 
 		req := &dto.CreateElectronicInvoiceRequest{
-			// Prefix:      constants.InvoicePrefix,
-			Prefix:      "SETP",
+			Prefix:      r.config.ElectronicInvoicePrefix,
 			Consecutive: consecutive,
 			PaymentCode: bill.PaymentCode(),
 			Bill:        billDTO,

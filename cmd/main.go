@@ -64,7 +64,7 @@ func main() {
 	roleRepo := repository.NewRoleRepository(db.DB)
 	userRoleRepo := repository.NewUserRoleRepository(db.DB)
 	electronicInvoiceClient := httpclient.NewElectronicInvoiceClient(cfg)
-	billRepo := repository.NewBillRepository(db.DB, electronicInvoiceClient)
+	billRepo := repository.NewBillRepository(db.DB, electronicInvoiceClient, cfg)
 	invoiceService := service.NewInvoiceService(electronicInvoiceClient, productRepo, billRepo)
 
 	// Initialize JWT service

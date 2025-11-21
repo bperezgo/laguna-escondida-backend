@@ -9,6 +9,7 @@ type Config struct {
 	ElectronicInvoiceURL      string
 	ElectronicInvoiceUser     string
 	ElectronicInvoicePassword string
+	ElectronicInvoicePrefix   string
 	AdminAPIKey               string
 	JWTSecret                 string
 }
@@ -35,10 +36,16 @@ func NewConfig() (*Config, error) {
 		return nil, errors.New("JWT_SECRET is not set")
 	}
 
+	invoicePrefix := os.Getenv("ELECTRONIC_INVOICE_PREFIX")
+	if invoicePrefix == "" {
+		invoicePrefix = "SETP"
+	}
+
 	return &Config{
 		ElectronicInvoiceURL:      url,
 		ElectronicInvoiceUser:     user,
 		ElectronicInvoicePassword: password,
+		ElectronicInvoicePrefix:   invoicePrefix,
 		AdminAPIKey:               adminAPIKey,
 		JWTSecret:                 jwtSecret,
 	}, nil
