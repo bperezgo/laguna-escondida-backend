@@ -66,18 +66,6 @@ func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, produ
 			UpdatedAt:      billDTO.UpdatedAt,
 		}
 
-		for _, product := range products {
-			billProduct := &billProductModel{
-				BillID:    billModel.ID,
-				ProductID: product.ID,
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
-			}
-			if err := tx.Create(billProduct).Error; err != nil {
-				return err
-			}
-		}
-
 		if billDTO.Customer != nil {
 			identificationType := string(billDTO.Customer.DocumentType)
 			now := time.Now()
@@ -105,6 +93,18 @@ func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, produ
 
 		if err := tx.Create(billModel).Error; err != nil {
 			return err
+		}
+
+		for _, product := range products {
+			billProduct := &billProductModel{
+				BillID:    billModel.ID,
+				ProductID: product.ID,
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			}
+			if err := tx.Create(billProduct).Error; err != nil {
+				return err
+			}
 		}
 
 		req := &dto.CreateElectronicInvoiceRequest{
