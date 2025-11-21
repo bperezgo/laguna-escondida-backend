@@ -1,25 +1,25 @@
-'use client';
+"use client";
 
-import { useState, FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, FormEvent } from "react";
+import { useRouter } from "next/navigation";
 
 export default function SignInForm() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setError('');
+    setError("");
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/auth/signin', {
-        method: 'POST',
+      const response = await fetch("/api/auth/signin", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ username, password }),
       });
@@ -27,31 +27,77 @@ export default function SignInForm() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to sign in');
+        throw new Error(data.error || "Failed to sign in");
       }
 
       // Redirect to home on success
-      router.push('/home');
+      router.push("/home");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="max-w-md w-full space-y-8">
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "#f9fafb",
+        padding: "1rem",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: "28rem",
+          width: "100%",
+        }}
+      >
         <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          <h2
+            style={{
+              marginTop: "1.5rem",
+              textAlign: "center",
+              fontSize: "1.875rem",
+              fontWeight: "800",
+              color: "#111827",
+              marginBottom: "2rem",
+            }}
+          >
             Sign in to your account
           </h2>
         </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="rounded-md shadow-sm -space-y-px">
+        <form
+          onSubmit={handleSubmit}
+          style={{
+            marginTop: "2rem",
+          }}
+        >
+          <div
+            style={{
+              borderRadius: "0.375rem",
+              boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
+            }}
+          >
             <div>
-              <label htmlFor="username" className="sr-only">
+              <label
+                htmlFor="username"
+                style={{
+                  position: "absolute",
+                  width: "1px",
+                  height: "1px",
+                  padding: "0",
+                  margin: "-1px",
+                  overflow: "hidden",
+                  clip: "rect(0, 0, 0, 0)",
+                  whiteSpace: "nowrap",
+                  borderWidth: "0",
+                }}
+              >
                 Username
               </label>
               <input
@@ -59,15 +105,40 @@ export default function SignInForm() {
                 name="username"
                 type="text"
                 required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                 placeholder="Username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 disabled={isLoading}
+                style={{
+                  appearance: "none",
+                  position: "relative",
+                  display: "block",
+                  width: "100%",
+                  padding: "0.625rem 0.75rem",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "0.375rem 0.375rem 0 0",
+                  color: "#111827",
+                  fontSize: "0.875rem",
+                  outline: "none",
+                  backgroundColor: "white",
+                }}
               />
             </div>
-            <div>
-              <label htmlFor="password" className="sr-only">
+            <div style={{ marginTop: "-1px" }}>
+              <label
+                htmlFor="password"
+                style={{
+                  position: "absolute",
+                  width: "1px",
+                  height: "1px",
+                  padding: "0",
+                  margin: "-1px",
+                  overflow: "hidden",
+                  clip: "rect(0, 0, 0, 0)",
+                  whiteSpace: "nowrap",
+                  borderWidth: "0",
+                }}
+              >
                 Password
               </label>
               <input
@@ -75,32 +146,84 @@ export default function SignInForm() {
                 name="password"
                 type="password"
                 required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                 placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isLoading}
+                style={{
+                  appearance: "none",
+                  position: "relative",
+                  display: "block",
+                  width: "100%",
+                  padding: "0.625rem 0.75rem",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "0 0 0.375rem 0.375rem",
+                  color: "#111827",
+                  fontSize: "0.875rem",
+                  outline: "none",
+                  backgroundColor: "white",
+                }}
               />
             </div>
           </div>
 
           {error && (
-            <div className="rounded-md bg-red-50 p-4">
-              <div className="flex">
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-red-800">{error}</h3>
+            <div
+              style={{
+                marginTop: "1.5rem",
+                borderRadius: "0.375rem",
+                backgroundColor: "#fef2f2",
+                padding: "1rem",
+              }}
+            >
+              <div style={{ display: "flex" }}>
+                <div style={{ marginLeft: "0.75rem" }}>
+                  <h3
+                    style={{
+                      fontSize: "0.875rem",
+                      fontWeight: "500",
+                      color: "#991b1b",
+                      margin: 0,
+                    }}
+                  >
+                    {error}
+                  </h3>
                 </div>
               </div>
             </div>
           )}
 
-          <div>
+          <div style={{ marginTop: "1.5rem" }}>
             <button
               type="submit"
               disabled={isLoading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                position: "relative",
+                width: "100%",
+                display: "flex",
+                justifyContent: "center",
+                padding: "0.625rem 1rem",
+                border: "none",
+                fontSize: "0.875rem",
+                fontWeight: "500",
+                borderRadius: "0.375rem",
+                color: "white",
+                backgroundColor: isLoading ? "#9ca3af" : "#4f46e5",
+                cursor: isLoading ? "not-allowed" : "pointer",
+                opacity: isLoading ? 0.5 : 1,
+              }}
+              onMouseEnter={(e) => {
+                if (!isLoading) {
+                  e.currentTarget.style.backgroundColor = "#4338ca";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isLoading) {
+                  e.currentTarget.style.backgroundColor = "#4f46e5";
+                }
+              }}
             >
-              {isLoading ? 'Signing in...' : 'Sign in'}
+              {isLoading ? "Signing in..." : "Sign in"}
             </button>
           </div>
         </form>
@@ -108,4 +231,3 @@ export default function SignInForm() {
     </div>
   );
 }
-

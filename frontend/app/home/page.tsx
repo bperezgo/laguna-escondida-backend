@@ -18,52 +18,184 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="text-center">
-          <h1 className="text-4xl font-bold text-gray-900 mb-8">Home</h1>
-          <p className="text-lg text-gray-600 mb-8">
+    <div style={{
+      minHeight: '100vh',
+      backgroundColor: '#f9fafb',
+    }}>
+      <div style={{
+        maxWidth: '80rem',
+        margin: '0 auto',
+        padding: '3rem 1rem',
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <h1 style={{
+            fontSize: '2.25rem',
+            fontWeight: 'bold',
+            color: '#111827',
+            marginBottom: '2rem',
+          }}>
+            Home
+          </h1>
+          <p style={{
+            fontSize: '1.125rem',
+            color: '#4b5563',
+            marginBottom: '2rem',
+          }}>
             Welcome to Laguna Escondida Management System
           </p>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-12">
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+            gap: '1rem',
+            marginTop: '3rem',
+            maxWidth: '1200px',
+            margin: '3rem auto 0',
+          }}>
             <a
               href="/orders"
-              className="p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow"
+              style={{
+                padding: '1.5rem',
+                backgroundColor: 'white',
+                borderRadius: '0.5rem',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                textDecoration: 'none',
+                display: 'block',
+                transition: 'box-shadow 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
+              }}
             >
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">Orders</h2>
-              <p className="text-gray-600">Manage customer orders</p>
+              <h2 style={{
+                fontSize: '1.25rem',
+                fontWeight: '600',
+                color: '#111827',
+                marginBottom: '0.5rem',
+              }}>
+                Orders
+              </h2>
+              <p style={{ color: '#4b5563', margin: 0 }}>
+                Manage customer orders
+              </p>
             </a>
             
             <a
               href="/products"
-              className="p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow"
+              style={{
+                padding: '1.5rem',
+                backgroundColor: 'white',
+                borderRadius: '0.5rem',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                textDecoration: 'none',
+                display: 'block',
+                transition: 'box-shadow 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
+              }}
             >
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">Products</h2>
-              <p className="text-gray-600">View and edit products</p>
+              <h2 style={{
+                fontSize: '1.25rem',
+                fontWeight: '600',
+                color: '#111827',
+                marginBottom: '0.5rem',
+              }}>
+                Products
+              </h2>
+              <p style={{ color: '#4b5563', margin: 0 }}>
+                View and edit products
+              </p>
             </a>
             
             <a
               href="/stock"
-              className="p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow"
+              style={{
+                padding: '1.5rem',
+                backgroundColor: 'white',
+                borderRadius: '0.5rem',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                textDecoration: 'none',
+                display: 'block',
+                transition: 'box-shadow 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
+              }}
             >
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">Stock</h2>
-              <p className="text-gray-600">Manage inventory</p>
+              <h2 style={{
+                fontSize: '1.25rem',
+                fontWeight: '600',
+                color: '#111827',
+                marginBottom: '0.5rem',
+              }}>
+                Stock
+              </h2>
+              <p style={{ color: '#4b5563', margin: 0 }}>
+                Manage inventory
+              </p>
             </a>
             
             <a
               href="/invoices"
-              className="p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow"
+              style={{
+                padding: '1.5rem',
+                backgroundColor: 'white',
+                borderRadius: '0.5rem',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                textDecoration: 'none',
+                display: 'block',
+                transition: 'box-shadow 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
+              }}
             >
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">Invoices</h2>
-              <p className="text-gray-600">View invoices</p>
+              <h2 style={{
+                fontSize: '1.25rem',
+                fontWeight: '600',
+                color: '#111827',
+                marginBottom: '0.5rem',
+              }}>
+                Invoices
+              </h2>
+              <p style={{ color: '#4b5563', margin: 0 }}>
+                View invoices
+              </p>
             </a>
           </div>
 
-          <div className="mt-12">
+          <div style={{ marginTop: '3rem' }}>
             <button
               onClick={handleSignOut}
-              className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+              style={{
+                padding: '0.625rem 1.5rem',
+                backgroundColor: '#dc2626',
+                color: 'white',
+                border: 'none',
+                borderRadius: '0.375rem',
+                cursor: 'pointer',
+                fontSize: '1rem',
+                fontWeight: '500',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#b91c1c';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#dc2626';
+              }}
             >
               Sign Out
             </button>
