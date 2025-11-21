@@ -1,12 +1,12 @@
 export type ElectronicInvoicePaymentCode =
-  | 'credit_card'
-  | 'debit_card'
-  | 'cash'
-  | 'transfer_debit_bank'
-  | 'transfer_credit_bank'
-  | 'transfer_debit_interbank';
+  | "credit_card"
+  | "debit_card"
+  | "cash"
+  | "transfer_debit_bank"
+  | "transfer_credit_bank"
+  | "transfer_debit_interbank";
 
-export type DocumentType = 'CC' | 'NIT';
+export type DocumentType = "CC" | "NIT";
 
 export interface Customer {
   id: string; // documentNumber
@@ -65,3 +65,32 @@ export interface CreateElectronicInvoiceRequest {
   items: InvoiceItem[];
 }
 
+export interface InvoiceFilters {
+  page?: number;
+  page_size?: number;
+  created_at_start?: string; // RFC3339 format
+  created_at_end?: string; // RFC3339 format
+  national_identification?: string;
+}
+
+export interface InvoiceListItem {
+  id: string;
+  total_amount: number;
+  discount_amount: number;
+  vat: number;
+  ico: number;
+  tip: number;
+  document_url: string | null;
+  cufe: string;
+  tascode: string;
+  customer_id: string | null;
+  created_at: string;
+}
+
+export interface InvoiceListResponse {
+  invoices: InvoiceListItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
