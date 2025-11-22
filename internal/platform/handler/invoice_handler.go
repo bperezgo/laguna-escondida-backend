@@ -36,7 +36,11 @@ func (h *InvoiceHandler) CreateElectronicInvoiceHandler(c *gin.Context) {
 		return
 	}
 
-	c.Status(http.StatusCreated)
+	c.JSON(http.StatusCreated, struct {
+		Message string `json:"message"`
+	}{
+		Message: "Electronic invoice created successfully",
+	})
 }
 
 func (h *InvoiceHandler) ListInvoicesHandler(c *gin.Context) {
