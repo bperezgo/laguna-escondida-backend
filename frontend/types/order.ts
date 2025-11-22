@@ -2,7 +2,7 @@
 export interface Table {
   ID: string;
   Number: number;
-  Status: 'available' | 'occupied' | 'reserved';
+  Status: "available" | "occupied" | "reserved";
   CreatedAt: string;
   UpdatedAt: string;
   DeletedAt?: string | null;
@@ -21,7 +21,37 @@ export interface TableListResponse {
   total?: number;
 }
 
-// Order Item types
+// Open Bill types (new system)
+export interface OpenBill {
+  id: string;
+  temporal_identifier: string;
+  descriptor?: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export interface OpenBillListResponse {
+  open_bills: OpenBill[];
+  total?: number;
+}
+
+// Order Product Item for creating orders
+export interface OrderProductItem {
+  product_id: string;
+  quantity: number;
+  notes?: string | null;
+}
+
+// New Create Order Request matching backend
+export interface CreateOrderRequest {
+  temporal_identifier: string;
+  descriptor?: string | null;
+  products: OrderProductItem[];
+}
+
+// Order Item types (legacy)
 export interface OrderItem {
   ProductID: string;
   ProductName: string;
@@ -41,22 +71,23 @@ export interface OrderItemWithProduct extends OrderItem {
   };
 }
 
-// Order types
+// Order types (legacy)
 export interface Order {
   ID: string;
   TableID: string;
   TableNumber: number;
-  Status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'delivered' | 'cancelled';
+  Status:
+    | "pending"
+    | "confirmed"
+    | "preparing"
+    | "ready"
+    | "delivered"
+    | "cancelled";
   Items: OrderItemWithProduct[];
   TotalAmount: number;
   CreatedAt: string;
   UpdatedAt: string;
   DeletedAt?: string | null;
-}
-
-export interface CreateOrderRequest {
-  TableID: string;
-  Items: OrderItem[];
 }
 
 export interface CreateOrderResponse {
@@ -85,4 +116,3 @@ export interface ProductSearchResponse {
   }>;
   total?: number;
 }
-

@@ -1,438 +1,227 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { TableSelector, ProductSearch, OrderItemCard } from '@/components/orders';
-import type { Table, OrderItem } from '@/types/order';
-import { createTable, createOrder, searchProducts } from '@/lib/api/orders';
-
-// Mock product type for display
-interface Product {
-  id: string;
-  name: string;
-  image?: string;
-  price: number;
-  vat: number;
-  category: string;
-}
+import { useState, useEffect, useMemo } from 'react';
+import OpenBillCard from './OpenBillCard';
+import OpenBillSearch from './OpenBillSearch';
+import CreateOrderForm from './CreateOrderForm';
+import { getOpenBills } from '@/lib/api/orders';
+import type { OpenBill } from '@/types/order';
 
 export default function OrdersPageClient() {
-  const [selectedTable, setSelectedTable] = useState<Table | null>(null);
+  const [openBills, setOpenBills] = useState<OpenBill[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [products, setProducts] = useState<Product[]>([]);
-  const [orderItems, setOrderItems] = useState<Map<string, { product: Product; quantity: number; comment: string }>>(new Map());
   const [isLoading, setIsLoading] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
-  // Mock products for demonstration - will be replaced with API call
-  const mockProducts: Product[] = [
-    { id: '1', name: 'Caesar Salad', price: 12.99, vat: 10, category: 'Salads', image: undefined },
-    { id: '2', name: 'Grilled Salmon', price: 24.99, vat: 10, category: 'Main Course', image: undefined },
-    { id: '3', name: 'Chocolate Cake', price: 8.99, vat: 10, category: 'Desserts', image: undefined },
-    { id: '4', name: 'Margherita Pizza', price: 15.99, vat: 10, category: 'Pizza', image: undefined },
-    { id: '5', name: 'Chicken Burger', price: 14.99, vat: 10, category: 'Burgers', image: undefined },
-    { id: '6', name: 'Fish Tacos', price: 16.99, vat: 10, category: 'Mexican', image: undefined },
-  ];
+  // Fetch open bills
+  const fetchOpenBills = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await getOpenBills();
+      setOpenBills(response.open_bills || []);
+    } catch (err) {
+      console.error('Error fetching open bills:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load open bills');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  // Filter products based on search query
-  const filteredProducts = useMemo(() => {
+  useEffect(() => {
+    fetchOpenBills();
+  }, []);
+
+  // Filter open bills based on search query (by temporal_identifier)
+  const filteredOpenBills = useMemo(() => {
     if (!searchQuery.trim()) {
-      return mockProducts;
+      return openBills;
     }
     const query = searchQuery.toLowerCase();
-    return mockProducts.filter(product =>
-      product.name.toLowerCase().includes(query) ||
-      product.category.toLowerCase().includes(query)
+    return openBills.filter(bill =>
+      bill.temporal_identifier.toLowerCase().includes(query)
     );
-  }, [searchQuery]);
+  }, [openBills, searchQuery]);
 
-  const handleTableSelect = (table: Table) => {
-    setSelectedTable(table);
-    // Reset order when selecting a new table
-    setOrderItems(new Map());
+  const handleCreateSuccess = () => {
+    fetchOpenBills();
   };
-
-  const handleCreateNewTable = async (tableNumber: number) => {
-    try {
-      const response = await createTable({ Number: tableNumber });
-      setSelectedTable(response.table);
-    } catch (error) {
-      console.error('Error creating table:', error);
-      throw error;
-    }
-  };
-
-  const handleQuantityChange = (productId: string, delta: number) => {
-    setOrderItems(prev => {
-      const newMap = new Map(prev);
-      const existing = newMap.get(productId);
-      const product = mockProducts.find(p => p.id === productId);
-      
-      if (!product) return prev;
-
-      if (existing) {
-        const newQuantity = Math.max(0, existing.quantity + delta);
-        if (newQuantity === 0) {
-          newMap.delete(productId);
-        } else {
-          newMap.set(productId, {
-            ...existing,
-            quantity: newQuantity,
-          });
-        }
-      } else if (delta > 0) {
-        newMap.set(productId, {
-          product,
-          quantity: 1,
-          comment: '',
-        });
-      }
-      
-      return newMap;
-    });
-  };
-
-  const handleCommentChange = (productId: string, comment: string) => {
-    setOrderItems(prev => {
-      const newMap = new Map(prev);
-      const existing = newMap.get(productId);
-      
-      if (existing) {
-        newMap.set(productId, {
-          ...existing,
-          comment,
-        });
-      }
-      
-      return newMap;
-    });
-  };
-
-  const calculateTotal = () => {
-    let total = 0;
-    orderItems.forEach(({ product, quantity }) => {
-      const unitPrice = product.price + (product.price * product.vat / 100);
-      total += unitPrice * quantity;
-    });
-    return total;
-  };
-
-  const handleSubmitOrder = async () => {
-    if (!selectedTable) {
-      alert('Please select a table first');
-      return;
-    }
-
-    if (orderItems.size === 0) {
-      alert('Please add at least one item to the order');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const items: OrderItem[] = Array.from(orderItems.values()).map(({ product, quantity, comment }) => ({
-        ProductID: product.id,
-        ProductName: product.name,
-        ProductImage: product.image,
-        Quantity: quantity,
-        UnitPrice: product.price,
-        Comment: comment || undefined,
-      }));
-
-      const response = await createOrder({
-        TableID: selectedTable.ID,
-        Items: items,
-      });
-
-      alert(`Order created successfully for Table ${selectedTable.Number}!`);
-      
-      // Reset order after successful submission
-      setOrderItems(new Map());
-    } catch (error) {
-      console.error('Error creating order:', error);
-      alert('Failed to create order. Please try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Get products that are in the order
-  const orderedProducts = useMemo(() => {
-    return Array.from(orderItems.values()).map(({ product, quantity, comment }) => ({
-      product,
-      quantity,
-      comment,
-    }));
-  }, [orderItems]);
 
   return (
     <div style={{
       minHeight: '100vh',
       backgroundColor: '#f5f5f5',
-      padding: '0.5rem',
+      padding: '1rem',
     }}>
       <div style={{
-        maxWidth: '1200px',
+        maxWidth: '1400px',
         margin: '0 auto',
       }}>
-        <h1 style={{
-          fontSize: 'clamp(1.5rem, 4vw, 2rem)',
-          fontWeight: 'bold',
-          marginBottom: '1rem',
-          color: '#333',
-          padding: '0.5rem',
+        {/* Header */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '1.5rem',
+          flexWrap: 'wrap',
+          gap: '1rem',
         }}>
-          Take Order
-        </h1>
+          <h1 style={{
+            fontSize: 'clamp(1.75rem, 4vw, 2.5rem)',
+            fontWeight: 'bold',
+            margin: 0,
+            color: '#333',
+          }}>
+            Open Bills
+          </h1>
+          <button
+            onClick={() => setShowCreateForm(true)}
+            style={{
+              padding: '0.875rem 1.75rem',
+              fontSize: '1.05rem',
+              fontWeight: 'bold',
+              backgroundColor: '#007bff',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              transition: 'background-color 0.2s',
+              boxShadow: '0 2px 6px rgba(0, 123, 255, 0.3)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#0056b3';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#007bff';
+            }}
+          >
+            + Create New Order
+          </button>
+        </div>
 
-        {/* Table Selector */}
-        <TableSelector
-          selectedTable={selectedTable}
-          onTableSelect={handleTableSelect}
-          onCreateNewTable={handleCreateNewTable}
+        {/* Search Bar */}
+        <OpenBillSearch
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
         />
 
-        {selectedTable && (
-          <>
-            {/* Product Search */}
-            <ProductSearch
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-            />
-
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr',
-              gap: '1.5rem',
-              marginTop: '1rem',
-            }}>
-              {/* Available Products */}
-              <div>
-                <h2 style={{
-                  fontSize: '1.25rem',
-                  fontWeight: 'bold',
-                  marginBottom: '1rem',
-                  color: '#333',
-                }}>
-                  Available Products
-                </h2>
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))',
-                  gap: '0.75rem',
-                }}>
-                  {filteredProducts.map(product => {
-                    const orderItem = orderItems.get(product.id);
-                    const quantity = orderItem?.quantity || 0;
-                    
-                    return (
-                      <div
-                        key={product.id}
-                        style={{
-                          padding: '1rem',
-                          backgroundColor: 'white',
-                          border: '1px solid #e0e0e0',
-                          borderRadius: '8px',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                          boxShadow: quantity > 0 ? '0 4px 8px rgba(0,123,255,0.2)' : '0 2px 4px rgba(0,0,0,0.1)',
-                        }}
-                        onClick={() => handleQuantityChange(product.id, 1)}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.transform = 'translateY(-2px)';
-                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.transform = 'translateY(0)';
-                          e.currentTarget.style.boxShadow = quantity > 0 ? '0 4px 8px rgba(0,123,255,0.2)' : '0 2px 4px rgba(0,0,0,0.1)';
-                        }}
-                      >
-                        <div style={{
-                          width: '100%',
-                          height: '150px',
-                          borderRadius: '8px',
-                          backgroundColor: '#f8f9fa',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          marginBottom: '0.75rem',
-                          overflow: 'hidden',
-                          border: '1px solid #e0e0e0',
-                        }}>
-                          {product.image ? (
-                            <img
-                              src={product.image}
-                              alt={product.name}
-                              style={{
-                                width: '100%',
-                                height: '100%',
-                                objectFit: 'cover',
-                              }}
-                            />
-                          ) : (
-                            <span style={{ color: '#6c757d', fontSize: '3rem' }}>🍽️</span>
-                          )}
-                        </div>
-                        <h3 style={{
-                          margin: '0 0 0.5rem 0',
-                          fontSize: '1rem',
-                          fontWeight: 'bold',
-                          color: '#333',
-                        }}>
-                          {product.name}
-                        </h3>
-                        <p style={{
-                          margin: '0 0 0.5rem 0',
-                          color: '#666',
-                          fontSize: '0.875rem',
-                        }}>
-                          {product.category}
-                        </p>
-                        <div style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                        }}>
-                          <span style={{
-                            fontSize: '1.1rem',
-                            fontWeight: 'bold',
-                            color: '#28a745',
-                          }}>
-                            ${(product.price + (product.price * product.vat / 100)).toFixed(2)}
-                          </span>
-                          {quantity > 0 && (
-                            <span style={{
-                              backgroundColor: '#007bff',
-                              color: 'white',
-                              padding: '0.25rem 0.75rem',
-                              borderRadius: '12px',
-                              fontSize: '0.875rem',
-                              fontWeight: 'bold',
-                            }}>
-                              {quantity} in order
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Order Items */}
-              {orderedProducts.length > 0 && (
-                <div style={{
-                  position: 'sticky',
-                  bottom: 0,
-                  backgroundColor: 'white',
-                  borderTop: '2px solid #e0e0e0',
-                  padding: '1rem',
-                  borderRadius: '8px 8px 0 0',
-                  boxShadow: '0 -2px 8px rgba(0,0,0,0.1)',
-                }}>
-                  <h2 style={{
-                    fontSize: '1.25rem',
-                    fontWeight: 'bold',
-                    marginBottom: '1rem',
-                    color: '#333',
-                  }}>
-                    Current Order
-                  </h2>
-                  <div style={{
-                    maxHeight: '400px',
-                    overflowY: 'auto',
-                    marginBottom: '1rem',
-                  }}>
-                    {orderedProducts.map(({ product, quantity, comment }) => (
-                      <OrderItemCard
-                        key={product.id}
-                        product={product}
-                        quantity={quantity}
-                        comment={comment}
-                        onQuantityChange={handleQuantityChange}
-                        onCommentChange={handleCommentChange}
-                      />
-                    ))}
-                  </div>
-                  <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '1rem',
-                    paddingTop: '1rem',
-                    borderTop: '2px solid #e0e0e0',
-                    marginTop: '1rem',
-                  }}>
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      flexWrap: 'wrap',
-                      gap: '0.5rem',
-                    }}>
-                      <div>
-                        <p style={{
-                          margin: 0,
-                          fontSize: '0.875rem',
-                          color: '#666',
-                        }}>
-                          Total Items: {Array.from(orderItems.values()).reduce((sum, item) => sum + item.quantity, 0)}
-                        </p>
-                        <p style={{
-                          margin: '0.5rem 0 0 0',
-                          fontSize: 'clamp(1.25rem, 4vw, 1.5rem)',
-                          fontWeight: 'bold',
-                          color: '#333',
-                        }}>
-                          Total: ${calculateTotal().toFixed(2)}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={handleSubmitOrder}
-                      disabled={isSubmitting || orderedProducts.length === 0}
-                      style={{
-                        padding: '1rem',
-                        fontSize: 'clamp(1rem, 3vw, 1.1rem)',
-                        fontWeight: 'bold',
-                        backgroundColor: isSubmitting || orderedProducts.length === 0 ? '#6c757d' : '#28a745',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        cursor: isSubmitting || orderedProducts.length === 0 ? 'not-allowed' : 'pointer',
-                        transition: 'background-color 0.2s',
-                        width: '100%',
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!isSubmitting && orderedProducts.length > 0) {
-                          e.currentTarget.style.backgroundColor = '#218838';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!isSubmitting && orderedProducts.length > 0) {
-                          e.currentTarget.style.backgroundColor = '#28a745';
-                        }
-                      }}
-                    >
-                      {isSubmitting ? 'Creating Order...' : 'Create Order'}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </>
+        {/* Error Message */}
+        {error && (
+          <div style={{
+            padding: '1rem',
+            backgroundColor: '#fee',
+            border: '2px solid #fcc',
+            borderRadius: '8px',
+            color: '#c00',
+            marginBottom: '1.5rem',
+            fontWeight: '500',
+          }}>
+            {error}
+          </div>
         )}
 
-        {!selectedTable && (
+        {/* Loading State */}
+        {isLoading && (
           <div style={{
             textAlign: 'center',
-            padding: '3rem',
+            padding: '4rem',
             color: '#666',
             fontSize: '1.1rem',
           }}>
-            Please select or create a table to start taking orders
+            <div style={{
+              display: 'inline-block',
+              width: '40px',
+              height: '40px',
+              border: '4px solid #e0e0e0',
+              borderTop: '4px solid #007bff',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite',
+              marginBottom: '1rem',
+            }} />
+            <div>Loading open bills...</div>
+            <style>{`
+              @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+              }
+            `}</style>
           </div>
         )}
+
+        {/* Open Bills Grid */}
+        {!isLoading && (
+          <>
+            {filteredOpenBills.length === 0 ? (
+              <div style={{
+                textAlign: 'center',
+                padding: '4rem',
+                backgroundColor: 'white',
+                borderRadius: '12px',
+                border: '2px dashed #e0e0e0',
+              }}>
+                <div style={{
+                  fontSize: '3rem',
+                  marginBottom: '1rem',
+                }}>
+                  📋
+                </div>
+                <h3 style={{
+                  margin: '0 0 0.5rem 0',
+                  fontSize: '1.25rem',
+                  color: '#333',
+                }}>
+                  {searchQuery ? 'No matching open bills found' : 'No open bills yet'}
+                </h3>
+                <p style={{
+                  margin: 0,
+                  color: '#666',
+                  fontSize: '1rem',
+                }}>
+                  {searchQuery
+                    ? 'Try adjusting your search query'
+                    : 'Click "Create New Order" to get started'}
+                </p>
+              </div>
+            ) : (
+              <>
+                <div style={{
+                  marginBottom: '1rem',
+                  color: '#666',
+                  fontSize: '0.95rem',
+                }}>
+                  Showing {filteredOpenBills.length} {filteredOpenBills.length === 1 ? 'bill' : 'bills'}
+                  {searchQuery && ` matching "${searchQuery}"`}
+                </div>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(min(320px, 100%), 1fr))',
+                  gap: '1.25rem',
+                }}>
+                  {filteredOpenBills.map(bill => (
+                    <OpenBillCard
+                      key={bill.id}
+                      openBill={bill}
+                      onClick={() => {
+                        // Placeholder for future implementation
+                        console.log('Clicked bill:', bill.id);
+                      }}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </>
+        )}
       </div>
+
+      {/* Create Order Form Modal */}
+      {showCreateForm && (
+        <CreateOrderForm
+          onClose={() => setShowCreateForm(false)}
+          onSuccess={handleCreateSuccess}
+        />
+      )}
     </div>
   );
 }
-

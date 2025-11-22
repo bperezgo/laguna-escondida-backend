@@ -1,4 +1,4 @@
-import { apiRequest } from './config';
+import { apiRequest } from "./config";
 import type {
   Table,
   CreateTableRequest,
@@ -10,28 +10,39 @@ import type {
   OrderResponse,
   OrderListResponse,
   ProductSearchResponse,
-} from '@/types/order';
+  OpenBill,
+  OpenBillListResponse,
+} from "@/types/order";
 
 // Table endpoints
 export async function getTables(): Promise<TableListResponse> {
-  return apiRequest<TableListResponse>('/tables');
+  return apiRequest<TableListResponse>("/tables");
 }
 
 export async function getTable(id: string): Promise<TableResponse> {
   return apiRequest<TableResponse>(`/tables/${id}`);
 }
 
-export async function createTable(data: CreateTableRequest): Promise<TableResponse> {
-  return apiRequest<TableResponse>('/tables', {
-    method: 'POST',
+export async function createTable(
+  data: CreateTableRequest
+): Promise<TableResponse> {
+  return apiRequest<TableResponse>("/tables", {
+    method: "POST",
     body: JSON.stringify(data),
   });
 }
 
+// Open Bills endpoints
+export async function getOpenBills(): Promise<OpenBillListResponse> {
+  return apiRequest<OpenBillListResponse>("/orders");
+}
+
 // Order endpoints
-export async function createOrder(data: CreateOrderRequest): Promise<CreateOrderResponse> {
-  return apiRequest<CreateOrderResponse>('/orders', {
-    method: 'POST',
+export async function createOrder(
+  data: CreateOrderRequest
+): Promise<CreateOrderResponse> {
+  return apiRequest<CreateOrderResponse>("/orders", {
+    method: "POST",
     body: JSON.stringify(data),
   });
 }
@@ -41,15 +52,20 @@ export async function getOrder(id: string): Promise<OrderResponse> {
 }
 
 export async function getOrders(): Promise<OrderListResponse> {
-  return apiRequest<OrderListResponse>('/orders');
+  return apiRequest<OrderListResponse>("/orders");
 }
 
-export async function getOrdersByTable(tableId: string): Promise<OrderListResponse> {
+export async function getOrdersByTable(
+  tableId: string
+): Promise<OrderListResponse> {
   return apiRequest<OrderListResponse>(`/orders?tableId=${tableId}`);
 }
 
 // Product search endpoint
-export async function searchProducts(query: string): Promise<ProductSearchResponse> {
-  return apiRequest<ProductSearchResponse>(`/products/search?q=${encodeURIComponent(query)}`);
+export async function searchProducts(
+  query: string
+): Promise<ProductSearchResponse> {
+  return apiRequest<ProductSearchResponse>(
+    `/products/search?q=${encodeURIComponent(query)}`
+  );
 }
-
