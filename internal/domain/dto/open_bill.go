@@ -30,6 +30,7 @@ type UpdateOrderRequest struct {
 
 type BillProduct struct {
 	ProductID   string
+	Name        string
 	Quantity    int
 	UnitPrice   float64
 	Description *string

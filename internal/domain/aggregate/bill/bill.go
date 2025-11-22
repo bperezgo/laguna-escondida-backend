@@ -106,6 +106,7 @@ func (a *Aggregate) ToDTO() *dto.Bill {
 				ProductID:   product.id,
 				Quantity:    product.quantity,
 				UnitPrice:   product.unitPrice,
+				Name:        product.name,
 				Description: product.description,
 				Brand:       product.brand,
 				Model:       product.model,

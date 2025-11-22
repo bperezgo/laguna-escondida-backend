@@ -8,6 +8,7 @@ import (
 
 type BillProduct struct {
 	id          string
+	name        string
 	quantity    int
 	unitPrice   float64
 	description *string
@@ -20,7 +21,19 @@ type BillProduct struct {
 	updatedAt   time.Time
 }
 
-func NewBillProduct(productID string, quantity int, unitPrice float64, description *string, brand *string, model *string, code string, allowance []dto.InvoiceAllowance, vat float64, ico float64) *BillProduct {
+func NewBillProduct(
+	productID string,
+	quantity int,
+	unitPrice float64,
+	name string,
+	description *string,
+	brand *string,
+	model *string,
+	code string,
+	allowance []dto.InvoiceAllowance,
+	vat float64,
+	ico float64,
+) *BillProduct {
 	baseAmount := unitPrice * float64(quantity)
 	taxes := []dto.InvoiceTax{}
 
@@ -46,6 +59,7 @@ func NewBillProduct(productID string, quantity int, unitPrice float64, descripti
 		id:          productID,
 		quantity:    quantity,
 		unitPrice:   unitPrice,
+		name:        name,
 		description: description,
 		brand:       brand,
 		model:       model,
@@ -75,6 +89,10 @@ func (bp *BillProduct) Allowance() []dto.InvoiceAllowance {
 
 func (bp *BillProduct) Taxes() []dto.InvoiceTax {
 	return bp.taxes
+}
+
+func (bp *BillProduct) Name() string {
+	return bp.name
 }
 
 func (bp *BillProduct) Description() *string {

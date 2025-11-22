@@ -257,13 +257,10 @@ func (c *ElectronicInvoiceClient) Create(
 			Items: lo.Map(createReq.Bill.Products, func(billProduct dto.BillProduct, _ int) invoiceItem {
 				total := billProduct.UnitPrice * float64(billProduct.Quantity)
 
-				description := ""
-				if billProduct.Description != nil {
-					description = *billProduct.Description
-				}
+				name := billProduct.Name
 
-				if description == "" {
-					description = "unknown"
+				if name == "" {
+					name = "unknown"
 				}
 
 				brand := "unknown"
@@ -282,7 +279,7 @@ func (c *ElectronicInvoiceClient) Create(
 					Quantity:    strconv.FormatFloat(float64(billProduct.Quantity), 'f', 2, 64),
 					UnitPrice:   strconv.FormatFloat(billProduct.UnitPrice, 'f', -1, 64),
 					Total:       strconv.FormatFloat(total, 'f', -1, 64),
-					Description: description,
+					Description: name,
 					Brand:       brand,
 					Model:       model,
 					Code:        code,
