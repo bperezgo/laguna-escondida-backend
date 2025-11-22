@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body: CreateElectronicInvoiceRequest = await request.json();
-    await serverApiRequest<ElectronicInvoice>("/invoices", {
+    await serverApiRequest<void>("/invoices", {
       method: "POST",
       body: JSON.stringify(body),
     });

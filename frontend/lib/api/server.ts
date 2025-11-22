@@ -37,5 +37,9 @@ export async function serverApiRequest<T>(
     throw new Error(error.message || `HTTP error! status: ${response.status}`);
   }
 
+  if (response.status === 204) {
+    return {} as T;
+  }
+
   return response.json();
 }
