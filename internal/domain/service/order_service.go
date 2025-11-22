@@ -8,6 +8,8 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 	orderError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
+
+	"github.com/samber/lo"
 )
 
 type OrderService struct {
@@ -32,64 +34,41 @@ func NewOrderService(
 
 // CreateOrder creates a new open order with the specified products
 // If productIDs is empty, creates an empty order
-func (s *OrderService) CreateOrder(ctx context.Context, req *dto.CreateOrderRequest) (*dto.OpenBill, error) {
+func (s *OrderService) CreateOrder(ctx context.Context, req *dto.CreateOrderRequest, user dto.UserDomain) (*dto.OpenBill, error) {
 	var products []*dto.Product
-	var totalPrice float64
+	var totalAmount float64
 
-	// If products are provided, fetch and validate them
-	if len(req.ProductIDs) > 0 {
+	if len(req.Products) > 0 {
 		var err error
-		products, err = s.productRepo.FindByIDs(ctx, req.ProductIDs)
+		products, err = s.productRepo.FindByIDs(ctx, lo.Map(req.Products, func(item dto.OrderProductItem, _ int) string {
+			return item.ProductID
+		}))
 		if err != nil {
 			return nil, fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
 		}
 
-		// Validate that all products were found
-		if len(products) != len(req.ProductIDs) {
+		if len(products) != len(req.Products) {
 			return nil, orderError.ErrProductNotFound
 		}
 
-		// Calculate total price from products
 		for _, product := range products {
-			totalPrice += product.TotalPriceWithTaxes
+			totalAmount += product.TotalPriceWithTaxes
 		}
 	}
 
-	// Calculate taxes and tip based on total_price
-	// Note: All taxes are included in the prices, so we calculate based on total_price
-	vat := totalPrice * s.taxConfig.VATPercent
-	ico := totalPrice * s.taxConfig.ICOPercent
-	tip := totalPrice * s.taxConfig.TipPercent
-
-	// Generate temporal identifier (simple timestamp-based for now)
-	temporalIdentifier := fmt.Sprintf("ORDER-%d", time.Now().UnixNano())
-
 	openBill := &dto.OpenBill{
-		TemporalIdentifier: temporalIdentifier,
-		TotalPrice:         totalPrice,
-		VAT:                vat,
-		ICO:                ico,
-		Tip:                tip,
-		DocumentURL:        nil,
+		TemporalIdentifier: req.TemporalIdentifier,
+		TotalAmount:        totalAmount,
+		CreatedBy:          &user.ID,
+		Descriptor:         req.Descriptor,
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
 	}
 
-	// Convert product IDs to OrderProductItem format with default quantity of 1
-	orderProducts := make([]dto.OrderProductItem, len(req.ProductIDs))
-	for i, productID := range req.ProductIDs {
-		orderProducts[i] = dto.OrderProductItem{
-			ProductID: productID,
-			Quantity:  1, // Default quantity for CreateOrder
-		}
-	}
-
-	// Create the open bill in the repository
-	if err := s.openBillRepo.Create(ctx, openBill, orderProducts); err != nil {
+	if err := s.openBillRepo.Create(ctx, openBill, req.Products); err != nil {
 		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
 	}
 
-	// Populate products in the response
 	if len(products) > 0 {
 		productDTOs := make([]dto.Product, len(products))
 		for i, p := range products {
@@ -106,65 +85,45 @@ func (s *OrderService) CreateOrder(ctx context.Context, req *dto.CreateOrderRequ
 // If product exists with different quantity, updates the quantity
 // If product is removed, soft deletes it (sets deleted_at)
 func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *dto.UpdateOrderRequest) (*dto.OpenBill, error) {
-	// Validate that the open bill exists
 	existingBill, err := s.openBillRepo.FindByID(ctx, openBillID)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
 	}
 
-	// If no products provided, treat as empty order (all products will be soft deleted)
 	var products []*dto.Product
-	var totalPrice float64
-	var productIDs []string
+	var totalAmount float64
 
 	if len(req.Products) > 0 {
-		// Extract product IDs from request
-		productIDs = make([]string, len(req.Products))
-		for i, item := range req.Products {
-			productIDs[i] = item.ProductID
-		}
-
-		// Fetch and validate products
-		products, err = s.productRepo.FindByIDs(ctx, productIDs)
+		products, err = s.productRepo.FindByIDs(ctx, lo.Map(req.Products, func(item dto.OrderProductItem, _ int) string {
+			return item.ProductID
+		}))
 		if err != nil {
 			return nil, fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
 		}
 
-		// Validate that all products were found
 		if len(products) != len(req.Products) {
 			return nil, orderError.ErrProductNotFound
 		}
 
-		// Calculate total price from products with quantities
 		for i, product := range products {
-			totalPrice += product.TotalPriceWithTaxes * float64(req.Products[i].Quantity)
+			totalAmount += product.TotalPriceWithTaxes * float64(req.Products[i].Quantity)
 		}
 	}
 
-	// Calculate taxes and tip based on total_price
-	vat := totalPrice * s.taxConfig.VATPercent
-	ico := totalPrice * s.taxConfig.ICOPercent
-	tip := totalPrice * s.taxConfig.TipPercent
-
-	// Prepare updated open bill
 	updatedBill := &dto.OpenBill{
 		ID:                 existingBill.ID,
 		TemporalIdentifier: existingBill.TemporalIdentifier,
-		TotalPrice:         totalPrice,
-		VAT:                vat,
-		ICO:                ico,
-		Tip:                tip,
-		DocumentURL:        existingBill.DocumentURL,
+		TotalAmount:        totalAmount,
+		CreatedBy:          existingBill.CreatedBy,
+		Descriptor:         existingBill.Descriptor,
 		CreatedAt:          existingBill.CreatedAt,
 		UpdatedAt:          time.Now(),
 	}
 
-	// Update the open bill in the repository
 	if err := s.openBillRepo.Update(ctx, openBillID, updatedBill, req.Products); err != nil {
 		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
 	}
 
-	// Populate products in the response
 	if len(products) > 0 {
 		productDTOs := make([]dto.Product, len(products))
 		for i, p := range products {
@@ -180,12 +139,10 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 // Moves all information from open_bill to bill (except temporal_identifier)
 // Only moves open_bill_products where deleted_at IS NULL to bill_products
 func (s *OrderService) PayOrder(ctx context.Context, openBillID string) (*dto.Bill, error) {
-	// Validate that the open bill exists
 	if _, err := s.openBillRepo.FindByID(ctx, openBillID); err != nil {
 		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
 	}
 
-	// Consolidate the open bill into a bill
 	bill, err := s.openBillRepo.PayOrder(ctx, openBillID)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)

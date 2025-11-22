@@ -110,6 +110,12 @@ func createTestProduct(id, name, category string, version int, price, vat float6
 	}
 }
 
+func createTestUser() dto.UserDomain {
+	return dto.UserDomain{
+		ID: "user-123",
+	}
+}
+
 func createTestService(productRepo ports.ProductRepository, openBillRepo ports.OpenBillRepository) *OrderService {
 	return NewOrderService(openBillRepo, productRepo, nil)
 }
@@ -122,25 +128,25 @@ func TestCreateOrder_EmptyOrder(t *testing.T) {
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
 	service := createTestService(mockProductRepo, mockOpenBillRepo)
+	user := createTestUser()
 
 	req := &dto.CreateOrderRequest{
-		ProductIDs: []string{},
+		TemporalIdentifier: "TABLE-01",
+		Products:           []dto.OrderProductItem{},
 	}
 
 	// Mock expectations
 	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*dto.OpenBill"), []dto.OrderProductItem{}).Return(nil)
 
 	// Execute
-	result, err := service.CreateOrder(ctx, req)
+	result, err := service.CreateOrder(ctx, req, user)
 
 	// Assert
 	require.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, 0.0, result.TotalPrice)
-	assert.Equal(t, 0.0, result.VAT)
-	assert.Equal(t, 0.0, result.ICO)
-	assert.Equal(t, 0.0, result.Tip)
-	assert.Contains(t, result.TemporalIdentifier, "ORDER-")
+	assert.Equal(t, 0.0, result.TotalAmount)
+	assert.Equal(t, "TABLE-01", result.TemporalIdentifier)
+	assert.Equal(t, &user.ID, result.CreatedBy)
 	assert.Empty(t, result.Products)
 	assert.NotZero(t, result.CreatedAt)
 	assert.NotZero(t, result.UpdatedAt)
@@ -156,13 +162,17 @@ func TestCreateOrder_SingleProduct(t *testing.T) {
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
 	service := createTestService(mockProductRepo, mockOpenBillRepo)
+	user := createTestUser()
 
 	productID := "product-1"
 	productPrice := 100.0
 	product := createTestProduct(productID, "Test Product", "Category", 1, productPrice, 19.0)
 
 	req := &dto.CreateOrderRequest{
-		ProductIDs: []string{productID},
+		TemporalIdentifier: "TABLE-01",
+		Products: []dto.OrderProductItem{
+			{ProductID: productID, Quantity: 1},
+		},
 	}
 
 	// Mock expectations
@@ -175,16 +185,14 @@ func TestCreateOrder_SingleProduct(t *testing.T) {
 	})
 
 	// Execute
-	result, err := service.CreateOrder(ctx, req)
+	result, err := service.CreateOrder(ctx, req, user)
 
 	// Assert
 	require.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, productPrice, result.TotalPrice)
-	assert.InDelta(t, productPrice*0.19, result.VAT, 0.01)
-	assert.InDelta(t, productPrice*0.08, result.ICO, 0.01)
-	assert.InDelta(t, productPrice*0.10, result.Tip, 0.01)
-	assert.Contains(t, result.TemporalIdentifier, "ORDER-")
+	assert.Equal(t, productPrice, result.TotalAmount)
+	assert.Equal(t, "TABLE-01", result.TemporalIdentifier)
+	assert.Equal(t, &user.ID, result.CreatedBy)
 	assert.Len(t, result.Products, 1)
 	assert.Equal(t, productID, result.Products[0].ID)
 
@@ -199,6 +207,7 @@ func TestCreateOrder_MultipleProducts(t *testing.T) {
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
 	service := createTestService(mockProductRepo, mockOpenBillRepo)
+	user := createTestUser()
 
 	product1 := createTestProduct("product-1", "Product 1", "Category", 1, 50.0, 9.5)
 	product2 := createTestProduct("product-2", "Product 2", "Category", 1, 75.0, 14.25)
@@ -208,7 +217,12 @@ func TestCreateOrder_MultipleProducts(t *testing.T) {
 	expectedTotal := 150.0
 
 	req := &dto.CreateOrderRequest{
-		ProductIDs: productIDs,
+		TemporalIdentifier: "TABLE-01",
+		Products: []dto.OrderProductItem{
+			{ProductID: "product-1", Quantity: 1},
+			{ProductID: "product-2", Quantity: 1},
+			{ProductID: "product-3", Quantity: 1},
+		},
 	}
 
 	// Mock expectations
@@ -229,16 +243,13 @@ func TestCreateOrder_MultipleProducts(t *testing.T) {
 	})
 
 	// Execute
-	result, err := service.CreateOrder(ctx, req)
+	result, err := service.CreateOrder(ctx, req, user)
 
 	// Assert
 	require.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, expectedTotal, result.TotalPrice)
-	assert.InDelta(t, expectedTotal*0.19, result.VAT, 0.01)
-	assert.InDelta(t, expectedTotal*0.08, result.ICO, 0.01)
-	assert.InDelta(t, expectedTotal*0.10, result.Tip, 0.01)
-	assert.Contains(t, result.TemporalIdentifier, "ORDER-")
+	assert.Equal(t, expectedTotal, result.TotalAmount)
+	assert.Equal(t, "TABLE-01", result.TemporalIdentifier)
 	assert.Len(t, result.Products, 3)
 
 	// Verify mocks
@@ -254,19 +265,24 @@ func TestCreateOrder_ProductNotFound_Partial(t *testing.T) {
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
 	service := createTestService(mockProductRepo, mockOpenBillRepo)
+	user := createTestUser()
 
 	product1 := createTestProduct("product-1", "Product 1", "Category", 1, 50.0, 9.5)
 	productIDs := []string{"product-1", "product-2"}
 
 	req := &dto.CreateOrderRequest{
-		ProductIDs: productIDs,
+		TemporalIdentifier: "TABLE-01",
+		Products: []dto.OrderProductItem{
+			{ProductID: "product-1", Quantity: 1},
+			{ProductID: "product-2", Quantity: 1},
+		},
 	}
 
 	// Mock expectations - only one product found
 	mockProductRepo.On("FindByIDs", ctx, productIDs).Return([]*dto.Product{product1}, nil)
 
 	// Execute
-	result, err := service.CreateOrder(ctx, req)
+	result, err := service.CreateOrder(ctx, req, user)
 
 	// Assert
 	require.Error(t, err)
@@ -287,18 +303,23 @@ func TestCreateOrder_ProductNotFound_AllInvalid(t *testing.T) {
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
 	service := createTestService(mockProductRepo, mockOpenBillRepo)
+	user := createTestUser()
 
 	productIDs := []string{"product-1", "product-2"}
 
 	req := &dto.CreateOrderRequest{
-		ProductIDs: productIDs,
+		TemporalIdentifier: "TABLE-01",
+		Products: []dto.OrderProductItem{
+			{ProductID: "product-1", Quantity: 1},
+			{ProductID: "product-2", Quantity: 1},
+		},
 	}
 
 	// Mock expectations - no products found
 	mockProductRepo.On("FindByIDs", ctx, productIDs).Return([]*dto.Product{}, nil)
 
 	// Execute
-	result, err := service.CreateOrder(ctx, req)
+	result, err := service.CreateOrder(ctx, req, user)
 
 	// Assert
 	require.Error(t, err)
@@ -319,19 +340,23 @@ func TestCreateOrder_RepositoryError_ProductFetch(t *testing.T) {
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
 	service := createTestService(mockProductRepo, mockOpenBillRepo)
+	user := createTestUser()
 
 	productIDs := []string{"product-1"}
 	repoError := errors.New("database connection failed")
 
 	req := &dto.CreateOrderRequest{
-		ProductIDs: productIDs,
+		TemporalIdentifier: "TABLE-01",
+		Products: []dto.OrderProductItem{
+			{ProductID: "product-1", Quantity: 1},
+		},
 	}
 
 	// Mock expectations
 	mockProductRepo.On("FindByIDs", ctx, productIDs).Return(nil, repoError)
 
 	// Execute
-	result, err := service.CreateOrder(ctx, req)
+	result, err := service.CreateOrder(ctx, req, user)
 
 	// Assert
 	require.Error(t, err)
@@ -352,13 +377,17 @@ func TestCreateOrder_RepositoryError_OpenBillCreate(t *testing.T) {
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
 	service := createTestService(mockProductRepo, mockOpenBillRepo)
+	user := createTestUser()
 
 	productID := "product-1"
 	product := createTestProduct(productID, "Test Product", "Category", 1, 100.0, 19.0)
 	repoError := errors.New("failed to insert open bill")
 
 	req := &dto.CreateOrderRequest{
-		ProductIDs: []string{productID},
+		TemporalIdentifier: "TABLE-01",
+		Products: []dto.OrderProductItem{
+			{ProductID: productID, Quantity: 1},
+		},
 	}
 
 	// Mock expectations
@@ -368,7 +397,7 @@ func TestCreateOrder_RepositoryError_OpenBillCreate(t *testing.T) {
 	})).Return(repoError)
 
 	// Execute
-	result, err := service.CreateOrder(ctx, req)
+	result, err := service.CreateOrder(ctx, req, user)
 
 	// Assert
 	require.Error(t, err)
@@ -382,40 +411,33 @@ func TestCreateOrder_RepositoryError_OpenBillCreate(t *testing.T) {
 
 // Calculation Validation
 
-func TestCreateOrder_TaxCalculations(t *testing.T) {
+func TestCreateOrder_TotalAmountCalculations(t *testing.T) {
 	// Setup
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
 	service := createTestService(mockProductRepo, mockOpenBillRepo)
+	user := createTestUser()
 
 	testCases := []struct {
-		name        string
-		price       float64
-		expectedVAT float64
-		expectedICO float64
-		expectedTip float64
+		name          string
+		price         float64
+		expectedTotal float64
 	}{
 		{
-			name:        "Price 100",
-			price:       100.0,
-			expectedVAT: 19.0,
-			expectedICO: 8.0,
-			expectedTip: 10.0,
+			name:          "Price 100",
+			price:         100.0,
+			expectedTotal: 100.0,
 		},
 		{
-			name:        "Price 50",
-			price:       50.0,
-			expectedVAT: 9.5,
-			expectedICO: 4.0,
-			expectedTip: 5.0,
+			name:          "Price 50",
+			price:         50.0,
+			expectedTotal: 50.0,
 		},
 		{
-			name:        "Price 200",
-			price:       200.0,
-			expectedVAT: 38.0,
-			expectedICO: 16.0,
-			expectedTip: 20.0,
+			name:          "Price 200",
+			price:         200.0,
+			expectedTotal: 200.0,
 		},
 	}
 
@@ -425,9 +447,12 @@ func TestCreateOrder_TaxCalculations(t *testing.T) {
 			mockProductRepo.ExpectedCalls = nil
 			mockOpenBillRepo.ExpectedCalls = nil
 
-			product := createTestProduct("product-1", "Test Product", "Category", 1, tc.price, tc.expectedVAT)
+			product := createTestProduct("product-1", "Test Product", "Category", 1, tc.price, 19.0)
 			req := &dto.CreateOrderRequest{
-				ProductIDs: []string{"product-1"},
+				TemporalIdentifier: "TABLE-01",
+				Products: []dto.OrderProductItem{
+					{ProductID: "product-1", Quantity: 1},
+				},
 			}
 
 			// Mock expectations
@@ -437,14 +462,11 @@ func TestCreateOrder_TaxCalculations(t *testing.T) {
 			})).Return(nil)
 
 			// Execute
-			result, err := service.CreateOrder(ctx, req)
+			result, err := service.CreateOrder(ctx, req, user)
 
 			// Assert
 			require.NoError(t, err)
-			assert.Equal(t, tc.price, result.TotalPrice)
-			assert.InDelta(t, tc.expectedVAT, result.VAT, 0.01)
-			assert.InDelta(t, tc.expectedICO, result.ICO, 0.01)
-			assert.InDelta(t, tc.expectedTip, result.Tip, 0.01)
+			assert.Equal(t, tc.expectedTotal, result.TotalAmount)
 		})
 	}
 }
@@ -455,25 +477,23 @@ func TestCreateOrder_TemporalIdentifierFormat(t *testing.T) {
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
 	service := createTestService(mockProductRepo, mockOpenBillRepo)
+	user := createTestUser()
 
 	req := &dto.CreateOrderRequest{
-		ProductIDs: []string{},
+		TemporalIdentifier: "TABLE-05",
+		Products:           []dto.OrderProductItem{},
 	}
 
 	// Mock expectations
 	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*dto.OpenBill"), []dto.OrderProductItem{}).Return(nil)
 
 	// Execute
-	result, err := service.CreateOrder(ctx, req)
+	result, err := service.CreateOrder(ctx, req, user)
 
 	// Assert
 	require.NoError(t, err)
 	assert.NotEmpty(t, result.TemporalIdentifier)
-	assert.Contains(t, result.TemporalIdentifier, "ORDER-")
-
-	// Verify it contains numeric timestamp (should be at least 10 digits after ORDER-)
-	identifierSuffix := result.TemporalIdentifier[len("ORDER-"):]
-	assert.Greater(t, len(identifierSuffix), 10)
+	assert.Equal(t, "TABLE-05", result.TemporalIdentifier)
 }
 
 func TestCreateOrder_TimestampFields(t *testing.T) {
@@ -482,9 +502,11 @@ func TestCreateOrder_TimestampFields(t *testing.T) {
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
 	service := createTestService(mockProductRepo, mockOpenBillRepo)
+	user := createTestUser()
 
 	req := &dto.CreateOrderRequest{
-		ProductIDs: []string{},
+		TemporalIdentifier: "TABLE-01",
+		Products:           []dto.OrderProductItem{},
 	}
 
 	beforeTime := time.Now()
@@ -493,7 +515,7 @@ func TestCreateOrder_TimestampFields(t *testing.T) {
 	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*dto.OpenBill"), []dto.OrderProductItem{}).Return(nil)
 
 	// Execute
-	result, err := service.CreateOrder(ctx, req)
+	result, err := service.CreateOrder(ctx, req, user)
 
 	afterTime := time.Now()
 
@@ -515,11 +537,15 @@ func TestCreateOrder_ZeroPriceProducts(t *testing.T) {
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
 	service := createTestService(mockProductRepo, mockOpenBillRepo)
+	user := createTestUser()
 
 	product := createTestProduct("product-1", "Free Product", "Category", 1, 0.0, 0.0)
 
 	req := &dto.CreateOrderRequest{
-		ProductIDs: []string{"product-1"},
+		TemporalIdentifier: "TABLE-01",
+		Products: []dto.OrderProductItem{
+			{ProductID: "product-1", Quantity: 1},
+		},
 	}
 
 	// Mock expectations
@@ -529,14 +555,11 @@ func TestCreateOrder_ZeroPriceProducts(t *testing.T) {
 	})).Return(nil)
 
 	// Execute
-	result, err := service.CreateOrder(ctx, req)
+	result, err := service.CreateOrder(ctx, req, user)
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, 0.0, result.TotalPrice)
-	assert.Equal(t, 0.0, result.VAT)
-	assert.Equal(t, 0.0, result.ICO)
-	assert.Equal(t, 0.0, result.Tip)
+	assert.Equal(t, 0.0, result.TotalAmount)
 
 	// Verify mocks
 	mockProductRepo.AssertExpectations(t)
@@ -549,12 +572,16 @@ func TestCreateOrder_LargePriceValues(t *testing.T) {
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
 	service := createTestService(mockProductRepo, mockOpenBillRepo)
+	user := createTestUser()
 
 	largePrice := 999999999.99
 	product := createTestProduct("product-1", "Expensive Product", "Category", 1, largePrice, 189999999.998)
 
 	req := &dto.CreateOrderRequest{
-		ProductIDs: []string{"product-1"},
+		TemporalIdentifier: "TABLE-01",
+		Products: []dto.OrderProductItem{
+			{ProductID: "product-1", Quantity: 1},
+		},
 	}
 
 	// Mock expectations
@@ -564,41 +591,40 @@ func TestCreateOrder_LargePriceValues(t *testing.T) {
 	})).Return(nil)
 
 	// Execute
-	result, err := service.CreateOrder(ctx, req)
+	result, err := service.CreateOrder(ctx, req, user)
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, largePrice, result.TotalPrice)
-	assert.InDelta(t, largePrice*0.19, result.VAT, 0.01)
-	assert.InDelta(t, largePrice*0.08, result.ICO, 0.01)
-	assert.InDelta(t, largePrice*0.10, result.Tip, 0.01)
+	assert.Equal(t, largePrice, result.TotalAmount)
 
 	// Verify mocks
 	mockProductRepo.AssertExpectations(t)
 	mockOpenBillRepo.AssertExpectations(t)
 }
 
-func TestCreateOrder_NilProductIDs(t *testing.T) {
+func TestCreateOrder_NilProducts(t *testing.T) {
 	// Setup
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
 	service := createTestService(mockProductRepo, mockOpenBillRepo)
+	user := createTestUser()
 
 	req := &dto.CreateOrderRequest{
-		ProductIDs: nil,
+		TemporalIdentifier: "TABLE-01",
+		Products:           nil,
 	}
 
 	// Mock expectations
-	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*dto.OpenBill"), []dto.OrderProductItem{}).Return(nil)
+	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*dto.OpenBill"), []dto.OrderProductItem(nil)).Return(nil)
 
 	// Execute
-	result, err := service.CreateOrder(ctx, req)
+	result, err := service.CreateOrder(ctx, req, user)
 
 	// Assert
 	require.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, 0.0, result.TotalPrice)
+	assert.Equal(t, 0.0, result.TotalAmount)
 	assert.Empty(t, result.Products)
 
 	// Verify mocks
@@ -606,27 +632,29 @@ func TestCreateOrder_NilProductIDs(t *testing.T) {
 	mockOpenBillRepo.AssertExpectations(t)
 }
 
-func TestCreateOrder_EmptySliceProductIDs(t *testing.T) {
+func TestCreateOrder_EmptySliceProducts(t *testing.T) {
 	// Setup
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
 	service := createTestService(mockProductRepo, mockOpenBillRepo)
+	user := createTestUser()
 
 	req := &dto.CreateOrderRequest{
-		ProductIDs: []string{},
+		TemporalIdentifier: "TABLE-01",
+		Products:           []dto.OrderProductItem{},
 	}
 
 	// Mock expectations
 	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*dto.OpenBill"), []dto.OrderProductItem{}).Return(nil)
 
 	// Execute
-	result, err := service.CreateOrder(ctx, req)
+	result, err := service.CreateOrder(ctx, req, user)
 
 	// Assert
 	require.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, 0.0, result.TotalPrice)
+	assert.Equal(t, 0.0, result.TotalAmount)
 	assert.Empty(t, result.Products)
 
 	// Verify mocks
@@ -649,10 +677,7 @@ func TestUpdateOrder_EmptyOrder(t *testing.T) {
 	existingBill := &dto.OpenBill{
 		ID:                 openBillID,
 		TemporalIdentifier: "ORDER-123",
-		TotalPrice:         100.0,
-		VAT:                19.0,
-		ICO:                8.0,
-		Tip:                10.0,
+		TotalAmount:        100.0,
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
 	}
@@ -673,10 +698,7 @@ func TestUpdateOrder_EmptyOrder(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.Equal(t, openBillID, result.ID)
 	assert.Equal(t, existingBill.TemporalIdentifier, result.TemporalIdentifier)
-	assert.Equal(t, 0.0, result.TotalPrice)
-	assert.Equal(t, 0.0, result.VAT)
-	assert.Equal(t, 0.0, result.ICO)
-	assert.Equal(t, 0.0, result.Tip)
+	assert.Equal(t, 0.0, result.TotalAmount)
 	assert.Empty(t, result.Products)
 
 	// Verify mocks
@@ -695,10 +717,7 @@ func TestUpdateOrder_SingleProduct(t *testing.T) {
 	existingBill := &dto.OpenBill{
 		ID:                 openBillID,
 		TemporalIdentifier: "ORDER-123",
-		TotalPrice:         50.0,
-		VAT:                9.5,
-		ICO:                4.0,
-		Tip:                5.0,
+		TotalAmount:        50.0,
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
 	}
@@ -727,10 +746,7 @@ func TestUpdateOrder_SingleProduct(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, openBillID, result.ID)
-	assert.Equal(t, productPrice, result.TotalPrice)
-	assert.InDelta(t, productPrice*0.19, result.VAT, 0.01)
-	assert.InDelta(t, productPrice*0.08, result.ICO, 0.01)
-	assert.InDelta(t, productPrice*0.10, result.Tip, 0.01)
+	assert.Equal(t, productPrice, result.TotalAmount)
 	assert.Len(t, result.Products, 1)
 	assert.Equal(t, productID, result.Products[0].ID)
 
@@ -750,10 +766,7 @@ func TestUpdateOrder_MultipleProductsWithQuantities(t *testing.T) {
 	existingBill := &dto.OpenBill{
 		ID:                 openBillID,
 		TemporalIdentifier: "ORDER-123",
-		TotalPrice:         100.0,
-		VAT:                19.0,
-		ICO:                8.0,
-		Tip:                10.0,
+		TotalAmount:        100.0,
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
 	}
@@ -786,10 +799,7 @@ func TestUpdateOrder_MultipleProductsWithQuantities(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, openBillID, result.ID)
-	assert.Equal(t, expectedTotal, result.TotalPrice)
-	assert.InDelta(t, expectedTotal*0.19, result.VAT, 0.01)
-	assert.InDelta(t, expectedTotal*0.08, result.ICO, 0.01)
-	assert.InDelta(t, expectedTotal*0.10, result.Tip, 0.01)
+	assert.Equal(t, expectedTotal, result.TotalAmount)
 	assert.Len(t, result.Products, 2)
 
 	// Verify mocks
@@ -808,10 +818,7 @@ func TestUpdateOrder_UpdateQuantity(t *testing.T) {
 	existingBill := &dto.OpenBill{
 		ID:                 openBillID,
 		TemporalIdentifier: "ORDER-123",
-		TotalPrice:         100.0,
-		VAT:                19.0,
-		ICO:                8.0,
-		Tip:                10.0,
+		TotalAmount:        100.0,
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
 	}
@@ -841,10 +848,7 @@ func TestUpdateOrder_UpdateQuantity(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, expectedTotal, result.TotalPrice)
-	assert.InDelta(t, expectedTotal*0.19, result.VAT, 0.01)
-	assert.InDelta(t, expectedTotal*0.08, result.ICO, 0.01)
-	assert.InDelta(t, expectedTotal*0.10, result.Tip, 0.01)
+	assert.Equal(t, expectedTotal, result.TotalAmount)
 
 	// Verify mocks
 	mockProductRepo.AssertExpectations(t)
@@ -898,10 +902,7 @@ func TestUpdateOrder_ProductNotFound(t *testing.T) {
 	existingBill := &dto.OpenBill{
 		ID:                 openBillID,
 		TemporalIdentifier: "ORDER-123",
-		TotalPrice:         100.0,
-		VAT:                19.0,
-		ICO:                8.0,
-		Tip:                10.0,
+		TotalAmount:        100.0,
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
 	}
@@ -946,10 +947,7 @@ func TestUpdateOrder_RepositoryError_ProductFetch(t *testing.T) {
 	existingBill := &dto.OpenBill{
 		ID:                 openBillID,
 		TemporalIdentifier: "ORDER-123",
-		TotalPrice:         100.0,
-		VAT:                19.0,
-		ICO:                8.0,
-		Tip:                10.0,
+		TotalAmount:        100.0,
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
 	}
@@ -993,10 +991,7 @@ func TestUpdateOrder_RepositoryError_Update(t *testing.T) {
 	existingBill := &dto.OpenBill{
 		ID:                 openBillID,
 		TemporalIdentifier: "ORDER-123",
-		TotalPrice:         100.0,
-		VAT:                19.0,
-		ICO:                8.0,
-		Tip:                10.0,
+		TotalAmount:        100.0,
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
 	}
@@ -1047,10 +1042,7 @@ func TestPayOrder_Success(t *testing.T) {
 	existingBill := &dto.OpenBill{
 		ID:                 openBillID,
 		TemporalIdentifier: "ORDER-123",
-		TotalPrice:         100.0,
-		VAT:                19.0,
-		ICO:                8.0,
-		Tip:                10.0,
+		TotalAmount:        100.0,
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
 	}
@@ -1081,10 +1073,7 @@ func TestPayOrder_Success(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, expectedBill.ID, result.ID)
-	assert.Equal(t, existingBill.TotalPrice, result.TotalAmount)
-	assert.Equal(t, existingBill.VAT, result.VAT)
-	assert.Equal(t, existingBill.ICO, result.ICO)
-	assert.Equal(t, existingBill.Tip, result.Tip)
+	assert.Equal(t, expectedBill.TotalAmount, result.TotalAmount)
 	assert.Equal(t, documentURLPtr, result.DocumentURL)
 
 	// Verify mocks
@@ -1104,10 +1093,7 @@ func TestPayOrder_EmptyOrder(t *testing.T) {
 	existingBill := &dto.OpenBill{
 		ID:                 openBillID,
 		TemporalIdentifier: "ORDER-123",
-		TotalPrice:         0.0,
-		VAT:                0.0,
-		ICO:                0.0,
-		Tip:                0.0,
+		TotalAmount:        0.0,
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
 	}
@@ -1186,10 +1172,7 @@ func TestPayOrder_RepositoryError_Payment(t *testing.T) {
 	existingBill := &dto.OpenBill{
 		ID:                 openBillID,
 		TemporalIdentifier: "ORDER-123",
-		TotalPrice:         100.0,
-		VAT:                19.0,
-		ICO:                8.0,
-		Tip:                10.0,
+		TotalAmount:        100.0,
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
 	}

@@ -13,6 +13,7 @@ var (
 )
 
 type JWTClaims struct {
+	UserID   string `json:"user_id"`
 	Username string `json:"username"`
 	RoleIDs  []int  `json:"role_ids"`
 	jwt.RegisteredClaims
@@ -28,8 +29,9 @@ func NewJWTService(secret string) *JWTService {
 	}
 }
 
-func (s *JWTService) GenerateToken(username string, roleIDs []int) (string, error) {
+func (s *JWTService) GenerateToken(userID string, username string, roleIDs []int) (string, error) {
 	claims := JWTClaims{
+		UserID:   userID,
 		Username: username,
 		RoleIDs:  roleIDs,
 		RegisteredClaims: jwt.RegisteredClaims{

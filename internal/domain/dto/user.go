@@ -2,6 +2,10 @@ package dto
 
 import "time"
 
+type UserDomain struct {
+	ID string `json:"id"`
+}
+
 type User struct {
 	ID        string    `json:"id"`
 	Username  string    `json:"username"`

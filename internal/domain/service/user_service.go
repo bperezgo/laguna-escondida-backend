@@ -91,7 +91,7 @@ func (s *UserService) SignIn(ctx context.Context, req *dto.SignInRequest) (*dto.
 		roleIDs[i] = role.ID
 	}
 
-	token, err := s.jwtService.GenerateToken(userDTO.Username, roleIDs)
+	token, err := s.jwtService.GenerateToken(userDTO.ID, userDTO.Username, roleIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}

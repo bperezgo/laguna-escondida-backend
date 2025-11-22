@@ -30,12 +30,15 @@ func (h *OrderHandler) CreateOrderHandler(c *gin.Context) {
 		return
 	}
 
-	// Validate request
-	if req.ProductIDs == nil {
-		req.ProductIDs = []string{} // Allow empty order
+	ctx := c.Request.Context()
+
+	userID, ok := ctx.Value("user_id").(string)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Username not found in context"})
+		return
 	}
 
-	openBill, err := h.orderService.CreateOrder(c.Request.Context(), &req)
+	openBill, err := h.orderService.CreateOrder(ctx, &req, dto.UserDomain{ID: userID})
 	if err != nil {
 		log.Printf("Error creating order: %v", err)
 

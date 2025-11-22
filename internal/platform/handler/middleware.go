@@ -92,6 +92,7 @@ func JWTAuthMiddleware(jwtService *service.JWTService, requiredRoles ...int) gin
 			}
 		}
 
+		c.Set("user_id", claims.UserID)
 		c.Set("username", claims.Username)
 		c.Set("role_ids", claims.RoleIDs)
 		c.Next()

@@ -21,11 +21,9 @@ func NewOpenBillRepository(db *gorm.DB) ports.OpenBillRepository {
 type openBillModel struct {
 	ID                 string     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	TemporalIdentifier string     `gorm:"type:varchar(255);not null"`
-	TotalPrice         float64    `gorm:"type:double precision;not null"`
-	VAT                float64    `gorm:"type:double precision;not null"`
-	ICO                float64    `gorm:"type:double precision;not null"`
-	Tip                float64    `gorm:"type:double precision;not null"`
-	DocumentURL        *string    `gorm:"type:text"`
+	TotalAmount        float64    `gorm:"type:double precision;not null"`
+	CreatedBy          *string    `gorm:"type:uuid"`
+	Descriptor         *string    `gorm:"type:text"`
 	CreatedAt          time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
 	UpdatedAt          time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
 	DeletedAt          *time.Time `gorm:"type:timestamp"`
@@ -40,6 +38,7 @@ type openBillProductModel struct {
 	OpenBillID string     `gorm:"type:uuid;not null"`
 	ProductID  string     `gorm:"type:uuid;not null"`
 	Quantity   int        `gorm:"type:integer;not null;default:1"`
+	Notes      *string    `gorm:"type:text"`
 	CreatedAt  time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
 	UpdatedAt  time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
 	DeletedAt  *time.Time `gorm:"type:timestamp"`
@@ -47,6 +46,19 @@ type openBillProductModel struct {
 
 func (openBillProductModel) TableName() string {
 	return "open_bills_products"
+}
+
+type productPreparationResponsibilityModel struct {
+	ID        string     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	ProductID string     `gorm:"type:uuid;not null"`
+	Area      string     `gorm:"type:varchar(255);not null"`
+	CreatedAt time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	UpdatedAt time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	DeletedAt *time.Time `gorm:"type:timestamp"`
+}
+
+func (productPreparationResponsibilityModel) TableName() string {
+	return "product_preparation_responsibilities"
 }
 
 type billModel struct {
@@ -85,14 +97,11 @@ func (billProductModel) TableName() string {
 
 func (r *OpenBillRepository) Create(ctx context.Context, openBill *dto.OpenBill, products []dto.OrderProductItem) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Create the open bill
 		model := &openBillModel{
 			TemporalIdentifier: openBill.TemporalIdentifier,
-			TotalPrice:         openBill.TotalPrice,
-			VAT:                openBill.VAT,
-			ICO:                openBill.ICO,
-			Tip:                openBill.Tip,
-			DocumentURL:        openBill.DocumentURL,
+			TotalAmount:        openBill.TotalAmount,
+			CreatedBy:          openBill.CreatedBy,
+			Descriptor:         openBill.Descriptor,
 			CreatedAt:          openBill.CreatedAt,
 			UpdatedAt:          openBill.UpdatedAt,
 		}
@@ -101,16 +110,15 @@ func (r *OpenBillRepository) Create(ctx context.Context, openBill *dto.OpenBill,
 			return err
 		}
 
-		// Set the ID back to the DTO
 		openBill.ID = model.ID
 
-		// Create associations with products if any
 		if len(products) > 0 {
 			for _, item := range products {
 				openBillProduct := &openBillProductModel{
 					OpenBillID: model.ID,
 					ProductID:  item.ProductID,
 					Quantity:   item.Quantity,
+					Notes:      item.Notes,
 					CreatedAt:  time.Now(),
 					UpdatedAt:  time.Now(),
 				}
@@ -144,13 +152,12 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 
 func (r *OpenBillRepository) Update(ctx context.Context, openBillID string, openBill *dto.OpenBill, products []dto.OrderProductItem) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Update the open bill
 		updateData := map[string]interface{}{
-			"total_price": openBill.TotalPrice,
-			"vat":         openBill.VAT,
-			"ico":         openBill.ICO,
-			"tip":         openBill.Tip,
-			"updated_at":  openBill.UpdatedAt,
+			"total_amount": openBill.TotalAmount,
+			"updated_at":   openBill.UpdatedAt,
+		}
+		if openBill.Descriptor != nil {
+			updateData["descriptor"] = openBill.Descriptor
 		}
 		if err := tx.Model(&openBillModel{}).Where("id = ? AND deleted_at IS NULL", openBillID).Updates(updateData).Error; err != nil {
 			return err
@@ -180,31 +187,38 @@ func (r *OpenBillRepository) Update(ctx context.Context, openBillID string, open
 			now := time.Now()
 
 			if exists {
-				// Product exists - update or restore
 				if existing.DeletedAt != nil {
-					// Restore soft-deleted product and update quantity
-					if err := tx.Model(existing).Updates(map[string]interface{}{
+					if err := tx.Model(existing).Updates(map[string]any{
 						"quantity":   item.Quantity,
+						"notes":      item.Notes,
 						"updated_at": now,
 						"deleted_at": nil,
 					}).Error; err != nil {
 						return err
 					}
-				} else if existing.Quantity != item.Quantity {
-					// Update quantity if different
-					if err := tx.Model(existing).Updates(map[string]interface{}{
-						"quantity":   item.Quantity,
-						"updated_at": now,
-					}).Error; err != nil {
-						return err
+				} else {
+					updateFields := map[string]any{"updated_at": now}
+					if existing.Quantity != item.Quantity {
+						updateFields["quantity"] = item.Quantity
+					}
+					notesChanged := (existing.Notes == nil && item.Notes != nil) ||
+						(existing.Notes != nil && item.Notes == nil) ||
+						(existing.Notes != nil && item.Notes != nil && *existing.Notes != *item.Notes)
+					if notesChanged {
+						updateFields["notes"] = item.Notes
+					}
+					if len(updateFields) > 1 {
+						if err := tx.Model(existing).Updates(updateFields).Error; err != nil {
+							return err
+						}
 					}
 				}
 			} else {
-				// Product doesn't exist - create new
 				newProduct := &openBillProductModel{
 					OpenBillID: openBillID,
 					ProductID:  item.ProductID,
 					Quantity:   item.Quantity,
+					Notes:      item.Notes,
 					CreatedAt:  now,
 					UpdatedAt:  now,
 				}
@@ -247,14 +261,13 @@ func (r *OpenBillRepository) PayOrder(ctx context.Context, openBillID string) (*
 			return err
 		}
 
-		// Create the bill from open_bill data
 		now := time.Now()
 		billModel := &billModel{
-			TotalAmount:    openBillModel.TotalPrice,
+			TotalAmount:    openBillModel.TotalAmount,
 			DiscountAmount: 0.0,
-			VAT:            openBillModel.VAT,
-			ICO:            openBillModel.ICO,
-			Tip:            openBillModel.Tip,
+			VAT:            0.0,
+			ICO:            0.0,
+			Tip:            0.0,
 			DocumentURL:    nil,
 			CreatedAt:      now,
 			UpdatedAt:      now,
@@ -305,11 +318,9 @@ func (r *OpenBillRepository) toDTO(model *openBillModel) *dto.OpenBill {
 	return &dto.OpenBill{
 		ID:                 model.ID,
 		TemporalIdentifier: model.TemporalIdentifier,
-		TotalPrice:         model.TotalPrice,
-		VAT:                model.VAT,
-		ICO:                model.ICO,
-		Tip:                model.Tip,
-		DocumentURL:        model.DocumentURL,
+		TotalAmount:        model.TotalAmount,
+		CreatedBy:          model.CreatedBy,
+		Descriptor:         model.Descriptor,
 		CreatedAt:          model.CreatedAt,
 		UpdatedAt:          model.UpdatedAt,
 	}
