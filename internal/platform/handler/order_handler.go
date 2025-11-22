@@ -124,3 +124,36 @@ func (h *OrderHandler) PayOrderHandler(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, bill)
 }
+
+func (h *OrderHandler) GetAllActiveOpenBillsHandler(c *gin.Context) {
+	openBills, err := h.orderService.GetAllActiveOpenBills(c.Request.Context())
+	if err != nil {
+		log.Printf("Error getting active open bills: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve open bills"})
+		return
+	}
+
+	c.JSON(http.StatusOK, openBills)
+}
+
+func (h *OrderHandler) GetOpenBillWithProductsHandler(c *gin.Context) {
+	openBillID := c.Param("id")
+	if openBillID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Order ID is required"})
+		return
+	}
+
+	openBill, err := h.orderService.GetOpenBillWithProducts(c.Request.Context(), openBillID)
+	if err != nil {
+		log.Printf("Error getting open bill with products: %v", err)
+
+		if errors.Is(err, orderError.ErrOrderNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, openBill)
+}

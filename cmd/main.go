@@ -107,6 +107,8 @@ func main() {
 	// Protected routes (require JWT authentication)
 	// Order routes
 	router.POST("/api/orders", handler.JWTAuthMiddleware(jwtService), orderHandler.CreateOrderHandler)
+	router.GET("/api/orders", handler.JWTAuthMiddleware(jwtService), orderHandler.GetAllActiveOpenBillsHandler)
+	router.GET("/api/orders/:id", handler.JWTAuthMiddleware(jwtService), orderHandler.GetOpenBillWithProductsHandler)
 	router.PUT("/api/orders/:id", handler.JWTAuthMiddleware(jwtService), orderHandler.UpdateOrderHandler)
 	router.POST("/api/orders/:id/pay", handler.JWTAuthMiddleware(jwtService), orderHandler.PayOrderHandler)
 

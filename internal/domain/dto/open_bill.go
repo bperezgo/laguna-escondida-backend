@@ -13,6 +13,23 @@ type OpenBill struct {
 	UpdatedAt          time.Time `json:"updated_at"`
 }
 
+type OpenBillProductDetail struct {
+	Product  Product `json:"product"`
+	Quantity int     `json:"quantity"`
+	Notes    *string `json:"notes,omitempty"`
+}
+
+type OpenBillWithProducts struct {
+	ID                 string                  `json:"id"`
+	TemporalIdentifier string                  `json:"temporal_identifier"`
+	TotalAmount        float64                 `json:"total_amount"`
+	CreatedBy          *string                 `json:"created_by,omitempty"`
+	Descriptor         *string                 `json:"descriptor,omitempty"`
+	Products           []OpenBillProductDetail `json:"products"`
+	CreatedAt          time.Time               `json:"created_at"`
+	UpdatedAt          time.Time               `json:"updated_at"`
+}
+
 type CreateOrderRequest struct {
 	TemporalIdentifier string             `json:"temporal_identifier" validate:"required,uuid"`
 	Descriptor         *string            `json:"descriptor,omitempty"`

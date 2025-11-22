@@ -91,6 +91,22 @@ func (m *MockOpenBillRepository) PayOrder(ctx context.Context, openBillID string
 	return args.Get(0).(*dto.Bill), args.Error(1)
 }
 
+func (m *MockOpenBillRepository) FindAll(ctx context.Context) ([]*dto.OpenBill, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*dto.OpenBill), args.Error(1)
+}
+
+func (m *MockOpenBillRepository) FindByIDWithProducts(ctx context.Context, id string) (*dto.OpenBillWithProducts, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*dto.OpenBillWithProducts), args.Error(1)
+}
+
 // Test helpers
 func createTestContext() context.Context {
 	return context.Background()
@@ -1192,6 +1208,231 @@ func TestPayOrder_RepositoryError_Payment(t *testing.T) {
 	assert.ErrorIs(t, err, orderError.ErrOrderPaymentFailed)
 
 	// Verify mocks
+	mockProductRepo.AssertExpectations(t)
+	mockOpenBillRepo.AssertExpectations(t)
+}
+
+// ====================================================================
+// GetAllActiveOpenBills Tests
+// ====================================================================
+
+// Success Cases
+
+func TestGetAllActiveOpenBills_Success(t *testing.T) {
+	ctx := createTestContext()
+	mockProductRepo := new(MockProductRepository)
+	mockOpenBillRepo := new(MockOpenBillRepository)
+	service := createTestService(mockProductRepo, mockOpenBillRepo)
+
+	openBills := []*dto.OpenBill{
+		{
+			ID:                 "bill-1",
+			TemporalIdentifier: "ORDER-001",
+			TotalAmount:        100.0,
+			CreatedAt:          time.Now(),
+			UpdatedAt:          time.Now(),
+		},
+		{
+			ID:                 "bill-2",
+			TemporalIdentifier: "ORDER-002",
+			TotalAmount:        200.0,
+			CreatedAt:          time.Now(),
+			UpdatedAt:          time.Now(),
+		},
+	}
+
+	mockOpenBillRepo.On("FindAll", ctx).Return(openBills, nil)
+
+	result, err := service.GetAllActiveOpenBills(ctx)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Len(t, result, 2)
+	assert.Equal(t, "bill-1", result[0].ID)
+	assert.Equal(t, "bill-2", result[1].ID)
+
+	mockProductRepo.AssertExpectations(t)
+	mockOpenBillRepo.AssertExpectations(t)
+}
+
+func TestGetAllActiveOpenBills_EmptyList(t *testing.T) {
+	ctx := createTestContext()
+	mockProductRepo := new(MockProductRepository)
+	mockOpenBillRepo := new(MockOpenBillRepository)
+	service := createTestService(mockProductRepo, mockOpenBillRepo)
+
+	openBills := []*dto.OpenBill{}
+
+	mockOpenBillRepo.On("FindAll", ctx).Return(openBills, nil)
+
+	result, err := service.GetAllActiveOpenBills(ctx)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Len(t, result, 0)
+
+	mockProductRepo.AssertExpectations(t)
+	mockOpenBillRepo.AssertExpectations(t)
+}
+
+// Error Cases
+
+func TestGetAllActiveOpenBills_RepositoryError(t *testing.T) {
+	ctx := createTestContext()
+	mockProductRepo := new(MockProductRepository)
+	mockOpenBillRepo := new(MockOpenBillRepository)
+	service := createTestService(mockProductRepo, mockOpenBillRepo)
+
+	repoError := errors.New("database error")
+
+	mockOpenBillRepo.On("FindAll", ctx).Return(nil, repoError)
+
+	result, err := service.GetAllActiveOpenBills(ctx)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "failed to get active open bills")
+
+	mockProductRepo.AssertExpectations(t)
+	mockOpenBillRepo.AssertExpectations(t)
+}
+
+// ====================================================================
+// GetOpenBillWithProducts Tests
+// ====================================================================
+
+// Success Cases
+
+func TestGetOpenBillWithProducts_Success(t *testing.T) {
+	ctx := createTestContext()
+	mockProductRepo := new(MockProductRepository)
+	mockOpenBillRepo := new(MockOpenBillRepository)
+	service := createTestService(mockProductRepo, mockOpenBillRepo)
+
+	openBillID := "bill-1"
+	openBillWithProducts := &dto.OpenBillWithProducts{
+		ID:                 openBillID,
+		TemporalIdentifier: "ORDER-001",
+		TotalAmount:        150.0,
+		Products: []dto.OpenBillProductDetail{
+			{
+				Product: dto.Product{
+					ID:                  "product-1",
+					Name:                "Product 1",
+					Category:            "Category 1",
+					Version:             1,
+					UnitPrice:           50.0,
+					VAT:                 0.0,
+					ICO:                 0.0,
+					TotalPriceWithTaxes: 50.0,
+				},
+				Quantity: 2,
+			},
+			{
+				Product: dto.Product{
+					ID:                  "product-2",
+					Name:                "Product 2",
+					Category:            "Category 2",
+					Version:             1,
+					UnitPrice:           50.0,
+					VAT:                 0.0,
+					ICO:                 0.0,
+					TotalPriceWithTaxes: 50.0,
+				},
+				Quantity: 1,
+			},
+		},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	mockOpenBillRepo.On("FindByIDWithProducts", ctx, openBillID).Return(openBillWithProducts, nil)
+
+	result, err := service.GetOpenBillWithProducts(ctx, openBillID)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, openBillID, result.ID)
+	assert.Equal(t, "ORDER-001", result.TemporalIdentifier)
+	assert.Equal(t, 150.0, result.TotalAmount)
+	assert.Len(t, result.Products, 2)
+	assert.Equal(t, "product-1", result.Products[0].Product.ID)
+	assert.Equal(t, 2, result.Products[0].Quantity)
+	assert.Equal(t, "product-2", result.Products[1].Product.ID)
+	assert.Equal(t, 1, result.Products[1].Quantity)
+
+	mockProductRepo.AssertExpectations(t)
+	mockOpenBillRepo.AssertExpectations(t)
+}
+
+func TestGetOpenBillWithProducts_NoProducts(t *testing.T) {
+	ctx := createTestContext()
+	mockProductRepo := new(MockProductRepository)
+	mockOpenBillRepo := new(MockOpenBillRepository)
+	service := createTestService(mockProductRepo, mockOpenBillRepo)
+
+	openBillID := "bill-1"
+	openBillWithProducts := &dto.OpenBillWithProducts{
+		ID:                 openBillID,
+		TemporalIdentifier: "ORDER-001",
+		TotalAmount:        0.0,
+		Products:           []dto.OpenBillProductDetail{},
+		CreatedAt:          time.Now(),
+		UpdatedAt:          time.Now(),
+	}
+
+	mockOpenBillRepo.On("FindByIDWithProducts", ctx, openBillID).Return(openBillWithProducts, nil)
+
+	result, err := service.GetOpenBillWithProducts(ctx, openBillID)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, openBillID, result.ID)
+	assert.Len(t, result.Products, 0)
+
+	mockProductRepo.AssertExpectations(t)
+	mockOpenBillRepo.AssertExpectations(t)
+}
+
+// Error Cases
+
+func TestGetOpenBillWithProducts_NotFound(t *testing.T) {
+	ctx := createTestContext()
+	mockProductRepo := new(MockProductRepository)
+	mockOpenBillRepo := new(MockOpenBillRepository)
+	service := createTestService(mockProductRepo, mockOpenBillRepo)
+
+	openBillID := "bill-1"
+
+	mockOpenBillRepo.On("FindByIDWithProducts", ctx, openBillID).Return(nil, errors.New("not found"))
+
+	result, err := service.GetOpenBillWithProducts(ctx, openBillID)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, orderError.ErrOrderNotFound)
+
+	mockProductRepo.AssertExpectations(t)
+	mockOpenBillRepo.AssertExpectations(t)
+}
+
+func TestGetOpenBillWithProducts_RepositoryError(t *testing.T) {
+	ctx := createTestContext()
+	mockProductRepo := new(MockProductRepository)
+	mockOpenBillRepo := new(MockOpenBillRepository)
+	service := createTestService(mockProductRepo, mockOpenBillRepo)
+
+	openBillID := "bill-1"
+	repoError := errors.New("database error")
+
+	mockOpenBillRepo.On("FindByIDWithProducts", ctx, openBillID).Return(nil, repoError)
+
+	result, err := service.GetOpenBillWithProducts(ctx, openBillID)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, orderError.ErrOrderNotFound)
+
 	mockProductRepo.AssertExpectations(t)
 	mockOpenBillRepo.AssertExpectations(t)
 }

@@ -34,7 +34,11 @@ func NewOrderService(
 
 // CreateOrder creates a new open order with the specified products
 // If productIDs is empty, creates an empty order
-func (s *OrderService) CreateOrder(ctx context.Context, req *dto.CreateOrderRequest, user dto.UserDomain) (*dto.OpenBill, error) {
+func (s *OrderService) CreateOrder(
+	ctx context.Context,
+	req *dto.CreateOrderRequest,
+	user dto.UserDomain,
+) (*dto.OpenBill, error) {
 	var products []*dto.Product
 	var totalAmount float64
 
@@ -149,4 +153,24 @@ func (s *OrderService) PayOrder(ctx context.Context, openBillID string) (*dto.Bi
 	}
 
 	return bill, nil
+}
+
+// GetAllActiveOpenBills returns all open bills where deleted_at is NULL
+func (s *OrderService) GetAllActiveOpenBills(ctx context.Context) ([]*dto.OpenBill, error) {
+	openBills, err := s.openBillRepo.FindAll(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get active open bills: %w", err)
+	}
+
+	return openBills, nil
+}
+
+// GetOpenBillWithProducts returns a specific open bill with inner joins to open_bills_products and products
+func (s *OrderService) GetOpenBillWithProducts(ctx context.Context, openBillID string) (*dto.OpenBillWithProducts, error) {
+	openBill, err := s.openBillRepo.FindByIDWithProducts(ctx, openBillID)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
+	}
+
+	return openBill, nil
 }

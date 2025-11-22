@@ -314,6 +314,80 @@ func (r *OpenBillRepository) PayOrder(ctx context.Context, openBillID string) (*
 	return bill, nil
 }
 
+func (r *OpenBillRepository) FindAll(ctx context.Context) ([]*dto.OpenBill, error) {
+	var models []openBillModel
+	if err := r.db.WithContext(ctx).Where("deleted_at IS NULL").Find(&models).Error; err != nil {
+		return nil, err
+	}
+
+	openBills := make([]*dto.OpenBill, len(models))
+	for i, model := range models {
+		openBills[i] = r.toDTO(&model)
+	}
+
+	return openBills, nil
+}
+
+func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string) (*dto.OpenBillWithProducts, error) {
+	var model openBillModel
+	if err := r.db.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", id).First(&model).Error; err != nil {
+		return nil, err
+	}
+
+	type openBillProductWithProduct struct {
+		openBillProductModel
+		Product productModel `gorm:"foreignKey:ProductID;references:ID"`
+	}
+
+	var openBillProducts []openBillProductWithProduct
+
+	err := r.db.WithContext(ctx).
+		Model(&openBillProductModel{}).
+		Joins("INNER JOIN products ON open_bills_products.product_id = products.id").
+		Where("open_bills_products.open_bill_id = ? AND open_bills_products.deleted_at IS NULL AND products.deleted_at IS NULL", id).
+		Preload("Product").
+		Find(&openBillProducts).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	productDetails := make([]dto.OpenBillProductDetail, len(openBillProducts))
+	for i, obp := range openBillProducts {
+		productDetails[i] = dto.OpenBillProductDetail{
+			Product: dto.Product{
+				ID:                  obp.Product.ID,
+				Name:                obp.Product.Name,
+				Category:            obp.Product.Category,
+				Version:             obp.Product.Version,
+				UnitPrice:           obp.Product.UnitPrice,
+				VAT:                 obp.Product.VAT,
+				ICO:                 obp.Product.ICO,
+				Description:         obp.Product.Description,
+				Brand:               obp.Product.Brand,
+				Model:               obp.Product.Model,
+				SKU:                 obp.Product.SKU,
+				TotalPriceWithTaxes: obp.Product.TotalPriceWithTaxes,
+				CreatedAt:           obp.Product.CreatedAt,
+				UpdatedAt:           obp.Product.UpdatedAt,
+			},
+			Quantity: obp.Quantity,
+			Notes:    obp.Notes,
+		}
+	}
+
+	return &dto.OpenBillWithProducts{
+		ID:                 model.ID,
+		TemporalIdentifier: model.TemporalIdentifier,
+		TotalAmount:        model.TotalAmount,
+		CreatedBy:          model.CreatedBy,
+		Descriptor:         model.Descriptor,
+		Products:           productDetails,
+		CreatedAt:          model.CreatedAt,
+		UpdatedAt:          model.UpdatedAt,
+	}, nil
+}
+
 func (r *OpenBillRepository) toDTO(model *openBillModel) *dto.OpenBill {
 	return &dto.OpenBill{
 		ID:                 model.ID,
