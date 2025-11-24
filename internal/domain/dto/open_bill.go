@@ -30,6 +30,11 @@ type OpenBillWithProducts struct {
 	UpdatedAt          time.Time               `json:"updated_at"`
 }
 
+type OpenBillListResponse struct {
+	OpenBills []*OpenBill `json:"open_bills"`
+	Total     *int        `json:"total,omitempty"`
+}
+
 type CreateOrderRequest struct {
 	TemporalIdentifier string             `json:"temporal_identifier" validate:"required,uuid"`
 	Descriptor         *string            `json:"descriptor,omitempty"`

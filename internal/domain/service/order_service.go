@@ -156,13 +156,17 @@ func (s *OrderService) PayOrder(ctx context.Context, openBillID string) (*dto.Bi
 }
 
 // GetAllActiveOpenBills returns all open bills where deleted_at is NULL
-func (s *OrderService) GetAllActiveOpenBills(ctx context.Context) ([]*dto.OpenBill, error) {
+func (s *OrderService) GetAllActiveOpenBills(ctx context.Context) (*dto.OpenBillListResponse, error) {
 	openBills, err := s.openBillRepo.FindAll(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get active open bills: %w", err)
 	}
 
-	return openBills, nil
+	total := len(openBills)
+	return &dto.OpenBillListResponse{
+		OpenBills: openBills,
+		Total:     &total,
+	}, nil
 }
 
 // GetOpenBillWithProducts returns a specific open bill with inner joins to open_bills_products and products

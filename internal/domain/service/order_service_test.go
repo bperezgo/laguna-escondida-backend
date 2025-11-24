@@ -1247,9 +1247,12 @@ func TestGetAllActiveOpenBills_Success(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Len(t, result, 2)
-	assert.Equal(t, "bill-1", result[0].ID)
-	assert.Equal(t, "bill-2", result[1].ID)
+	assert.NotNil(t, result.OpenBills)
+	assert.Len(t, result.OpenBills, 2)
+	assert.Equal(t, "bill-1", result.OpenBills[0].ID)
+	assert.Equal(t, "bill-2", result.OpenBills[1].ID)
+	assert.NotNil(t, result.Total)
+	assert.Equal(t, 2, *result.Total)
 
 	mockProductRepo.AssertExpectations(t)
 	mockOpenBillRepo.AssertExpectations(t)
@@ -1269,7 +1272,10 @@ func TestGetAllActiveOpenBills_EmptyList(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Len(t, result, 0)
+	assert.NotNil(t, result.OpenBills)
+	assert.Len(t, result.OpenBills, 0)
+	assert.NotNil(t, result.Total)
+	assert.Equal(t, 0, *result.Total)
 
 	mockProductRepo.AssertExpectations(t)
 	mockOpenBillRepo.AssertExpectations(t)
