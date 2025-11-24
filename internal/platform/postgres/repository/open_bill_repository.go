@@ -95,12 +95,17 @@ func (billProductModel) TableName() string {
 	return "bill_products"
 }
 
-func (r *OpenBillRepository) Create(ctx context.Context, openBill *dto.OpenBill, products []dto.OrderProductItem) error {
+func (r *OpenBillRepository) Create(ctx context.Context, openBill *dto.OpenBill, products []dto.OrderProductItem, userID string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var user userModel
+		if err := tx.Where("id = ? AND deleted_at IS NULL", userID).First(&user).Error; err != nil {
+			return err
+		}
+
 		model := &openBillModel{
 			TemporalIdentifier: openBill.TemporalIdentifier,
 			TotalAmount:        openBill.TotalAmount,
-			CreatedBy:          openBill.CreatedBy,
+			CreatedBy:          &userID,
 			Descriptor:         openBill.Descriptor,
 			CreatedAt:          openBill.CreatedAt,
 			UpdatedAt:          openBill.UpdatedAt,
@@ -133,21 +138,59 @@ func (r *OpenBillRepository) Create(ctx context.Context, openBill *dto.OpenBill,
 }
 
 func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.OpenBill, error) {
-	var model openBillModel
-	if err := r.db.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", id).First(&model).Error; err != nil {
+	type result struct {
+		// Open Bill fields
+		ID                 string
+		TemporalIdentifier string
+		TotalAmount        float64
+		CreatedBy          *string
+		Descriptor         *string
+		CreatedAt          time.Time
+		UpdatedAt          time.Time
+		// User fields
+		UserID       string
+		UserUsername string
+	}
+
+	var res result
+	err := r.db.WithContext(ctx).
+		Table("open_bills").
+		Select(`
+			open_bills.id,
+			open_bills.temporal_identifier,
+			open_bills.total_amount,
+			open_bills.created_by,
+			open_bills.descriptor,
+			open_bills.created_at,
+			open_bills.updated_at,
+			users.id as user_id,
+			users.username as user_username
+		`).
+		Joins("LEFT JOIN users ON open_bills.created_by = users.id AND users.deleted_at IS NULL").
+		Where("open_bills.id = ? AND open_bills.deleted_at IS NULL", id).
+		Scan(&res).Error
+
+	if err != nil {
 		return nil, err
 	}
 
-	// Fetch associated products
-	var productModels []openBillProductModel
-	if err := r.db.WithContext(ctx).Where("open_bill_id = ? AND deleted_at IS NULL", id).Find(&productModels).Error; err != nil {
-		return nil, err
+	var createdBy *dto.OpenBillCreator
+	if res.CreatedBy != nil && res.UserID != "" {
+		createdBy = &dto.OpenBillCreator{
+			ID:       res.UserID,
+			Username: res.UserUsername,
+		}
 	}
 
-	// Fetch product details (would need product repository, but for now just return the open bill)
-	openBill := r.toDTO(&model)
-
-	return openBill, nil
+	return &dto.OpenBill{
+		ID:                 res.ID,
+		TemporalIdentifier: res.TemporalIdentifier,
+		TotalAmount:        res.TotalAmount,
+		CreatedBy:          createdBy,
+		Descriptor:         res.Descriptor,
+		CreatedAt:          res.CreatedAt,
+		UpdatedAt:          res.UpdatedAt,
+	}, nil
 }
 
 func (r *OpenBillRepository) Update(ctx context.Context, openBillID string, openBill *dto.OpenBill, products []dto.OrderProductItem) error {
@@ -315,22 +358,100 @@ func (r *OpenBillRepository) PayOrder(ctx context.Context, openBillID string) (*
 }
 
 func (r *OpenBillRepository) FindAll(ctx context.Context) ([]*dto.OpenBill, error) {
-	var models []openBillModel
-	if err := r.db.WithContext(ctx).Where("deleted_at IS NULL").Find(&models).Error; err != nil {
+	type result struct {
+		// Open Bill fields
+		ID                 string
+		TemporalIdentifier string
+		TotalAmount        float64
+		CreatedBy          *string
+		Descriptor         *string
+		CreatedAt          time.Time
+		UpdatedAt          time.Time
+		// User fields
+		UserID       string
+		UserUsername string
+	}
+
+	var results []result
+	err := r.db.WithContext(ctx).
+		Table("open_bills").
+		Select(`
+			open_bills.id,
+			open_bills.temporal_identifier,
+			open_bills.total_amount,
+			open_bills.created_by,
+			open_bills.descriptor,
+			open_bills.created_at,
+			open_bills.updated_at,
+			users.id as user_id,
+			users.username as user_username
+		`).
+		Joins("LEFT JOIN users ON open_bills.created_by = users.id AND users.deleted_at IS NULL").
+		Where("open_bills.deleted_at IS NULL").
+		Scan(&results).Error
+
+	if err != nil {
 		return nil, err
 	}
 
-	openBills := make([]*dto.OpenBill, len(models))
-	for i, model := range models {
-		openBills[i] = r.toDTO(&model)
+	openBills := make([]*dto.OpenBill, len(results))
+	for i, r := range results {
+		var createdBy *dto.OpenBillCreator
+		if r.CreatedBy != nil && r.UserID != "" {
+			createdBy = &dto.OpenBillCreator{
+				ID:       r.UserID,
+				Username: r.UserUsername,
+			}
+		}
+
+		openBills[i] = &dto.OpenBill{
+			ID:                 r.ID,
+			TemporalIdentifier: r.TemporalIdentifier,
+			TotalAmount:        r.TotalAmount,
+			CreatedBy:          createdBy,
+			Descriptor:         r.Descriptor,
+			CreatedAt:          r.CreatedAt,
+			UpdatedAt:          r.UpdatedAt,
+		}
 	}
 
 	return openBills, nil
 }
 
 func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string) (*dto.OpenBillWithProducts, error) {
-	var model openBillModel
-	if err := r.db.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", id).First(&model).Error; err != nil {
+	type billResult struct {
+		// Open Bill fields
+		ID                 string
+		TemporalIdentifier string
+		TotalAmount        float64
+		CreatedBy          *string
+		Descriptor         *string
+		CreatedAt          time.Time
+		UpdatedAt          time.Time
+		// User fields
+		UserID       string
+		UserUsername string
+	}
+
+	var result billResult
+	err := r.db.WithContext(ctx).
+		Table("open_bills").
+		Select(`
+			open_bills.id,
+			open_bills.temporal_identifier,
+			open_bills.total_amount,
+			open_bills.created_by,
+			open_bills.descriptor,
+			open_bills.created_at,
+			open_bills.updated_at,
+			users.id as user_id,
+			users.username as user_username
+		`).
+		Joins("LEFT JOIN users ON open_bills.created_by = users.id AND users.deleted_at IS NULL").
+		Where("open_bills.id = ? AND open_bills.deleted_at IS NULL", id).
+		Scan(&result).Error
+
+	if err != nil {
 		return nil, err
 	}
 
@@ -341,7 +462,7 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 
 	var openBillProducts []openBillProductWithProduct
 
-	err := r.db.WithContext(ctx).
+	err = r.db.WithContext(ctx).
 		Model(&openBillProductModel{}).
 		Joins("INNER JOIN products ON open_bills_products.product_id = products.id").
 		Where("open_bills_products.open_bill_id = ? AND open_bills_products.deleted_at IS NULL AND products.deleted_at IS NULL", id).
@@ -376,26 +497,22 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 		}
 	}
 
-	return &dto.OpenBillWithProducts{
-		ID:                 model.ID,
-		TemporalIdentifier: model.TemporalIdentifier,
-		TotalAmount:        model.TotalAmount,
-		CreatedBy:          model.CreatedBy,
-		Descriptor:         model.Descriptor,
-		Products:           productDetails,
-		CreatedAt:          model.CreatedAt,
-		UpdatedAt:          model.UpdatedAt,
-	}, nil
-}
-
-func (r *OpenBillRepository) toDTO(model *openBillModel) *dto.OpenBill {
-	return &dto.OpenBill{
-		ID:                 model.ID,
-		TemporalIdentifier: model.TemporalIdentifier,
-		TotalAmount:        model.TotalAmount,
-		CreatedBy:          model.CreatedBy,
-		Descriptor:         model.Descriptor,
-		CreatedAt:          model.CreatedAt,
-		UpdatedAt:          model.UpdatedAt,
+	var createdBy *dto.OpenBillCreator
+	if result.CreatedBy != nil && result.UserID != "" {
+		createdBy = &dto.OpenBillCreator{
+			ID:       result.UserID,
+			Username: result.UserUsername,
+		}
 	}
+
+	return &dto.OpenBillWithProducts{
+		ID:                 result.ID,
+		TemporalIdentifier: result.TemporalIdentifier,
+		TotalAmount:        result.TotalAmount,
+		CreatedBy:          createdBy,
+		Descriptor:         result.Descriptor,
+		Products:           productDetails,
+		CreatedAt:          result.CreatedAt,
+		UpdatedAt:          result.UpdatedAt,
+	}, nil
 }

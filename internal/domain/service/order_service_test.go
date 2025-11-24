@@ -65,8 +65,8 @@ type MockOpenBillRepository struct {
 	mock.Mock
 }
 
-func (m *MockOpenBillRepository) Create(ctx context.Context, openBill *dto.OpenBill, products []dto.OrderProductItem) error {
-	args := m.Called(ctx, openBill, products)
+func (m *MockOpenBillRepository) Create(ctx context.Context, openBill *dto.OpenBill, products []dto.OrderProductItem, userID string) error {
+	args := m.Called(ctx, openBill, products, userID)
 	return args.Error(0)
 }
 

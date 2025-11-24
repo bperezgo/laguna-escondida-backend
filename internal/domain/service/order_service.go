@@ -63,13 +63,12 @@ func (s *OrderService) CreateOrder(
 	openBill := &dto.OpenBill{
 		TemporalIdentifier: req.TemporalIdentifier,
 		TotalAmount:        totalAmount,
-		CreatedBy:          &user.ID,
 		Descriptor:         req.Descriptor,
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
 	}
 
-	if err := s.openBillRepo.Create(ctx, openBill, req.Products); err != nil {
+	if err := s.openBillRepo.Create(ctx, openBill, req.Products, user.ID); err != nil {
 		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
 	}
 

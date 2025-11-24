@@ -2,15 +2,20 @@ package dto
 
 import "time"
 
+type OpenBillCreator struct {
+	ID       string `json:"id"`
+	Username string `json:"user_name"`
+}
+
 type OpenBill struct {
-	ID                 string    `json:"id"`
-	TemporalIdentifier string    `json:"temporal_identifier"`
-	TotalAmount        float64   `json:"total_amount"`
-	CreatedBy          *string   `json:"created_by,omitempty"`
-	Descriptor         *string   `json:"descriptor,omitempty"`
-	Products           []Product `json:"products,omitempty"`
-	CreatedAt          time.Time `json:"created_at"`
-	UpdatedAt          time.Time `json:"updated_at"`
+	ID                 string           `json:"id"`
+	TemporalIdentifier string           `json:"temporal_identifier"`
+	TotalAmount        float64          `json:"total_amount"`
+	CreatedBy          *OpenBillCreator `json:"created_by,omitempty"`
+	Descriptor         *string          `json:"descriptor,omitempty"`
+	Products           []Product        `json:"products,omitempty"`
+	CreatedAt          time.Time        `json:"created_at"`
+	UpdatedAt          time.Time        `json:"updated_at"`
 }
 
 type OpenBillProductDetail struct {
@@ -23,7 +28,7 @@ type OpenBillWithProducts struct {
 	ID                 string                  `json:"id"`
 	TemporalIdentifier string                  `json:"temporal_identifier"`
 	TotalAmount        float64                 `json:"total_amount"`
-	CreatedBy          *string                 `json:"created_by,omitempty"`
+	CreatedBy          *OpenBillCreator        `json:"created_by,omitempty"`
 	Descriptor         *string                 `json:"descriptor,omitempty"`
 	Products           []OpenBillProductDetail `json:"products"`
 	CreatedAt          time.Time               `json:"created_at"`

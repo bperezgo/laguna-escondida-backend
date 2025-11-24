@@ -7,7 +7,7 @@ import (
 )
 
 type OpenBillRepository interface {
-	Create(ctx context.Context, openBill *dto.OpenBill, products []dto.OrderProductItem) error
+	Create(ctx context.Context, openBill *dto.OpenBill, products []dto.OrderProductItem, userID string) error
 	FindByID(ctx context.Context, id string) (*dto.OpenBill, error)
 	FindAll(ctx context.Context) ([]*dto.OpenBill, error)
 	FindByIDWithProducts(ctx context.Context, id string) (*dto.OpenBillWithProducts, error)
