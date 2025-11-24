@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useMemo } from 'react';
-import OpenBillCard from './OpenBillCard';
-import OpenBillSearch from './OpenBillSearch';
-import CreateOrderForm from './CreateOrderForm';
-import { getOpenBills } from '@/lib/api/orders';
-import type { OpenBill } from '@/types/order';
+import { useState, useEffect, useMemo } from "react";
+import OpenBillCard from "./OpenBillCard";
+import OpenBillSearch from "./OpenBillSearch";
+import CreateOrderForm from "./CreateOrderForm";
+import { getOpenBills } from "@/lib/api/orders";
+import type { OpenBill } from "@/types/order";
 
 export default function OrdersPageClient() {
   const [openBills, setOpenBills] = useState<OpenBill[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -22,8 +22,10 @@ export default function OrdersPageClient() {
       const response = await getOpenBills();
       setOpenBills(response.open_bills || []);
     } catch (err) {
-      console.error('Error fetching open bills:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load open bills');
+      console.error("Error fetching open bills:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to load open bills"
+      );
     } finally {
       setIsLoading(false);
     }
@@ -39,7 +41,7 @@ export default function OrdersPageClient() {
       return openBills;
     }
     const query = searchQuery.toLowerCase();
-    return openBills.filter(bill =>
+    return openBills.filter((bill) =>
       bill.temporal_identifier.toLowerCase().includes(query)
     );
   }, [openBills, searchQuery]);
@@ -49,51 +51,59 @@ export default function OrdersPageClient() {
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      backgroundColor: '#f5f5f5',
-      padding: '1rem',
-    }}>
-      <div style={{
-        maxWidth: '1400px',
-        margin: '0 auto',
-      }}>
+    <div
+      style={{
+        minHeight: "100vh",
+        backgroundColor: "#f5f5f5",
+        padding: "1rem",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: "1400px",
+          margin: "0 auto",
+        }}
+      >
         {/* Header */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '1.5rem',
-          flexWrap: 'wrap',
-          gap: '1rem',
-        }}>
-          <h1 style={{
-            fontSize: 'clamp(1.75rem, 4vw, 2.5rem)',
-            fontWeight: 'bold',
-            margin: 0,
-            color: '#333',
-          }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "1.5rem",
+            flexWrap: "wrap",
+            gap: "1rem",
+          }}
+        >
+          <h1
+            style={{
+              fontSize: "clamp(1.75rem, 4vw, 2.5rem)",
+              fontWeight: "bold",
+              margin: 0,
+              color: "#333",
+            }}
+          >
             Open Bills
           </h1>
           <button
             onClick={() => setShowCreateForm(true)}
             style={{
-              padding: '0.875rem 1.75rem',
-              fontSize: '1.05rem',
-              fontWeight: 'bold',
-              backgroundColor: '#007bff',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              transition: 'background-color 0.2s',
-              boxShadow: '0 2px 6px rgba(0, 123, 255, 0.3)',
+              padding: "0.875rem 1.75rem",
+              fontSize: "1.05rem",
+              fontWeight: "bold",
+              backgroundColor: "#007bff",
+              color: "white",
+              border: "none",
+              borderRadius: "8px",
+              cursor: "pointer",
+              transition: "background-color 0.2s",
+              boxShadow: "0 2px 6px rgba(0, 123, 255, 0.3)",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = '#0056b3';
+              e.currentTarget.style.backgroundColor = "#0056b3";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = '#007bff';
+              e.currentTarget.style.backgroundColor = "#007bff";
             }}
           >
             + Create New Order
@@ -108,37 +118,43 @@ export default function OrdersPageClient() {
 
         {/* Error Message */}
         {error && (
-          <div style={{
-            padding: '1rem',
-            backgroundColor: '#fee',
-            border: '2px solid #fcc',
-            borderRadius: '8px',
-            color: '#c00',
-            marginBottom: '1.5rem',
-            fontWeight: '500',
-          }}>
+          <div
+            style={{
+              padding: "1rem",
+              backgroundColor: "#fee",
+              border: "2px solid #fcc",
+              borderRadius: "8px",
+              color: "#c00",
+              marginBottom: "1.5rem",
+              fontWeight: "500",
+            }}
+          >
             {error}
           </div>
         )}
 
         {/* Loading State */}
         {isLoading && (
-          <div style={{
-            textAlign: 'center',
-            padding: '4rem',
-            color: '#666',
-            fontSize: '1.1rem',
-          }}>
-            <div style={{
-              display: 'inline-block',
-              width: '40px',
-              height: '40px',
-              border: '4px solid #e0e0e0',
-              borderTop: '4px solid #007bff',
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite',
-              marginBottom: '1rem',
-            }} />
+          <div
+            style={{
+              textAlign: "center",
+              padding: "4rem",
+              color: "#666",
+              fontSize: "1.1rem",
+            }}
+          >
+            <div
+              style={{
+                display: "inline-block",
+                width: "40px",
+                height: "40px",
+                border: "4px solid #e0e0e0",
+                borderTop: "4px solid #007bff",
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite",
+                marginBottom: "1rem",
+              }}
+            />
             <div>Loading open bills...</div>
             <style>{`
               @keyframes spin {
@@ -153,58 +169,74 @@ export default function OrdersPageClient() {
         {!isLoading && (
           <>
             {filteredOpenBills.length === 0 ? (
-              <div style={{
-                textAlign: 'center',
-                padding: '4rem',
-                backgroundColor: 'white',
-                borderRadius: '12px',
-                border: '2px dashed #e0e0e0',
-              }}>
-                <div style={{
-                  fontSize: '3rem',
-                  marginBottom: '1rem',
-                }}>
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "4rem",
+                  backgroundColor: "white",
+                  borderRadius: "12px",
+                  border: "2px dashed #e0e0e0",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "3rem",
+                    marginBottom: "1rem",
+                  }}
+                >
                   📋
                 </div>
-                <h3 style={{
-                  margin: '0 0 0.5rem 0',
-                  fontSize: '1.25rem',
-                  color: '#333',
-                }}>
-                  {searchQuery ? 'No matching open bills found' : 'No open bills yet'}
-                </h3>
-                <p style={{
-                  margin: 0,
-                  color: '#666',
-                  fontSize: '1rem',
-                }}>
+                <h3
+                  style={{
+                    margin: "0 0 0.5rem 0",
+                    fontSize: "1.25rem",
+                    color: "#333",
+                  }}
+                >
                   {searchQuery
-                    ? 'Try adjusting your search query'
+                    ? "No matching open bills found"
+                    : "No open bills yet"}
+                </h3>
+                <p
+                  style={{
+                    margin: 0,
+                    color: "#666",
+                    fontSize: "1rem",
+                  }}
+                >
+                  {searchQuery
+                    ? "Try adjusting your search query"
                     : 'Click "Create New Order" to get started'}
                 </p>
               </div>
             ) : (
               <>
-                <div style={{
-                  marginBottom: '1rem',
-                  color: '#666',
-                  fontSize: '0.95rem',
-                }}>
-                  Showing {filteredOpenBills.length} {filteredOpenBills.length === 1 ? 'bill' : 'bills'}
+                <div
+                  style={{
+                    marginBottom: "1rem",
+                    color: "#666",
+                    fontSize: "0.95rem",
+                  }}
+                >
+                  Showing {filteredOpenBills.length}{" "}
+                  {filteredOpenBills.length === 1 ? "bill" : "bills"}
                   {searchQuery && ` matching "${searchQuery}"`}
                 </div>
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(min(320px, 100%), 1fr))',
-                  gap: '1.25rem',
-                }}>
-                  {filteredOpenBills.map(bill => (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns:
+                      "repeat(auto-fill, minmax(min(320px, 100%), 1fr))",
+                    gap: "1.25rem",
+                  }}
+                >
+                  {filteredOpenBills.map((bill) => (
                     <OpenBillCard
                       key={bill.id}
                       openBill={bill}
                       onClick={() => {
                         // Placeholder for future implementation
-                        console.log('Clicked bill:', bill.id);
+                        console.log("Clicked bill:", bill.id);
                       }}
                     />
                   ))}
