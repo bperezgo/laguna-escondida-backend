@@ -21,12 +21,17 @@ export interface TableListResponse {
   total?: number;
 }
 
+export interface OpenBillUser {
+  id: string;
+  user_name: string;
+}
+
 // Open Bill types (new system)
 export interface OpenBill {
   id: string;
   temporal_identifier: string;
   descriptor?: string | null;
-  created_by: string;
+  created_by?: OpenBillUser;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
