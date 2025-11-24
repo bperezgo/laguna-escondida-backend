@@ -32,13 +32,19 @@ func (h *OrderHandler) CreateOrderHandler(c *gin.Context) {
 
 	ctx := c.Request.Context()
 
-	userID, ok := ctx.Value("user_id").(string)
+	userID, ok := c.Get("user_id")
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Username not found in context"})
 		return
 	}
 
-	openBill, err := h.orderService.CreateOrder(ctx, &req, dto.UserDomain{ID: userID})
+	userIDStr, ok := userID.(string)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID is not a string"})
+		return
+	}
+
+	openBill, err := h.orderService.CreateOrder(ctx, &req, dto.UserDomain{ID: userIDStr})
 	if err != nil {
 		log.Printf("Error creating order: %v", err)
 
