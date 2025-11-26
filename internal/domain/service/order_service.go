@@ -44,19 +44,28 @@ func (s *OrderService) CreateOrder(
 
 	if len(req.Products) > 0 {
 		var err error
-		products, err = s.productRepo.FindByIDs(ctx, lo.Map(req.Products, func(item dto.OrderProductItem, _ int) string {
+		uniqueProductIDs := lo.Uniq(lo.Map(req.Products, func(item dto.OrderProductItem, _ int) string {
 			return item.ProductID
 		}))
+
+		products, err = s.productRepo.FindByIDs(ctx, uniqueProductIDs)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
 		}
 
-		if len(products) != len(req.Products) {
+		if len(products) != len(uniqueProductIDs) {
 			return nil, orderError.ErrProductNotFound
 		}
 
+		productPriceMap := make(map[string]*dto.Product)
 		for _, product := range products {
-			totalAmount += product.TotalPriceWithTaxes
+			productPriceMap[product.ID] = product
+		}
+
+		for _, item := range req.Products {
+			if product, exists := productPriceMap[item.ProductID]; exists {
+				totalAmount += product.TotalPriceWithTaxes * float64(item.Quantity)
+			}
 		}
 	}
 
@@ -97,19 +106,28 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 	var totalAmount float64
 
 	if len(req.Products) > 0 {
-		products, err = s.productRepo.FindByIDs(ctx, lo.Map(req.Products, func(item dto.OrderProductItem, _ int) string {
+		uniqueProductIDs := lo.Uniq(lo.Map(req.Products, func(item dto.OrderProductItem, _ int) string {
 			return item.ProductID
 		}))
+
+		products, err = s.productRepo.FindByIDs(ctx, uniqueProductIDs)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
 		}
 
-		if len(products) != len(req.Products) {
+		if len(products) != len(uniqueProductIDs) {
 			return nil, orderError.ErrProductNotFound
 		}
 
-		for i, product := range products {
-			totalAmount += product.TotalPriceWithTaxes * float64(req.Products[i].Quantity)
+		productPriceMap := make(map[string]*dto.Product)
+		for _, product := range products {
+			productPriceMap[product.ID] = product
+		}
+
+		for _, item := range req.Products {
+			if product, exists := productPriceMap[item.ProductID]; exists {
+				totalAmount += product.TotalPriceWithTaxes * float64(item.Quantity)
+			}
 		}
 	}
 
