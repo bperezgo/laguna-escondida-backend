@@ -5,9 +5,14 @@ import { OpenBill } from "@/types/order";
 interface OpenBillCardProps {
   openBill: OpenBill;
   onClick?: () => void;
+  onPayClick?: () => void;
 }
 
-export default function OpenBillCard({ openBill, onClick }: OpenBillCardProps) {
+export default function OpenBillCard({
+  openBill,
+  onClick,
+  onPayClick,
+}: OpenBillCardProps) {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleString("en-US", {
@@ -169,6 +174,37 @@ export default function OpenBillCard({ openBill, onClick }: OpenBillCardProps) {
           </span>
         </div>
       </div>
+
+      {/* Pay Button */}
+      {onPayClick && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onPayClick();
+          }}
+          style={{
+            marginTop: "1rem",
+            width: "100%",
+            padding: "0.75rem",
+            fontSize: "1rem",
+            fontWeight: "bold",
+            backgroundColor: "#28a745",
+            color: "white",
+            border: "none",
+            borderRadius: "8px",
+            cursor: "pointer",
+            transition: "background-color 0.2s",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "#218838";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "#28a745";
+          }}
+        >
+          💳 Pay Bill
+        </button>
+      )}
     </div>
   );
 }

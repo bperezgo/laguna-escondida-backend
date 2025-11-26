@@ -5,6 +5,7 @@ import OpenBillCard from "./OpenBillCard";
 import OpenBillSearch from "./OpenBillSearch";
 import CreateOrderForm from "./CreateOrderForm";
 import EditOrderForm from "./EditOrderForm";
+import PaymentModal from "./PaymentModal";
 import { getOpenBills, getOpenBillById } from "@/lib/api/orders";
 import type { OpenBill, OpenBillWithProducts } from "@/types/order";
 
@@ -15,6 +16,9 @@ export default function OrdersPageClient() {
   const [error, setError] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingBill, setEditingBill] = useState<OpenBillWithProducts | null>(
+    null
+  );
+  const [paymentBill, setPaymentBill] = useState<OpenBillWithProducts | null>(
     null
   );
   const [isLoadingBill, setIsLoadingBill] = useState(false);
@@ -61,6 +65,22 @@ export default function OrdersPageClient() {
     try {
       const fullBill = await getOpenBillById(bill.id);
       setEditingBill(fullBill);
+    } catch (err) {
+      console.error("Error fetching bill details:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to load bill details"
+      );
+    } finally {
+      setIsLoadingBill(false);
+    }
+  };
+
+  const handlePayClick = async (bill: OpenBill) => {
+    setIsLoadingBill(true);
+    setError(null);
+    try {
+      const fullBill = await getOpenBillById(bill.id);
+      setPaymentBill(fullBill);
     } catch (err) {
       console.error("Error fetching bill details:", err);
       setError(
@@ -256,6 +276,7 @@ export default function OrdersPageClient() {
                       key={bill.id}
                       openBill={bill}
                       onClick={() => handleBillClick(bill)}
+                      onPayClick={() => handlePayClick(bill)}
                     />
                   ))}
                 </div>
@@ -279,6 +300,14 @@ export default function OrdersPageClient() {
           openBill={editingBill}
           onClose={() => setEditingBill(null)}
           onSuccess={handleCreateSuccess}
+        />
+      )}
+
+      {/* Payment Modal */}
+      {paymentBill && (
+        <PaymentModal
+          openBill={paymentBill}
+          onClose={() => setPaymentBill(null)}
         />
       )}
 
