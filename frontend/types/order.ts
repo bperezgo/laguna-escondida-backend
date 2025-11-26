@@ -1,3 +1,5 @@
+import { Product } from "./product";
+
 // Table/Customer related types
 export interface Table {
   ID: string;
@@ -35,6 +37,16 @@ export interface OpenBill {
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
+}
+
+export interface OpenBillProduct {
+  product: Product;
+  quantity: number;
+  notes?: string | null;
+}
+
+export interface OpenBillWithProducts extends OpenBill {
+  products: OpenBillProduct[];
 }
 
 export interface OpenBillListResponse {

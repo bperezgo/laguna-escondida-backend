@@ -10,8 +10,8 @@ import type {
   OrderResponse,
   OrderListResponse,
   ProductSearchResponse,
-  OpenBill,
   OpenBillListResponse,
+  OpenBillWithProducts,
 } from "@/types/order";
 
 // Table endpoints
@@ -35,6 +35,13 @@ export async function createTable(
 // Open Bills endpoints
 export async function getOpenBills(): Promise<OpenBillListResponse> {
   return apiRequest<OpenBillListResponse>("/orders");
+}
+
+export async function getOpenBillById(
+  id: string
+): Promise<OpenBillWithProducts> {
+  const response = await apiRequest<OpenBillWithProducts>(`/orders/${id}`);
+  return response;
 }
 
 // Order endpoints

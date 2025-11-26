@@ -12,6 +12,7 @@ interface CreateOrderFormProps {
 }
 
 interface ProductWithQuantity {
+  lineItemId: string;
   product: Product;
   quantity: number;
   notes: string;
@@ -31,6 +32,7 @@ export default function CreateOrderForm({
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lineItemCounter, setLineItemCounter] = useState(0);
 
   // Generate a simple temporal identifier (can be improved with UUID)
   useEffect(() => {
@@ -72,38 +74,35 @@ export default function CreateOrderForm({
   }, [products, searchQuery]);
 
   const handleProductSelect = (product: Product) => {
-    setSelectedProducts((prev) => {
-      const newMap = new Map(prev);
-      if (newMap.has(product.id)) {
-        const existing = newMap.get(product.id)!;
-        newMap.set(product.id, {
-          ...existing,
-          quantity: existing.quantity + 1,
-        });
-      } else {
-        newMap.set(product.id, {
+    setLineItemCounter((prev) => {
+      const lineItemId = `line-${prev + 1}`;
+      setSelectedProducts((prevProducts) => {
+        const newMap = new Map(prevProducts);
+        newMap.set(lineItemId, {
+          lineItemId,
           product,
           quantity: 1,
           notes: "",
         });
-      }
-      return newMap;
+        return newMap;
+      });
+      return prev + 1;
     });
   };
 
-  const handleQuantityChange = (productId: string, newQuantity: number) => {
+  const handleQuantityChange = (lineItemId: string, newQuantity: number) => {
     if (newQuantity <= 0) {
       setSelectedProducts((prev) => {
         const newMap = new Map(prev);
-        newMap.delete(productId);
+        newMap.delete(lineItemId);
         return newMap;
       });
     } else {
       setSelectedProducts((prev) => {
         const newMap = new Map(prev);
-        const existing = newMap.get(productId);
+        const existing = newMap.get(lineItemId);
         if (existing) {
-          newMap.set(productId, {
+          newMap.set(lineItemId, {
             ...existing,
             quantity: newQuantity,
           });
@@ -113,12 +112,12 @@ export default function CreateOrderForm({
     }
   };
 
-  const handleNotesChange = (productId: string, notes: string) => {
+  const handleNotesChange = (lineItemId: string, notes: string) => {
     setSelectedProducts((prev) => {
       const newMap = new Map(prev);
-      const existing = newMap.get(productId);
+      const existing = newMap.get(lineItemId);
       if (existing) {
-        newMap.set(productId, {
+        newMap.set(lineItemId, {
           ...existing,
           notes,
         });
@@ -342,113 +341,117 @@ export default function CreateOrderForm({
                     gap: "0.75rem",
                   }}
                 >
-                  {selectedProductsArray.map(({ product, quantity, notes }) => (
-                    <div
-                      key={product.id}
-                      style={{
-                        padding: "1rem",
-                        backgroundColor: "white",
-                        borderRadius: "8px",
-                        border: "1px solid #e0e0e0",
-                      }}
-                    >
+                  {selectedProductsArray.map(
+                    ({ lineItemId, product, quantity, notes }) => (
                       <div
+                        key={lineItemId}
                         style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          marginBottom: "0.75rem",
+                          padding: "1rem",
+                          backgroundColor: "white",
+                          borderRadius: "8px",
+                          border: "1px solid #e0e0e0",
                         }}
                       >
-                        <div>
-                          <strong style={{ color: "#333" }}>
-                            {product.name}
-                          </strong>
-                          <div style={{ fontSize: "0.875rem", color: "#666" }}>
-                            ${product.total_price_with_taxes.toFixed(2)}
-                          </div>
-                        </div>
                         <div
                           style={{
                             display: "flex",
+                            justifyContent: "space-between",
                             alignItems: "center",
-                            gap: "0.5rem",
+                            marginBottom: "0.75rem",
                           }}
                         >
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleQuantityChange(product.id, quantity - 1)
-                            }
+                          <div>
+                            <strong style={{ color: "#333" }}>
+                              {product.name}
+                            </strong>
+                            <div
+                              style={{ fontSize: "0.875rem", color: "#666" }}
+                            >
+                              ${product.total_price_with_taxes.toFixed(2)}
+                            </div>
+                          </div>
+                          <div
                             style={{
-                              width: "32px",
-                              height: "32px",
-                              border: "2px solid #007bff",
-                              borderRadius: "6px",
-                              backgroundColor: "white",
-                              color: "#007bff",
-                              cursor: "pointer",
-                              fontSize: "1.25rem",
-                              lineHeight: 1,
                               display: "flex",
                               alignItems: "center",
-                              justifyContent: "center",
+                              gap: "0.5rem",
                             }}
                           >
-                            −
-                          </button>
-                          <span
-                            style={{
-                              minWidth: "40px",
-                              textAlign: "center",
-                              fontWeight: "bold",
-                              fontSize: "1.1rem",
-                            }}
-                          >
-                            {quantity}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleQuantityChange(product.id, quantity + 1)
-                            }
-                            style={{
-                              width: "32px",
-                              height: "32px",
-                              border: "2px solid #007bff",
-                              borderRadius: "6px",
-                              backgroundColor: "white",
-                              color: "#007bff",
-                              cursor: "pointer",
-                              fontSize: "1.25rem",
-                              lineHeight: 1,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                            }}
-                          >
-                            +
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleQuantityChange(lineItemId, quantity - 1)
+                              }
+                              style={{
+                                width: "32px",
+                                height: "32px",
+                                border: "2px solid #007bff",
+                                borderRadius: "6px",
+                                backgroundColor: "white",
+                                color: "#007bff",
+                                cursor: "pointer",
+                                fontSize: "1.25rem",
+                                lineHeight: 1,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              −
+                            </button>
+                            <span
+                              style={{
+                                minWidth: "40px",
+                                textAlign: "center",
+                                fontWeight: "bold",
+                                fontSize: "1.1rem",
+                              }}
+                            >
+                              {quantity}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleQuantityChange(lineItemId, quantity + 1)
+                              }
+                              style={{
+                                width: "32px",
+                                height: "32px",
+                                border: "2px solid #007bff",
+                                borderRadius: "6px",
+                                backgroundColor: "white",
+                                color: "#007bff",
+                                cursor: "pointer",
+                                fontSize: "1.25rem",
+                                lineHeight: 1,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              +
+                            </button>
+                          </div>
                         </div>
+                        <input
+                          type="text"
+                          value={notes}
+                          onChange={(e) =>
+                            handleNotesChange(lineItemId, e.target.value)
+                          }
+                          placeholder="Add notes (optional)..."
+                          style={{
+                            width: "100%",
+                            padding: "0.5rem",
+                            fontSize: "0.875rem",
+                            border: "1px solid #e0e0e0",
+                            borderRadius: "6px",
+                            outline: "none",
+                          }}
+                        />
                       </div>
-                      <input
-                        type="text"
-                        value={notes}
-                        onChange={(e) =>
-                          handleNotesChange(product.id, e.target.value)
-                        }
-                        placeholder="Add notes (optional)..."
-                        style={{
-                          width: "100%",
-                          padding: "0.5rem",
-                          fontSize: "0.875rem",
-                          border: "1px solid #e0e0e0",
-                          borderRadius: "6px",
-                          outline: "none",
-                        }}
-                      />
-                    </div>
-                  ))}
+                    )
+                  )}
                 </div>
               </div>
             )}
@@ -511,28 +514,23 @@ export default function CreateOrderForm({
                   </div>
                 ) : (
                   filteredProducts.map((product) => {
-                    const isSelected = selectedProducts.has(product.id);
                     return (
                       <div
                         key={product.id}
                         onClick={() => handleProductSelect(product)}
                         style={{
                           padding: "1rem",
-                          border: `2px solid ${
-                            isSelected ? "#007bff" : "#e0e0e0"
-                          }`,
+                          border: "2px solid #e0e0e0",
                           borderRadius: "8px",
                           cursor: "pointer",
-                          backgroundColor: isSelected ? "#e7f3ff" : "white",
+                          backgroundColor: "white",
                           transition: "all 0.2s",
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.borderColor = "#007bff";
                         }}
                         onMouseLeave={(e) => {
-                          e.currentTarget.style.borderColor = isSelected
-                            ? "#007bff"
-                            : "#e0e0e0";
+                          e.currentTarget.style.borderColor = "#e0e0e0";
                         }}
                       >
                         <div
@@ -563,18 +561,6 @@ export default function CreateOrderForm({
                         >
                           ${product.total_price_with_taxes.toFixed(2)}
                         </div>
-                        {isSelected && (
-                          <div
-                            style={{
-                              marginTop: "0.5rem",
-                              fontSize: "0.8rem",
-                              color: "#007bff",
-                              fontWeight: "bold",
-                            }}
-                          >
-                            ✓ Added
-                          </div>
-                        )}
                       </div>
                     );
                   })

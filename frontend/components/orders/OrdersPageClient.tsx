@@ -4,8 +4,9 @@ import { useState, useEffect, useMemo } from "react";
 import OpenBillCard from "./OpenBillCard";
 import OpenBillSearch from "./OpenBillSearch";
 import CreateOrderForm from "./CreateOrderForm";
-import { getOpenBills } from "@/lib/api/orders";
-import type { OpenBill } from "@/types/order";
+import EditOrderForm from "./EditOrderForm";
+import { getOpenBills, getOpenBillById } from "@/lib/api/orders";
+import type { OpenBill, OpenBillWithProducts } from "@/types/order";
 
 export default function OrdersPageClient() {
   const [openBills, setOpenBills] = useState<OpenBill[]>([]);
@@ -13,6 +14,10 @@ export default function OrdersPageClient() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [editingBill, setEditingBill] = useState<OpenBillWithProducts | null>(
+    null
+  );
+  const [isLoadingBill, setIsLoadingBill] = useState(false);
 
   // Fetch open bills
   const fetchOpenBills = async () => {
@@ -48,6 +53,22 @@ export default function OrdersPageClient() {
 
   const handleCreateSuccess = () => {
     fetchOpenBills();
+  };
+
+  const handleBillClick = async (bill: OpenBill) => {
+    setIsLoadingBill(true);
+    setError(null);
+    try {
+      const fullBill = await getOpenBillById(bill.id);
+      setEditingBill(fullBill);
+    } catch (err) {
+      console.error("Error fetching bill details:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to load bill details"
+      );
+    } finally {
+      setIsLoadingBill(false);
+    }
   };
 
   return (
@@ -234,10 +255,7 @@ export default function OrdersPageClient() {
                     <OpenBillCard
                       key={bill.id}
                       openBill={bill}
-                      onClick={() => {
-                        // Placeholder for future implementation
-                        console.log("Clicked bill:", bill.id);
-                      }}
+                      onClick={() => handleBillClick(bill)}
                     />
                   ))}
                 </div>
@@ -253,6 +271,59 @@ export default function OrdersPageClient() {
           onClose={() => setShowCreateForm(false)}
           onSuccess={handleCreateSuccess}
         />
+      )}
+
+      {/* Edit Order Form Modal */}
+      {editingBill && (
+        <EditOrderForm
+          openBill={editingBill}
+          onClose={() => setEditingBill(null)}
+          onSuccess={handleCreateSuccess}
+        />
+      )}
+
+      {/* Loading overlay when fetching bill details */}
+      {isLoadingBill && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 999,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "white",
+              padding: "2rem",
+              borderRadius: "12px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "1rem",
+            }}
+          >
+            <div
+              style={{
+                width: "40px",
+                height: "40px",
+                border: "4px solid #e0e0e0",
+                borderTop: "4px solid #007bff",
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite",
+              }}
+            />
+            <div style={{ color: "#333", fontWeight: "500" }}>
+              Loading order details...
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
