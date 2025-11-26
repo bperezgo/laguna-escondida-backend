@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { productsApi } from "@/lib/api/products";
+import { updateOrder } from "@/lib/api/orders";
 import type { Product } from "@/types/product";
 import type { OpenBillWithProducts, OrderProductItem } from "@/types/order";
 
@@ -153,17 +154,11 @@ export default function EditOrderForm({
         notes: notes.trim() || null,
       }));
 
-      // TODO: Implement API call to update the order
-      // This would be something like: await updateOrder(openBill.id, { descriptor, products: orderProducts });
-
-      console.log("Update order:", {
-        id: openBill.id,
+      await updateOrder(openBill.id, {
         descriptor: descriptor.trim() || null,
         products: orderProducts,
       });
 
-      // For now, just simulate success
-      alert("Order updated successfully!");
       onSuccess();
       onClose();
     } catch (err) {
@@ -374,113 +369,117 @@ export default function EditOrderForm({
                     gap: "0.75rem",
                   }}
                 >
-                  {selectedProductsArray.map(({ lineItemId, product, quantity, notes }) => (
-                    <div
-                      key={lineItemId}
-                      style={{
-                        padding: "1rem",
-                        backgroundColor: "white",
-                        borderRadius: "8px",
-                        border: "1px solid #e0e0e0",
-                      }}
-                    >
+                  {selectedProductsArray.map(
+                    ({ lineItemId, product, quantity, notes }) => (
                       <div
+                        key={lineItemId}
                         style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          marginBottom: "0.75rem",
+                          padding: "1rem",
+                          backgroundColor: "white",
+                          borderRadius: "8px",
+                          border: "1px solid #e0e0e0",
                         }}
                       >
-                        <div>
-                          <strong style={{ color: "#333" }}>
-                            {product.name}
-                          </strong>
-                          <div style={{ fontSize: "0.875rem", color: "#666" }}>
-                            ${product.total_price_with_taxes.toFixed(2)}
-                          </div>
-                        </div>
                         <div
                           style={{
                             display: "flex",
+                            justifyContent: "space-between",
                             alignItems: "center",
-                            gap: "0.5rem",
+                            marginBottom: "0.75rem",
                           }}
                         >
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleQuantityChange(lineItemId, quantity - 1)
-                            }
+                          <div>
+                            <strong style={{ color: "#333" }}>
+                              {product.name}
+                            </strong>
+                            <div
+                              style={{ fontSize: "0.875rem", color: "#666" }}
+                            >
+                              ${product.total_price_with_taxes.toFixed(2)}
+                            </div>
+                          </div>
+                          <div
                             style={{
-                              width: "32px",
-                              height: "32px",
-                              border: "2px solid #007bff",
-                              borderRadius: "6px",
-                              backgroundColor: "white",
-                              color: "#007bff",
-                              cursor: "pointer",
-                              fontSize: "1.25rem",
-                              lineHeight: 1,
                               display: "flex",
                               alignItems: "center",
-                              justifyContent: "center",
+                              gap: "0.5rem",
                             }}
                           >
-                            −
-                          </button>
-                          <span
-                            style={{
-                              minWidth: "40px",
-                              textAlign: "center",
-                              fontWeight: "bold",
-                              fontSize: "1.1rem",
-                            }}
-                          >
-                            {quantity}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleQuantityChange(lineItemId, quantity + 1)
-                            }
-                            style={{
-                              width: "32px",
-                              height: "32px",
-                              border: "2px solid #007bff",
-                              borderRadius: "6px",
-                              backgroundColor: "white",
-                              color: "#007bff",
-                              cursor: "pointer",
-                              fontSize: "1.25rem",
-                              lineHeight: 1,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                            }}
-                          >
-                            +
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleQuantityChange(lineItemId, quantity - 1)
+                              }
+                              style={{
+                                width: "32px",
+                                height: "32px",
+                                border: "2px solid #007bff",
+                                borderRadius: "6px",
+                                backgroundColor: "white",
+                                color: "#007bff",
+                                cursor: "pointer",
+                                fontSize: "1.25rem",
+                                lineHeight: 1,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              −
+                            </button>
+                            <span
+                              style={{
+                                minWidth: "40px",
+                                textAlign: "center",
+                                fontWeight: "bold",
+                                fontSize: "1.1rem",
+                              }}
+                            >
+                              {quantity}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleQuantityChange(lineItemId, quantity + 1)
+                              }
+                              style={{
+                                width: "32px",
+                                height: "32px",
+                                border: "2px solid #007bff",
+                                borderRadius: "6px",
+                                backgroundColor: "white",
+                                color: "#007bff",
+                                cursor: "pointer",
+                                fontSize: "1.25rem",
+                                lineHeight: 1,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              +
+                            </button>
+                          </div>
                         </div>
+                        <input
+                          type="text"
+                          value={notes}
+                          onChange={(e) =>
+                            handleNotesChange(lineItemId, e.target.value)
+                          }
+                          placeholder="Add notes (optional)..."
+                          style={{
+                            width: "100%",
+                            padding: "0.5rem",
+                            fontSize: "0.875rem",
+                            border: "1px solid #e0e0e0",
+                            borderRadius: "6px",
+                            outline: "none",
+                          }}
+                        />
                       </div>
-                      <input
-                        type="text"
-                        value={notes}
-                        onChange={(e) =>
-                          handleNotesChange(lineItemId, e.target.value)
-                        }
-                        placeholder="Add notes (optional)..."
-                        style={{
-                          width: "100%",
-                          padding: "0.5rem",
-                          fontSize: "0.875rem",
-                          border: "1px solid #e0e0e0",
-                          borderRadius: "6px",
-                          outline: "none",
-                        }}
-                      />
-                    </div>
-                  ))}
+                    )
+                  )}
                 </div>
               </div>
             )}

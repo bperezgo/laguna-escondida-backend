@@ -6,6 +6,7 @@ import type {
   TableListResponse,
   Order,
   CreateOrderRequest,
+  UpdateOrderRequest,
   CreateOrderResponse,
   OrderResponse,
   OrderListResponse,
@@ -50,6 +51,16 @@ export async function createOrder(
 ): Promise<CreateOrderResponse> {
   return apiRequest<CreateOrderResponse>("/orders", {
     method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateOrder(
+  id: string,
+  data: UpdateOrderRequest
+): Promise<OpenBillWithProducts> {
+  return apiRequest<OpenBillWithProducts>(`/orders/${id}`, {
+    method: "PUT",
     body: JSON.stringify(data),
   });
 }

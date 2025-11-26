@@ -68,6 +68,12 @@ export interface CreateOrderRequest {
   products: OrderProductItem[];
 }
 
+// Update Order Request
+export interface UpdateOrderRequest {
+  descriptor?: string | null;
+  products: OrderProductItem[];
+}
+
 // Order Item types (legacy)
 export interface OrderItem {
   ProductID: string;
