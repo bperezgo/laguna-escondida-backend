@@ -455,45 +455,82 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 		return nil, err
 	}
 
-	type openBillProductWithProduct struct {
-		openBillProductModel
-		Product productModel `gorm:"foreignKey:ProductID;references:ID"`
+	type productResult struct {
+		// Open Bill Product fields
+		ID         string
+		OpenBillID string
+		ProductID  string
+		Quantity   int
+		Notes      *string
+		// Product fields
+		ProductName                string
+		ProductCategory            string
+		ProductVersion             int
+		ProductUnitPrice           float64
+		ProductVAT                 float64
+		ProductICO                 float64
+		ProductDescription         *string
+		ProductBrand               *string
+		ProductModel               *string
+		ProductSKU                 string
+		ProductTotalPriceWithTaxes float64
+		ProductCreatedAt           time.Time
+		ProductUpdatedAt           time.Time
 	}
 
-	var openBillProducts []openBillProductWithProduct
+	var productResults []productResult
 
 	err = r.db.WithContext(ctx).
-		Model(&openBillProductModel{}).
-		Joins("INNER JOIN products ON open_bills_products.product_id = products.id").
-		Where("open_bills_products.open_bill_id = ? AND open_bills_products.deleted_at IS NULL AND products.deleted_at IS NULL", id).
-		Preload("Product").
-		Find(&openBillProducts).Error
+		Table("open_bills_products").
+		Select(`
+			open_bills_products.id,
+			open_bills_products.open_bill_id,
+			open_bills_products.product_id,
+			open_bills_products.quantity,
+			open_bills_products.notes,
+			products.name as product_name,
+			products.category as product_category,
+			products.version as product_version,
+			products.unit_price as product_unit_price,
+			products.vat as product_vat,
+			products.ico as product_ico,
+			products.description as product_description,
+			products.brand as product_brand,
+			products.model as product_model,
+			products.sku as product_sku,
+			products.total_price_with_taxes as product_total_price_with_taxes,
+			products.created_at as product_created_at,
+			products.updated_at as product_updated_at
+		`).
+		Joins("INNER JOIN products ON open_bills_products.product_id = products.id AND products.deleted_at IS NULL").
+		Where("open_bills_products.open_bill_id = ? AND open_bills_products.deleted_at IS NULL", id).
+		Scan(&productResults).Error
 
 	if err != nil {
 		return nil, err
 	}
 
-	productDetails := make([]dto.OpenBillProductDetail, len(openBillProducts))
-	for i, obp := range openBillProducts {
+	productDetails := make([]dto.OpenBillProductDetail, len(productResults))
+	for i, pr := range productResults {
 		productDetails[i] = dto.OpenBillProductDetail{
 			Product: dto.Product{
-				ID:                  obp.Product.ID,
-				Name:                obp.Product.Name,
-				Category:            obp.Product.Category,
-				Version:             obp.Product.Version,
-				UnitPrice:           obp.Product.UnitPrice,
-				VAT:                 obp.Product.VAT,
-				ICO:                 obp.Product.ICO,
-				Description:         obp.Product.Description,
-				Brand:               obp.Product.Brand,
-				Model:               obp.Product.Model,
-				SKU:                 obp.Product.SKU,
-				TotalPriceWithTaxes: obp.Product.TotalPriceWithTaxes,
-				CreatedAt:           obp.Product.CreatedAt,
-				UpdatedAt:           obp.Product.UpdatedAt,
+				ID:                  pr.ProductID,
+				Name:                pr.ProductName,
+				Category:            pr.ProductCategory,
+				Version:             pr.ProductVersion,
+				UnitPrice:           pr.ProductUnitPrice,
+				VAT:                 pr.ProductVAT,
+				ICO:                 pr.ProductICO,
+				Description:         pr.ProductDescription,
+				Brand:               pr.ProductBrand,
+				Model:               pr.ProductModel,
+				SKU:                 pr.ProductSKU,
+				TotalPriceWithTaxes: pr.ProductTotalPriceWithTaxes,
+				CreatedAt:           pr.ProductCreatedAt,
+				UpdatedAt:           pr.ProductUpdatedAt,
 			},
-			Quantity: obp.Quantity,
-			Notes:    obp.Notes,
+			Quantity: pr.Quantity,
+			Notes:    pr.Notes,
 		}
 	}
 
