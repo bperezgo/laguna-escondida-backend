@@ -19,8 +19,8 @@ export default function PaymentModal({ openBill, onClose }: PaymentModalProps) {
 
     openBill.products.forEach(({ product, quantity }) => {
       const itemSubtotal = product.unit_price * quantity;
-      const itemVAT = (itemSubtotal * product.vat) / 100;
-      const itemICO = (itemSubtotal * product.ico) / 100;
+      const itemVAT = itemSubtotal * product.vat;
+      const itemICO = itemSubtotal * product.ico;
 
       subtotal += itemSubtotal;
       totalVAT += itemVAT;
