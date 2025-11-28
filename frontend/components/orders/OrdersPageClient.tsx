@@ -308,6 +308,7 @@ export default function OrdersPageClient() {
         <PaymentModal
           openBill={paymentBill}
           onClose={() => setPaymentBill(null)}
+          onSuccess={handleCreateSuccess}
         />
       )}
 

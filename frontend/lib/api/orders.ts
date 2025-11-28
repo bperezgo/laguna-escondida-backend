@@ -65,6 +65,13 @@ export async function updateOrder(
   });
 }
 
+export async function payOrder(orderId: string): Promise<{ message: string }> {
+  return apiRequest<{ message: string }>("/orders/pay-order", {
+    method: "POST",
+    body: JSON.stringify({ order_id: orderId }),
+  });
+}
+
 export async function getOrder(id: string): Promise<OrderResponse> {
   return apiRequest<OrderResponse>(`/orders/${id}`);
 }

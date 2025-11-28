@@ -1,15 +1,48 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { payOrder } from "@/lib/api/orders";
 import type { OpenBillWithProducts } from "@/types/order";
 
 interface PaymentModalProps {
   openBill: OpenBillWithProducts;
   onClose: () => void;
+  onSuccess: () => void;
 }
 
-export default function PaymentModal({ openBill, onClose }: PaymentModalProps) {
+export default function PaymentModal({
+  openBill,
+  onClose,
+  onSuccess,
+}: PaymentModalProps) {
   const printRef = useRef<HTMLDivElement>(null);
+  const [isPaying, setIsPaying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Group products by product ID (consolidate duplicates)
+  const groupedProducts = () => {
+    const productMap = new Map<
+      string,
+      {
+        product: (typeof openBill.products)[0]["product"];
+        totalQuantity: number;
+      }
+    >();
+
+    openBill.products.forEach(({ product, quantity }) => {
+      if (productMap.has(product.id)) {
+        const existing = productMap.get(product.id)!;
+        existing.totalQuantity += quantity;
+      } else {
+        productMap.set(product.id, {
+          product,
+          totalQuantity: quantity,
+        });
+      }
+    });
+
+    return Array.from(productMap.values());
+  };
 
   // Calculate totals
   const calculateTotals = () => {
@@ -32,6 +65,7 @@ export default function PaymentModal({ openBill, onClose }: PaymentModalProps) {
     return { subtotal, totalVAT, totalICO, total };
   };
 
+  const consolidated = groupedProducts();
   const { subtotal, totalVAT, totalICO, total } = calculateTotals();
 
   const handlePrint = () => {
@@ -148,6 +182,23 @@ export default function PaymentModal({ openBill, onClose }: PaymentModalProps) {
     }, 250);
   };
 
+  const handlePayment = async () => {
+    setIsPaying(true);
+    setError(null);
+    try {
+      await payOrder(openBill.id);
+      onSuccess();
+      onClose();
+    } catch (err) {
+      console.error("Error paying order:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to process payment"
+      );
+    } finally {
+      setIsPaying(false);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleString("en-US", {
@@ -230,6 +281,22 @@ export default function PaymentModal({ openBill, onClose }: PaymentModalProps) {
 
         {/* Bill Content for Screen */}
         <div style={{ padding: "1.5rem" }}>
+          {/* Error Message */}
+          {error && (
+            <div
+              style={{
+                padding: "1rem",
+                backgroundColor: "#fee",
+                border: "1px solid #fcc",
+                borderRadius: "8px",
+                color: "#c00",
+                marginBottom: "1rem",
+              }}
+            >
+              {error}
+            </div>
+          )}
+
           {/* Bill Info */}
           <div
             style={{
@@ -275,11 +342,12 @@ export default function PaymentModal({ openBill, onClose }: PaymentModalProps) {
             <div
               style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
             >
-              {openBill.products.map(({ product, quantity, notes }, index) => {
-                const itemTotal = product.total_price_with_taxes * quantity;
+              {consolidated.map(({ product, totalQuantity }) => {
+                const itemTotal =
+                  product.total_price_with_taxes * totalQuantity;
                 return (
                   <div
-                    key={index}
+                    key={product.id}
                     style={{
                       padding: "1rem",
                       backgroundColor: "white",
@@ -307,20 +375,8 @@ export default function PaymentModal({ openBill, onClose }: PaymentModalProps) {
                         </div>
                         <div style={{ fontSize: "0.875rem", color: "#666" }}>
                           ${product.total_price_with_taxes.toFixed(2)} ×{" "}
-                          {quantity}
+                          {totalQuantity}
                         </div>
-                        {notes && (
-                          <div
-                            style={{
-                              fontSize: "0.875rem",
-                              color: "#666",
-                              fontStyle: "italic",
-                              marginTop: "0.25rem",
-                            }}
-                          >
-                            Note: {notes}
-                          </div>
-                        )}
                       </div>
                       <div
                         style={{
@@ -413,19 +469,19 @@ export default function PaymentModal({ openBill, onClose }: PaymentModalProps) {
             </div>
 
             <div className="items">
-              {openBill.products.map(({ product, quantity, notes }, index) => {
-                const itemTotal = product.total_price_with_taxes * quantity;
+              {consolidated.map(({ product, totalQuantity }) => {
+                const itemTotal =
+                  product.total_price_with_taxes * totalQuantity;
                 return (
-                  <div key={index} className="item">
+                  <div key={product.id} className="item">
                     <div className="item-name">{product.name}</div>
                     <div className="item-details">
                       <span>
                         ${product.total_price_with_taxes.toFixed(2)} ×{" "}
-                        {quantity}
+                        {totalQuantity}
                       </span>
                       <span>${itemTotal.toFixed(2)}</span>
                     </div>
-                    {notes && <div className="item-notes">• {notes}</div>}
                   </div>
                 );
               })}
@@ -473,6 +529,7 @@ export default function PaymentModal({ openBill, onClose }: PaymentModalProps) {
           <button
             type="button"
             onClick={onClose}
+            disabled={isPaying}
             style={{
               padding: "0.75rem 1.5rem",
               fontSize: "1rem",
@@ -481,7 +538,8 @@ export default function PaymentModal({ openBill, onClose }: PaymentModalProps) {
               color: "white",
               border: "none",
               borderRadius: "8px",
-              cursor: "pointer",
+              cursor: isPaying ? "not-allowed" : "pointer",
+              opacity: isPaying ? 0.6 : 1,
             }}
           >
             Close
@@ -489,6 +547,7 @@ export default function PaymentModal({ openBill, onClose }: PaymentModalProps) {
           <button
             type="button"
             onClick={handlePrint}
+            disabled={isPaying}
             style={{
               padding: "0.75rem 1.5rem",
               fontSize: "1rem",
@@ -497,10 +556,28 @@ export default function PaymentModal({ openBill, onClose }: PaymentModalProps) {
               color: "white",
               border: "none",
               borderRadius: "8px",
-              cursor: "pointer",
+              cursor: isPaying ? "not-allowed" : "pointer",
+              opacity: isPaying ? 0.6 : 1,
             }}
           >
             🖨️ Print Bill
+          </button>
+          <button
+            type="button"
+            onClick={handlePayment}
+            disabled={isPaying}
+            style={{
+              padding: "0.75rem 1.5rem",
+              fontSize: "1rem",
+              fontWeight: "bold",
+              backgroundColor: isPaying ? "#6c757d" : "#28a745",
+              color: "white",
+              border: "none",
+              borderRadius: "8px",
+              cursor: isPaying ? "not-allowed" : "pointer",
+            }}
+          >
+            {isPaying ? "Processing..." : "💳 Pay & Close Bill"}
           </button>
         </div>
       </div>
