@@ -137,7 +137,7 @@ func (r *OpenBillRepository) Create(ctx context.Context, openBill *dto.OpenBill,
 	})
 }
 
-func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.OpenBill, error) {
+func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.OpenBillWithProducts, error) {
 	type result struct {
 		// Open Bill fields
 		ID                 string
@@ -182,12 +182,93 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 		}
 	}
 
-	return &dto.OpenBill{
+	// Fetch products for this open bill
+	type productResult struct {
+		// Open Bill Product fields
+		ID         string
+		OpenBillID string
+		ProductID  string
+		Quantity   int
+		Notes      *string
+		// Product fields
+		ProductName                string
+		ProductCategory            string
+		ProductVersion             int
+		ProductUnitPrice           float64
+		ProductVAT                 float64
+		ProductICO                 float64
+		ProductDescription         *string
+		ProductBrand               *string
+		ProductModel               *string
+		ProductSKU                 string
+		ProductTotalPriceWithTaxes float64
+		ProductCreatedAt           time.Time
+		ProductUpdatedAt           time.Time
+	}
+
+	var productResults []productResult
+
+	err = r.db.WithContext(ctx).
+		Table("open_bills_products").
+		Select(`
+			open_bills_products.id,
+			open_bills_products.open_bill_id,
+			open_bills_products.product_id,
+			open_bills_products.quantity,
+			open_bills_products.notes,
+			products.name as product_name,
+			products.category as product_category,
+			products.version as product_version,
+			products.unit_price as product_unit_price,
+			products.vat as product_vat,
+			products.ico as product_ico,
+			products.description as product_description,
+			products.brand as product_brand,
+			products.model as product_model,
+			products.sku as product_sku,
+			products.total_price_with_taxes as product_total_price_with_taxes,
+			products.created_at as product_created_at,
+			products.updated_at as product_updated_at
+		`).
+		Joins("INNER JOIN products ON open_bills_products.product_id = products.id AND products.deleted_at IS NULL").
+		Where("open_bills_products.open_bill_id = ? AND open_bills_products.deleted_at IS NULL", id).
+		Scan(&productResults).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	productDetails := make([]dto.OpenBillProductDetail, len(productResults))
+	for i, pr := range productResults {
+		productDetails[i] = dto.OpenBillProductDetail{
+			Product: dto.Product{
+				ID:                  pr.ProductID,
+				Name:                pr.ProductName,
+				Category:            pr.ProductCategory,
+				Version:             pr.ProductVersion,
+				UnitPrice:           pr.ProductUnitPrice,
+				VAT:                 pr.ProductVAT,
+				ICO:                 pr.ProductICO,
+				Description:         pr.ProductDescription,
+				Brand:               pr.ProductBrand,
+				Model:               pr.ProductModel,
+				SKU:                 pr.ProductSKU,
+				TotalPriceWithTaxes: pr.ProductTotalPriceWithTaxes,
+				CreatedAt:           pr.ProductCreatedAt,
+				UpdatedAt:           pr.ProductUpdatedAt,
+			},
+			Quantity: pr.Quantity,
+			Notes:    pr.Notes,
+		}
+	}
+
+	return &dto.OpenBillWithProducts{
 		ID:                 res.ID,
 		TemporalIdentifier: res.TemporalIdentifier,
 		TotalAmount:        res.TotalAmount,
 		CreatedBy:          createdBy,
 		Descriptor:         res.Descriptor,
+		Products:           productDetails,
 		CreatedAt:          res.CreatedAt,
 		UpdatedAt:          res.UpdatedAt,
 	}, nil

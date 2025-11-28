@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"laguna-escondida/backend/internal/domain/aggregate/bill"
+	"laguna-escondida/backend/internal/domain/aggregate/product"
+	"laguna-escondida/backend/internal/domain/command"
 	"laguna-escondida/backend/internal/domain/dto"
 	orderError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
@@ -15,6 +18,7 @@ import (
 type OrderService struct {
 	openBillRepo   ports.OpenBillRepository
 	productRepo    ports.ProductRepository
+	billRepo       ports.BillRepository
 	invoiceService *InvoiceService
 	taxConfig      dto.TaxConfig
 }
@@ -22,12 +26,14 @@ type OrderService struct {
 func NewOrderService(
 	openBillRepo ports.OpenBillRepository,
 	productRepo ports.ProductRepository,
+	billRepo ports.BillRepository,
 	invoiceService *InvoiceService,
 ) *OrderService {
 	return &OrderService{
 		openBillRepo:   openBillRepo,
 		productRepo:    productRepo,
 		taxConfig:      dto.GetDefaultTaxConfig(),
+		billRepo:       billRepo,
 		invoiceService: invoiceService,
 	}
 }
@@ -159,17 +165,27 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 // PayOrder consolidates an open_bill into a bill
 // Moves all information from open_bill to bill (except temporal_identifier)
 // Only moves open_bill_products where deleted_at IS NULL to bill_products
-func (s *OrderService) PayOrder(ctx context.Context, openBillID string) (*dto.Bill, error) {
-	if _, err := s.openBillRepo.FindByID(ctx, openBillID); err != nil {
-		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
-	}
-
-	bill, err := s.openBillRepo.PayOrder(ctx, openBillID)
+func (s *OrderService) PayOrder(ctx context.Context, payOrderCommand command.PayOrderCommand) error {
+	openBillWithProducts, err := s.openBillRepo.FindByID(ctx, payOrderCommand.OpenBillID)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
+		return fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
 	}
 
-	return bill, nil
+	products, err := product.NewFromOpenBillProducts(openBillWithProducts.Products)
+	if err != nil {
+		return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
+	}
+
+	productDTOs := lo.Map(products, func(product *product.Aggregate, _ int) *dto.Product {
+		return product.ToDTO()
+	})
+
+	billAggregate, err := bill.NewBillFromOpenBillWithProducts(openBillWithProducts, payOrderCommand.PaymentCode, payOrderCommand.Customer)
+	if err != nil {
+		return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
+	}
+
+	return s.billRepo.Create(ctx, billAggregate, productDTOs)
 }
 
 // GetAllActiveOpenBills returns all open bills where deleted_at is NULL

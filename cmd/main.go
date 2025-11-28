@@ -71,7 +71,7 @@ func main() {
 	jwtService := service.NewJWTService(cfg.JWTSecret)
 
 	// Initialize services
-	orderService := service.NewOrderService(openBillRepo, productRepo, invoiceService)
+	orderService := service.NewOrderService(openBillRepo, productRepo, billRepo, invoiceService)
 	productService := service.NewProductService(productRepo)
 	stockService := service.NewStockService(stockRepo, productRepo)
 	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, jwtService)

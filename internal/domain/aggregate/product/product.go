@@ -109,6 +109,33 @@ func NewAggregateFromDTO(dto *dto.Product) (*Aggregate, error) {
 	}, nil
 }
 
+func NewFromOpenBillProducts(products []dto.OpenBillProductDetail) ([]*Aggregate, error) {
+	productMap := groupProductsByID(products)
+
+	productAggregates := make([]*Aggregate, 0, len(productMap))
+	for _, productDetail := range productMap {
+		productAggregate, err := NewAggregateFromDTO(&productDetail.Product)
+		if err != nil {
+			return nil, err
+		}
+		productAggregates = append(productAggregates, productAggregate)
+	}
+	return productAggregates, nil
+}
+
+func groupProductsByID(products []dto.OpenBillProductDetail) map[string]*dto.OpenBillProductDetail {
+	productMap := make(map[string]*dto.OpenBillProductDetail)
+
+	for _, productDetail := range products {
+		productID := productDetail.Product.ID
+		if _, exists := productMap[productID]; exists {
+			continue
+		}
+		productMap[productID] = &productDetail
+	}
+	return productMap
+}
+
 func NewAggregateFromCreateProductRequest(req *dto.CreateProductRequest) (*Aggregate, error) {
 	if req == nil {
 		return nil, productError.NewInvalidRequestError("request cannot be nil")

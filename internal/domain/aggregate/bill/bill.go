@@ -118,6 +118,69 @@ func (a *Aggregate) ToDTO() *dto.Bill {
 	}
 }
 
+func groupProductsByID(products []dto.OpenBillProductDetail) (map[string]*dto.OpenBillProductDetail, map[string]int) {
+	productMap := make(map[string]*dto.OpenBillProductDetail)
+	quantityMap := make(map[string]int)
+
+	for _, productDetail := range products {
+		productID := productDetail.Product.ID
+
+		if _, exists := productMap[productID]; exists {
+			quantityMap[productID] += productDetail.Quantity
+			continue
+		}
+
+		productMap[productID] = &productDetail
+		quantityMap[productID] = productDetail.Quantity
+	}
+
+	return productMap, quantityMap
+}
+
+func NewBillFromOpenBillWithProducts(openBillWithProducts *dto.OpenBillWithProducts, paymentCode dto.ElectronicInvoicePaymentCode, customer *dto.Customer) (*Aggregate, error) {
+	if len(openBillWithProducts.Products) == 0 {
+		return nil, billError.NewProductsCannotBeEmptyError()
+	}
+
+	productMap, quantityMap := groupProductsByID(openBillWithProducts.Products)
+
+	items := make([]dto.InvoiceItem, 0, len(productMap))
+	for productID, totalQuantity := range quantityMap {
+		items = append(items, dto.InvoiceItem{
+			Quantity:  totalQuantity,
+			ProductID: productID,
+			Allowance: []dto.InvoiceAllowance{},
+		})
+	}
+
+	billProducts := make([]*BillProduct, 0, len(productMap))
+	for productID, productDetail := range productMap {
+		totalQuantity := quantityMap[productID]
+		billProducts = append(billProducts, NewBillProduct(
+			productDetail.Product.ID,
+			totalQuantity,
+			productDetail.Product.UnitPrice,
+			productDetail.Product.Name,
+			productDetail.Product.Description,
+			productDetail.Product.Brand,
+			productDetail.Product.Model,
+			productDetail.Product.SKU,
+			[]dto.InvoiceAllowance{},
+			productDetail.Product.VAT,
+			productDetail.Product.ICO,
+		))
+	}
+
+	return NewBillFromCreateElectronicInvoiceRequest(
+		&dto.ElectronicInvoice{
+			PaymentCode: paymentCode,
+			Customer:    customer,
+			Items:       items,
+		},
+		billProducts,
+	)
+}
+
 func (a *Aggregate) Products() []*BillProduct {
 	return a.products
 }

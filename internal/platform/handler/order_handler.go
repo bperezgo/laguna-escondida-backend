@@ -5,9 +5,11 @@ import (
 	"log"
 	"net/http"
 
+	"laguna-escondida/backend/internal/domain/command"
 	"laguna-escondida/backend/internal/domain/dto"
 	orderError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/service"
+	orderdto "laguna-escondida/backend/internal/platform/dto/order"
 
 	"github.com/gin-gonic/gin"
 )
@@ -106,13 +108,23 @@ func (h *OrderHandler) UpdateOrderHandler(c *gin.Context) {
 }
 
 func (h *OrderHandler) PayOrderHandler(c *gin.Context) {
+	var req orderdto.PayOrderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("Error decoding request: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
 	openBillID := c.Param("id")
 	if openBillID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Order ID is required"})
 		return
 	}
 
-	bill, err := h.orderService.PayOrder(c.Request.Context(), openBillID)
+	err := h.orderService.PayOrder(c.Request.Context(), command.PayOrderCommand{
+		OpenBillID: openBillID,
+		Customer:   req.Customer,
+	})
 	if err != nil {
 		log.Printf("Error paying order: %v", err)
 
@@ -128,7 +140,7 @@ func (h *OrderHandler) PayOrderHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, bill)
+	c.JSON(http.StatusCreated, gin.H{"message": "Order paid successfully"})
 }
 
 func (h *OrderHandler) GetAllActiveOpenBillsHandler(c *gin.Context) {
