@@ -64,6 +64,7 @@ func main() {
 	userRepo := repository.NewUserRepository(db.DB)
 	roleRepo := repository.NewRoleRepository(db.DB)
 	userRoleRepo := repository.NewUserRoleRepository(db.DB)
+	billOwnerRepo := repository.NewBillOwnerRepository(db.DB)
 	electronicInvoiceClient := httpclient.NewElectronicInvoiceClient(cfg)
 	billRepo := repository.NewBillRepository(db.DB, electronicInvoiceClient, cfg)
 	invoiceService := service.NewInvoiceService(electronicInvoiceClient, productRepo, billRepo)
@@ -73,7 +74,7 @@ func main() {
 
 	// Initialize services
 	unitOfWork := postgres.NewUnitOfWork(db.DB)
-	orderService := service.NewOrderService(openBillRepo, productRepo, billRepo, invoiceService, unitOfWork)
+	orderService := service.NewOrderService(openBillRepo, productRepo, billRepo, billOwnerRepo, invoiceService, unitOfWork)
 	productService := service.NewProductService(productRepo)
 	stockService := service.NewStockService(stockRepo, productRepo)
 	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, jwtService)

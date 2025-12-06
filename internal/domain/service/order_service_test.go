@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"laguna-escondida/backend/internal/domain/aggregate/bill"
+	"laguna-escondida/backend/internal/domain/aggregate/customer"
 	"laguna-escondida/backend/internal/domain/aggregate/product"
 	"laguna-escondida/backend/internal/domain/command"
 	"laguna-escondida/backend/internal/domain/dto"
@@ -154,6 +155,29 @@ func (m *MockUnitOfWork) Do(ctx context.Context, fn func(ctx context.Context) er
 	return fn(ctx)
 }
 
+// MockBillOwnerRepository is a mock implementation of ports.BillOwnerRepository
+type MockBillOwnerRepository struct {
+	mock.Mock
+}
+
+func (m *MockBillOwnerRepository) FindByID(ctx context.Context, id string) (*customer.Aggregate, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*customer.Aggregate), args.Error(1)
+}
+
+func (m *MockBillOwnerRepository) Create(ctx context.Context, customerAggregate *customer.Aggregate) error {
+	args := m.Called(ctx, customerAggregate)
+	return args.Error(0)
+}
+
+func (m *MockBillOwnerRepository) Update(ctx context.Context, customerAggregate *customer.Aggregate) error {
+	args := m.Called(ctx, customerAggregate)
+	return args.Error(0)
+}
+
 // Test helpers
 func createTestContext() context.Context {
 	return context.Background()
@@ -179,9 +203,9 @@ func createTestUser() dto.UserDomain {
 	}
 }
 
-func createTestService(productRepo ports.ProductRepository, openBillRepo ports.OpenBillRepository, billRepo ports.BillRepository) *OrderService {
+func createTestService(productRepo ports.ProductRepository, openBillRepo ports.OpenBillRepository, billRepo ports.BillRepository, billOwnerRepo ports.BillOwnerRepository) *OrderService {
 	mockUnitOfWork := new(MockUnitOfWork)
-	return NewOrderService(openBillRepo, productRepo, billRepo, nil, mockUnitOfWork)
+	return NewOrderService(openBillRepo, productRepo, billRepo, billOwnerRepo, nil, mockUnitOfWork)
 }
 
 // Success Cases
@@ -191,7 +215,7 @@ func TestCreateOrder_EmptyOrder(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 	user := createTestUser()
 
 	req := &dto.CreateOrderRequest{
@@ -225,7 +249,7 @@ func TestCreateOrder_SingleProduct(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 	user := createTestUser()
 
 	productID := "product-1"
@@ -270,7 +294,7 @@ func TestCreateOrder_MultipleProducts(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 	user := createTestUser()
 
 	product1 := createTestProduct("product-1", "Product 1", "Category", 1, 50.0, 9.5)
@@ -328,7 +352,7 @@ func TestCreateOrder_ProductNotFound_Partial(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 	user := createTestUser()
 
 	product1 := createTestProduct("product-1", "Product 1", "Category", 1, 50.0, 9.5)
@@ -366,7 +390,7 @@ func TestCreateOrder_ProductNotFound_AllInvalid(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 	user := createTestUser()
 
 	productIDs := []string{"product-1", "product-2"}
@@ -403,7 +427,7 @@ func TestCreateOrder_RepositoryError_ProductFetch(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 	user := createTestUser()
 
 	productIDs := []string{"product-1"}
@@ -440,7 +464,7 @@ func TestCreateOrder_RepositoryError_OpenBillCreate(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 	user := createTestUser()
 
 	productID := "product-1"
@@ -480,7 +504,7 @@ func TestCreateOrder_TotalAmountCalculations(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 	user := createTestUser()
 
 	testCases := []struct {
@@ -540,7 +564,7 @@ func TestCreateOrder_TemporalIdentifierFormat(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 	user := createTestUser()
 
 	req := &dto.CreateOrderRequest{
@@ -565,7 +589,7 @@ func TestCreateOrder_TimestampFields(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 	user := createTestUser()
 
 	req := &dto.CreateOrderRequest{
@@ -600,7 +624,7 @@ func TestCreateOrder_ZeroPriceProducts(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 	user := createTestUser()
 
 	product := createTestProduct("product-1", "Free Product", "Category", 1, 0.0, 0.0)
@@ -635,7 +659,7 @@ func TestCreateOrder_LargePriceValues(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 	user := createTestUser()
 
 	largePrice := 999999999.99
@@ -671,7 +695,7 @@ func TestCreateOrder_NilProducts(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 	user := createTestUser()
 
 	req := &dto.CreateOrderRequest{
@@ -701,7 +725,7 @@ func TestCreateOrder_EmptySliceProducts(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 	user := createTestUser()
 
 	req := &dto.CreateOrderRequest{
@@ -735,7 +759,7 @@ func TestUpdateOrder_EmptyOrder(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 
 	openBillID := "bill-1"
 	existingBill := &dto.OpenBillWithProducts{
@@ -776,7 +800,7 @@ func TestUpdateOrder_SingleProduct(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 
 	openBillID := "bill-1"
 	existingBill := &dto.OpenBillWithProducts{
@@ -826,7 +850,7 @@ func TestUpdateOrder_MultipleProductsWithQuantities(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 
 	openBillID := "bill-1"
 	existingBill := &dto.OpenBillWithProducts{
@@ -879,7 +903,7 @@ func TestUpdateOrder_UpdateQuantity(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 
 	openBillID := "bill-1"
 	existingBill := &dto.OpenBillWithProducts{
@@ -930,7 +954,7 @@ func TestUpdateOrder_OrderNotFound(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 
 	openBillID := "bill-1"
 	req := &dto.UpdateOrderRequest{
@@ -964,7 +988,7 @@ func TestUpdateOrder_ProductNotFound(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 
 	openBillID := "bill-1"
 	existingBill := &dto.OpenBillWithProducts{
@@ -1010,7 +1034,7 @@ func TestUpdateOrder_RepositoryError_ProductFetch(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 
 	openBillID := "bill-1"
 	existingBill := &dto.OpenBillWithProducts{
@@ -1055,7 +1079,7 @@ func TestUpdateOrder_RepositoryError_Update(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 
 	openBillID := "bill-1"
 	existingBill := &dto.OpenBillWithProducts{
@@ -1107,7 +1131,7 @@ func TestGetAllActiveOpenBills_Success(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 
 	openBills := []*dto.OpenBill{
 		{
@@ -1147,7 +1171,7 @@ func TestGetAllActiveOpenBills_EmptyList(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 
 	openBills := []*dto.OpenBill{}
 
@@ -1172,7 +1196,7 @@ func TestGetAllActiveOpenBills_RepositoryError(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 
 	repoError := errors.New("database error")
 
@@ -1198,7 +1222,7 @@ func TestGetOpenBillWithProducts_Success(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 
 	openBillID := "bill-1"
 	openBillWithProducts := &dto.OpenBillWithProducts{
@@ -1260,7 +1284,7 @@ func TestGetOpenBillWithProducts_NoProducts(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 
 	openBillID := "bill-1"
 	openBillWithProducts := &dto.OpenBillWithProducts{
@@ -1291,7 +1315,7 @@ func TestGetOpenBillWithProducts_NotFound(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 
 	openBillID := "bill-1"
 
@@ -1311,7 +1335,7 @@ func TestGetOpenBillWithProducts_RepositoryError(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, nil)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 
 	openBillID := "bill-1"
 	repoError := errors.New("database error")
@@ -1339,7 +1363,8 @@ func TestPayOrder_Success(t *testing.T) {
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
 	mockBillRepo := new(MockBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, mockBillRepo)
+	mockBillOwnerRepo := new(MockBillOwnerRepository)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, mockBillRepo, mockBillOwnerRepo)
 
 	openBillID := "open-bill-1"
 	paymentCode := dto.ElectronicInvoicePaymentCodeCash
@@ -1381,6 +1406,8 @@ func TestPayOrder_Success(t *testing.T) {
 	}
 
 	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(openBillWithProducts, nil)
+	mockBillOwnerRepo.On("FindByID", ctx, customer.DocumentNumber).Return(nil, orderError.ErrBillOwnerNotFound)
+	mockBillOwnerRepo.On("Create", ctx, mock.AnythingOfType("*customer.Aggregate")).Return(nil)
 	mockBillRepo.On("Create", ctx, mock.Anything, mock.Anything).Return(nil)
 	mockOpenBillRepo.On("Delete", ctx, openBillID).Return(nil)
 
@@ -1391,6 +1418,7 @@ func TestPayOrder_Success(t *testing.T) {
 	mockProductRepo.AssertExpectations(t)
 	mockOpenBillRepo.AssertExpectations(t)
 	mockBillRepo.AssertExpectations(t)
+	mockBillOwnerRepo.AssertExpectations(t)
 	mockOpenBillRepo.AssertCalled(t, "Delete", ctx, openBillID)
 }
 
@@ -1399,7 +1427,8 @@ func TestPayOrder_SuccessWithoutCustomer(t *testing.T) {
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
 	mockBillRepo := new(MockBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, mockBillRepo)
+	mockBillOwnerRepo := new(MockBillOwnerRepository)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, mockBillRepo, mockBillOwnerRepo)
 
 	openBillID := "open-bill-1"
 	paymentCode := dto.ElectronicInvoicePaymentCodeCash
@@ -1453,7 +1482,8 @@ func TestPayOrder_RepeatedProductsWithDifferentNotes(t *testing.T) {
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
 	mockBillRepo := new(MockBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, mockBillRepo)
+	mockBillOwnerRepo := new(MockBillOwnerRepository)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, mockBillRepo, mockBillOwnerRepo)
 
 	openBillID := "open-bill-1"
 	paymentCode := dto.ElectronicInvoicePaymentCodeCreditCard
@@ -1528,6 +1558,8 @@ func TestPayOrder_RepeatedProductsWithDifferentNotes(t *testing.T) {
 	}
 
 	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(openBillWithProducts, nil)
+	mockBillOwnerRepo.On("FindByID", ctx, customer.DocumentNumber).Return(nil, orderError.ErrBillOwnerNotFound)
+	mockBillOwnerRepo.On("Create", ctx, mock.AnythingOfType("*customer.Aggregate")).Return(nil)
 	mockBillRepo.On("Create", ctx, mock.Anything, mock.MatchedBy(func(products []*dto.Product) bool {
 		if len(products) != 2 {
 			return false
@@ -1552,6 +1584,7 @@ func TestPayOrder_RepeatedProductsWithDifferentNotes(t *testing.T) {
 	mockProductRepo.AssertExpectations(t)
 	mockOpenBillRepo.AssertExpectations(t)
 	mockBillRepo.AssertExpectations(t)
+	mockBillOwnerRepo.AssertExpectations(t)
 	mockOpenBillRepo.AssertCalled(t, "Delete", ctx, openBillID)
 }
 
@@ -1562,7 +1595,8 @@ func TestPayOrder_OpenBillNotFound(t *testing.T) {
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
 	mockBillRepo := new(MockBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, mockBillRepo)
+	mockBillOwnerRepo := new(MockBillOwnerRepository)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, mockBillRepo, mockBillOwnerRepo)
 
 	openBillID := "non-existent-bill"
 	paymentCode := dto.ElectronicInvoicePaymentCodeCash
@@ -1599,7 +1633,8 @@ func TestPayOrder_InvalidPaymentCode(t *testing.T) {
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
 	mockBillRepo := new(MockBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, mockBillRepo)
+	mockBillOwnerRepo := new(MockBillOwnerRepository)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, mockBillRepo, mockBillOwnerRepo)
 
 	openBillID := "open-bill-1"
 	invalidPaymentCode := dto.ElectronicInvoicePaymentCode("invalid_code")
@@ -1641,6 +1676,8 @@ func TestPayOrder_InvalidPaymentCode(t *testing.T) {
 	}
 
 	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(openBillWithProducts, nil)
+	mockBillOwnerRepo.On("FindByID", ctx, customer.DocumentNumber).Return(nil, orderError.ErrBillOwnerNotFound)
+	mockBillOwnerRepo.On("Create", ctx, mock.AnythingOfType("*customer.Aggregate")).Return(nil)
 
 	err := service.PayOrder(ctx, payOrderCmd)
 
@@ -1653,6 +1690,7 @@ func TestPayOrder_InvalidPaymentCode(t *testing.T) {
 	mockProductRepo.AssertExpectations(t)
 	mockOpenBillRepo.AssertExpectations(t)
 	mockBillRepo.AssertExpectations(t)
+	mockBillOwnerRepo.AssertExpectations(t)
 }
 
 func TestPayOrder_BillCreateError(t *testing.T) {
@@ -1660,7 +1698,8 @@ func TestPayOrder_BillCreateError(t *testing.T) {
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
 	mockBillRepo := new(MockBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, mockBillRepo)
+	mockBillOwnerRepo := new(MockBillOwnerRepository)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, mockBillRepo, mockBillOwnerRepo)
 
 	openBillID := "open-bill-1"
 	paymentCode := dto.ElectronicInvoicePaymentCodeCash
@@ -1704,6 +1743,8 @@ func TestPayOrder_BillCreateError(t *testing.T) {
 	createError := errors.New("database error")
 
 	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(openBillWithProducts, nil)
+	mockBillOwnerRepo.On("FindByID", ctx, customer.DocumentNumber).Return(nil, orderError.ErrBillOwnerNotFound)
+	mockBillOwnerRepo.On("Create", ctx, mock.AnythingOfType("*customer.Aggregate")).Return(nil)
 	mockBillRepo.On("Create", ctx, mock.Anything, mock.Anything).Return(createError)
 
 	err := service.PayOrder(ctx, payOrderCmd)
@@ -1716,6 +1757,7 @@ func TestPayOrder_BillCreateError(t *testing.T) {
 	mockProductRepo.AssertExpectations(t)
 	mockOpenBillRepo.AssertExpectations(t)
 	mockBillRepo.AssertExpectations(t)
+	mockBillOwnerRepo.AssertExpectations(t)
 }
 
 func TestPayOrder_DeleteError(t *testing.T) {
@@ -1723,7 +1765,8 @@ func TestPayOrder_DeleteError(t *testing.T) {
 	mockProductRepo := new(MockProductRepository)
 	mockOpenBillRepo := new(MockOpenBillRepository)
 	mockBillRepo := new(MockBillRepository)
-	service := createTestService(mockProductRepo, mockOpenBillRepo, mockBillRepo)
+	mockBillOwnerRepo := new(MockBillOwnerRepository)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, mockBillRepo, mockBillOwnerRepo)
 
 	openBillID := "open-bill-1"
 	paymentCode := dto.ElectronicInvoicePaymentCodeCash
@@ -1767,6 +1810,8 @@ func TestPayOrder_DeleteError(t *testing.T) {
 	deleteError := errors.New("delete failed")
 
 	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(openBillWithProducts, nil)
+	mockBillOwnerRepo.On("FindByID", ctx, customer.DocumentNumber).Return(nil, orderError.ErrBillOwnerNotFound)
+	mockBillOwnerRepo.On("Create", ctx, mock.AnythingOfType("*customer.Aggregate")).Return(nil)
 	mockBillRepo.On("Create", ctx, mock.Anything, mock.Anything).Return(nil)
 	mockOpenBillRepo.On("Delete", ctx, openBillID).Return(deleteError)
 
@@ -1778,4 +1823,5 @@ func TestPayOrder_DeleteError(t *testing.T) {
 	mockProductRepo.AssertExpectations(t)
 	mockOpenBillRepo.AssertExpectations(t)
 	mockBillRepo.AssertExpectations(t)
+	mockBillOwnerRepo.AssertExpectations(t)
 }

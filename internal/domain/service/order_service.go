@@ -2,10 +2,12 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"laguna-escondida/backend/internal/domain/aggregate/bill"
+	"laguna-escondida/backend/internal/domain/aggregate/customer"
 	"laguna-escondida/backend/internal/domain/aggregate/product"
 	"laguna-escondida/backend/internal/domain/command"
 	"laguna-escondida/backend/internal/domain/dto"
@@ -19,6 +21,7 @@ type OrderService struct {
 	openBillRepo   ports.OpenBillRepository
 	productRepo    ports.ProductRepository
 	billRepo       ports.BillRepository
+	billOwnerRepo  ports.BillOwnerRepository
 	invoiceService *InvoiceService
 	unitOfWork     ports.UnitOfWork
 	taxConfig      dto.TaxConfig
@@ -28,6 +31,7 @@ func NewOrderService(
 	openBillRepo ports.OpenBillRepository,
 	productRepo ports.ProductRepository,
 	billRepo ports.BillRepository,
+	billOwnerRepo ports.BillOwnerRepository,
 	invoiceService *InvoiceService,
 	unitOfWork ports.UnitOfWork,
 ) *OrderService {
@@ -36,6 +40,7 @@ func NewOrderService(
 		productRepo:    productRepo,
 		taxConfig:      dto.GetDefaultTaxConfig(),
 		billRepo:       billRepo,
+		billOwnerRepo:  billOwnerRepo,
 		invoiceService: invoiceService,
 		unitOfWork:     unitOfWork,
 	}
@@ -175,6 +180,12 @@ func (s *OrderService) PayOrder(ctx context.Context, payOrderCommand command.Pay
 			return fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
 		}
 
+		if payOrderCommand.Customer != nil {
+			if err := s.createOrUpdateBillOwner(txCtx, payOrderCommand.Customer); err != nil {
+				return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
+			}
+		}
+
 		products, err := product.NewFromOpenBillProducts(openBillWithProducts.Products)
 		if err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
@@ -199,6 +210,25 @@ func (s *OrderService) PayOrder(ctx context.Context, payOrderCommand command.Pay
 
 		return nil
 	})
+}
+
+func (s *OrderService) createOrUpdateBillOwner(ctx context.Context, customerDTO *dto.Customer) error {
+	existingCustomer, err := s.billOwnerRepo.FindByID(ctx, customerDTO.DocumentNumber)
+	if err != nil {
+		if errors.Is(err, orderError.ErrBillOwnerNotFound) {
+			customerAggregate, err := customer.NewCustomerFromDTO(customerDTO)
+			if err != nil {
+				return fmt.Errorf("failed to create customer aggregate: %w", err)
+			}
+			return s.billOwnerRepo.Create(ctx, customerAggregate)
+		}
+		return fmt.Errorf("failed to find bill owner: %w", err)
+	}
+
+	if err := existingCustomer.UpdateFromDTO(customerDTO); err != nil {
+		return fmt.Errorf("failed to update customer from DTO: %w", err)
+	}
+	return s.billOwnerRepo.Update(ctx, existingCustomer)
 }
 
 // GetAllActiveOpenBills returns all open bills where deleted_at is NULL
