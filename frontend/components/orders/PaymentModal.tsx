@@ -219,7 +219,6 @@ export default function PaymentModal({
       setCustomerIdentificationType(bill_owner.identification_type || "");
     } catch (err) {
       // Customer not found - form will remain empty for new entry
-      console.log("Customer not found, showing empty form");
       setCustomerName("");
       setCustomerEmail("");
       setCustomerPhone("");

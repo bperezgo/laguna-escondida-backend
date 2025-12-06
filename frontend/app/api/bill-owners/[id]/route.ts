@@ -7,18 +7,17 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const { id } = await params;
+  const { id } = await params;
 
-    return await serverApiRequest<BillOwnerResponse>(`/bill-owners/${id}`);
-  } catch (error) {
-    console.error("Error fetching bill owner:", error);
+  const response = await serverApiRequest<BillOwnerResponse>(
+    `/bill-owners/${id}`
+  );
+  if (!response.ok) {
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error ? error.message : "Failed to fetch bill owner",
-      },
-      { status: 500 }
+      { error: "Failed to fetch bill owner" },
+      { status: response.status }
     );
   }
+  const data = await response.json();
+  return NextResponse.json(data);
 }

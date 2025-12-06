@@ -42,5 +42,7 @@ export async function serverApiRequest<T>(
     return NextResponse.json({} as T, { status: 204 });
   }
 
-  return NextResponse.json(await response.json(), { status: response.status });
+  return NextResponse.json(await response.json(), {
+    status: response.status,
+  });
 }
