@@ -115,15 +115,10 @@ func (h *OrderHandler) PayOrderHandler(c *gin.Context) {
 		return
 	}
 
-	openBillID := c.Param("id")
-	if openBillID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Order ID is required"})
-		return
-	}
-
 	err := h.orderService.PayOrder(c.Request.Context(), command.PayOrderCommand{
-		OpenBillID: openBillID,
-		Customer:   req.Customer,
+		OpenBillID:  req.OrderID,
+		PaymentCode: req.PaymentType,
+		Customer:    req.Customer,
 	})
 	if err != nil {
 		log.Printf("Error paying order: %v", err)

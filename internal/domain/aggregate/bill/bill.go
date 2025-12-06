@@ -21,7 +21,7 @@ type Aggregate struct {
 	tip            float64
 	documentURL    *string
 	customer       *dto.Customer
-	paymentCode    dto.ElectronicInvoicePaymentCode
+	paymentCode    *PaymentCode
 	products       []*BillProduct
 	createdAt      time.Time
 	updatedAt      time.Time
@@ -30,6 +30,11 @@ type Aggregate struct {
 func NewBillFromCreateElectronicInvoiceRequest(invoice *dto.ElectronicInvoice, products []*BillProduct) (*Aggregate, error) {
 	if len(products) == 0 {
 		return nil, billError.NewProductsCannotBeEmptyError()
+	}
+
+	paymentCode, err := NewPaymentCode(invoice.PaymentCode)
+	if err != nil {
+		return nil, err
 	}
 
 	totalAmount := 0.0
@@ -80,7 +85,7 @@ func NewBillFromCreateElectronicInvoiceRequest(invoice *dto.ElectronicInvoice, p
 		tip:            totalTip,
 		documentURL:    nil,
 		customer:       invoice.Customer,
-		paymentCode:    invoice.PaymentCode,
+		paymentCode:    paymentCode,
 		products:       products,
 		createdAt:      time.Now(),
 		updatedAt:      time.Now(),
@@ -186,5 +191,5 @@ func (a *Aggregate) Products() []*BillProduct {
 }
 
 func (a *Aggregate) PaymentCode() dto.ElectronicInvoicePaymentCode {
-	return a.paymentCode
+	return a.paymentCode.Value()
 }

@@ -12,4 +12,5 @@ type OpenBillRepository interface {
 	FindAll(ctx context.Context) ([]*dto.OpenBill, error)
 	FindByIDWithProducts(ctx context.Context, id string) (*dto.OpenBillWithProducts, error)
 	Update(ctx context.Context, openBillID string, openBill *dto.OpenBill, products []dto.OrderProductItem) error
+	Delete(ctx context.Context, openBillID string) error
 }

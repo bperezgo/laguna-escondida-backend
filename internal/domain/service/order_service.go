@@ -185,7 +185,15 @@ func (s *OrderService) PayOrder(ctx context.Context, payOrderCommand command.Pay
 		return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
 	}
 
-	return s.billRepo.Create(ctx, billAggregate, productDTOs)
+	if err := s.billRepo.Create(ctx, billAggregate, productDTOs); err != nil {
+		return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
+	}
+
+	if err := s.openBillRepo.Delete(ctx, payOrderCommand.OpenBillID); err != nil {
+		return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
+	}
+
+	return nil
 }
 
 // GetAllActiveOpenBills returns all open bills where deleted_at is NULL

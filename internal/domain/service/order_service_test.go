@@ -6,7 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"laguna-escondida/backend/internal/domain/aggregate/bill"
 	"laguna-escondida/backend/internal/domain/aggregate/product"
+	"laguna-escondida/backend/internal/domain/command"
 	"laguna-escondida/backend/internal/domain/dto"
 	orderError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
@@ -65,8 +67,8 @@ type MockBillRepository struct {
 	mock.Mock
 }
 
-func (m *MockBillRepository) Create(ctx context.Context, bill interface{}, products []*dto.Product) error {
-	args := m.Called(ctx, bill, products)
+func (m *MockBillRepository) Create(ctx context.Context, billAggregate *bill.Aggregate, products []*dto.Product) error {
+	args := m.Called(ctx, billAggregate, products)
 	return args.Error(0)
 }
 
@@ -122,14 +124,6 @@ func (m *MockOpenBillRepository) Update(ctx context.Context, openBillID string, 
 	return args.Error(0)
 }
 
-func (m *MockOpenBillRepository) PayOrder(ctx context.Context, openBillID string) (*dto.Bill, error) {
-	args := m.Called(ctx, openBillID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*dto.Bill), args.Error(1)
-}
-
 func (m *MockOpenBillRepository) FindAll(ctx context.Context) ([]*dto.OpenBill, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
@@ -144,6 +138,11 @@ func (m *MockOpenBillRepository) FindByIDWithProducts(ctx context.Context, id st
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*dto.OpenBillWithProducts), args.Error(1)
+}
+
+func (m *MockOpenBillRepository) Delete(ctx context.Context, openBillID string) error {
+	args := m.Called(ctx, openBillID)
+	return args.Error(0)
 }
 
 // Test helpers
@@ -1317,4 +1316,456 @@ func TestGetOpenBillWithProducts_RepositoryError(t *testing.T) {
 
 	mockProductRepo.AssertExpectations(t)
 	mockOpenBillRepo.AssertExpectations(t)
+}
+
+// ====================================================================
+// PayOrder Tests
+// ====================================================================
+
+// Success Cases
+
+func TestPayOrder_Success(t *testing.T) {
+	ctx := createTestContext()
+	mockProductRepo := new(MockProductRepository)
+	mockOpenBillRepo := new(MockOpenBillRepository)
+	mockBillRepo := new(MockBillRepository)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, mockBillRepo)
+
+	openBillID := "open-bill-1"
+	paymentCode := dto.ElectronicInvoicePaymentCodeCash
+	customer := &dto.Customer{
+		DocumentNumber: "123456789",
+		DocumentType:   dto.DocumentTypeNationalIdentificationNumber,
+		Name:           "John Doe",
+		Email:          "john@example.com",
+	}
+
+	openBillWithProducts := &dto.OpenBillWithProducts{
+		ID:                 openBillID,
+		TemporalIdentifier: "TABLE-01",
+		TotalAmount:        100.0,
+		Products: []dto.OpenBillProductDetail{
+			{
+				Product: dto.Product{
+					ID:                  "product-1",
+					Name:                "Product 1",
+					Category:            "Category 1",
+					Version:             1,
+					UnitPrice:           39.37,
+					VAT:                 0.19,
+					ICO:                 0.08,
+					SKU:                 "SKU001",
+					TotalPriceWithTaxes: 50.0,
+				},
+				Quantity: 2,
+			},
+		},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	payOrderCmd := command.PayOrderCommand{
+		OpenBillID:  openBillID,
+		PaymentCode: paymentCode,
+		Customer:    customer,
+	}
+
+	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(openBillWithProducts, nil)
+	mockBillRepo.On("Create", ctx, mock.Anything, mock.Anything).Return(nil)
+	mockOpenBillRepo.On("Delete", ctx, openBillID).Return(nil)
+
+	err := service.PayOrder(ctx, payOrderCmd)
+
+	require.NoError(t, err)
+
+	mockProductRepo.AssertExpectations(t)
+	mockOpenBillRepo.AssertExpectations(t)
+	mockBillRepo.AssertExpectations(t)
+	mockOpenBillRepo.AssertCalled(t, "Delete", ctx, openBillID)
+}
+
+func TestPayOrder_SuccessWithoutCustomer(t *testing.T) {
+	ctx := createTestContext()
+	mockProductRepo := new(MockProductRepository)
+	mockOpenBillRepo := new(MockOpenBillRepository)
+	mockBillRepo := new(MockBillRepository)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, mockBillRepo)
+
+	openBillID := "open-bill-1"
+	paymentCode := dto.ElectronicInvoicePaymentCodeCash
+
+	openBillWithProducts := &dto.OpenBillWithProducts{
+		ID:                 openBillID,
+		TemporalIdentifier: "TABLE-01",
+		TotalAmount:        100.0,
+		Products: []dto.OpenBillProductDetail{
+			{
+				Product: dto.Product{
+					ID:                  "product-1",
+					Name:                "Product 1",
+					Category:            "Category 1",
+					Version:             1,
+					UnitPrice:           39.37,
+					VAT:                 0.19,
+					ICO:                 0.08,
+					SKU:                 "SKU001",
+					TotalPriceWithTaxes: 50.0,
+				},
+				Quantity: 2,
+			},
+		},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	payOrderCmd := command.PayOrderCommand{
+		OpenBillID:  openBillID,
+		PaymentCode: paymentCode,
+		Customer:    nil,
+	}
+
+	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(openBillWithProducts, nil)
+	mockBillRepo.On("Create", ctx, mock.Anything, mock.Anything).Return(nil)
+	mockOpenBillRepo.On("Delete", ctx, openBillID).Return(nil)
+
+	err := service.PayOrder(ctx, payOrderCmd)
+
+	require.NoError(t, err)
+
+	mockProductRepo.AssertExpectations(t)
+	mockOpenBillRepo.AssertExpectations(t)
+	mockBillRepo.AssertExpectations(t)
+	mockOpenBillRepo.AssertCalled(t, "Delete", ctx, openBillID)
+}
+
+func TestPayOrder_RepeatedProductsWithDifferentNotes(t *testing.T) {
+	ctx := createTestContext()
+	mockProductRepo := new(MockProductRepository)
+	mockOpenBillRepo := new(MockOpenBillRepository)
+	mockBillRepo := new(MockBillRepository)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, mockBillRepo)
+
+	openBillID := "open-bill-1"
+	paymentCode := dto.ElectronicInvoicePaymentCodeCreditCard
+	customer := &dto.Customer{
+		DocumentNumber: "987654321",
+		DocumentType:   dto.DocumentTypeNIT,
+		Name:           "Jane Doe",
+		Email:          "jane@example.com",
+	}
+
+	note1 := "No onions"
+	note2 := "Extra cheese"
+
+	openBillWithProducts := &dto.OpenBillWithProducts{
+		ID:                 openBillID,
+		TemporalIdentifier: "TABLE-02",
+		TotalAmount:        150.0,
+		Products: []dto.OpenBillProductDetail{
+			{
+				Product: dto.Product{
+					ID:                  "product-1",
+					Name:                "Burger",
+					Category:            "Food",
+					Version:             1,
+					UnitPrice:           39.37,
+					VAT:                 0.19,
+					ICO:                 0.08,
+					SKU:                 "BURGER001",
+					TotalPriceWithTaxes: 50.0,
+				},
+				Quantity: 1,
+				Notes:    &note1,
+			},
+			{
+				Product: dto.Product{
+					ID:                  "product-1",
+					Name:                "Burger",
+					Category:            "Food",
+					Version:             1,
+					UnitPrice:           39.37,
+					VAT:                 0.19,
+					ICO:                 0.08,
+					SKU:                 "BURGER001",
+					TotalPriceWithTaxes: 50.0,
+				},
+				Quantity: 1,
+				Notes:    &note2,
+			},
+			{
+				Product: dto.Product{
+					ID:                  "product-2",
+					Name:                "Fries",
+					Category:            "Food",
+					Version:             1,
+					UnitPrice:           19.69,
+					VAT:                 0.19,
+					ICO:                 0.08,
+					SKU:                 "FRIES001",
+					TotalPriceWithTaxes: 25.0,
+				},
+				Quantity: 2,
+			},
+		},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	payOrderCmd := command.PayOrderCommand{
+		OpenBillID:  openBillID,
+		PaymentCode: paymentCode,
+		Customer:    customer,
+	}
+
+	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(openBillWithProducts, nil)
+	mockBillRepo.On("Create", ctx, mock.Anything, mock.MatchedBy(func(products []*dto.Product) bool {
+		if len(products) != 2 {
+			return false
+		}
+
+		productMap := make(map[string]*dto.Product)
+		for _, p := range products {
+			productMap[p.ID] = p
+		}
+
+		burger, hasBurger := productMap["product-1"]
+		fries, hasFries := productMap["product-2"]
+
+		return hasBurger && hasFries && burger.Name == "Burger" && fries.Name == "Fries"
+	})).Return(nil)
+	mockOpenBillRepo.On("Delete", ctx, openBillID).Return(nil)
+
+	err := service.PayOrder(ctx, payOrderCmd)
+
+	require.NoError(t, err)
+
+	mockProductRepo.AssertExpectations(t)
+	mockOpenBillRepo.AssertExpectations(t)
+	mockBillRepo.AssertExpectations(t)
+	mockOpenBillRepo.AssertCalled(t, "Delete", ctx, openBillID)
+}
+
+// Error Cases
+
+func TestPayOrder_OpenBillNotFound(t *testing.T) {
+	ctx := createTestContext()
+	mockProductRepo := new(MockProductRepository)
+	mockOpenBillRepo := new(MockOpenBillRepository)
+	mockBillRepo := new(MockBillRepository)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, mockBillRepo)
+
+	openBillID := "non-existent-bill"
+	paymentCode := dto.ElectronicInvoicePaymentCodeCash
+	customer := &dto.Customer{
+		DocumentNumber: "123456789",
+		DocumentType:   dto.DocumentTypeNationalIdentificationNumber,
+		Name:           "John Doe",
+		Email:          "john@example.com",
+	}
+
+	payOrderCmd := command.PayOrderCommand{
+		OpenBillID:  openBillID,
+		PaymentCode: paymentCode,
+		Customer:    customer,
+	}
+
+	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(nil, errors.New("not found"))
+
+	err := service.PayOrder(ctx, payOrderCmd)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, orderError.ErrOrderNotFound)
+
+	mockOpenBillRepo.AssertNotCalled(t, "Delete")
+	mockBillRepo.AssertNotCalled(t, "Create")
+
+	mockProductRepo.AssertExpectations(t)
+	mockOpenBillRepo.AssertExpectations(t)
+	mockBillRepo.AssertExpectations(t)
+}
+
+func TestPayOrder_InvalidPaymentCode(t *testing.T) {
+	ctx := createTestContext()
+	mockProductRepo := new(MockProductRepository)
+	mockOpenBillRepo := new(MockOpenBillRepository)
+	mockBillRepo := new(MockBillRepository)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, mockBillRepo)
+
+	openBillID := "open-bill-1"
+	invalidPaymentCode := dto.ElectronicInvoicePaymentCode("invalid_code")
+	customer := &dto.Customer{
+		DocumentNumber: "123456789",
+		DocumentType:   dto.DocumentTypeNationalIdentificationNumber,
+		Name:           "John Doe",
+		Email:          "john@example.com",
+	}
+
+	openBillWithProducts := &dto.OpenBillWithProducts{
+		ID:                 openBillID,
+		TemporalIdentifier: "TABLE-01",
+		TotalAmount:        100.0,
+		Products: []dto.OpenBillProductDetail{
+			{
+				Product: dto.Product{
+					ID:                  "product-1",
+					Name:                "Product 1",
+					Category:            "Category 1",
+					Version:             1,
+					UnitPrice:           39.37,
+					VAT:                 0.19,
+					ICO:                 0.08,
+					SKU:                 "SKU001",
+					TotalPriceWithTaxes: 50.0,
+				},
+				Quantity: 2,
+			},
+		},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	payOrderCmd := command.PayOrderCommand{
+		OpenBillID:  openBillID,
+		PaymentCode: invalidPaymentCode,
+		Customer:    customer,
+	}
+
+	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(openBillWithProducts, nil)
+
+	err := service.PayOrder(ctx, payOrderCmd)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, orderError.ErrOrderPaymentFailed)
+
+	mockOpenBillRepo.AssertNotCalled(t, "Delete")
+	mockBillRepo.AssertNotCalled(t, "Create")
+
+	mockProductRepo.AssertExpectations(t)
+	mockOpenBillRepo.AssertExpectations(t)
+	mockBillRepo.AssertExpectations(t)
+}
+
+func TestPayOrder_BillCreateError(t *testing.T) {
+	ctx := createTestContext()
+	mockProductRepo := new(MockProductRepository)
+	mockOpenBillRepo := new(MockOpenBillRepository)
+	mockBillRepo := new(MockBillRepository)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, mockBillRepo)
+
+	openBillID := "open-bill-1"
+	paymentCode := dto.ElectronicInvoicePaymentCodeCash
+	customer := &dto.Customer{
+		DocumentNumber: "123456789",
+		DocumentType:   dto.DocumentTypeNationalIdentificationNumber,
+		Name:           "John Doe",
+		Email:          "john@example.com",
+	}
+
+	openBillWithProducts := &dto.OpenBillWithProducts{
+		ID:                 openBillID,
+		TemporalIdentifier: "TABLE-01",
+		TotalAmount:        100.0,
+		Products: []dto.OpenBillProductDetail{
+			{
+				Product: dto.Product{
+					ID:                  "product-1",
+					Name:                "Product 1",
+					Category:            "Category 1",
+					Version:             1,
+					UnitPrice:           39.37,
+					VAT:                 0.19,
+					ICO:                 0.08,
+					SKU:                 "SKU001",
+					TotalPriceWithTaxes: 50.0,
+				},
+				Quantity: 2,
+			},
+		},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	payOrderCmd := command.PayOrderCommand{
+		OpenBillID:  openBillID,
+		PaymentCode: paymentCode,
+		Customer:    customer,
+	}
+
+	createError := errors.New("database error")
+
+	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(openBillWithProducts, nil)
+	mockBillRepo.On("Create", ctx, mock.Anything, mock.Anything).Return(createError)
+
+	err := service.PayOrder(ctx, payOrderCmd)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, orderError.ErrOrderPaymentFailed)
+
+	mockOpenBillRepo.AssertNotCalled(t, "Delete")
+
+	mockProductRepo.AssertExpectations(t)
+	mockOpenBillRepo.AssertExpectations(t)
+	mockBillRepo.AssertExpectations(t)
+}
+
+func TestPayOrder_DeleteError(t *testing.T) {
+	ctx := createTestContext()
+	mockProductRepo := new(MockProductRepository)
+	mockOpenBillRepo := new(MockOpenBillRepository)
+	mockBillRepo := new(MockBillRepository)
+	service := createTestService(mockProductRepo, mockOpenBillRepo, mockBillRepo)
+
+	openBillID := "open-bill-1"
+	paymentCode := dto.ElectronicInvoicePaymentCodeCash
+	customer := &dto.Customer{
+		DocumentNumber: "123456789",
+		DocumentType:   dto.DocumentTypeNationalIdentificationNumber,
+		Name:           "John Doe",
+		Email:          "john@example.com",
+	}
+
+	openBillWithProducts := &dto.OpenBillWithProducts{
+		ID:                 openBillID,
+		TemporalIdentifier: "TABLE-01",
+		TotalAmount:        100.0,
+		Products: []dto.OpenBillProductDetail{
+			{
+				Product: dto.Product{
+					ID:                  "product-1",
+					Name:                "Product 1",
+					Category:            "Category 1",
+					Version:             1,
+					UnitPrice:           39.37,
+					VAT:                 0.19,
+					ICO:                 0.08,
+					SKU:                 "SKU001",
+					TotalPriceWithTaxes: 50.0,
+				},
+				Quantity: 2,
+			},
+		},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	payOrderCmd := command.PayOrderCommand{
+		OpenBillID:  openBillID,
+		PaymentCode: paymentCode,
+		Customer:    customer,
+	}
+
+	deleteError := errors.New("delete failed")
+
+	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(openBillWithProducts, nil)
+	mockBillRepo.On("Create", ctx, mock.Anything, mock.Anything).Return(nil)
+	mockOpenBillRepo.On("Delete", ctx, openBillID).Return(deleteError)
+
+	err := service.PayOrder(ctx, payOrderCmd)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, orderError.ErrOrderPaymentFailed)
+
+	mockProductRepo.AssertExpectations(t)
+	mockOpenBillRepo.AssertExpectations(t)
+	mockBillRepo.AssertExpectations(t)
 }

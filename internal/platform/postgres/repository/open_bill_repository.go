@@ -274,6 +274,13 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 	}, nil
 }
 
+func (r *OpenBillRepository) Delete(ctx context.Context, openBillID string) error {
+	now := time.Now()
+	return r.db.WithContext(ctx).Model(&openBillModel{}).
+		Where("id = ? AND deleted_at IS NULL", openBillID).
+		Update("deleted_at", now).Error
+}
+
 func (r *OpenBillRepository) Update(ctx context.Context, openBillID string, openBill *dto.OpenBill, products []dto.OrderProductItem) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		updateData := map[string]interface{}{
