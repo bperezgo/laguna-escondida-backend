@@ -26,4 +26,7 @@ postgres_data/
 __debug_bin*
 
 ./main
+pem/
+
+.DS_Store
 
