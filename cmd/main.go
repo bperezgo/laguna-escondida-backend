@@ -78,6 +78,7 @@ func main() {
 	productService := service.NewProductService(productRepo)
 	stockService := service.NewStockService(stockRepo, productRepo)
 	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, jwtService)
+	billOwnerService := service.NewBillOwnerService(billOwnerRepo)
 
 	// Initialize handlers
 	orderHandler := handler.NewOrderHandler(orderService)
@@ -85,6 +86,7 @@ func main() {
 	stockHandler := handler.NewStockHandler(stockService)
 	invoiceHandler := handler.NewInvoiceHandler(invoiceService)
 	userHandler := handler.NewUserHandler(userService)
+	billOwnerHandler := handler.NewBillOwnerHandler(billOwnerService)
 
 	// Setup routes
 	router := gin.Default()
@@ -132,6 +134,9 @@ func main() {
 	router.DELETE("/api/stock/:product_id", handler.JWTAuthMiddleware(jwtService), stockHandler.DeleteStockHandler)
 	router.GET("/api/stock", handler.JWTAuthMiddleware(jwtService), stockHandler.GetAllStocksHandler)
 	router.POST("/api/stock/bulk", handler.JWTAuthMiddleware(jwtService), stockHandler.BulkStockCreationOrUpdatingHandler)
+
+	// Bill Owner routes
+	router.GET("/api/bill-owners/:id", handler.JWTAuthMiddleware(jwtService), billOwnerHandler.GetByIDHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {
