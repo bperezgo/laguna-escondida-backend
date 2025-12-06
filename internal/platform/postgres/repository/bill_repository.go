@@ -6,6 +6,7 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
 	"laguna-escondida/backend/internal/platform/config"
+	"laguna-escondida/backend/internal/platform/postgres"
 	"laguna-escondida/backend/internal/platform/shared/constants"
 	"time"
 
@@ -52,7 +53,8 @@ func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, produ
 	}
 
 	var response *dto.CreateElectronicInvoiceResponse
-	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	db := postgres.GetTxOrDB(ctx, r.db)
+	err = db.Transaction(func(tx *gorm.DB) error {
 		billModel := &billModel{
 			ID:             billDTO.ID,
 			BillOwnerID:    billOwnerID,

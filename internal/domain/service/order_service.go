@@ -20,6 +20,7 @@ type OrderService struct {
 	productRepo    ports.ProductRepository
 	billRepo       ports.BillRepository
 	invoiceService *InvoiceService
+	unitOfWork     ports.UnitOfWork
 	taxConfig      dto.TaxConfig
 }
 
@@ -28,6 +29,7 @@ func NewOrderService(
 	productRepo ports.ProductRepository,
 	billRepo ports.BillRepository,
 	invoiceService *InvoiceService,
+	unitOfWork ports.UnitOfWork,
 ) *OrderService {
 	return &OrderService{
 		openBillRepo:   openBillRepo,
@@ -35,6 +37,7 @@ func NewOrderService(
 		taxConfig:      dto.GetDefaultTaxConfig(),
 		billRepo:       billRepo,
 		invoiceService: invoiceService,
+		unitOfWork:     unitOfWork,
 	}
 }
 
@@ -166,34 +169,36 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 // Moves all information from open_bill to bill (except temporal_identifier)
 // Only moves open_bill_products where deleted_at IS NULL to bill_products
 func (s *OrderService) PayOrder(ctx context.Context, payOrderCommand command.PayOrderCommand) error {
-	openBillWithProducts, err := s.openBillRepo.FindByID(ctx, payOrderCommand.OpenBillID)
-	if err != nil {
-		return fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
-	}
+	return s.unitOfWork.Do(ctx, func(txCtx context.Context) error {
+		openBillWithProducts, err := s.openBillRepo.FindByID(txCtx, payOrderCommand.OpenBillID)
+		if err != nil {
+			return fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
+		}
 
-	products, err := product.NewFromOpenBillProducts(openBillWithProducts.Products)
-	if err != nil {
-		return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
-	}
+		products, err := product.NewFromOpenBillProducts(openBillWithProducts.Products)
+		if err != nil {
+			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
+		}
 
-	productDTOs := lo.Map(products, func(product *product.Aggregate, _ int) *dto.Product {
-		return product.ToDTO()
+		productDTOs := lo.Map(products, func(product *product.Aggregate, _ int) *dto.Product {
+			return product.ToDTO()
+		})
+
+		billAggregate, err := bill.NewBillFromOpenBillWithProducts(openBillWithProducts, payOrderCommand.PaymentCode, payOrderCommand.Customer)
+		if err != nil {
+			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
+		}
+
+		if err := s.billRepo.Create(txCtx, billAggregate, productDTOs); err != nil {
+			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
+		}
+
+		if err := s.openBillRepo.Delete(txCtx, payOrderCommand.OpenBillID); err != nil {
+			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
+		}
+
+		return nil
 	})
-
-	billAggregate, err := bill.NewBillFromOpenBillWithProducts(openBillWithProducts, payOrderCommand.PaymentCode, payOrderCommand.Customer)
-	if err != nil {
-		return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
-	}
-
-	if err := s.billRepo.Create(ctx, billAggregate, productDTOs); err != nil {
-		return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
-	}
-
-	if err := s.openBillRepo.Delete(ctx, payOrderCommand.OpenBillID); err != nil {
-		return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
-	}
-
-	return nil
 }
 
 // GetAllActiveOpenBills returns all open bills where deleted_at is NULL

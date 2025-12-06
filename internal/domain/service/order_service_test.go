@@ -145,6 +145,15 @@ func (m *MockOpenBillRepository) Delete(ctx context.Context, openBillID string) 
 	return args.Error(0)
 }
 
+// MockUnitOfWork is a mock implementation of ports.UnitOfWork
+type MockUnitOfWork struct {
+	mock.Mock
+}
+
+func (m *MockUnitOfWork) Do(ctx context.Context, fn func(ctx context.Context) error) error {
+	return fn(ctx)
+}
+
 // Test helpers
 func createTestContext() context.Context {
 	return context.Background()
@@ -171,7 +180,8 @@ func createTestUser() dto.UserDomain {
 }
 
 func createTestService(productRepo ports.ProductRepository, openBillRepo ports.OpenBillRepository, billRepo ports.BillRepository) *OrderService {
-	return NewOrderService(openBillRepo, productRepo, billRepo, nil)
+	mockUnitOfWork := new(MockUnitOfWork)
+	return NewOrderService(openBillRepo, productRepo, billRepo, nil, mockUnitOfWork)
 }
 
 // Success Cases
@@ -190,7 +200,7 @@ func TestCreateOrder_EmptyOrder(t *testing.T) {
 	}
 
 	// Mock expectations
-	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*dto.OpenBill"), []dto.OrderProductItem{}).Return(nil)
+	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*dto.OpenBill"), []dto.OrderProductItem{}, user.ID).Return(nil)
 
 	// Execute
 	result, err := service.CreateOrder(ctx, req, user)
@@ -233,7 +243,7 @@ func TestCreateOrder_SingleProduct(t *testing.T) {
 	mockProductRepo.On("FindByIDs", ctx, []string{productID}).Return([]*dto.Product{product}, nil)
 	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*dto.OpenBill"), mock.MatchedBy(func(products []dto.OrderProductItem) bool {
 		return len(products) == 1 && products[0].ProductID == productID && products[0].Quantity == 1
-	})).Return(nil).Run(func(args mock.Arguments) {
+	}), user.ID).Return(nil).Run(func(args mock.Arguments) {
 		openBill := args.Get(1).(*dto.OpenBill)
 		openBill.ID = "bill-1"
 	})
@@ -246,7 +256,7 @@ func TestCreateOrder_SingleProduct(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.Equal(t, productPrice, result.TotalAmount)
 	assert.Equal(t, "TABLE-01", result.TemporalIdentifier)
-	assert.Equal(t, &user.ID, result.CreatedBy)
+	assert.Nil(t, result.CreatedBy)
 	assert.Len(t, result.Products, 1)
 	assert.Equal(t, productID, result.Products[0].ID)
 
@@ -291,7 +301,7 @@ func TestCreateOrder_MultipleProducts(t *testing.T) {
 			}
 		}
 		return true
-	})).Return(nil).Run(func(args mock.Arguments) {
+	}), user.ID).Return(nil).Run(func(args mock.Arguments) {
 		openBill := args.Get(1).(*dto.OpenBill)
 		openBill.ID = "bill-1"
 	})
@@ -448,7 +458,7 @@ func TestCreateOrder_RepositoryError_OpenBillCreate(t *testing.T) {
 	mockProductRepo.On("FindByIDs", ctx, []string{productID}).Return([]*dto.Product{product}, nil)
 	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*dto.OpenBill"), mock.MatchedBy(func(products []dto.OrderProductItem) bool {
 		return len(products) == 1 && products[0].ProductID == productID && products[0].Quantity == 1
-	})).Return(repoError)
+	}), user.ID).Return(repoError)
 
 	// Execute
 	result, err := service.CreateOrder(ctx, req, user)
@@ -513,7 +523,7 @@ func TestCreateOrder_TotalAmountCalculations(t *testing.T) {
 			mockProductRepo.On("FindByIDs", ctx, []string{"product-1"}).Return([]*dto.Product{product}, nil)
 			mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*dto.OpenBill"), mock.MatchedBy(func(products []dto.OrderProductItem) bool {
 				return len(products) == 1 && products[0].ProductID == "product-1" && products[0].Quantity == 1
-			})).Return(nil)
+			}), user.ID).Return(nil)
 
 			// Execute
 			result, err := service.CreateOrder(ctx, req, user)
@@ -539,7 +549,7 @@ func TestCreateOrder_TemporalIdentifierFormat(t *testing.T) {
 	}
 
 	// Mock expectations
-	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*dto.OpenBill"), []dto.OrderProductItem{}).Return(nil)
+	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*dto.OpenBill"), []dto.OrderProductItem{}, user.ID).Return(nil)
 
 	// Execute
 	result, err := service.CreateOrder(ctx, req, user)
@@ -566,7 +576,7 @@ func TestCreateOrder_TimestampFields(t *testing.T) {
 	beforeTime := time.Now()
 
 	// Mock expectations
-	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*dto.OpenBill"), []dto.OrderProductItem{}).Return(nil)
+	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*dto.OpenBill"), []dto.OrderProductItem{}, user.ID).Return(nil)
 
 	// Execute
 	result, err := service.CreateOrder(ctx, req, user)
@@ -606,7 +616,7 @@ func TestCreateOrder_ZeroPriceProducts(t *testing.T) {
 	mockProductRepo.On("FindByIDs", ctx, []string{"product-1"}).Return([]*dto.Product{product}, nil)
 	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*dto.OpenBill"), mock.MatchedBy(func(products []dto.OrderProductItem) bool {
 		return len(products) == 1 && products[0].ProductID == "product-1" && products[0].Quantity == 1
-	})).Return(nil)
+	}), user.ID).Return(nil)
 
 	// Execute
 	result, err := service.CreateOrder(ctx, req, user)
@@ -642,7 +652,7 @@ func TestCreateOrder_LargePriceValues(t *testing.T) {
 	mockProductRepo.On("FindByIDs", ctx, []string{"product-1"}).Return([]*dto.Product{product}, nil)
 	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*dto.OpenBill"), mock.MatchedBy(func(products []dto.OrderProductItem) bool {
 		return len(products) == 1 && products[0].ProductID == "product-1" && products[0].Quantity == 1
-	})).Return(nil)
+	}), user.ID).Return(nil)
 
 	// Execute
 	result, err := service.CreateOrder(ctx, req, user)
@@ -670,7 +680,7 @@ func TestCreateOrder_NilProducts(t *testing.T) {
 	}
 
 	// Mock expectations
-	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*dto.OpenBill"), []dto.OrderProductItem(nil)).Return(nil)
+	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*dto.OpenBill"), []dto.OrderProductItem(nil), user.ID).Return(nil)
 
 	// Execute
 	result, err := service.CreateOrder(ctx, req, user)
@@ -700,7 +710,7 @@ func TestCreateOrder_EmptySliceProducts(t *testing.T) {
 	}
 
 	// Mock expectations
-	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*dto.OpenBill"), []dto.OrderProductItem{}).Return(nil)
+	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*dto.OpenBill"), []dto.OrderProductItem{}, user.ID).Return(nil)
 
 	// Execute
 	result, err := service.CreateOrder(ctx, req, user)

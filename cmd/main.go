@@ -14,6 +14,7 @@ import (
 	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/handler"
 	"laguna-escondida/backend/internal/platform/httpclient"
+	"laguna-escondida/backend/internal/platform/postgres"
 	"laguna-escondida/backend/internal/platform/postgres/repository"
 
 	"github.com/gin-gonic/gin"
@@ -71,7 +72,8 @@ func main() {
 	jwtService := service.NewJWTService(cfg.JWTSecret)
 
 	// Initialize services
-	orderService := service.NewOrderService(openBillRepo, productRepo, billRepo, invoiceService)
+	unitOfWork := postgres.NewUnitOfWork(db.DB)
+	orderService := service.NewOrderService(openBillRepo, productRepo, billRepo, invoiceService, unitOfWork)
 	productService := service.NewProductService(productRepo)
 	stockService := service.NewStockService(stockRepo, productRepo)
 	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, jwtService)

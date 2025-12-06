@@ -6,6 +6,7 @@ import (
 
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
+	"laguna-escondida/backend/internal/platform/postgres"
 
 	"gorm.io/gorm"
 )
@@ -276,7 +277,8 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 
 func (r *OpenBillRepository) Delete(ctx context.Context, openBillID string) error {
 	now := time.Now()
-	return r.db.WithContext(ctx).Model(&openBillModel{}).
+	db := postgres.GetTxOrDB(ctx, r.db)
+	return db.Model(&openBillModel{}).
 		Where("id = ? AND deleted_at IS NULL", openBillID).
 		Update("deleted_at", now).Error
 }
