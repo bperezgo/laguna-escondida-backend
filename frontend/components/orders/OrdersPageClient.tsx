@@ -23,7 +23,6 @@ export default function OrdersPageClient() {
   );
   const [isLoadingBill, setIsLoadingBill] = useState(false);
 
-  // Fetch open bills
   const fetchOpenBills = async () => {
     setIsLoading(true);
     setError(null);
@@ -46,12 +45,19 @@ export default function OrdersPageClient() {
 
   // Filter open bills based on search query (by temporal_identifier)
   const filteredOpenBills = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return openBills;
+    let bills = openBills;
+
+    // Filter by search query if provided
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      bills = bills.filter((bill) =>
+        bill.temporal_identifier.toLowerCase().includes(query)
+      );
     }
-    const query = searchQuery.toLowerCase();
-    return openBills.filter((bill) =>
-      bill.temporal_identifier.toLowerCase().includes(query)
+
+    // Sort by temporal_identifier
+    return [...bills].sort((a, b) =>
+      a.temporal_identifier.localeCompare(b.temporal_identifier)
     );
   }, [openBills, searchQuery]);
 
