@@ -17,6 +17,12 @@ export async function apiRequest<T>(
     },
   });
 
+  // Handle unauthorized responses by redirecting to signin
+  if (response.status === 401) {
+    window.location.href = "/signin";
+    throw new Error("Unauthorized");
+  }
+
   if (!response.ok) {
     const error = await response
       .json()

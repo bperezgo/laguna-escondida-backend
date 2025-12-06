@@ -1,6 +1,7 @@
 import { config } from "@/lib/config/config";
 import { getAccessToken } from "@/lib/auth";
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 
 /**
  * Server-side API client that calls the Golang backend directly
@@ -30,6 +31,12 @@ export async function serverApiRequest<T>(
     ...options,
     headers,
   });
+
+  // Handle unauthorized responses by clearing the invalid token
+  if (response.status === 401) {
+    const cookieStore = await cookies();
+    cookieStore.delete("access_token");
+  }
 
   if (response.status === 204) {
     return NextResponse.json({} as T, { status: 204 });
