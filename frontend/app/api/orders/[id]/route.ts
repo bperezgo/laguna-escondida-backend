@@ -4,25 +4,12 @@ import type { OpenBillWithProducts, UpdateOrderRequest } from "@/types/order";
 
 // GET /api/orders/:id - Get a specific order with products
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const { id } = await params;
+  const { id } = await params;
 
-    const response = await serverApiRequest<OpenBillWithProducts>(
-      `/orders/${id}`
-    );
-    return NextResponse.json(response);
-  } catch (error) {
-    console.error("Error fetching order:", error);
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Failed to fetch order",
-      },
-      { status: 500 }
-    );
-  }
+  return await serverApiRequest<OpenBillWithProducts>(`/orders/${id}`);
 }
 
 // PUT /api/orders/:id - Update an order
@@ -34,14 +21,10 @@ export async function PUT(
     const { id } = await params;
     const body: UpdateOrderRequest = await request.json();
 
-    const response = await serverApiRequest<OpenBillWithProducts>(
-      `/orders/${id}`,
-      {
-        method: "PUT",
-        body: JSON.stringify(body),
-      }
-    );
-    return NextResponse.json(response);
+    return await serverApiRequest<OpenBillWithProducts>(`/orders/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
   } catch (error) {
     console.error("Error updating order:", error);
     return NextResponse.json(

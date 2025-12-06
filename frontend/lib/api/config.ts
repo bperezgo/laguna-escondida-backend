@@ -8,20 +8,23 @@ export async function apiRequest<T>(
 ): Promise<T> {
   // Use Next.js API routes instead of calling Golang backend directly
   const url = `/api${endpoint}`;
-  
+
   const response = await fetch(url, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...options?.headers,
     },
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: response.statusText }));
-    throw new Error(error.error || error.message || `HTTP error! status: ${response.status}`);
+    const error = await response
+      .json()
+      .catch(() => ({ message: response.statusText }));
+    throw new Error(
+      error.error || error.message || `HTTP error! status: ${response.status}`
+    );
   }
 
   return response.json();
 }
-

@@ -9,8 +9,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const response = await serverApiRequest<TableResponse>(`/tables/${id}`);
-    return NextResponse.json(response);
+    return await serverApiRequest<TableResponse>(`/tables/${id}`);
   } catch (error) {
     console.error("Error fetching table:", error);
     return NextResponse.json(

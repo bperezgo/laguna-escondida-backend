@@ -9,8 +9,7 @@ import type {
 // GET /api/tables - Get all tables
 export async function GET() {
   try {
-    const response = await serverApiRequest<TableListResponse>('/tables');
-    return NextResponse.json(response);
+    return await serverApiRequest<TableListResponse>('/tables');
   } catch (error) {
     console.error('Error fetching tables:', error);
     return NextResponse.json(
@@ -24,11 +23,10 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body: CreateTableRequest = await request.json();
-    const response = await serverApiRequest<TableResponse>('/tables', {
+    return await serverApiRequest<TableResponse>('/tables', {
       method: 'POST',
       body: JSON.stringify(body),
     });
-    return NextResponse.json(response);
   } catch (error) {
     console.error('Error creating table:', error);
     return NextResponse.json(

@@ -31,10 +31,7 @@ export async function GET(request: NextRequest) {
       queryParams.set("national_identification", national_identification);
     }
 
-    const data = await serverApiRequest<any>(
-      `/invoices?${queryParams.toString()}`
-    );
-    return NextResponse.json(data);
+    return await serverApiRequest<any>(`/invoices?${queryParams.toString()}`);
   } catch (error) {
     console.error("Error fetching invoices:", error);
     return NextResponse.json(
@@ -51,11 +48,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body: CreateElectronicInvoiceRequest = await request.json();
-    await serverApiRequest<void>("/invoices", {
+    return await serverApiRequest<void>("/invoices", {
       method: "POST",
       body: JSON.stringify(body),
     });
-    return NextResponse.json({ message: "Invoice created successfully" });
   } catch (error) {
     console.error("Error creating invoice:", error);
     return NextResponse.json(

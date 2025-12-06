@@ -22,12 +22,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const response = await serverApiRequest(`/orders/pay-order`, {
+    return await serverApiRequest(`/orders/pay-order`, {
       method: "POST",
       body: JSON.stringify(body),
     });
-
-    return NextResponse.json(response);
   } catch (error) {
     console.error("Error paying order:", error);
     return NextResponse.json(

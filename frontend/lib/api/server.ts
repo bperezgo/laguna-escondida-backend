@@ -10,7 +10,7 @@ import { NextResponse } from "next/server";
 export async function serverApiRequest<T>(
   endpoint: string,
   options?: RequestInit
-): Promise<T> {
+): Promise<NextResponse<T>> {
   const url = `${config.apiUrl}${endpoint}`;
 
   // Get the JWT token from cookies
@@ -31,16 +31,9 @@ export async function serverApiRequest<T>(
     headers,
   });
 
-  if (!response.ok) {
-    const error = await response
-      .json()
-      .catch(() => ({ message: response.statusText }));
-    throw new Error(error.message || `HTTP error! status: ${response.status}`);
-  }
-
   if (response.status === 204) {
-    return {} as T;
+    return NextResponse.json({} as T, { status: 204 });
   }
 
-  return response.json();
+  return NextResponse.json(await response.json(), { status: response.status });
 }

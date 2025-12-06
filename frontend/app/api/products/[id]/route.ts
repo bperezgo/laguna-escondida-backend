@@ -48,10 +48,9 @@ export async function DELETE(
 ) {
   try {
     const { id } = (await params);
-    await serverApiRequest<void>(`/products/${id}`, {
+    return await serverApiRequest<void>(`/products/${id}`, {
       method: 'DELETE',
     });
-    return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting product:', error);
     return NextResponse.json(

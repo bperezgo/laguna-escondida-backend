@@ -10,10 +10,7 @@ export async function GET(
   try {
     const { id } = await params;
 
-    const response = await serverApiRequest<BillOwnerResponse>(
-      `/bill-owners/${id}`
-    );
-    return NextResponse.json(response);
+    return await serverApiRequest<BillOwnerResponse>(`/bill-owners/${id}`);
   } catch (error) {
     console.error("Error fetching bill owner:", error);
     return NextResponse.json(
