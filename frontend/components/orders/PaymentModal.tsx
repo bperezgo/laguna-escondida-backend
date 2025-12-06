@@ -2,7 +2,9 @@
 
 import { useRef, useState } from "react";
 import { payOrder } from "@/lib/api/orders";
+import { getBillOwnerById } from "@/lib/api/billOwners";
 import type { OpenBillWithProducts } from "@/types/order";
+import type { PaymentType } from "@/types/billOwner";
 
 interface PaymentModalProps {
   openBill: OpenBillWithProducts;
@@ -18,6 +20,20 @@ export default function PaymentModal({
   const printRef = useRef<HTMLDivElement>(null);
   const [isPaying, setIsPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Customer search and form
+  const [customerId, setCustomerId] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [customerName, setCustomerName] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [customerAddress, setCustomerAddress] = useState("");
+  const [customerIdentification, setCustomerIdentification] = useState("");
+  const [customerIdentificationType, setCustomerIdentificationType] =
+    useState("");
+
+  // Payment type
+  const [paymentType, setPaymentType] = useState<PaymentType>("cash");
 
   // Group products by product ID (consolidate duplicates)
   const groupedProducts = () => {
@@ -182,11 +198,61 @@ export default function PaymentModal({
     }, 250);
   };
 
+  const handleSearchCustomer = async () => {
+    if (!customerId.trim()) {
+      setError("Please enter a customer ID");
+      return;
+    }
+
+    setIsSearching(true);
+    setError(null);
+    try {
+      const response = await getBillOwnerById(customerId);
+      const { bill_owner } = response;
+
+      // Prefill form with customer data
+      setCustomerName(bill_owner.name || "");
+      setCustomerEmail(bill_owner.email || "");
+      setCustomerPhone(bill_owner.phone || "");
+      setCustomerAddress(bill_owner.address || "");
+      setCustomerIdentification(bill_owner.identification || "");
+      setCustomerIdentificationType(bill_owner.identification_type || "");
+    } catch (err) {
+      // Customer not found - form will remain empty for new entry
+      console.log("Customer not found, showing empty form");
+      setCustomerName("");
+      setCustomerEmail("");
+      setCustomerPhone("");
+      setCustomerAddress("");
+      setCustomerIdentification("");
+      setCustomerIdentificationType("");
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   const handlePayment = async () => {
     setIsPaying(true);
     setError(null);
     try {
-      await payOrder(openBill.id);
+      const paymentData: any = {
+        order_id: openBill.id,
+        payment_type: paymentType,
+      };
+
+      // Add customer data if name is provided
+      if (customerName.trim()) {
+        paymentData.bill_owner = {
+          name: customerName.trim(),
+          email: customerEmail.trim() || null,
+          phone: customerPhone.trim() || null,
+          address: customerAddress.trim() || null,
+          identification: customerIdentification.trim() || null,
+          identification_type: customerIdentificationType.trim() || null,
+        };
+      }
+
+      await payOrder(paymentData);
       onSuccess();
       onClose();
     } catch (err) {
@@ -324,6 +390,308 @@ export default function PaymentModal({
             <div style={{ fontSize: "0.875rem", color: "#666" }}>
               <div>Created by: {openBill.created_by?.user_name}</div>
               <div>Date: {formatDate(openBill.created_at)}</div>
+            </div>
+          </div>
+
+          {/* Payment Type */}
+          <div style={{ marginBottom: "1.5rem" }}>
+            <label
+              style={{
+                display: "block",
+                marginBottom: "0.5rem",
+                fontWeight: "bold",
+                color: "#333",
+              }}
+            >
+              Payment Type *
+            </label>
+            <select
+              value={paymentType}
+              onChange={(e) => setPaymentType(e.target.value as PaymentType)}
+              disabled={isPaying}
+              style={{
+                width: "100%",
+                padding: "0.75rem",
+                fontSize: "1rem",
+                border: "2px solid #e0e0e0",
+                borderRadius: "8px",
+                outline: "none",
+                backgroundColor: "white",
+                cursor: isPaying ? "not-allowed" : "pointer",
+              }}
+            >
+              <option value="cash">Cash</option>
+              <option value="credit_card">Credit Card</option>
+              <option value="debit_card">Debit Card</option>
+              <option value="transfer_debit_bank">Transfer Debit Bank</option>
+              <option value="transfer_credit_bank">Transfer Credit Bank</option>
+              <option value="transfer_debit_interbank">
+                Transfer Debit Interbank
+              </option>
+            </select>
+          </div>
+
+          {/* Customer Search */}
+          <div style={{ marginBottom: "1.5rem" }}>
+            <label
+              style={{
+                display: "block",
+                marginBottom: "0.5rem",
+                fontWeight: "bold",
+                color: "#333",
+              }}
+            >
+              Customer ID (Optional)
+            </label>
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <input
+                type="text"
+                value={customerId}
+                onChange={(e) => setCustomerId(e.target.value)}
+                placeholder="Enter customer ID..."
+                disabled={isPaying || isSearching}
+                style={{
+                  flex: 1,
+                  padding: "0.75rem",
+                  fontSize: "1rem",
+                  border: "2px solid #e0e0e0",
+                  borderRadius: "8px",
+                  outline: "none",
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleSearchCustomer}
+                disabled={isPaying || isSearching}
+                style={{
+                  padding: "0.75rem 1.5rem",
+                  fontSize: "1rem",
+                  fontWeight: "bold",
+                  backgroundColor:
+                    isPaying || isSearching ? "#6c757d" : "#007bff",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: isPaying || isSearching ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                }}
+              >
+                🔍 {isSearching ? "Searching..." : "Search"}
+              </button>
+            </div>
+          </div>
+
+          {/* Customer Form */}
+          <div
+            style={{
+              marginBottom: "1.5rem",
+              padding: "1rem",
+              backgroundColor: "#f8f9fa",
+              borderRadius: "8px",
+              border: "1px solid #e0e0e0",
+            }}
+          >
+            <h4
+              style={{
+                margin: "0 0 1rem 0",
+                fontSize: "1rem",
+                fontWeight: "bold",
+                color: "#333",
+              }}
+            >
+              Customer Information (Optional)
+            </h4>
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
+            >
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "0.25rem",
+                    fontSize: "0.875rem",
+                    color: "#666",
+                  }}
+                >
+                  Name
+                </label>
+                <input
+                  type="text"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Customer name..."
+                  disabled={isPaying}
+                  style={{
+                    width: "100%",
+                    padding: "0.5rem",
+                    fontSize: "0.875rem",
+                    border: "1px solid #e0e0e0",
+                    borderRadius: "6px",
+                    outline: "none",
+                    backgroundColor: "white",
+                  }}
+                />
+              </div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "1rem",
+                }}
+              >
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "0.25rem",
+                      fontSize: "0.875rem",
+                      color: "#666",
+                    }}
+                  >
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={customerEmail}
+                    onChange={(e) => setCustomerEmail(e.target.value)}
+                    placeholder="email@example.com..."
+                    disabled={isPaying}
+                    style={{
+                      width: "100%",
+                      padding: "0.5rem",
+                      fontSize: "0.875rem",
+                      border: "1px solid #e0e0e0",
+                      borderRadius: "6px",
+                      outline: "none",
+                      backgroundColor: "white",
+                    }}
+                  />
+                </div>
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "0.25rem",
+                      fontSize: "0.875rem",
+                      color: "#666",
+                    }}
+                  >
+                    Phone
+                  </label>
+                  <input
+                    type="tel"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    placeholder="Phone number..."
+                    disabled={isPaying}
+                    style={{
+                      width: "100%",
+                      padding: "0.5rem",
+                      fontSize: "0.875rem",
+                      border: "1px solid #e0e0e0",
+                      borderRadius: "6px",
+                      outline: "none",
+                      backgroundColor: "white",
+                    }}
+                  />
+                </div>
+              </div>
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "0.25rem",
+                    fontSize: "0.875rem",
+                    color: "#666",
+                  }}
+                >
+                  Address
+                </label>
+                <input
+                  type="text"
+                  value={customerAddress}
+                  onChange={(e) => setCustomerAddress(e.target.value)}
+                  placeholder="Address..."
+                  disabled={isPaying}
+                  style={{
+                    width: "100%",
+                    padding: "0.5rem",
+                    fontSize: "0.875rem",
+                    border: "1px solid #e0e0e0",
+                    borderRadius: "6px",
+                    outline: "none",
+                    backgroundColor: "white",
+                  }}
+                />
+              </div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "1rem",
+                }}
+              >
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "0.25rem",
+                      fontSize: "0.875rem",
+                      color: "#666",
+                    }}
+                  >
+                    Identification
+                  </label>
+                  <input
+                    type="text"
+                    value={customerIdentification}
+                    onChange={(e) => setCustomerIdentification(e.target.value)}
+                    placeholder="ID number..."
+                    disabled={isPaying}
+                    style={{
+                      width: "100%",
+                      padding: "0.5rem",
+                      fontSize: "0.875rem",
+                      border: "1px solid #e0e0e0",
+                      borderRadius: "6px",
+                      outline: "none",
+                      backgroundColor: "white",
+                    }}
+                  />
+                </div>
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "0.25rem",
+                      fontSize: "0.875rem",
+                      color: "#666",
+                    }}
+                  >
+                    ID Type
+                  </label>
+                  <input
+                    type="text"
+                    value={customerIdentificationType}
+                    onChange={(e) =>
+                      setCustomerIdentificationType(e.target.value)
+                    }
+                    placeholder="e.g., Passport, DNI..."
+                    disabled={isPaying}
+                    style={{
+                      width: "100%",
+                      padding: "0.5rem",
+                      fontSize: "0.875rem",
+                      border: "1px solid #e0e0e0",
+                      borderRadius: "6px",
+                      outline: "none",
+                      backgroundColor: "white",
+                    }}
+                  />
+                </div>
+              </div>
             </div>
           </div>
 

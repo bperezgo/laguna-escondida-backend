@@ -14,6 +14,7 @@ import type {
   OpenBillListResponse,
   OpenBillWithProducts,
 } from "@/types/order";
+import type { PayOrderRequest } from "@/types/billOwner";
 
 // Table endpoints
 export async function getTables(): Promise<TableListResponse> {
@@ -65,10 +66,12 @@ export async function updateOrder(
   });
 }
 
-export async function payOrder(orderId: string): Promise<{ message: string }> {
+export async function payOrder(
+  data: PayOrderRequest
+): Promise<{ message: string }> {
   return apiRequest<{ message: string }>("/orders/pay-order", {
     method: "POST",
-    body: JSON.stringify({ order_id: orderId }),
+    body: JSON.stringify(data),
   });
 }
 

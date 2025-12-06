@@ -1,5 +1,6 @@
 import { config } from "@/lib/config/config";
 import { getAccessToken } from "@/lib/auth";
+import { NextResponse } from "next/server";
 
 /**
  * Server-side API client that calls the Golang backend directly
