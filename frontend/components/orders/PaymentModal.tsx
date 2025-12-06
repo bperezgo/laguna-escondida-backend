@@ -208,15 +208,16 @@ export default function PaymentModal({
     setError(null);
     try {
       const response = await getBillOwnerById(customerId);
-      const { bill_owner } = response;
+      // Handle both wrapped and direct responses
+      const billOwner = (response as any).bill_owner || (response as any);
 
       // Prefill form with customer data
-      setCustomerName(bill_owner.name || "");
-      setCustomerEmail(bill_owner.email || "");
-      setCustomerPhone(bill_owner.phone || "");
-      setCustomerAddress(bill_owner.address || "");
-      setCustomerIdentification(bill_owner.identification || "");
-      setCustomerIdentificationType(bill_owner.identification_type || "");
+      setCustomerName(billOwner.name || "");
+      setCustomerEmail(billOwner.email || "");
+      setCustomerPhone(billOwner.celphone || "");
+      setCustomerAddress(billOwner.address || "");
+      setCustomerIdentification(billOwner.id || ""); // id is the identification number
+      setCustomerIdentificationType(billOwner.identification_type || "");
     } catch (err) {
       // Customer not found - form will remain empty for new entry
       setCustomerName("");
@@ -577,7 +578,7 @@ export default function PaymentModal({
                       color: "#666",
                     }}
                   >
-                    Phone
+                    Phone (optional)
                   </label>
                   <input
                     type="tel"
@@ -606,7 +607,7 @@ export default function PaymentModal({
                     color: "#666",
                   }}
                 >
-                  Address
+                  Address (optional)
                 </label>
                 <input
                   type="text"
@@ -641,13 +642,13 @@ export default function PaymentModal({
                       color: "#666",
                     }}
                   >
-                    Identification
+                    ID Type
                   </label>
-                  <input
-                    type="text"
-                    value={customerIdentification}
-                    onChange={(e) => setCustomerIdentification(e.target.value)}
-                    placeholder="ID number..."
+                  <select
+                    value={customerIdentificationType}
+                    onChange={(e) =>
+                      setCustomerIdentificationType(e.target.value)
+                    }
                     disabled={isPaying}
                     style={{
                       width: "100%",
@@ -657,8 +658,13 @@ export default function PaymentModal({
                       borderRadius: "6px",
                       outline: "none",
                       backgroundColor: "white",
+                      cursor: "pointer",
                     }}
-                  />
+                  >
+                    <option value="">Select ID Type...</option>
+                    <option value="CC">CC</option>
+                    <option value="NIT">NIT</option>
+                  </select>
                 </div>
                 <div>
                   <label
@@ -669,15 +675,13 @@ export default function PaymentModal({
                       color: "#666",
                     }}
                   >
-                    ID Type
+                    Identification
                   </label>
                   <input
                     type="text"
-                    value={customerIdentificationType}
-                    onChange={(e) =>
-                      setCustomerIdentificationType(e.target.value)
-                    }
-                    placeholder="e.g., Passport, DNI..."
+                    value={customerIdentification}
+                    onChange={(e) => setCustomerIdentification(e.target.value)}
+                    placeholder="ID number..."
                     disabled={isPaying}
                     style={{
                       width: "100%",

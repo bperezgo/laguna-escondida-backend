@@ -1,10 +1,9 @@
 export interface BillOwner {
-  id: string;
+  id: string; // This is the identification number
   name: string;
   email?: string | null;
-  phone?: string | null;
+  celphone?: string | null; // API uses 'celphone' not 'phone'
   address?: string | null;
-  identification?: string | null;
   identification_type?: string | null;
   created_at: string;
   updated_at: string;
@@ -12,7 +11,7 @@ export interface BillOwner {
 }
 
 export interface BillOwnerResponse {
-  bill_owner: BillOwner;
+  bill_owner?: BillOwner; // Make it optional to handle direct responses
 }
 
 export type PaymentType =
