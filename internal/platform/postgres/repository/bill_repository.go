@@ -131,7 +131,8 @@ func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, produ
 	}
 
 	if response != nil {
-		if err := r.db.WithContext(ctx).Model(&billModel{}).
+		db := postgres.GetTxOrDB(ctx, r.db)
+		if err := db.Model(&billModel{}).
 			Where("id = ?", billDTO.ID).
 			Updates(map[string]any{
 				"cufe":    response.CUFE,

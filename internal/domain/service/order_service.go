@@ -200,11 +200,13 @@ func (s *OrderService) PayOrder(ctx context.Context, payOrderCommand command.Pay
 			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
 		}
 
-		if err := s.billRepo.Create(txCtx, billAggregate, productDTOs); err != nil {
+		if err := s.openBillRepo.Delete(txCtx, payOrderCommand.OpenBillID); err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
 		}
 
-		if err := s.openBillRepo.Delete(txCtx, payOrderCommand.OpenBillID); err != nil {
+		// It is better to leave this execution to the end, because internally it calls the invoice provider
+		// And if it fails, it will be hard to compensate that operation.
+		if err := s.billRepo.Create(txCtx, billAggregate, productDTOs); err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
 		}
 
