@@ -1,17 +1,17 @@
 package product
 
 import (
-	"regexp"
 	productError "laguna-escondida/backend/internal/domain/aggregate/product/error"
+	"regexp"
 )
 
 // SKU represents a Stock Keeping Unit value object
-// SKU must contain only alphanumeric characters (a-z, A-Z, 0-9)
+// SKU must contain only alphanumeric characters (a-z, A-Z, 0-9) and hyphens (-)
 type SKU struct {
 	value string
 }
 
-var skuRegex = regexp.MustCompile(`^[a-zA-Z0-9]+$`)
+var skuRegex = regexp.MustCompile(`^[a-zA-Z0-9\-]+$`)
 
 // NewSKU creates a new SKU value object
 // Returns an error if the SKU is empty or contains invalid characters
@@ -44,4 +44,3 @@ func (s *SKU) Equals(other *SKU) bool {
 	}
 	return s.value == other.value
 }
-
