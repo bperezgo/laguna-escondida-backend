@@ -22,7 +22,7 @@ export default function CreateOrderForm({
   onClose,
   onSuccess,
 }: CreateOrderFormProps) {
-  const [temporalIdentifier, setTemporalIdentifier] = useState("");
+  const [temporalIdentifier, setTemporalIdentifier] = useState("MESA-");
   const [descriptor, setDescriptor] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProducts, setSelectedProducts] = useState<
@@ -33,15 +33,6 @@ export default function CreateOrderForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lineItemCounter, setLineItemCounter] = useState(0);
-
-  // Generate a simple temporal identifier (can be improved with UUID)
-  useEffect(() => {
-    // Generate a simple identifier like "TABLE-001" or similar
-    const randomNum = Math.floor(Math.random() * 1000)
-      .toString()
-      .padStart(3, "0");
-    setTemporalIdentifier(`TABLE-${randomNum}`);
-  }, []);
 
   // Fetch products on mount
   useEffect(() => {
