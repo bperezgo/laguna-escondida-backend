@@ -86,7 +86,7 @@ export default function StockPageClient({
   };
 
   const handleDelete = async (productId: string) => {
-    if (!confirm("Are you sure you want to delete this stock?")) {
+    if (!confirm("¿Estás seguro de que quieres eliminar este inventario?")) {
       return;
     }
 
@@ -159,7 +159,7 @@ export default function StockPageClient({
                 color: "#333",
               }}
             >
-              Stock Management
+              Gestión de Inventario
             </h1>
             <p
               style={{
@@ -168,7 +168,7 @@ export default function StockPageClient({
                 fontSize: "1rem",
               }}
             >
-              Manage your inventory stock levels
+              Administra los niveles de inventario
             </p>
           </div>
           <button
@@ -191,7 +191,7 @@ export default function StockPageClient({
               e.currentTarget.style.backgroundColor = "#28a745";
             }}
           >
-            + Create Stock
+            + Crear Inventario
           </button>
         </div>
 

@@ -121,12 +121,12 @@ export default function CreateOrderForm({
     e.preventDefault();
 
     if (!temporalIdentifier.trim()) {
-      setError("Temporal identifier is required");
+      setError("El identificador temporal es requerido");
       return;
     }
 
     if (selectedProducts.size === 0) {
-      setError("Please select at least one product");
+      setError("Por favor selecciona al menos un producto");
       return;
     }
 
@@ -211,7 +211,7 @@ export default function CreateOrderForm({
               color: "#333",
             }}
           >
-            Create New Order
+            Crear Nueva Orden
           </h2>
           <button
             onClick={onClose}
@@ -257,7 +257,7 @@ export default function CreateOrderForm({
                   color: "#333",
                 }}
               >
-                Temporal Identifier *
+                Identificador Temporal *
               </label>
               <input
                 type="text"
@@ -285,12 +285,12 @@ export default function CreateOrderForm({
                   color: "#333",
                 }}
               >
-                Descriptor (Optional)
+                Descriptor (Opcional)
               </label>
               <textarea
                 value={descriptor}
                 onChange={(e) => setDescriptor(e.target.value)}
-                placeholder="Description of the customer or table..."
+                placeholder="Descripción del cliente o mesa..."
                 rows={3}
                 style={{
                   width: "100%",
@@ -323,7 +323,7 @@ export default function CreateOrderForm({
                     color: "#333",
                   }}
                 >
-                  Selected Products ({selectedProductsArray.length})
+                  Productos Seleccionados ({selectedProductsArray.length})
                 </h3>
                 <div
                   style={{
@@ -430,7 +430,7 @@ export default function CreateOrderForm({
                           onChange={(e) =>
                             handleNotesChange(lineItemId, e.target.value)
                           }
-                          placeholder="Add notes (optional)..."
+                          placeholder="Agregar notas (opcional)..."
                           style={{
                             width: "100%",
                             padding: "0.5rem",
@@ -457,11 +457,11 @@ export default function CreateOrderForm({
                   color: "#333",
                 }}
               >
-                Add Products
+                Agregar Productos
               </h3>
               <input
                 type="text"
-                placeholder="Search products..."
+                placeholder="Buscar productos..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{
@@ -491,7 +491,7 @@ export default function CreateOrderForm({
                       color: "#666",
                     }}
                   >
-                    Loading products...
+                    Cargando productos...
                   </div>
                 ) : filteredProducts.length === 0 ? (
                   <div
@@ -501,7 +501,7 @@ export default function CreateOrderForm({
                       color: "#666",
                     }}
                   >
-                    No products found
+                    No se encontraron productos
                   </div>
                 ) : (
                   filteredProducts.map((product) => {
@@ -587,7 +587,7 @@ export default function CreateOrderForm({
                 cursor: "pointer",
               }}
             >
-              Cancel
+              Cancelar
             </button>
             <button
               type="submit"
@@ -609,7 +609,7 @@ export default function CreateOrderForm({
                     : "pointer",
               }}
             >
-              {isSubmitting ? "Creating..." : "Create Order"}
+              {isSubmitting ? "Creando..." : "Crear Orden"}
             </button>
           </div>
         </form>

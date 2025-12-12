@@ -107,7 +107,7 @@ export default function OpenBillCard({
               minHeight: "3rem",
             }}
           >
-            No description
+            Sin descripción
           </p>
         )}
       </div>
@@ -136,7 +136,7 @@ export default function OpenBillCard({
               fontWeight: "500",
             }}
           >
-            Created by:
+            Creado por:
           </span>
           <span
             style={{
@@ -162,7 +162,7 @@ export default function OpenBillCard({
               fontWeight: "500",
             }}
           >
-            Created at:
+            Creado el:
           </span>
           <span
             style={{
@@ -202,7 +202,7 @@ export default function OpenBillCard({
             e.currentTarget.style.backgroundColor = "#28a745";
           }}
         >
-          💳 Pay Bill
+          💳 Pagar Cuenta
         </button>
       )}
     </div>

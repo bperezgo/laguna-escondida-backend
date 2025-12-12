@@ -130,7 +130,7 @@ export default function OrdersPageClient() {
               color: "#333",
             }}
           >
-            Open Bills
+            Cuentas Abiertas
           </h1>
           <button
             onClick={() => setShowCreateForm(true)}
@@ -153,7 +153,7 @@ export default function OrdersPageClient() {
               e.currentTarget.style.backgroundColor = "#007bff";
             }}
           >
-            + Create New Order
+            + Crear Nueva Orden
           </button>
         </div>
 
@@ -202,7 +202,7 @@ export default function OrdersPageClient() {
                 marginBottom: "1rem",
               }}
             />
-            <div>Loading open bills...</div>
+            <div>Cargando cuentas abiertas...</div>
             <style>{`
               @keyframes spin {
                 0% { transform: rotate(0deg); }
@@ -241,8 +241,8 @@ export default function OrdersPageClient() {
                   }}
                 >
                   {searchQuery
-                    ? "No matching open bills found"
-                    : "No open bills yet"}
+                    ? "No se encontraron cuentas coincidentes"
+                    : "Aún no hay cuentas abiertas"}
                 </h3>
                 <p
                   style={{
@@ -252,8 +252,8 @@ export default function OrdersPageClient() {
                   }}
                 >
                   {searchQuery
-                    ? "Try adjusting your search query"
-                    : 'Click "Create New Order" to get started'}
+                    ? "Intenta ajustar tu búsqueda"
+                    : 'Haz clic en "Crear Nueva Orden" para comenzar'}
                 </p>
               </div>
             ) : (
@@ -265,8 +265,8 @@ export default function OrdersPageClient() {
                     fontSize: "0.95rem",
                   }}
                 >
-                  Showing {filteredOpenBills.length}{" "}
-                  {filteredOpenBills.length === 1 ? "bill" : "bills"}
+                  Mostrando {filteredOpenBills.length}{" "}
+                  {filteredOpenBills.length === 1 ? "cuenta" : "cuentas"}
                   {searchQuery && ` matching "${searchQuery}"`}
                 </div>
                 <div
@@ -356,7 +356,7 @@ export default function OrdersPageClient() {
               }}
             />
             <div style={{ color: "#333", fontWeight: "500" }}>
-              Loading order details...
+              Cargando detalles de la orden...
             </div>
           </div>
         </div>

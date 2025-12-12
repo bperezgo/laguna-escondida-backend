@@ -200,7 +200,7 @@ export default function PaymentModal({
 
   const handleSearchCustomer = async () => {
     if (!customerId.trim()) {
-      setError("Please enter a customer ID");
+      setError("Por favor ingresa un ID de cliente");
       return;
     }
 
@@ -327,7 +327,7 @@ export default function PaymentModal({
               color: "#333",
             }}
           >
-            Bill Summary
+            Resumen de Cuenta
           </h2>
           <button
             onClick={onClose}
@@ -388,8 +388,8 @@ export default function PaymentModal({
               </div>
             )}
             <div style={{ fontSize: "0.875rem", color: "#666" }}>
-              <div>Created by: {openBill.created_by?.user_name}</div>
-              <div>Date: {formatDate(openBill.created_at)}</div>
+              <div>Creado por: {openBill.created_by?.user_name}</div>
+              <div>Fecha: {formatDate(openBill.created_at)}</div>
             </div>
           </div>
 
@@ -403,7 +403,7 @@ export default function PaymentModal({
                 color: "#333",
               }}
             >
-              Payment Type *
+              Tipo de Pago *
             </label>
             <select
               value={paymentType}
@@ -420,13 +420,17 @@ export default function PaymentModal({
                 cursor: isPaying ? "not-allowed" : "pointer",
               }}
             >
-              <option value="cash">Cash</option>
-              <option value="credit_card">Credit Card</option>
-              <option value="debit_card">Debit Card</option>
-              <option value="transfer_debit_bank">Transfer Debit Bank</option>
-              <option value="transfer_credit_bank">Transfer Credit Bank</option>
+              <option value="cash">Efectivo</option>
+              <option value="credit_card">Tarjeta de Crédito</option>
+              <option value="debit_card">Tarjeta de Débito</option>
+              <option value="transfer_debit_bank">
+                Transferencia Débito Bancaria
+              </option>
+              <option value="transfer_credit_bank">
+                Transferencia Crédito Bancaria
+              </option>
               <option value="transfer_debit_interbank">
-                Transfer Debit Interbank
+                Transferencia Débito Interbancaria
               </option>
             </select>
           </div>
@@ -441,14 +445,14 @@ export default function PaymentModal({
                 color: "#333",
               }}
             >
-              Customer ID (Optional)
+              ID de Cliente (Opcional)
             </label>
             <div style={{ display: "flex", gap: "0.5rem" }}>
               <input
                 type="text"
                 value={customerId}
                 onChange={(e) => setCustomerId(e.target.value)}
-                placeholder="Enter customer ID..."
+                placeholder="Ingresa ID del cliente..."
                 disabled={isPaying || isSearching}
                 style={{
                   flex: 1,
@@ -478,7 +482,7 @@ export default function PaymentModal({
                   gap: "0.5rem",
                 }}
               >
-                🔍 {isSearching ? "Searching..." : "Search"}
+                🔍 {isSearching ? "Buscando..." : "Buscar"}
               </button>
             </div>
           </div>
@@ -501,7 +505,7 @@ export default function PaymentModal({
                 color: "#333",
               }}
             >
-              Customer Information (Optional)
+              Información del Cliente (Opcional)
             </h4>
             <div
               style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
@@ -515,13 +519,13 @@ export default function PaymentModal({
                     color: "#666",
                   }}
                 >
-                  Name
+                  Nombre
                 </label>
                 <input
                   type="text"
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Customer name..."
+                  placeholder="Nombre del cliente..."
                   disabled={isPaying}
                   style={{
                     width: "100%",
@@ -550,13 +554,13 @@ export default function PaymentModal({
                       color: "#666",
                     }}
                   >
-                    Email
+                    Correo Electrónico
                   </label>
                   <input
                     type="email"
                     value={customerEmail}
                     onChange={(e) => setCustomerEmail(e.target.value)}
-                    placeholder="email@example.com..."
+                    placeholder="correo@ejemplo.com..."
                     disabled={isPaying}
                     style={{
                       width: "100%",
@@ -578,13 +582,13 @@ export default function PaymentModal({
                       color: "#666",
                     }}
                   >
-                    Phone (optional)
+                    Teléfono (opcional)
                   </label>
                   <input
                     type="tel"
                     value={customerPhone}
                     onChange={(e) => setCustomerPhone(e.target.value)}
-                    placeholder="Phone number..."
+                    placeholder="Número de teléfono..."
                     disabled={isPaying}
                     style={{
                       width: "100%",
@@ -607,13 +611,13 @@ export default function PaymentModal({
                     color: "#666",
                   }}
                 >
-                  Address (optional)
+                  Dirección (opcional)
                 </label>
                 <input
                   type="text"
                   value={customerAddress}
                   onChange={(e) => setCustomerAddress(e.target.value)}
-                  placeholder="Address..."
+                  placeholder="Dirección..."
                   disabled={isPaying}
                   style={{
                     width: "100%",
@@ -642,7 +646,7 @@ export default function PaymentModal({
                       color: "#666",
                     }}
                   >
-                    ID Type
+                    Tipo de ID
                   </label>
                   <select
                     value={customerIdentificationType}
@@ -661,7 +665,7 @@ export default function PaymentModal({
                       cursor: "pointer",
                     }}
                   >
-                    <option value="">Select ID Type...</option>
+                    <option value="">Seleccionar Tipo de ID...</option>
                     <option value="CC">CC</option>
                     <option value="NIT">NIT</option>
                   </select>
@@ -675,13 +679,13 @@ export default function PaymentModal({
                       color: "#666",
                     }}
                   >
-                    Identification
+                    Identificación
                   </label>
                   <input
                     type="text"
                     value={customerIdentification}
                     onChange={(e) => setCustomerIdentification(e.target.value)}
-                    placeholder="ID number..."
+                    placeholder="Número de ID..."
                     disabled={isPaying}
                     style={{
                       width: "100%",
@@ -708,7 +712,7 @@ export default function PaymentModal({
                 color: "#333",
               }}
             >
-              Items
+              Artículos
             </h3>
             <div
               style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
@@ -878,7 +882,7 @@ export default function PaymentModal({
             </div>
 
             <div className="footer">
-              <div>Thank you for your visit!</div>
+              <div>¡Gracias por su visita!</div>
               <div>Laguna Escondida</div>
             </div>
           </div>
@@ -913,7 +917,7 @@ export default function PaymentModal({
               opacity: isPaying ? 0.6 : 1,
             }}
           >
-            Close
+            Cerrar
           </button>
           <button
             type="button"
@@ -931,7 +935,7 @@ export default function PaymentModal({
               opacity: isPaying ? 0.6 : 1,
             }}
           >
-            🖨️ Print Bill
+            🖨️ Imprimir Cuenta
           </button>
           <button
             type="button"
@@ -948,7 +952,7 @@ export default function PaymentModal({
               cursor: isPaying ? "not-allowed" : "pointer",
             }}
           >
-            {isPaying ? "Processing..." : "💳 Pay & Close Bill"}
+            {isPaying ? "Procesando..." : "💳 Pagar y Cerrar Cuenta"}
           </button>
         </div>
       </div>

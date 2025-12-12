@@ -68,7 +68,7 @@ export default function SignInForm() {
               marginBottom: "2rem",
             }}
           >
-            Sign in to your account
+            Inicia sesión en tu cuenta
           </h2>
         </div>
         <form
@@ -98,14 +98,14 @@ export default function SignInForm() {
                   borderWidth: "0",
                 }}
               >
-                Username
+                Usuario
               </label>
               <input
                 id="username"
                 name="username"
                 type="text"
                 required
-                placeholder="Username"
+                placeholder="Usuario"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 disabled={isLoading}
@@ -139,14 +139,14 @@ export default function SignInForm() {
                   borderWidth: "0",
                 }}
               >
-                Password
+                Contraseña
               </label>
               <input
                 id="password"
                 name="password"
                 type="password"
                 required
-                placeholder="Password"
+                placeholder="Contraseña"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isLoading}
@@ -223,7 +223,7 @@ export default function SignInForm() {
                 }
               }}
             >
-              {isLoading ? "Signing in..." : "Sign in"}
+              {isLoading ? "Iniciando sesión..." : "Iniciar sesión"}
             </button>
           </div>
         </form>

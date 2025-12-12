@@ -223,7 +223,7 @@ export default function EditOrderForm({
                 color: "#333",
               }}
             >
-              Edit Order
+              Editar Orden
             </h2>
             <div
               style={{
@@ -290,7 +290,7 @@ export default function EditOrderForm({
             >
               <div style={{ marginBottom: "0.5rem" }}>
                 <strong style={{ color: "#666", fontSize: "0.875rem" }}>
-                  Created by:{" "}
+                  Creado por:{" "}
                 </strong>
                 <span style={{ color: "#333" }}>
                   {openBill.created_by?.user_name}
@@ -298,7 +298,7 @@ export default function EditOrderForm({
               </div>
               <div>
                 <strong style={{ color: "#666", fontSize: "0.875rem" }}>
-                  Created at:{" "}
+                  Creado el:{" "}
                 </strong>
                 <span style={{ color: "#333" }}>
                   {new Date(openBill.created_at).toLocaleString("en-US", {
@@ -322,12 +322,12 @@ export default function EditOrderForm({
                   color: "#333",
                 }}
               >
-                Descriptor (Optional)
+                Descriptor (Opcional)
               </label>
               <textarea
                 value={descriptor}
                 onChange={(e) => setDescriptor(e.target.value)}
-                placeholder="Description of the customer or table..."
+                placeholder="Descripción del cliente o mesa..."
                 rows={3}
                 style={{
                   width: "100%",
@@ -360,7 +360,7 @@ export default function EditOrderForm({
                     color: "#333",
                   }}
                 >
-                  Added Products ({selectedProductsArray.length})
+                  Productos Agregados ({selectedProductsArray.length})
                 </h3>
                 <div
                   style={{
@@ -467,7 +467,7 @@ export default function EditOrderForm({
                           onChange={(e) =>
                             handleNotesChange(lineItemId, e.target.value)
                           }
-                          placeholder="Add notes (optional)..."
+                          placeholder="Agregar notas (opcional)..."
                           style={{
                             width: "100%",
                             padding: "0.5rem",
@@ -494,11 +494,11 @@ export default function EditOrderForm({
                   color: "#333",
                 }}
               >
-                Add More Products
+                Agregar Más Productos
               </h3>
               <input
                 type="text"
-                placeholder="Search products..."
+                placeholder="Buscar productos..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{
@@ -528,7 +528,7 @@ export default function EditOrderForm({
                       color: "#666",
                     }}
                   >
-                    Loading products...
+                    Cargando productos...
                   </div>
                 ) : filteredProducts.length === 0 ? (
                   <div
@@ -538,7 +538,7 @@ export default function EditOrderForm({
                       color: "#666",
                     }}
                   >
-                    No products found
+                    No se encontraron productos
                   </div>
                 ) : (
                   filteredProducts.map((product) => {
@@ -624,7 +624,7 @@ export default function EditOrderForm({
                 cursor: "pointer",
               }}
             >
-              Cancel
+              Cancelar
             </button>
             <button
               type="submit"
@@ -640,7 +640,7 @@ export default function EditOrderForm({
                 cursor: isSubmitting ? "not-allowed" : "pointer",
               }}
             >
-              {isSubmitting ? "Updating..." : "Update Order"}
+              {isSubmitting ? "Actualizando..." : "Actualizar Orden"}
             </button>
           </div>
         </form>

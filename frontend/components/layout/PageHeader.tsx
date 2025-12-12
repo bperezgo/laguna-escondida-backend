@@ -8,10 +8,10 @@ export default function PageHeader() {
 
   // Determine page title based on current path
   const getPageTitle = () => {
-    if (pathname.startsWith("/orders")) return "Orders";
-    if (pathname.startsWith("/products")) return "Products";
-    if (pathname.startsWith("/stock")) return "Stock";
-    if (pathname.startsWith("/invoices")) return "Invoices";
+    if (pathname.startsWith("/orders")) return "Órdenes";
+    if (pathname.startsWith("/products")) return "Productos";
+    if (pathname.startsWith("/stock")) return "Inventario";
+    if (pathname.startsWith("/invoices")) return "Facturas";
     return "Laguna Escondida";
   };
 
@@ -75,7 +75,7 @@ export default function PageHeader() {
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = "transparent";
             }}
-            title="Back to Home"
+            title="Volver al Inicio"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -123,7 +123,7 @@ export default function PageHeader() {
             e.currentTarget.style.backgroundColor = "#dc2626";
           }}
         >
-          Sign Out
+          Cerrar Sesión
         </button>
       </div>
     </header>

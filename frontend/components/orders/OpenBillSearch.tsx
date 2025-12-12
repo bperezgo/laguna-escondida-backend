@@ -24,7 +24,7 @@ export default function OpenBillSearch({
     >
       <input
         type="text"
-        placeholder="Search by temporal identifier..."
+        placeholder="Buscar por identificador temporal..."
         value={searchQuery}
         onChange={handleChange}
         style={{

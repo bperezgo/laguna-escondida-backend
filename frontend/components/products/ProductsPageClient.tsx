@@ -83,7 +83,7 @@ export default function ProductsPageClient({
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this product?")) {
+    if (!confirm("¿Estás seguro de que quieres eliminar este producto?")) {
       return;
     }
 
@@ -140,7 +140,7 @@ export default function ProductsPageClient({
                 color: "#333",
               }}
             >
-              Products
+              Productos
             </h1>
             <p
               style={{
@@ -149,7 +149,7 @@ export default function ProductsPageClient({
                 fontSize: "1rem",
               }}
             >
-              Manage your restaurant products
+              Administra los productos de tu restaurante
             </p>
           </div>
           <button
@@ -172,7 +172,7 @@ export default function ProductsPageClient({
               e.currentTarget.style.backgroundColor = "#28a745";
             }}
           >
-            + Create Product
+            + Crear Producto
           </button>
         </div>
 

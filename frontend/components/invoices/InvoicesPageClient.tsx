@@ -192,7 +192,7 @@ export default function InvoicesPageClient() {
                 color: "#333",
               }}
             >
-              Electronic Invoices
+              Facturas Electrónicas
             </h1>
             <p
               style={{
@@ -201,7 +201,7 @@ export default function InvoicesPageClient() {
                 fontSize: "1rem",
               }}
             >
-              Create and manage electronic invoices
+              Crea y administra facturas electrónicas
             </p>
           </div>
           <button
@@ -224,7 +224,7 @@ export default function InvoicesPageClient() {
               e.currentTarget.style.backgroundColor = "#28a745";
             }}
           >
-            + Create Invoice
+            + Crear Factura
           </button>
         </div>
 
@@ -240,7 +240,7 @@ export default function InvoicesPageClient() {
               marginBottom: "1.5rem",
             }}
           >
-            <strong>Success:</strong> {success}
+            <strong>Éxito:</strong> {success}
           </div>
         )}
 
@@ -278,7 +278,7 @@ export default function InvoicesPageClient() {
               color: "#333",
             }}
           >
-            Search Filters
+            Filtros de Búsqueda
           </h2>
           <div
             style={{
@@ -298,7 +298,7 @@ export default function InvoicesPageClient() {
                   color: "#555",
                 }}
               >
-                Start Date
+                Fecha de Inicio
               </label>
               <input
                 type="date"
@@ -323,7 +323,7 @@ export default function InvoicesPageClient() {
                   color: "#555",
                 }}
               >
-                End Date
+                Fecha de Fin
               </label>
               <input
                 type="date"
@@ -348,13 +348,13 @@ export default function InvoicesPageClient() {
                   color: "#555",
                 }}
               >
-                National ID
+                Identificación Nacional
               </label>
               <input
                 type="text"
                 value={nationalIdentification}
                 onChange={(e) => setNationalIdentification(e.target.value)}
-                placeholder="Enter ID number"
+                placeholder="Ingresa el número de identificación"
                 style={{
                   width: "100%",
                   padding: "0.5rem",
@@ -390,7 +390,7 @@ export default function InvoicesPageClient() {
                 e.currentTarget.style.backgroundColor = "#007bff";
               }}
             >
-              Apply Filters
+              Aplicar Filtros
             </button>
             <button
               onClick={handleClearFilters}
@@ -411,7 +411,7 @@ export default function InvoicesPageClient() {
                 e.currentTarget.style.backgroundColor = "#6c757d";
               }}
             >
-              Clear Filters
+              Limpiar Filtros
             </button>
           </div>
         </div>
@@ -428,7 +428,7 @@ export default function InvoicesPageClient() {
             }}
           >
             <p style={{ color: "#666", fontSize: "1rem", margin: 0 }}>
-              Loading invoices...
+              Cargando facturas...
             </p>
           </div>
         ) : invoices.length === 0 ? (
@@ -442,8 +442,8 @@ export default function InvoicesPageClient() {
             }}
           >
             <p style={{ color: "#666", fontSize: "1rem", margin: 0 }}>
-              No invoices found. Click "Create Invoice" to start creating a new
-              electronic invoice.
+              No se encontraron facturas. Haz clic en "Crear Factura" para
+              comenzar a crear una nueva factura electrónica.
             </p>
           </div>
         ) : (
@@ -470,7 +470,7 @@ export default function InvoicesPageClient() {
                     color: "#666",
                   }}
                 >
-                  Showing {invoices.length} of {total} invoices
+                  Mostrando {invoices.length} de {total} facturas
                 </p>
               </div>
               <div
@@ -500,7 +500,7 @@ export default function InvoicesPageClient() {
                           color: "#333",
                         }}
                       >
-                        Created At
+                        Fecha de Creación
                       </th>
                       <th
                         style={{
@@ -544,7 +544,7 @@ export default function InvoicesPageClient() {
                           color: "#333",
                         }}
                       >
-                        Discount
+                        Descuento
                       </th>
                       <th
                         style={{
@@ -577,7 +577,7 @@ export default function InvoicesPageClient() {
                           color: "#333",
                         }}
                       >
-                        Tip
+                        Propina
                       </th>
                       <th
                         style={{
@@ -588,7 +588,7 @@ export default function InvoicesPageClient() {
                           color: "#333",
                         }}
                       >
-                        Document
+                        Documento
                       </th>
                     </tr>
                   </thead>
@@ -705,7 +705,7 @@ export default function InvoicesPageClient() {
                                 alignItems: "center",
                                 justifyContent: "center",
                               }}
-                              title="View document (PDF)"
+                              title="Ver documento (PDF)"
                             >
                               <svg
                                 width="24"
@@ -732,7 +732,7 @@ export default function InvoicesPageClient() {
                                 justifyContent: "center",
                                 padding: "0.25rem",
                               }}
-                              title="Document not available"
+                              title="Documento no disponible"
                             >
                               <svg
                                 width="24"
@@ -798,7 +798,7 @@ export default function InvoicesPageClient() {
                     fontWeight: "500",
                   }}
                 >
-                  Previous
+                  Anterior
                 </button>
                 <span
                   style={{
@@ -807,7 +807,7 @@ export default function InvoicesPageClient() {
                     color: "#333",
                   }}
                 >
-                  Page {currentPage} of {totalPages}
+                  Página {currentPage} de {totalPages}
                 </span>
                 <button
                   onClick={() => handlePageChange(currentPage + 1)}
@@ -825,7 +825,7 @@ export default function InvoicesPageClient() {
                     fontWeight: "500",
                   }}
                 >
-                  Next
+                  Siguiente
                 </button>
               </div>
             )}
