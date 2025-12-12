@@ -29,6 +29,7 @@ export default function CreateOrderForm({
     Map<string, ProductWithQuantity>
   >(new Map());
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,18 +52,37 @@ export default function CreateOrderForm({
     fetchProducts();
   }, []);
 
-  // Filter products based on search query
+  // Extract unique categories from products
+  const categories = useMemo(() => {
+    const uniqueCategories = Array.from(
+      new Set(products.map((p) => p.category))
+    ).sort();
+    return uniqueCategories;
+  }, [products]);
+
+  // Filter products based on search query and category
   const filteredProducts = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return products;
+    let filtered = products;
+
+    // Filter by category
+    if (selectedCategory !== "all") {
+      filtered = filtered.filter(
+        (product) => product.category === selectedCategory
+      );
     }
-    const query = searchQuery.toLowerCase();
-    return products.filter(
-      (product) =>
-        product.name.toLowerCase().includes(query) ||
-        product.category.toLowerCase().includes(query)
-    );
-  }, [products, searchQuery]);
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (product) =>
+          product.name.toLowerCase().includes(query) ||
+          product.category.toLowerCase().includes(query)
+      );
+    }
+
+    return filtered;
+  }, [products, searchQuery, selectedCategory]);
 
   const handleProductSelect = (product: Product) => {
     setLineItemCounter((prev) => {
@@ -459,21 +479,50 @@ export default function CreateOrderForm({
               >
                 Agregar Productos
               </h3>
-              <input
-                type="text"
-                placeholder="Buscar productos..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+              <div
                 style={{
-                  width: "100%",
-                  padding: "0.75rem",
-                  fontSize: "1rem",
-                  border: "2px solid #e0e0e0",
-                  borderRadius: "8px",
-                  outline: "none",
+                  display: "flex",
+                  gap: "0.75rem",
                   marginBottom: "1rem",
+                  flexWrap: "wrap",
                 }}
-              />
+              >
+                <input
+                  type="text"
+                  placeholder="Buscar productos..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    flex: "1 1 250px",
+                    padding: "0.75rem",
+                    fontSize: "1rem",
+                    border: "2px solid #e0e0e0",
+                    borderRadius: "8px",
+                    outline: "none",
+                  }}
+                />
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  style={{
+                    flex: "0 1 200px",
+                    padding: "0.75rem",
+                    fontSize: "1rem",
+                    border: "2px solid #e0e0e0",
+                    borderRadius: "8px",
+                    outline: "none",
+                    backgroundColor: "white",
+                    cursor: "pointer",
+                  }}
+                >
+                  <option value="all">Todas las categorías</option>
+                  {categories.map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div
                 style={{
                   maxHeight: "300px",

@@ -95,7 +95,7 @@ export default function PaymentModal({
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Bill - ${openBill.temporal_identifier}</title>
+          <title>Factura - ${openBill.temporal_identifier}</title>
           <style>
             * {
               margin: 0;
@@ -831,13 +831,13 @@ export default function PaymentModal({
         <div style={{ display: "none" }}>
           <div ref={printRef}>
             <div className="header">
-              <div className="bill-number">{openBill.temporal_identifier}</div>
+              <div className="bill-number">
+                Factura - {openBill.temporal_identifier}
+              </div>
               <div className="date">{formatDate(openBill.created_at)}</div>
-              {openBill.descriptor && (
-                <div className="descriptor">{openBill.descriptor}</div>
-              )}
               {openBill.created_by && (
                 <div className="date">
+                  {/* TODO: Agregar el nombre del usuario que creó la factura */}
                   Served by: {openBill.created_by.user_name}
                 </div>
               )}
@@ -868,7 +868,7 @@ export default function PaymentModal({
                 <span>${subtotal.toFixed(2)}</span>
               </div>
               <div className="total-row">
-                <span>VAT (IVA):</span>
+                <span>IVA:</span>
                 <span>${totalVAT.toFixed(2)}</span>
               </div>
               <div className="total-row">
