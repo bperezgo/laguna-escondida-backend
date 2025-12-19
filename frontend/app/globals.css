@@ -64,6 +64,63 @@
   --transition-slow: 0.3s ease;
 }
 
+/* Coastal Waters - Light Theme */
+@media (prefers-color-scheme: light) {
+  :root {
+    /* Primary colors - slightly darker for light bg contrast */
+    --color-primary: #0d9488;
+    --color-primary-hover: #0f766e;
+    --color-primary-light: rgba(13, 148, 136, 0.1);
+    
+    /* Secondary accent */
+    --color-secondary: #b08f1f;
+    --color-secondary-hover: #92780f;
+    --color-secondary-light: rgba(176, 143, 31, 0.1);
+    
+    /* Semantic colors - darker for contrast */
+    --color-success: #16a34a;
+    --color-success-hover: #15803d;
+    --color-success-light: rgba(22, 163, 74, 0.1);
+    
+    --color-danger: #dc2626;
+    --color-danger-hover: #b91c1c;
+    --color-danger-light: rgba(220, 38, 38, 0.1);
+    
+    --color-warning: #d97706;
+    --color-warning-hover: #b45309;
+    --color-warning-light: rgba(217, 119, 6, 0.1);
+    
+    /* Background colors */
+    --color-bg: #f8fafc;
+    --color-bg-elevated: #ffffff;
+    
+    /* Surface colors */
+    --color-surface: #ffffff;
+    --color-surface-hover: #f1f5f9;
+    --color-surface-active: #e2e8f0;
+    
+    /* Text colors - inverted */
+    --color-text-primary: #0f172a;
+    --color-text-secondary: #475569;
+    --color-text-muted: #64748b;
+    --color-text-inverse: #f1f5f9;
+    
+    /* Border colors */
+    --color-border: #e2e8f0;
+    --color-border-light: #cbd5e1;
+    --color-border-focus: #0d9488;
+    
+    /* Overlay - slightly lighter */
+    --color-overlay: rgba(0, 0, 0, 0.5);
+    
+    /* Shadows - softer for light theme */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+    --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.15);
+  }
+}
+
 * {
   box-sizing: border-box;
   padding: 0;
@@ -91,7 +148,7 @@ a {
   text-decoration: none;
 }
 
-/* Scrollbar styling for dark theme */
+/* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
