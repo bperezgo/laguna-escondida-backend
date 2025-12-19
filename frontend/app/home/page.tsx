@@ -21,7 +21,7 @@ export default function HomePage() {
     <div
       style={{
         minHeight: "100vh",
-        backgroundColor: "#f9fafb",
+        backgroundColor: "var(--color-bg)",
       }}
     >
       <div
@@ -36,7 +36,7 @@ export default function HomePage() {
             style={{
               fontSize: "2.25rem",
               fontWeight: "bold",
-              color: "#111827",
+              color: "var(--color-text-primary)",
               marginBottom: "2rem",
             }}
           >
@@ -45,7 +45,7 @@ export default function HomePage() {
           <p
             style={{
               fontSize: "1.125rem",
-              color: "#4b5563",
+              color: "var(--color-text-secondary)",
               marginBottom: "2rem",
             }}
           >
@@ -66,34 +66,36 @@ export default function HomePage() {
               href="/orders"
               style={{
                 padding: "1.5rem",
-                backgroundColor: "white",
-                borderRadius: "0.5rem",
-                boxShadow:
-                  "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+                backgroundColor: "var(--color-surface)",
+                borderRadius: "var(--radius-md)",
+                boxShadow: "var(--shadow-md)",
                 textDecoration: "none",
                 display: "block",
-                transition: "box-shadow 0.2s",
+                transition: "all var(--transition-normal)",
+                border: "1px solid var(--color-border)",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow =
-                  "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)";
+                e.currentTarget.style.boxShadow = "var(--shadow-lg)";
+                e.currentTarget.style.borderColor = "var(--color-primary)";
+                e.currentTarget.style.transform = "translateY(-2px)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow =
-                  "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)";
+                e.currentTarget.style.boxShadow = "var(--shadow-md)";
+                e.currentTarget.style.borderColor = "var(--color-border)";
+                e.currentTarget.style.transform = "translateY(0)";
               }}
             >
               <h2
                 style={{
                   fontSize: "1.25rem",
                   fontWeight: "600",
-                  color: "#111827",
+                  color: "var(--color-text-primary)",
                   marginBottom: "0.5rem",
                 }}
               >
                 Órdenes
               </h2>
-              <p style={{ color: "#4b5563", margin: 0 }}>
+              <p style={{ color: "var(--color-text-secondary)", margin: 0 }}>
                 Administra las órdenes de los clientes
               </p>
             </a>
@@ -102,34 +104,36 @@ export default function HomePage() {
               href="/products"
               style={{
                 padding: "1.5rem",
-                backgroundColor: "white",
-                borderRadius: "0.5rem",
-                boxShadow:
-                  "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+                backgroundColor: "var(--color-surface)",
+                borderRadius: "var(--radius-md)",
+                boxShadow: "var(--shadow-md)",
                 textDecoration: "none",
                 display: "block",
-                transition: "box-shadow 0.2s",
+                transition: "all var(--transition-normal)",
+                border: "1px solid var(--color-border)",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow =
-                  "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)";
+                e.currentTarget.style.boxShadow = "var(--shadow-lg)";
+                e.currentTarget.style.borderColor = "var(--color-primary)";
+                e.currentTarget.style.transform = "translateY(-2px)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow =
-                  "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)";
+                e.currentTarget.style.boxShadow = "var(--shadow-md)";
+                e.currentTarget.style.borderColor = "var(--color-border)";
+                e.currentTarget.style.transform = "translateY(0)";
               }}
             >
               <h2
                 style={{
                   fontSize: "1.25rem",
                   fontWeight: "600",
-                  color: "#111827",
+                  color: "var(--color-text-primary)",
                   marginBottom: "0.5rem",
                 }}
               >
                 Productos
               </h2>
-              <p style={{ color: "#4b5563", margin: 0 }}>
+              <p style={{ color: "var(--color-text-secondary)", margin: 0 }}>
                 Ver y editar productos
               </p>
             </a>
@@ -138,34 +142,36 @@ export default function HomePage() {
               href="/stock"
               style={{
                 padding: "1.5rem",
-                backgroundColor: "white",
-                borderRadius: "0.5rem",
-                boxShadow:
-                  "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+                backgroundColor: "var(--color-surface)",
+                borderRadius: "var(--radius-md)",
+                boxShadow: "var(--shadow-md)",
                 textDecoration: "none",
                 display: "block",
-                transition: "box-shadow 0.2s",
+                transition: "all var(--transition-normal)",
+                border: "1px solid var(--color-border)",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow =
-                  "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)";
+                e.currentTarget.style.boxShadow = "var(--shadow-lg)";
+                e.currentTarget.style.borderColor = "var(--color-primary)";
+                e.currentTarget.style.transform = "translateY(-2px)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow =
-                  "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)";
+                e.currentTarget.style.boxShadow = "var(--shadow-md)";
+                e.currentTarget.style.borderColor = "var(--color-border)";
+                e.currentTarget.style.transform = "translateY(0)";
               }}
             >
               <h2
                 style={{
                   fontSize: "1.25rem",
                   fontWeight: "600",
-                  color: "#111827",
+                  color: "var(--color-text-primary)",
                   marginBottom: "0.5rem",
                 }}
               >
                 Inventario
               </h2>
-              <p style={{ color: "#4b5563", margin: 0 }}>
+              <p style={{ color: "var(--color-text-secondary)", margin: 0 }}>
                 Administrar inventario
               </p>
             </a>
@@ -174,34 +180,36 @@ export default function HomePage() {
               href="/invoices"
               style={{
                 padding: "1.5rem",
-                backgroundColor: "white",
-                borderRadius: "0.5rem",
-                boxShadow:
-                  "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+                backgroundColor: "var(--color-surface)",
+                borderRadius: "var(--radius-md)",
+                boxShadow: "var(--shadow-md)",
                 textDecoration: "none",
                 display: "block",
-                transition: "box-shadow 0.2s",
+                transition: "all var(--transition-normal)",
+                border: "1px solid var(--color-border)",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow =
-                  "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)";
+                e.currentTarget.style.boxShadow = "var(--shadow-lg)";
+                e.currentTarget.style.borderColor = "var(--color-primary)";
+                e.currentTarget.style.transform = "translateY(-2px)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow =
-                  "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)";
+                e.currentTarget.style.boxShadow = "var(--shadow-md)";
+                e.currentTarget.style.borderColor = "var(--color-border)";
+                e.currentTarget.style.transform = "translateY(0)";
               }}
             >
               <h2
                 style={{
                   fontSize: "1.25rem",
                   fontWeight: "600",
-                  color: "#111827",
+                  color: "var(--color-text-primary)",
                   marginBottom: "0.5rem",
                 }}
               >
                 Facturas
               </h2>
-              <p style={{ color: "#4b5563", margin: 0 }}>Ver facturas</p>
+              <p style={{ color: "var(--color-text-secondary)", margin: 0 }}>Ver facturas</p>
             </a>
           </div>
 
@@ -210,19 +218,20 @@ export default function HomePage() {
               onClick={handleSignOut}
               style={{
                 padding: "0.625rem 1.5rem",
-                backgroundColor: "#dc2626",
+                backgroundColor: "var(--color-danger)",
                 color: "white",
                 border: "none",
-                borderRadius: "0.375rem",
+                borderRadius: "var(--radius-md)",
                 cursor: "pointer",
                 fontSize: "1rem",
                 fontWeight: "500",
+                transition: "background-color var(--transition-normal)",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "#b91c1c";
+                e.currentTarget.style.backgroundColor = "var(--color-danger-hover)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "#dc2626";
+                e.currentTarget.style.backgroundColor = "var(--color-danger)";
               }}
             >
               Cerrar Sesión

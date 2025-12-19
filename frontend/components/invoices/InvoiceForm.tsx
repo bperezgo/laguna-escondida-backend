@@ -388,7 +388,7 @@ export default function InvoiceForm({
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: "rgba(0, 0, 0, 0.5)",
+        backgroundColor: "var(--color-overlay)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -399,15 +399,16 @@ export default function InvoiceForm({
     >
       <div
         style={{
-          backgroundColor: "white",
-          borderRadius: "8px",
+          backgroundColor: "var(--color-surface)",
+          borderRadius: "var(--radius-md)",
           padding: "2rem",
           maxWidth: "900px",
           width: "100%",
           maxHeight: "95vh",
           overflowY: "auto",
-          boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+          boxShadow: "var(--shadow-xl)",
           margin: "auto",
+          border: "1px solid var(--color-border)",
         }}
       >
         <h2
@@ -416,6 +417,7 @@ export default function InvoiceForm({
             marginBottom: "1.5rem",
             fontSize: "1.5rem",
             fontWeight: "bold",
+            color: "var(--color-text-primary)",
           }}
         >
           Crear Factura Electrónica
@@ -427,7 +429,7 @@ export default function InvoiceForm({
             style={{
               marginBottom: "2rem",
               paddingBottom: "1.5rem",
-              borderBottom: "1px solid #e0e0e0",
+              borderBottom: "1px solid var(--color-border)",
             }}
           >
             <h3
@@ -436,9 +438,10 @@ export default function InvoiceForm({
                 marginBottom: "1rem",
                 fontSize: "1.2rem",
                 fontWeight: "600",
+                color: "var(--color-text-primary)",
               }}
             >
-              Invoice Details
+              Detalles de Factura
             </h3>
 
             <div>
@@ -447,7 +450,7 @@ export default function InvoiceForm({
                   display: "block",
                   marginBottom: "0.5rem",
                   fontWeight: "500",
-                  color: "#333",
+                  color: "var(--color-text-primary)",
                 }}
               >
                 Código de Pago *
@@ -463,10 +466,12 @@ export default function InvoiceForm({
                 style={{
                   width: "100%",
                   padding: "0.75rem",
-                  border: "1px solid #ced4da",
-                  borderRadius: "4px",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "var(--radius-sm)",
                   fontSize: "1rem",
                   boxSizing: "border-box",
+                  backgroundColor: "var(--color-bg)",
+                  color: "var(--color-text-primary)",
                 }}
               >
                 {PAYMENT_CODES.map((code) => (
@@ -483,7 +488,7 @@ export default function InvoiceForm({
             style={{
               marginBottom: "2rem",
               paddingBottom: "1.5rem",
-              borderBottom: "1px solid #e0e0e0",
+              borderBottom: "1px solid var(--color-border)",
             }}
           >
             <h3
@@ -492,6 +497,7 @@ export default function InvoiceForm({
                 marginBottom: "1rem",
                 fontSize: "1.2rem",
                 fontWeight: "600",
+                color: "var(--color-text-primary)",
               }}
             >
               Información del Cliente{" "}
@@ -499,7 +505,7 @@ export default function InvoiceForm({
                 style={{
                   fontSize: "0.875rem",
                   fontWeight: "normal",
-                  color: "#666",
+                  color: "var(--color-text-muted)",
                 }}
               >
                 (Opcional)
@@ -520,7 +526,7 @@ export default function InvoiceForm({
                     display: "block",
                     marginBottom: "0.5rem",
                     fontWeight: "500",
-                    color: "#333",
+                    color: "var(--color-text-primary)",
                   }}
                 >
                   Número de Documento
@@ -533,11 +539,13 @@ export default function InvoiceForm({
                     width: "100%",
                     padding: "0.75rem",
                     border: `1px solid ${
-                      errors["customer.id"] ? "#dc3545" : "#ced4da"
+                      errors["customer.id"] ? "var(--color-danger)" : "var(--color-border)"
                     }`,
-                    borderRadius: "4px",
+                    borderRadius: "var(--radius-sm)",
                     fontSize: "1rem",
                     boxSizing: "border-box",
+                    backgroundColor: "var(--color-bg)",
+                    color: "var(--color-text-primary)",
                   }}
                   placeholder="Ingresa el número de documento"
                 />
@@ -545,7 +553,7 @@ export default function InvoiceForm({
                   <p
                     style={{
                       margin: "0.25rem 0 0 0",
-                      color: "#dc3545",
+                      color: "var(--color-danger)",
                       fontSize: "0.875rem",
                     }}
                   >
@@ -560,7 +568,7 @@ export default function InvoiceForm({
                     display: "block",
                     marginBottom: "0.5rem",
                     fontWeight: "500",
-                    color: "#333",
+                    color: "var(--color-text-primary)",
                   }}
                 >
                   Tipo de Documento
@@ -576,10 +584,12 @@ export default function InvoiceForm({
                   style={{
                     width: "100%",
                     padding: "0.75rem",
-                    border: "1px solid #ced4da",
-                    borderRadius: "4px",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: "var(--radius-sm)",
                     fontSize: "1rem",
                     boxSizing: "border-box",
+                    backgroundColor: "var(--color-bg)",
+                    color: "var(--color-text-primary)",
                   }}
                 >
                   {DOCUMENT_TYPES.map((type) => (
@@ -604,7 +614,7 @@ export default function InvoiceForm({
                     display: "block",
                     marginBottom: "0.5rem",
                     fontWeight: "500",
-                    color: "#333",
+                    color: "var(--color-text-primary)",
                   }}
                 >
                   Nombre
@@ -619,11 +629,13 @@ export default function InvoiceForm({
                     width: "100%",
                     padding: "0.75rem",
                     border: `1px solid ${
-                      errors["customer.name"] ? "#dc3545" : "#ced4da"
+                      errors["customer.name"] ? "var(--color-danger)" : "var(--color-border)"
                     }`,
-                    borderRadius: "4px",
+                    borderRadius: "var(--radius-sm)",
                     fontSize: "1rem",
                     boxSizing: "border-box",
+                    backgroundColor: "var(--color-bg)",
+                    color: "var(--color-text-primary)",
                   }}
                   placeholder="Ingresa el nombre del cliente"
                 />
@@ -631,7 +643,7 @@ export default function InvoiceForm({
                   <p
                     style={{
                       margin: "0.25rem 0 0 0",
-                      color: "#dc3545",
+                      color: "var(--color-danger)",
                       fontSize: "0.875rem",
                     }}
                   >
@@ -646,7 +658,7 @@ export default function InvoiceForm({
                     display: "block",
                     marginBottom: "0.5rem",
                     fontWeight: "500",
-                    color: "#333",
+                    color: "var(--color-text-primary)",
                   }}
                 >
                   Correo Electrónico
@@ -661,11 +673,13 @@ export default function InvoiceForm({
                     width: "100%",
                     padding: "0.75rem",
                     border: `1px solid ${
-                      errors["customer.email"] ? "#dc3545" : "#ced4da"
+                      errors["customer.email"] ? "var(--color-danger)" : "var(--color-border)"
                     }`,
-                    borderRadius: "4px",
+                    borderRadius: "var(--radius-sm)",
                     fontSize: "1rem",
                     boxSizing: "border-box",
+                    backgroundColor: "var(--color-bg)",
+                    color: "var(--color-text-primary)",
                   }}
                   placeholder="Ingresa el correo del cliente"
                 />
@@ -673,7 +687,7 @@ export default function InvoiceForm({
                   <p
                     style={{
                       margin: "0.25rem 0 0 0",
-                      color: "#dc3545",
+                      color: "var(--color-danger)",
                       fontSize: "0.875rem",
                     }}
                   >
@@ -689,7 +703,7 @@ export default function InvoiceForm({
             style={{
               marginBottom: "2rem",
               paddingBottom: "1.5rem",
-              borderBottom: "1px solid #e0e0e0",
+              borderBottom: "1px solid var(--color-border)",
             }}
           >
             <div
@@ -700,7 +714,7 @@ export default function InvoiceForm({
                 marginBottom: "1rem",
               }}
             >
-              <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: "600" }}>
+              <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: "600", color: "var(--color-text-primary)" }}>
                 Artículos de la Factura
               </h3>
               <button
@@ -708,10 +722,10 @@ export default function InvoiceForm({
                 onClick={addItem}
                 style={{
                   padding: "0.5rem 1rem",
-                  backgroundColor: "#007bff",
+                  backgroundColor: "var(--color-primary)",
                   color: "white",
                   border: "none",
-                  borderRadius: "4px",
+                  borderRadius: "var(--radius-sm)",
                   cursor: "pointer",
                   fontSize: "0.875rem",
                   fontWeight: "500",
@@ -724,7 +738,7 @@ export default function InvoiceForm({
               <p
                 style={{
                   margin: "0 0 1rem 0",
-                  color: "#dc3545",
+                  color: "var(--color-danger)",
                   fontSize: "0.875rem",
                 }}
               >
@@ -735,11 +749,11 @@ export default function InvoiceForm({
               <div
                 key={index}
                 style={{
-                  border: "1px solid #e0e0e0",
-                  borderRadius: "4px",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "var(--radius-sm)",
                   padding: "1rem",
                   marginBottom: "1rem",
-                  backgroundColor: "#f9f9f9",
+                  backgroundColor: "var(--color-bg)",
                 }}
               >
                 <div
@@ -751,7 +765,7 @@ export default function InvoiceForm({
                   }}
                 >
                   <h4
-                    style={{ margin: 0, fontSize: "1rem", fontWeight: "600" }}
+                    style={{ margin: 0, fontSize: "1rem", fontWeight: "600", color: "var(--color-text-primary)" }}
                   >
                     Artículo {index + 1}
                   </h4>
@@ -760,10 +774,10 @@ export default function InvoiceForm({
                     onClick={() => removeItem(index)}
                     style={{
                       padding: "0.25rem 0.75rem",
-                      backgroundColor: "#dc3545",
+                      backgroundColor: "var(--color-danger)",
                       color: "white",
                       border: "none",
-                      borderRadius: "4px",
+                      borderRadius: "var(--radius-sm)",
                       cursor: "pointer",
                       fontSize: "0.875rem",
                     }}
@@ -779,7 +793,7 @@ export default function InvoiceForm({
                       display: "block",
                       marginBottom: "0.5rem",
                       fontWeight: "500",
-                      color: "#333",
+                      color: "var(--color-text-primary)",
                       fontSize: "0.875rem",
                     }}
                   >
@@ -813,10 +827,12 @@ export default function InvoiceForm({
                       style={{
                         width: "100%",
                         padding: "0.5rem",
-                        border: "1px solid #ced4da",
-                        borderRadius: "4px",
+                        border: "1px solid var(--color-border)",
+                        borderRadius: "var(--radius-sm)",
                         fontSize: "0.875rem",
                         boxSizing: "border-box",
+                        backgroundColor: "var(--color-surface)",
+                        color: "var(--color-text-primary)",
                       }}
                     />
                     {!itemSelectedProduct[index] &&
@@ -829,14 +845,14 @@ export default function InvoiceForm({
                             top: "100%",
                             left: 0,
                             right: 0,
-                            backgroundColor: "white",
-                            border: "1px solid #ced4da",
-                            borderRadius: "4px",
+                            backgroundColor: "var(--color-surface)",
+                            border: "1px solid var(--color-border)",
+                            borderRadius: "var(--radius-sm)",
                             maxHeight: "200px",
                             overflowY: "auto",
                             zIndex: 1000,
                             marginTop: "0.25rem",
-                            boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                            boxShadow: "var(--shadow-lg)",
                           }}
                         >
                           {getFilteredProducts(index).map((product) => (
@@ -848,15 +864,15 @@ export default function InvoiceForm({
                               style={{
                                 padding: "0.75rem",
                                 cursor: "pointer",
-                                borderBottom: "1px solid #f0f0f0",
-                                transition: "background-color 0.2s",
+                                borderBottom: "1px solid var(--color-border)",
+                                transition: "background-color var(--transition-fast)",
                               }}
                               onMouseEnter={(e) => {
                                 e.currentTarget.style.backgroundColor =
-                                  "#f8f9fa";
+                                  "var(--color-surface-hover)";
                               }}
                               onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = "white";
+                                e.currentTarget.style.backgroundColor = "var(--color-surface)";
                               }}
                             >
                               <div
@@ -864,12 +880,13 @@ export default function InvoiceForm({
                                   fontWeight: "500",
                                   fontSize: "0.875rem",
                                   marginBottom: "0.25rem",
+                                  color: "var(--color-text-primary)",
                                 }}
                               >
                                 {product.name}
                               </div>
                               <div
-                                style={{ fontSize: "0.75rem", color: "#666" }}
+                                style={{ fontSize: "0.75rem", color: "var(--color-text-muted)" }}
                               >
                                 SKU: {product.sku} | Price: $
                                 {product.unit_price.toFixed(2)}
@@ -890,9 +907,9 @@ export default function InvoiceForm({
                       style={{
                         marginTop: "0.75rem",
                         padding: "0.75rem",
-                        backgroundColor: "#e7f3ff",
-                        borderRadius: "4px",
-                        border: "1px solid #b3d9ff",
+                        backgroundColor: "var(--color-primary-light)",
+                        borderRadius: "var(--radius-sm)",
+                        border: "1px solid var(--color-primary)",
                       }}
                     >
                       <div
@@ -907,7 +924,7 @@ export default function InvoiceForm({
                           style={{
                             fontSize: "0.875rem",
                             fontWeight: "500",
-                            color: "#0066cc",
+                            color: "var(--color-primary)",
                           }}
                         >
                           Producto Seleccionado:
@@ -917,10 +934,10 @@ export default function InvoiceForm({
                           onClick={() => handleClearProduct(index)}
                           style={{
                             padding: "0.25rem 0.5rem",
-                            backgroundColor: "#dc3545",
+                            backgroundColor: "var(--color-danger)",
                             color: "white",
                             border: "none",
-                            borderRadius: "4px",
+                            borderRadius: "var(--radius-sm)",
                             cursor: "pointer",
                             fontSize: "0.75rem",
                           }}
@@ -929,7 +946,7 @@ export default function InvoiceForm({
                           Limpiar
                         </button>
                       </div>
-                      <div style={{ fontSize: "0.875rem", lineHeight: "1.6" }}>
+                      <div style={{ fontSize: "0.875rem", lineHeight: "1.6", color: "var(--color-text-primary)" }}>
                         <div>
                           <strong>Name:</strong>{" "}
                           {itemSelectedProduct[index]!.name}
@@ -989,7 +1006,7 @@ export default function InvoiceForm({
                         display: "block",
                         marginBottom: "0.5rem",
                         fontWeight: "500",
-                        color: "#333",
+                        color: "var(--color-text-primary)",
                         fontSize: "0.875rem",
                       }}
                     >
@@ -1013,12 +1030,14 @@ export default function InvoiceForm({
                         padding: "0.5rem",
                         border: `1px solid ${
                           errors[`items.${index}.quantity`]
-                            ? "#dc3545"
-                            : "#ced4da"
+                            ? "var(--color-danger)"
+                            : "var(--color-border)"
                         }`,
-                        borderRadius: "4px",
+                        borderRadius: "var(--radius-sm)",
                         fontSize: "0.875rem",
                         boxSizing: "border-box",
+                        backgroundColor: "var(--color-surface)",
+                        color: "var(--color-text-primary)",
                       }}
                       placeholder="0"
                     />
@@ -1026,7 +1045,7 @@ export default function InvoiceForm({
                       <p
                         style={{
                           margin: "0.25rem 0 0 0",
-                          color: "#dc3545",
+                          color: "var(--color-danger)",
                           fontSize: "0.75rem",
                         }}
                       >
@@ -1040,7 +1059,7 @@ export default function InvoiceForm({
                         display: "block",
                         marginBottom: "0.5rem",
                         fontWeight: "500",
-                        color: "#333",
+                        color: "var(--color-text-primary)",
                         fontSize: "0.875rem",
                       }}
                     >
@@ -1049,7 +1068,7 @@ export default function InvoiceForm({
                         <span
                           style={{
                             fontSize: "0.75rem",
-                            color: "#666",
+                            color: "var(--color-text-muted)",
                             fontWeight: "normal",
                           }}
                         >
@@ -1078,15 +1097,16 @@ export default function InvoiceForm({
                         padding: "0.5rem",
                         border: `1px solid ${
                           errors[`items.${index}.totalPriceWithTaxes`]
-                            ? "#dc3545"
-                            : "#ced4da"
+                            ? "var(--color-danger)"
+                            : "var(--color-border)"
                         }`,
-                        borderRadius: "4px",
+                        borderRadius: "var(--radius-sm)",
                         fontSize: "0.875rem",
                         boxSizing: "border-box",
                         backgroundColor: itemSelectedProduct[index]
-                          ? "#e9ecef"
-                          : "white",
+                          ? "var(--color-surface-hover)"
+                          : "var(--color-surface)",
+                        color: "var(--color-text-primary)",
                         cursor: itemSelectedProduct[index]
                           ? "not-allowed"
                           : "text",
@@ -1097,7 +1117,7 @@ export default function InvoiceForm({
                       <p
                         style={{
                           margin: "0.25rem 0 0 0",
-                          color: "#dc3545",
+                          color: "var(--color-danger)",
                           fontSize: "0.75rem",
                         }}
                       >
@@ -1111,7 +1131,7 @@ export default function InvoiceForm({
                         display: "block",
                         marginBottom: "0.5rem",
                         fontWeight: "500",
-                        color: "#333",
+                        color: "var(--color-text-primary)",
                         fontSize: "0.875rem",
                       }}
                     >
@@ -1124,11 +1144,12 @@ export default function InvoiceForm({
                       style={{
                         width: "100%",
                         padding: "0.5rem",
-                        border: "1px solid #ced4da",
-                        borderRadius: "4px",
+                        border: "1px solid var(--color-border)",
+                        borderRadius: "var(--radius-sm)",
                         fontSize: "0.875rem",
                         boxSizing: "border-box",
-                        backgroundColor: "#e9ecef",
+                        backgroundColor: "var(--color-surface-hover)",
+                        color: "var(--color-text-primary)",
                       }}
                     />
                   </div>
@@ -1139,7 +1160,7 @@ export default function InvoiceForm({
                       display: "block",
                       marginBottom: "0.5rem",
                       fontWeight: "500",
-                      color: "#333",
+                      color: "var(--color-text-primary)",
                       fontSize: "0.875rem",
                     }}
                   >
@@ -1148,7 +1169,7 @@ export default function InvoiceForm({
                       <span
                         style={{
                           fontSize: "0.75rem",
-                          color: "#666",
+                          color: "var(--color-text-muted)",
                           fontWeight: "normal",
                         }}
                       >
@@ -1168,15 +1189,16 @@ export default function InvoiceForm({
                       padding: "0.5rem",
                       border: `1px solid ${
                         errors[`items.${index}.description`]
-                          ? "#dc3545"
-                          : "#ced4da"
+                          ? "var(--color-danger)"
+                          : "var(--color-border)"
                       }`,
-                      borderRadius: "4px",
+                      borderRadius: "var(--radius-sm)",
                       fontSize: "0.875rem",
                       boxSizing: "border-box",
                       backgroundColor: itemSelectedProduct[index]
-                        ? "#e9ecef"
-                        : "white",
+                        ? "var(--color-surface-hover)"
+                        : "var(--color-surface)",
+                      color: "var(--color-text-primary)",
                     }}
                     placeholder="Ingresa la descripción del artículo"
                   />
@@ -1184,7 +1206,7 @@ export default function InvoiceForm({
                     <p
                       style={{
                         margin: "0.25rem 0 0 0",
-                        color: "#dc3545",
+                        color: "var(--color-danger)",
                         fontSize: "0.75rem",
                       }}
                     >
@@ -1205,7 +1227,7 @@ export default function InvoiceForm({
                         display: "block",
                         marginBottom: "0.5rem",
                         fontWeight: "500",
-                        color: "#333",
+                        color: "var(--color-text-primary)",
                         fontSize: "0.875rem",
                       }}
                     >
@@ -1214,7 +1236,7 @@ export default function InvoiceForm({
                         <span
                           style={{
                             fontSize: "0.75rem",
-                            color: "#666",
+                            color: "var(--color-text-muted)",
                             fontWeight: "normal",
                           }}
                         >
@@ -1234,13 +1256,14 @@ export default function InvoiceForm({
                       style={{
                         width: "100%",
                         padding: "0.5rem",
-                        border: "1px solid #ced4da",
-                        borderRadius: "4px",
+                        border: "1px solid var(--color-border)",
+                        borderRadius: "var(--radius-sm)",
                         fontSize: "0.875rem",
                         boxSizing: "border-box",
                         backgroundColor: itemSelectedProduct[index]
-                          ? "#e9ecef"
-                          : "white",
+                          ? "var(--color-surface-hover)"
+                          : "var(--color-surface)",
+                        color: "var(--color-text-primary)",
                         cursor: itemSelectedProduct[index]
                           ? "not-allowed"
                           : "text",
@@ -1254,7 +1277,7 @@ export default function InvoiceForm({
                         display: "block",
                         marginBottom: "0.5rem",
                         fontWeight: "500",
-                        color: "#333",
+                        color: "var(--color-text-primary)",
                         fontSize: "0.875rem",
                       }}
                     >
@@ -1263,7 +1286,7 @@ export default function InvoiceForm({
                         <span
                           style={{
                             fontSize: "0.75rem",
-                            color: "#666",
+                            color: "var(--color-text-muted)",
                             fontWeight: "normal",
                           }}
                         >
@@ -1283,13 +1306,14 @@ export default function InvoiceForm({
                       style={{
                         width: "100%",
                         padding: "0.5rem",
-                        border: "1px solid #ced4da",
-                        borderRadius: "4px",
+                        border: "1px solid var(--color-border)",
+                        borderRadius: "var(--radius-sm)",
                         fontSize: "0.875rem",
                         boxSizing: "border-box",
                         backgroundColor: itemSelectedProduct[index]
-                          ? "#e9ecef"
-                          : "white",
+                          ? "var(--color-surface-hover)"
+                          : "var(--color-surface)",
+                        color: "var(--color-text-primary)",
                         cursor: itemSelectedProduct[index]
                           ? "not-allowed"
                           : "text",
@@ -1303,7 +1327,7 @@ export default function InvoiceForm({
                         display: "block",
                         marginBottom: "0.5rem",
                         fontWeight: "500",
-                        color: "#333",
+                        color: "var(--color-text-primary)",
                         fontSize: "0.875rem",
                       }}
                     >
@@ -1312,7 +1336,7 @@ export default function InvoiceForm({
                         <span
                           style={{
                             fontSize: "0.75rem",
-                            color: "#666",
+                            color: "var(--color-text-muted)",
                             fontWeight: "normal",
                           }}
                         >
@@ -1332,13 +1356,14 @@ export default function InvoiceForm({
                       style={{
                         width: "100%",
                         padding: "0.5rem",
-                        border: "1px solid #ced4da",
-                        borderRadius: "4px",
+                        border: "1px solid var(--color-border)",
+                        borderRadius: "var(--radius-sm)",
                         fontSize: "0.875rem",
                         boxSizing: "border-box",
                         backgroundColor: itemSelectedProduct[index]
-                          ? "#e9ecef"
-                          : "white",
+                          ? "var(--color-surface-hover)"
+                          : "var(--color-surface)",
+                        color: "var(--color-text-primary)",
                         cursor: itemSelectedProduct[index]
                           ? "not-allowed"
                           : "text",
@@ -1361,10 +1386,10 @@ export default function InvoiceForm({
               disabled={isLoading}
               style={{
                 padding: "0.75rem 1.5rem",
-                backgroundColor: "#6c757d",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
+                backgroundColor: "var(--color-surface-hover)",
+                color: "var(--color-text-primary)",
+                border: "1px solid var(--color-border)",
+                borderRadius: "var(--radius-sm)",
                 cursor: isLoading ? "not-allowed" : "pointer",
                 fontSize: "1rem",
                 fontWeight: "500",
@@ -1378,10 +1403,10 @@ export default function InvoiceForm({
               disabled={isLoading}
               style={{
                 padding: "0.75rem 1.5rem",
-                backgroundColor: "#28a745",
+                backgroundColor: "var(--color-success)",
                 color: "white",
                 border: "none",
-                borderRadius: "4px",
+                borderRadius: "var(--radius-sm)",
                 cursor: isLoading ? "not-allowed" : "pointer",
                 fontSize: "1rem",
                 fontWeight: "500",

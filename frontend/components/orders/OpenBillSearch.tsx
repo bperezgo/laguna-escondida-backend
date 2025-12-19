@@ -31,16 +31,18 @@ export default function OpenBillSearch({
           width: "100%",
           padding: "0.875rem 1rem",
           fontSize: "1rem",
-          border: "2px solid #e0e0e0",
-          borderRadius: "8px",
+          border: "1px solid var(--color-border)",
+          borderRadius: "var(--radius-md)",
           outline: "none",
-          transition: "border-color 0.2s",
+          transition: "border-color var(--transition-normal)",
+          backgroundColor: "var(--color-surface)",
+          color: "var(--color-text-primary)",
         }}
         onFocus={(e) => {
-          e.currentTarget.style.borderColor = "#007bff";
+          e.currentTarget.style.borderColor = "var(--color-primary)";
         }}
         onBlur={(e) => {
-          e.currentTarget.style.borderColor = "#e0e0e0";
+          e.currentTarget.style.borderColor = "var(--color-border)";
         }}
       />
     </div>

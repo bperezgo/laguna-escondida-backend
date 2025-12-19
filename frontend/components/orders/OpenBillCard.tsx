@@ -28,26 +28,26 @@ export default function OpenBillCard({
     <div
       onClick={onClick}
       style={{
-        backgroundColor: "white",
-        border: "2px solid #e0e0e0",
-        borderRadius: "12px",
+        backgroundColor: "var(--color-surface)",
+        border: "1px solid var(--color-border)",
+        borderRadius: "var(--radius-lg)",
         padding: "1.25rem",
         cursor: onClick ? "pointer" : "default",
-        transition: "all 0.2s",
-        boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+        transition: "all var(--transition-normal)",
+        boxShadow: "var(--shadow-sm)",
       }}
       onMouseEnter={(e) => {
         if (onClick) {
           e.currentTarget.style.transform = "translateY(-2px)";
-          e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
-          e.currentTarget.style.borderColor = "#007bff";
+          e.currentTarget.style.boxShadow = "var(--shadow-lg)";
+          e.currentTarget.style.borderColor = "var(--color-primary)";
         }
       }}
       onMouseLeave={(e) => {
         if (onClick) {
           e.currentTarget.style.transform = "translateY(0)";
-          e.currentTarget.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
-          e.currentTarget.style.borderColor = "#e0e0e0";
+          e.currentTarget.style.boxShadow = "var(--shadow-sm)";
+          e.currentTarget.style.borderColor = "var(--color-border)";
         }
       }}
     >
@@ -63,10 +63,10 @@ export default function OpenBillCard({
           style={{
             fontSize: "0.75rem",
             fontWeight: "bold",
-            color: "#007bff",
-            backgroundColor: "#e7f3ff",
+            color: "var(--color-primary)",
+            backgroundColor: "var(--color-primary-light)",
             padding: "0.25rem 0.75rem",
-            borderRadius: "6px",
+            borderRadius: "var(--radius-sm)",
             textTransform: "uppercase",
             letterSpacing: "0.5px",
           }}
@@ -86,7 +86,7 @@ export default function OpenBillCard({
             style={{
               margin: 0,
               fontSize: "0.95rem",
-              color: "#333",
+              color: "var(--color-text-primary)",
               lineHeight: "1.5",
               display: "-webkit-box",
               WebkitLineClamp: 3,
@@ -102,7 +102,7 @@ export default function OpenBillCard({
             style={{
               margin: 0,
               fontSize: "0.875rem",
-              color: "#999",
+              color: "var(--color-text-muted)",
               fontStyle: "italic",
               minHeight: "3rem",
             }}
@@ -119,7 +119,7 @@ export default function OpenBillCard({
           flexDirection: "column",
           gap: "0.5rem",
           paddingTop: "0.75rem",
-          borderTop: "1px solid #f0f0f0",
+          borderTop: "1px solid var(--color-border)",
         }}
       >
         <div
@@ -132,7 +132,7 @@ export default function OpenBillCard({
           <span
             style={{
               fontSize: "0.8rem",
-              color: "#666",
+              color: "var(--color-text-muted)",
               fontWeight: "500",
             }}
           >
@@ -141,7 +141,7 @@ export default function OpenBillCard({
           <span
             style={{
               fontSize: "0.8rem",
-              color: "#333",
+              color: "var(--color-text-primary)",
               fontWeight: "bold",
             }}
           >
@@ -158,7 +158,7 @@ export default function OpenBillCard({
           <span
             style={{
               fontSize: "0.8rem",
-              color: "#666",
+              color: "var(--color-text-muted)",
               fontWeight: "500",
             }}
           >
@@ -167,7 +167,7 @@ export default function OpenBillCard({
           <span
             style={{
               fontSize: "0.8rem",
-              color: "#333",
+              color: "var(--color-text-secondary)",
             }}
           >
             {formatDate(openBill.created_at)}
@@ -188,21 +188,21 @@ export default function OpenBillCard({
             padding: "0.75rem",
             fontSize: "1rem",
             fontWeight: "bold",
-            backgroundColor: "#28a745",
+            backgroundColor: "var(--color-success)",
             color: "white",
             border: "none",
-            borderRadius: "8px",
+            borderRadius: "var(--radius-md)",
             cursor: "pointer",
-            transition: "background-color 0.2s",
+            transition: "background-color var(--transition-normal)",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = "#218838";
+            e.currentTarget.style.backgroundColor = "var(--color-success-hover)";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = "#28a745";
+            e.currentTarget.style.backgroundColor = "var(--color-success)";
           }}
         >
-          💳 Pagar Cuenta
+          Pagar Cuenta
         </button>
       )}
     </div>

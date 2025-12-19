@@ -188,7 +188,7 @@ export default function CreateOrderForm({
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: "rgba(0, 0, 0, 0.5)",
+        backgroundColor: "var(--color-overlay)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -199,13 +199,14 @@ export default function CreateOrderForm({
     >
       <div
         style={{
-          backgroundColor: "white",
-          borderRadius: "12px",
+          backgroundColor: "var(--color-surface)",
+          borderRadius: "var(--radius-lg)",
           maxWidth: "900px",
           width: "100%",
           maxHeight: "90vh",
           overflow: "auto",
-          boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
+          boxShadow: "var(--shadow-xl)",
+          border: "1px solid var(--color-border)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -213,13 +214,13 @@ export default function CreateOrderForm({
         <div
           style={{
             padding: "1.5rem",
-            borderBottom: "2px solid #e0e0e0",
+            borderBottom: "1px solid var(--color-border)",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
             position: "sticky",
             top: 0,
-            backgroundColor: "white",
+            backgroundColor: "var(--color-surface)",
             zIndex: 1,
           }}
         >
@@ -228,7 +229,7 @@ export default function CreateOrderForm({
               margin: 0,
               fontSize: "1.5rem",
               fontWeight: "bold",
-              color: "#333",
+              color: "var(--color-text-primary)",
             }}
           >
             Crear Nueva Orden
@@ -240,7 +241,7 @@ export default function CreateOrderForm({
               border: "none",
               fontSize: "1.5rem",
               cursor: "pointer",
-              color: "#666",
+              color: "var(--color-text-secondary)",
               padding: "0.25rem",
               lineHeight: 1,
             }}
@@ -256,10 +257,10 @@ export default function CreateOrderForm({
               <div
                 style={{
                   padding: "1rem",
-                  backgroundColor: "#fee",
-                  border: "1px solid #fcc",
-                  borderRadius: "8px",
-                  color: "#c00",
+                  backgroundColor: "var(--color-danger-light)",
+                  border: "1px solid var(--color-danger)",
+                  borderRadius: "var(--radius-md)",
+                  color: "var(--color-danger)",
                   marginBottom: "1rem",
                 }}
               >
@@ -274,7 +275,7 @@ export default function CreateOrderForm({
                   display: "block",
                   marginBottom: "0.5rem",
                   fontWeight: "bold",
-                  color: "#333",
+                  color: "var(--color-text-primary)",
                 }}
               >
                 Identificador Temporal *
@@ -288,9 +289,11 @@ export default function CreateOrderForm({
                   width: "100%",
                   padding: "0.75rem",
                   fontSize: "1rem",
-                  border: "2px solid #e0e0e0",
-                  borderRadius: "8px",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "var(--radius-md)",
                   outline: "none",
+                  backgroundColor: "var(--color-bg)",
+                  color: "var(--color-text-primary)",
                 }}
               />
             </div>
@@ -302,7 +305,7 @@ export default function CreateOrderForm({
                   display: "block",
                   marginBottom: "0.5rem",
                   fontWeight: "bold",
-                  color: "#333",
+                  color: "var(--color-text-primary)",
                 }}
               >
                 Descriptor (Opcional)
@@ -316,11 +319,13 @@ export default function CreateOrderForm({
                   width: "100%",
                   padding: "0.75rem",
                   fontSize: "1rem",
-                  border: "2px solid #e0e0e0",
-                  borderRadius: "8px",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "var(--radius-md)",
                   outline: "none",
                   resize: "vertical",
                   fontFamily: "inherit",
+                  backgroundColor: "var(--color-bg)",
+                  color: "var(--color-text-primary)",
                 }}
               />
             </div>
@@ -331,8 +336,9 @@ export default function CreateOrderForm({
                 style={{
                   marginBottom: "1.5rem",
                   padding: "1rem",
-                  backgroundColor: "#f8f9fa",
-                  borderRadius: "8px",
+                  backgroundColor: "var(--color-bg)",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--color-border)",
                 }}
               >
                 <h3
@@ -340,7 +346,7 @@ export default function CreateOrderForm({
                     margin: "0 0 1rem 0",
                     fontSize: "1.1rem",
                     fontWeight: "bold",
-                    color: "#333",
+                    color: "var(--color-text-primary)",
                   }}
                 >
                   Productos Seleccionados ({selectedProductsArray.length})
@@ -358,9 +364,9 @@ export default function CreateOrderForm({
                         key={lineItemId}
                         style={{
                           padding: "1rem",
-                          backgroundColor: "white",
-                          borderRadius: "8px",
-                          border: "1px solid #e0e0e0",
+                          backgroundColor: "var(--color-surface)",
+                          borderRadius: "var(--radius-md)",
+                          border: "1px solid var(--color-border)",
                         }}
                       >
                         <div
@@ -372,11 +378,11 @@ export default function CreateOrderForm({
                           }}
                         >
                           <div>
-                            <strong style={{ color: "#333" }}>
+                            <strong style={{ color: "var(--color-text-primary)" }}>
                               {product.name}
                             </strong>
                             <div
-                              style={{ fontSize: "0.875rem", color: "#666" }}
+                              style={{ fontSize: "0.875rem", color: "var(--color-text-secondary)" }}
                             >
                               ${product.total_price_with_taxes.toFixed(2)}
                             </div>
@@ -396,10 +402,10 @@ export default function CreateOrderForm({
                               style={{
                                 width: "32px",
                                 height: "32px",
-                                border: "2px solid #007bff",
-                                borderRadius: "6px",
-                                backgroundColor: "white",
-                                color: "#007bff",
+                                border: "1px solid var(--color-primary)",
+                                borderRadius: "var(--radius-sm)",
+                                backgroundColor: "transparent",
+                                color: "var(--color-primary)",
                                 cursor: "pointer",
                                 fontSize: "1.25rem",
                                 lineHeight: 1,
@@ -416,6 +422,7 @@ export default function CreateOrderForm({
                                 textAlign: "center",
                                 fontWeight: "bold",
                                 fontSize: "1.1rem",
+                                color: "var(--color-text-primary)",
                               }}
                             >
                               {quantity}
@@ -428,10 +435,10 @@ export default function CreateOrderForm({
                               style={{
                                 width: "32px",
                                 height: "32px",
-                                border: "2px solid #007bff",
-                                borderRadius: "6px",
-                                backgroundColor: "white",
-                                color: "#007bff",
+                                border: "1px solid var(--color-primary)",
+                                borderRadius: "var(--radius-sm)",
+                                backgroundColor: "transparent",
+                                color: "var(--color-primary)",
                                 cursor: "pointer",
                                 fontSize: "1.25rem",
                                 lineHeight: 1,
@@ -455,9 +462,11 @@ export default function CreateOrderForm({
                             width: "100%",
                             padding: "0.5rem",
                             fontSize: "0.875rem",
-                            border: "1px solid #e0e0e0",
-                            borderRadius: "6px",
+                            border: "1px solid var(--color-border)",
+                            borderRadius: "var(--radius-sm)",
                             outline: "none",
+                            backgroundColor: "var(--color-bg)",
+                            color: "var(--color-text-primary)",
                           }}
                         />
                       </div>
@@ -474,7 +483,7 @@ export default function CreateOrderForm({
                   margin: "0 0 0.75rem 0",
                   fontSize: "1.1rem",
                   fontWeight: "bold",
-                  color: "#333",
+                  color: "var(--color-text-primary)",
                 }}
               >
                 Agregar Productos
@@ -496,9 +505,11 @@ export default function CreateOrderForm({
                     flex: "1 1 250px",
                     padding: "0.75rem",
                     fontSize: "1rem",
-                    border: "2px solid #e0e0e0",
-                    borderRadius: "8px",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: "var(--radius-md)",
                     outline: "none",
+                    backgroundColor: "var(--color-bg)",
+                    color: "var(--color-text-primary)",
                   }}
                 />
                 <select
@@ -508,10 +519,11 @@ export default function CreateOrderForm({
                     flex: "0 1 200px",
                     padding: "0.75rem",
                     fontSize: "1rem",
-                    border: "2px solid #e0e0e0",
-                    borderRadius: "8px",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: "var(--radius-md)",
                     outline: "none",
-                    backgroundColor: "white",
+                    backgroundColor: "var(--color-bg)",
+                    color: "var(--color-text-primary)",
                     cursor: "pointer",
                   }}
                 >
@@ -537,7 +549,7 @@ export default function CreateOrderForm({
                     style={{
                       padding: "2rem",
                       textAlign: "center",
-                      color: "#666",
+                      color: "var(--color-text-secondary)",
                     }}
                   >
                     Cargando productos...
@@ -547,7 +559,7 @@ export default function CreateOrderForm({
                     style={{
                       padding: "2rem",
                       textAlign: "center",
-                      color: "#666",
+                      color: "var(--color-text-secondary)",
                     }}
                   >
                     No se encontraron productos
@@ -560,23 +572,25 @@ export default function CreateOrderForm({
                         onClick={() => handleProductSelect(product)}
                         style={{
                           padding: "1rem",
-                          border: "2px solid #e0e0e0",
-                          borderRadius: "8px",
+                          border: "1px solid var(--color-border)",
+                          borderRadius: "var(--radius-md)",
                           cursor: "pointer",
-                          backgroundColor: "white",
-                          transition: "all 0.2s",
+                          backgroundColor: "var(--color-surface)",
+                          transition: "all var(--transition-normal)",
                         }}
                         onMouseEnter={(e) => {
-                          e.currentTarget.style.borderColor = "#007bff";
+                          e.currentTarget.style.borderColor = "var(--color-primary)";
+                          e.currentTarget.style.backgroundColor = "var(--color-surface-hover)";
                         }}
                         onMouseLeave={(e) => {
-                          e.currentTarget.style.borderColor = "#e0e0e0";
+                          e.currentTarget.style.borderColor = "var(--color-border)";
+                          e.currentTarget.style.backgroundColor = "var(--color-surface)";
                         }}
                       >
                         <div
                           style={{
                             fontWeight: "bold",
-                            color: "#333",
+                            color: "var(--color-text-primary)",
                             marginBottom: "0.25rem",
                             fontSize: "0.95rem",
                           }}
@@ -586,7 +600,7 @@ export default function CreateOrderForm({
                         <div
                           style={{
                             fontSize: "0.8rem",
-                            color: "#666",
+                            color: "var(--color-text-muted)",
                             marginBottom: "0.5rem",
                           }}
                         >
@@ -596,7 +610,7 @@ export default function CreateOrderForm({
                           style={{
                             fontSize: "0.9rem",
                             fontWeight: "bold",
-                            color: "#28a745",
+                            color: "var(--color-success)",
                           }}
                         >
                           ${product.total_price_with_taxes.toFixed(2)}
@@ -613,13 +627,13 @@ export default function CreateOrderForm({
           <div
             style={{
               padding: "1.5rem",
-              borderTop: "2px solid #e0e0e0",
+              borderTop: "1px solid var(--color-border)",
               display: "flex",
               gap: "1rem",
               justifyContent: "flex-end",
               position: "sticky",
               bottom: 0,
-              backgroundColor: "white",
+              backgroundColor: "var(--color-surface)",
             }}
           >
             <button
@@ -629,10 +643,10 @@ export default function CreateOrderForm({
                 padding: "0.75rem 1.5rem",
                 fontSize: "1rem",
                 fontWeight: "bold",
-                backgroundColor: "#6c757d",
-                color: "white",
-                border: "none",
-                borderRadius: "8px",
+                backgroundColor: "var(--color-surface-hover)",
+                color: "var(--color-text-primary)",
+                border: "1px solid var(--color-border)",
+                borderRadius: "var(--radius-md)",
                 cursor: "pointer",
               }}
             >
@@ -647,11 +661,11 @@ export default function CreateOrderForm({
                 fontWeight: "bold",
                 backgroundColor:
                   isSubmitting || selectedProducts.size === 0
-                    ? "#6c757d"
-                    : "#28a745",
+                    ? "var(--color-text-muted)"
+                    : "var(--color-success)",
                 color: "white",
                 border: "none",
-                borderRadius: "8px",
+                borderRadius: "var(--radius-md)",
                 cursor:
                   isSubmitting || selectedProducts.size === 0
                     ? "not-allowed"

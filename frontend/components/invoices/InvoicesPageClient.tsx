@@ -162,7 +162,7 @@ export default function InvoicesPageClient() {
     <div
       style={{
         minHeight: "100vh",
-        backgroundColor: "#f5f5f5",
+        backgroundColor: "var(--color-bg)",
         padding: "2rem",
       }}
     >
@@ -189,7 +189,7 @@ export default function InvoicesPageClient() {
                 margin: 0,
                 fontSize: "2rem",
                 fontWeight: "bold",
-                color: "#333",
+                color: "var(--color-text-primary)",
               }}
             >
               Facturas Electrónicas
@@ -197,7 +197,7 @@ export default function InvoicesPageClient() {
             <p
               style={{
                 margin: "0.5rem 0 0 0",
-                color: "#666",
+                color: "var(--color-text-secondary)",
                 fontSize: "1rem",
               }}
             >
@@ -208,20 +208,21 @@ export default function InvoicesPageClient() {
             onClick={handleCreate}
             style={{
               padding: "0.75rem 1.5rem",
-              backgroundColor: "#28a745",
+              backgroundColor: "var(--color-success)",
               color: "white",
               border: "none",
-              borderRadius: "4px",
+              borderRadius: "var(--radius-sm)",
               cursor: "pointer",
               fontSize: "1rem",
               fontWeight: "500",
-              boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+              boxShadow: "var(--shadow-sm)",
+              transition: "background-color var(--transition-normal)",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#218838";
+              e.currentTarget.style.backgroundColor = "var(--color-success-hover)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "#28a745";
+              e.currentTarget.style.backgroundColor = "var(--color-success)";
             }}
           >
             + Crear Factura
@@ -233,10 +234,10 @@ export default function InvoicesPageClient() {
           <div
             style={{
               padding: "1rem",
-              backgroundColor: "#d4edda",
-              color: "#155724",
-              border: "1px solid #c3e6cb",
-              borderRadius: "4px",
+              backgroundColor: "var(--color-success-light)",
+              color: "var(--color-success)",
+              border: "1px solid var(--color-success)",
+              borderRadius: "var(--radius-sm)",
               marginBottom: "1.5rem",
             }}
           >
@@ -249,10 +250,10 @@ export default function InvoicesPageClient() {
           <div
             style={{
               padding: "1rem",
-              backgroundColor: "#f8d7da",
-              color: "#721c24",
-              border: "1px solid #f5c6cb",
-              borderRadius: "4px",
+              backgroundColor: "var(--color-danger-light)",
+              color: "var(--color-danger)",
+              border: "1px solid var(--color-danger)",
+              borderRadius: "var(--radius-sm)",
               marginBottom: "1.5rem",
             }}
           >
@@ -263,10 +264,10 @@ export default function InvoicesPageClient() {
         {/* Filters Section */}
         <div
           style={{
-            backgroundColor: "white",
+            backgroundColor: "var(--color-surface)",
             padding: "1.5rem",
-            borderRadius: "8px",
-            border: "1px solid #e0e0e0",
+            borderRadius: "var(--radius-md)",
+            border: "1px solid var(--color-border)",
             marginBottom: "1.5rem",
           }}
         >
@@ -275,7 +276,7 @@ export default function InvoicesPageClient() {
               margin: "0 0 1rem 0",
               fontSize: "1.25rem",
               fontWeight: "bold",
-              color: "#333",
+              color: "var(--color-text-primary)",
             }}
           >
             Filtros de Búsqueda
@@ -295,7 +296,7 @@ export default function InvoicesPageClient() {
                   marginBottom: "0.5rem",
                   fontSize: "0.875rem",
                   fontWeight: "500",
-                  color: "#555",
+                  color: "var(--color-text-secondary)",
                 }}
               >
                 Fecha de Inicio
@@ -307,9 +308,11 @@ export default function InvoicesPageClient() {
                 style={{
                   width: "100%",
                   padding: "0.5rem",
-                  border: "1px solid #ddd",
-                  borderRadius: "4px",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "var(--radius-sm)",
                   fontSize: "1rem",
+                  backgroundColor: "var(--color-bg)",
+                  color: "var(--color-text-primary)",
                 }}
               />
             </div>
@@ -320,7 +323,7 @@ export default function InvoicesPageClient() {
                   marginBottom: "0.5rem",
                   fontSize: "0.875rem",
                   fontWeight: "500",
-                  color: "#555",
+                  color: "var(--color-text-secondary)",
                 }}
               >
                 Fecha de Fin
@@ -332,9 +335,11 @@ export default function InvoicesPageClient() {
                 style={{
                   width: "100%",
                   padding: "0.5rem",
-                  border: "1px solid #ddd",
-                  borderRadius: "4px",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "var(--radius-sm)",
                   fontSize: "1rem",
+                  backgroundColor: "var(--color-bg)",
+                  color: "var(--color-text-primary)",
                 }}
               />
             </div>
@@ -345,7 +350,7 @@ export default function InvoicesPageClient() {
                   marginBottom: "0.5rem",
                   fontSize: "0.875rem",
                   fontWeight: "500",
-                  color: "#555",
+                  color: "var(--color-text-secondary)",
                 }}
               >
                 Identificación Nacional
@@ -358,9 +363,11 @@ export default function InvoicesPageClient() {
                 style={{
                   width: "100%",
                   padding: "0.5rem",
-                  border: "1px solid #ddd",
-                  borderRadius: "4px",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "var(--radius-sm)",
                   fontSize: "1rem",
+                  backgroundColor: "var(--color-bg)",
+                  color: "var(--color-text-primary)",
                 }}
               />
             </div>
@@ -375,19 +382,20 @@ export default function InvoicesPageClient() {
               onClick={handleApplyFilters}
               style={{
                 padding: "0.5rem 1.5rem",
-                backgroundColor: "#007bff",
+                backgroundColor: "var(--color-primary)",
                 color: "white",
                 border: "none",
-                borderRadius: "4px",
+                borderRadius: "var(--radius-sm)",
                 cursor: "pointer",
                 fontSize: "1rem",
                 fontWeight: "500",
+                transition: "background-color var(--transition-normal)",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "#0056b3";
+                e.currentTarget.style.backgroundColor = "var(--color-primary-hover)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "#007bff";
+                e.currentTarget.style.backgroundColor = "var(--color-primary)";
               }}
             >
               Aplicar Filtros
@@ -396,19 +404,20 @@ export default function InvoicesPageClient() {
               onClick={handleClearFilters}
               style={{
                 padding: "0.5rem 1.5rem",
-                backgroundColor: "#6c757d",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
+                backgroundColor: "var(--color-surface-hover)",
+                color: "var(--color-text-primary)",
+                border: "1px solid var(--color-border)",
+                borderRadius: "var(--radius-sm)",
                 cursor: "pointer",
                 fontSize: "1rem",
                 fontWeight: "500",
+                transition: "background-color var(--transition-normal)",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "#545b62";
+                e.currentTarget.style.backgroundColor = "var(--color-surface-active)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "#6c757d";
+                e.currentTarget.style.backgroundColor = "var(--color-surface-hover)";
               }}
             >
               Limpiar Filtros
@@ -422,12 +431,12 @@ export default function InvoicesPageClient() {
             style={{
               padding: "3rem",
               textAlign: "center",
-              backgroundColor: "white",
-              borderRadius: "8px",
-              border: "1px solid #e0e0e0",
+              backgroundColor: "var(--color-surface)",
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--color-border)",
             }}
           >
-            <p style={{ color: "#666", fontSize: "1rem", margin: 0 }}>
+            <p style={{ color: "var(--color-text-secondary)", fontSize: "1rem", margin: 0 }}>
               Cargando facturas...
             </p>
           </div>
@@ -436,12 +445,12 @@ export default function InvoicesPageClient() {
             style={{
               padding: "3rem",
               textAlign: "center",
-              backgroundColor: "white",
-              borderRadius: "8px",
-              border: "1px solid #e0e0e0",
+              backgroundColor: "var(--color-surface)",
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--color-border)",
             }}
           >
-            <p style={{ color: "#666", fontSize: "1rem", margin: 0 }}>
+            <p style={{ color: "var(--color-text-secondary)", fontSize: "1rem", margin: 0 }}>
               No se encontraron facturas. Haz clic en "Crear Factura" para
               comenzar a crear una nueva factura electrónica.
             </p>
@@ -450,24 +459,24 @@ export default function InvoicesPageClient() {
           <>
             <div
               style={{
-                backgroundColor: "white",
-                borderRadius: "8px",
-                border: "1px solid #e0e0e0",
+                backgroundColor: "var(--color-surface)",
+                borderRadius: "var(--radius-md)",
+                border: "1px solid var(--color-border)",
                 overflow: "hidden",
               }}
             >
               <div
                 style={{
                   padding: "1rem 1.5rem",
-                  borderBottom: "1px solid #e0e0e0",
-                  backgroundColor: "#f8f9fa",
+                  borderBottom: "1px solid var(--color-border)",
+                  backgroundColor: "var(--color-bg)",
                 }}
               >
                 <p
                   style={{
                     margin: 0,
                     fontSize: "0.875rem",
-                    color: "#666",
+                    color: "var(--color-text-secondary)",
                   }}
                 >
                   Mostrando {invoices.length} de {total} facturas
@@ -487,8 +496,8 @@ export default function InvoicesPageClient() {
                   <thead>
                     <tr
                       style={{
-                        backgroundColor: "#f8f9fa",
-                        borderBottom: "2px solid #e0e0e0",
+                        backgroundColor: "var(--color-bg)",
+                        borderBottom: "1px solid var(--color-border)",
                       }}
                     >
                       <th
@@ -497,7 +506,7 @@ export default function InvoicesPageClient() {
                           textAlign: "left",
                           fontSize: "0.875rem",
                           fontWeight: "bold",
-                          color: "#333",
+                          color: "var(--color-text-primary)",
                         }}
                       >
                         Fecha de Creación
@@ -508,7 +517,7 @@ export default function InvoicesPageClient() {
                           textAlign: "left",
                           fontSize: "0.875rem",
                           fontWeight: "bold",
-                          color: "#333",
+                          color: "var(--color-text-primary)",
                         }}
                       >
                         CUFE
@@ -519,7 +528,7 @@ export default function InvoicesPageClient() {
                           textAlign: "left",
                           fontSize: "0.875rem",
                           fontWeight: "bold",
-                          color: "#333",
+                          color: "var(--color-text-primary)",
                         }}
                       >
                         Tascode
@@ -530,7 +539,7 @@ export default function InvoicesPageClient() {
                           textAlign: "right",
                           fontSize: "0.875rem",
                           fontWeight: "bold",
-                          color: "#333",
+                          color: "var(--color-text-primary)",
                         }}
                       >
                         Total
@@ -541,7 +550,7 @@ export default function InvoicesPageClient() {
                           textAlign: "right",
                           fontSize: "0.875rem",
                           fontWeight: "bold",
-                          color: "#333",
+                          color: "var(--color-text-primary)",
                         }}
                       >
                         Descuento
@@ -552,7 +561,7 @@ export default function InvoicesPageClient() {
                           textAlign: "right",
                           fontSize: "0.875rem",
                           fontWeight: "bold",
-                          color: "#333",
+                          color: "var(--color-text-primary)",
                         }}
                       >
                         VAT
@@ -563,7 +572,7 @@ export default function InvoicesPageClient() {
                           textAlign: "right",
                           fontSize: "0.875rem",
                           fontWeight: "bold",
-                          color: "#333",
+                          color: "var(--color-text-primary)",
                         }}
                       >
                         ICO
@@ -574,7 +583,7 @@ export default function InvoicesPageClient() {
                           textAlign: "right",
                           fontSize: "0.875rem",
                           fontWeight: "bold",
-                          color: "#333",
+                          color: "var(--color-text-primary)",
                         }}
                       >
                         Propina
@@ -585,7 +594,7 @@ export default function InvoicesPageClient() {
                           textAlign: "center",
                           fontSize: "0.875rem",
                           fontWeight: "bold",
-                          color: "#333",
+                          color: "var(--color-text-primary)",
                         }}
                       >
                         Documento
@@ -597,16 +606,16 @@ export default function InvoicesPageClient() {
                       <tr
                         key={invoice.id}
                         style={{
-                          borderBottom: "1px solid #e0e0e0",
+                          borderBottom: "1px solid var(--color-border)",
                           backgroundColor:
-                            index % 2 === 0 ? "white" : "#f8f9fa",
+                            index % 2 === 0 ? "var(--color-surface)" : "var(--color-bg)",
                         }}
                       >
                         <td
                           style={{
                             padding: "1rem",
                             fontSize: "0.875rem",
-                            color: "#333",
+                            color: "var(--color-text-primary)",
                           }}
                         >
                           {formatDateTime(invoice.created_at)}
@@ -615,7 +624,7 @@ export default function InvoicesPageClient() {
                           style={{
                             padding: "1rem",
                             fontSize: "0.75rem",
-                            color: "#333",
+                            color: "var(--color-text-secondary)",
                             maxWidth: "150px",
                             overflow: "hidden",
                             textOverflow: "ellipsis",
@@ -629,7 +638,7 @@ export default function InvoicesPageClient() {
                           style={{
                             padding: "1rem",
                             fontSize: "0.875rem",
-                            color: "#333",
+                            color: "var(--color-text-primary)",
                           }}
                         >
                           {invoice.tascode}
@@ -639,7 +648,7 @@ export default function InvoicesPageClient() {
                             padding: "1rem",
                             fontSize: "0.875rem",
                             fontWeight: "bold",
-                            color: "#28a745",
+                            color: "var(--color-success)",
                             textAlign: "right",
                           }}
                         >
@@ -649,7 +658,7 @@ export default function InvoicesPageClient() {
                           style={{
                             padding: "1rem",
                             fontSize: "0.875rem",
-                            color: "#333",
+                            color: "var(--color-text-secondary)",
                             textAlign: "right",
                           }}
                         >
@@ -659,7 +668,7 @@ export default function InvoicesPageClient() {
                           style={{
                             padding: "1rem",
                             fontSize: "0.875rem",
-                            color: "#333",
+                            color: "var(--color-text-secondary)",
                             textAlign: "right",
                           }}
                         >
@@ -669,7 +678,7 @@ export default function InvoicesPageClient() {
                           style={{
                             padding: "1rem",
                             fontSize: "0.875rem",
-                            color: "#333",
+                            color: "var(--color-text-secondary)",
                             textAlign: "right",
                           }}
                         >
@@ -679,7 +688,7 @@ export default function InvoicesPageClient() {
                           style={{
                             padding: "1rem",
                             fontSize: "0.875rem",
-                            color: "#333",
+                            color: "var(--color-text-secondary)",
                             textAlign: "right",
                           }}
                         >
@@ -712,7 +721,7 @@ export default function InvoicesPageClient() {
                                 height="24"
                                 viewBox="0 0 24 24"
                                 fill="none"
-                                stroke="#28a745"
+                                stroke="var(--color-success)"
                                 strokeWidth="2"
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
@@ -739,7 +748,7 @@ export default function InvoicesPageClient() {
                                 height="24"
                                 viewBox="0 0 24 24"
                                 fill="none"
-                                stroke="#dc3545"
+                                stroke="var(--color-danger)"
                                 strokeWidth="2"
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
@@ -753,14 +762,14 @@ export default function InvoicesPageClient() {
                                   y1="12"
                                   x2="15"
                                   y2="18"
-                                  stroke="#dc3545"
+                                  stroke="var(--color-danger)"
                                 />
                                 <line
                                   x1="15"
                                   y1="12"
                                   x2="9"
                                   y2="18"
-                                  stroke="#dc3545"
+                                  stroke="var(--color-danger)"
                                 />
                               </svg>
                             </div>
@@ -789,10 +798,10 @@ export default function InvoicesPageClient() {
                   disabled={currentPage === 1}
                   style={{
                     padding: "0.5rem 1rem",
-                    backgroundColor: currentPage === 1 ? "#e0e0e0" : "#007bff",
-                    color: currentPage === 1 ? "#999" : "white",
+                    backgroundColor: currentPage === 1 ? "var(--color-border)" : "var(--color-primary)",
+                    color: currentPage === 1 ? "var(--color-text-muted)" : "white",
                     border: "none",
-                    borderRadius: "4px",
+                    borderRadius: "var(--radius-sm)",
                     cursor: currentPage === 1 ? "not-allowed" : "pointer",
                     fontSize: "0.875rem",
                     fontWeight: "500",
@@ -804,7 +813,7 @@ export default function InvoicesPageClient() {
                   style={{
                     padding: "0.5rem 1rem",
                     fontSize: "0.875rem",
-                    color: "#333",
+                    color: "var(--color-text-primary)",
                   }}
                 >
                   Página {currentPage} de {totalPages}
@@ -815,10 +824,10 @@ export default function InvoicesPageClient() {
                   style={{
                     padding: "0.5rem 1rem",
                     backgroundColor:
-                      currentPage === totalPages ? "#e0e0e0" : "#007bff",
-                    color: currentPage === totalPages ? "#999" : "white",
+                      currentPage === totalPages ? "var(--color-border)" : "var(--color-primary)",
+                    color: currentPage === totalPages ? "var(--color-text-muted)" : "white",
                     border: "none",
-                    borderRadius: "4px",
+                    borderRadius: "var(--radius-sm)",
                     cursor:
                       currentPage === totalPages ? "not-allowed" : "pointer",
                     fontSize: "0.875rem",

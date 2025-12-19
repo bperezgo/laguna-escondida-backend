@@ -24,27 +24,27 @@ export default function StockCard({
   };
 
   const getAmountColor = (amount: number) => {
-    if (amount === 0) return "#dc3545";
-    if (amount < 10) return "#ffc107";
-    return "#28a745";
+    if (amount === 0) return "var(--color-danger)";
+    if (amount < 10) return "var(--color-warning)";
+    return "var(--color-success)";
   };
 
   return (
     <div
       style={{
-        border: "1px solid #e0e0e0",
-        borderRadius: "8px",
+        border: "1px solid var(--color-border)",
+        borderRadius: "var(--radius-md)",
         padding: "1.5rem",
         marginBottom: "1rem",
-        backgroundColor: "#fff",
-        boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-        transition: "box-shadow 0.2s",
+        backgroundColor: "var(--color-surface)",
+        boxShadow: "var(--shadow-sm)",
+        transition: "box-shadow var(--transition-normal)",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.boxShadow = "0 4px 8px rgba(0,0,0,0.15)";
+        e.currentTarget.style.boxShadow = "var(--shadow-md)";
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
+        e.currentTarget.style.boxShadow = "var(--shadow-sm)";
       }}
     >
       <div
@@ -61,7 +61,7 @@ export default function StockCard({
               margin: "0 0 0.5rem 0",
               fontSize: "1.25rem",
               fontWeight: "bold",
-              color: "#333",
+              color: "var(--color-text-primary)",
             }}
           >
             {productName || `Product ID: ${stock.product_id}`}
@@ -69,7 +69,7 @@ export default function StockCard({
           <p
             style={{
               margin: "0 0 0.5rem 0",
-              color: "#666",
+              color: "var(--color-text-secondary)",
               fontSize: "0.9rem",
             }}
           >
@@ -81,19 +81,20 @@ export default function StockCard({
             onClick={() => onAdjust(stock)}
             style={{
               padding: "0.5rem 1rem",
-              backgroundColor: "#007bff",
+              backgroundColor: "var(--color-primary)",
               color: "white",
               border: "none",
-              borderRadius: "4px",
+              borderRadius: "var(--radius-sm)",
               cursor: "pointer",
               fontSize: "0.875rem",
               fontWeight: "500",
+              transition: "background-color var(--transition-normal)",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#0056b3";
+              e.currentTarget.style.backgroundColor = "var(--color-primary-hover)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "#007bff";
+              e.currentTarget.style.backgroundColor = "var(--color-primary)";
             }}
           >
             Ajustar
@@ -102,19 +103,20 @@ export default function StockCard({
             onClick={() => onDelete(stock.product_id)}
             style={{
               padding: "0.5rem 1rem",
-              backgroundColor: "#dc3545",
+              backgroundColor: "var(--color-danger)",
               color: "white",
               border: "none",
-              borderRadius: "4px",
+              borderRadius: "var(--radius-sm)",
               cursor: "pointer",
               fontSize: "0.875rem",
               fontWeight: "500",
+              transition: "background-color var(--transition-normal)",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#c82333";
+              e.currentTarget.style.backgroundColor = "var(--color-danger-hover)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "#dc3545";
+              e.currentTarget.style.backgroundColor = "var(--color-danger)";
             }}
           >
             Eliminar
@@ -125,15 +127,16 @@ export default function StockCard({
       <div
         style={{
           padding: "1rem",
-          backgroundColor: "#f8f9fa",
-          borderRadius: "4px",
+          backgroundColor: "var(--color-bg)",
+          borderRadius: "var(--radius-sm)",
           textAlign: "center",
+          border: "1px solid var(--color-border)",
         }}
       >
         <p
           style={{
             margin: "0 0 0.25rem 0",
-            color: "#666",
+            color: "var(--color-text-muted)",
             fontSize: "0.85rem",
           }}
         >
@@ -155,13 +158,13 @@ export default function StockCard({
         style={{
           marginTop: "1rem",
           paddingTop: "1rem",
-          borderTop: "1px solid #e0e0e0",
+          borderTop: "1px solid var(--color-border)",
         }}
       >
-        <p style={{ margin: "0.25rem 0", color: "#999", fontSize: "0.75rem" }}>
+        <p style={{ margin: "0.25rem 0", color: "var(--color-text-muted)", fontSize: "0.75rem" }}>
           Creado: {formatDate(stock.created_at)}
         </p>
-        <p style={{ margin: "0.25rem 0", color: "#999", fontSize: "0.75rem" }}>
+        <p style={{ margin: "0.25rem 0", color: "var(--color-text-muted)", fontSize: "0.75rem" }}>
           Actualizado: {formatDate(stock.updated_at)}
         </p>
       </div>

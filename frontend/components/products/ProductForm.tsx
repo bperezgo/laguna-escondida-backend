@@ -193,7 +193,7 @@ export default function ProductForm({
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: "rgba(0, 0, 0, 0.5)",
+        backgroundColor: "var(--color-overlay)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -203,14 +203,15 @@ export default function ProductForm({
     >
       <div
         style={{
-          backgroundColor: "white",
-          borderRadius: "8px",
+          backgroundColor: "var(--color-surface)",
+          borderRadius: "var(--radius-md)",
           padding: "2rem",
           maxWidth: "500px",
           width: "100%",
           maxHeight: "90vh",
           overflowY: "auto",
-          boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+          boxShadow: "var(--shadow-xl)",
+          border: "1px solid var(--color-border)",
         }}
       >
         <h2
@@ -219,6 +220,7 @@ export default function ProductForm({
             marginBottom: "1.5rem",
             fontSize: "1.5rem",
             fontWeight: "bold",
+            color: "var(--color-text-primary)",
           }}
         >
           {product ? "Editar Producto" : "Crear Nuevo Producto"}
@@ -231,7 +233,7 @@ export default function ProductForm({
                 display: "block",
                 marginBottom: "0.5rem",
                 fontWeight: "500",
-                color: "#333",
+                color: "var(--color-text-primary)",
               }}
             >
               Nombre del Producto *
@@ -243,10 +245,12 @@ export default function ProductForm({
               style={{
                 width: "100%",
                 padding: "0.75rem",
-                border: `1px solid ${errors.name ? "#dc3545" : "#ced4da"}`,
-                borderRadius: "4px",
+                border: `1px solid ${errors.name ? "var(--color-danger)" : "var(--color-border)"}`,
+                borderRadius: "var(--radius-sm)",
                 fontSize: "1rem",
                 boxSizing: "border-box",
+                backgroundColor: "var(--color-bg)",
+                color: "var(--color-text-primary)",
               }}
               placeholder="Ingresa el nombre del producto"
               maxLength={255}
@@ -255,7 +259,7 @@ export default function ProductForm({
               <p
                 style={{
                   margin: "0.25rem 0 0 0",
-                  color: "#dc3545",
+                  color: "var(--color-danger)",
                   fontSize: "0.875rem",
                 }}
               >
@@ -270,7 +274,7 @@ export default function ProductForm({
                 display: "block",
                 marginBottom: "0.5rem",
                 fontWeight: "500",
-                color: "#333",
+                color: "var(--color-text-primary)",
               }}
             >
               Categoría *
@@ -282,10 +286,12 @@ export default function ProductForm({
               style={{
                 width: "100%",
                 padding: "0.75rem",
-                border: `1px solid ${errors.category ? "#dc3545" : "#ced4da"}`,
-                borderRadius: "4px",
+                border: `1px solid ${errors.category ? "var(--color-danger)" : "var(--color-border)"}`,
+                borderRadius: "var(--radius-sm)",
                 fontSize: "1rem",
                 boxSizing: "border-box",
+                backgroundColor: "var(--color-bg)",
+                color: "var(--color-text-primary)",
               }}
               placeholder="Ingresa la categoría"
               maxLength={100}
@@ -294,7 +300,7 @@ export default function ProductForm({
               <p
                 style={{
                   margin: "0.25rem 0 0 0",
-                  color: "#dc3545",
+                  color: "var(--color-danger)",
                   fontSize: "0.875rem",
                 }}
               >
@@ -309,7 +315,7 @@ export default function ProductForm({
                 display: "block",
                 marginBottom: "0.5rem",
                 fontWeight: "500",
-                color: "#333",
+                color: "var(--color-text-primary)",
               }}
             >
               SKU *
@@ -321,10 +327,12 @@ export default function ProductForm({
               style={{
                 width: "100%",
                 padding: "0.75rem",
-                border: `1px solid ${errors.sku ? "#dc3545" : "#ced4da"}`,
-                borderRadius: "4px",
+                border: `1px solid ${errors.sku ? "var(--color-danger)" : "var(--color-border)"}`,
+                borderRadius: "var(--radius-sm)",
                 fontSize: "1rem",
                 boxSizing: "border-box",
+                backgroundColor: "var(--color-bg)",
+                color: "var(--color-text-primary)",
               }}
               placeholder="Ingresa el SKU"
               maxLength={255}
@@ -333,7 +341,7 @@ export default function ProductForm({
               <p
                 style={{
                   margin: "0.25rem 0 0 0",
-                  color: "#dc3545",
+                  color: "var(--color-danger)",
                   fontSize: "0.875rem",
                 }}
               >
@@ -348,7 +356,7 @@ export default function ProductForm({
                 display: "block",
                 marginBottom: "0.5rem",
                 fontWeight: "500",
-                color: "#333",
+                color: "var(--color-text-primary)",
               }}
             >
               Precio Total con Impuestos *
@@ -363,11 +371,13 @@ export default function ProductForm({
                 width: "100%",
                 padding: "0.75rem",
                 border: `1px solid ${
-                  errors.total_price_with_taxes ? "#dc3545" : "#ced4da"
+                  errors.total_price_with_taxes ? "var(--color-danger)" : "var(--color-border)"
                 }`,
-                borderRadius: "4px",
+                borderRadius: "var(--radius-sm)",
                 fontSize: "1rem",
                 boxSizing: "border-box",
+                backgroundColor: "var(--color-bg)",
+                color: "var(--color-text-primary)",
               }}
               placeholder="0.00"
             />
@@ -375,7 +385,7 @@ export default function ProductForm({
               <p
                 style={{
                   margin: "0.25rem 0 0 0",
-                  color: "#dc3545",
+                  color: "var(--color-danger)",
                   fontSize: "0.875rem",
                 }}
               >
@@ -390,7 +400,7 @@ export default function ProductForm({
                 display: "block",
                 marginBottom: "0.5rem",
                 fontWeight: "500",
-                color: "#333",
+                color: "var(--color-text-primary)",
               }}
             >
               VAT (%) *
@@ -402,10 +412,12 @@ export default function ProductForm({
               style={{
                 width: "100%",
                 padding: "0.75rem",
-                border: `1px solid ${errors.vat ? "#dc3545" : "#ced4da"}`,
-                borderRadius: "4px",
+                border: `1px solid ${errors.vat ? "var(--color-danger)" : "var(--color-border)"}`,
+                borderRadius: "var(--radius-sm)",
                 fontSize: "1rem",
                 boxSizing: "border-box",
+                backgroundColor: "var(--color-bg)",
+                color: "var(--color-text-primary)",
               }}
               placeholder="0.00"
             />
@@ -413,7 +425,7 @@ export default function ProductForm({
               <p
                 style={{
                   margin: "0.25rem 0 0 0",
-                  color: "#dc3545",
+                  color: "var(--color-danger)",
                   fontSize: "0.875rem",
                 }}
               >
@@ -428,7 +440,7 @@ export default function ProductForm({
                 display: "block",
                 marginBottom: "0.5rem",
                 fontWeight: "500",
-                color: "#333",
+                color: "var(--color-text-primary)",
               }}
             >
               ICO (%) *
@@ -440,10 +452,12 @@ export default function ProductForm({
               style={{
                 width: "100%",
                 padding: "0.75rem",
-                border: `1px solid ${errors.ico ? "#dc3545" : "#ced4da"}`,
-                borderRadius: "4px",
+                border: `1px solid ${errors.ico ? "var(--color-danger)" : "var(--color-border)"}`,
+                borderRadius: "var(--radius-sm)",
                 fontSize: "1rem",
                 boxSizing: "border-box",
+                backgroundColor: "var(--color-bg)",
+                color: "var(--color-text-primary)",
               }}
               placeholder="0.00"
             />
@@ -451,7 +465,7 @@ export default function ProductForm({
               <p
                 style={{
                   margin: "0.25rem 0 0 0",
-                  color: "#dc3545",
+                  color: "var(--color-danger)",
                   fontSize: "0.875rem",
                 }}
               >
@@ -466,7 +480,7 @@ export default function ProductForm({
                 display: "block",
                 marginBottom: "0.5rem",
                 fontWeight: "500",
-                color: "#333",
+                color: "var(--color-text-primary)",
               }}
             >
               Descripción
@@ -478,13 +492,15 @@ export default function ProductForm({
                 width: "100%",
                 padding: "0.75rem",
                 border: `1px solid ${
-                  errors.description ? "#dc3545" : "#ced4da"
+                  errors.description ? "var(--color-danger)" : "var(--color-border)"
                 }`,
-                borderRadius: "4px",
+                borderRadius: "var(--radius-sm)",
                 fontSize: "1rem",
                 boxSizing: "border-box",
                 minHeight: "80px",
                 resize: "vertical",
+                backgroundColor: "var(--color-bg)",
+                color: "var(--color-text-primary)",
               }}
               placeholder="Ingresa la descripción del producto (opcional)"
             />
@@ -492,7 +508,7 @@ export default function ProductForm({
               <p
                 style={{
                   margin: "0.25rem 0 0 0",
-                  color: "#dc3545",
+                  color: "var(--color-danger)",
                   fontSize: "0.875rem",
                 }}
               >
@@ -507,7 +523,7 @@ export default function ProductForm({
                 display: "block",
                 marginBottom: "0.5rem",
                 fontWeight: "500",
-                color: "#333",
+                color: "var(--color-text-primary)",
               }}
             >
               Marca
@@ -519,10 +535,12 @@ export default function ProductForm({
               style={{
                 width: "100%",
                 padding: "0.75rem",
-                border: `1px solid ${errors.brand ? "#dc3545" : "#ced4da"}`,
-                borderRadius: "4px",
+                border: `1px solid ${errors.brand ? "var(--color-danger)" : "var(--color-border)"}`,
+                borderRadius: "var(--radius-sm)",
                 fontSize: "1rem",
                 boxSizing: "border-box",
+                backgroundColor: "var(--color-bg)",
+                color: "var(--color-text-primary)",
               }}
               placeholder="Ingresa la marca (opcional)"
             />
@@ -530,7 +548,7 @@ export default function ProductForm({
               <p
                 style={{
                   margin: "0.25rem 0 0 0",
-                  color: "#dc3545",
+                  color: "var(--color-danger)",
                   fontSize: "0.875rem",
                 }}
               >
@@ -545,7 +563,7 @@ export default function ProductForm({
                 display: "block",
                 marginBottom: "0.5rem",
                 fontWeight: "500",
-                color: "#333",
+                color: "var(--color-text-primary)",
               }}
             >
               Modelo
@@ -557,10 +575,12 @@ export default function ProductForm({
               style={{
                 width: "100%",
                 padding: "0.75rem",
-                border: `1px solid ${errors.model ? "#dc3545" : "#ced4da"}`,
-                borderRadius: "4px",
+                border: `1px solid ${errors.model ? "var(--color-danger)" : "var(--color-border)"}`,
+                borderRadius: "var(--radius-sm)",
                 fontSize: "1rem",
                 boxSizing: "border-box",
+                backgroundColor: "var(--color-bg)",
+                color: "var(--color-text-primary)",
               }}
               placeholder="Ingresa el modelo (opcional)"
             />
@@ -568,7 +588,7 @@ export default function ProductForm({
               <p
                 style={{
                   margin: "0.25rem 0 0 0",
-                  color: "#dc3545",
+                  color: "var(--color-danger)",
                   fontSize: "0.875rem",
                 }}
               >
@@ -586,10 +606,10 @@ export default function ProductForm({
               disabled={isLoading}
               style={{
                 padding: "0.75rem 1.5rem",
-                backgroundColor: "#6c757d",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
+                backgroundColor: "var(--color-surface-hover)",
+                color: "var(--color-text-primary)",
+                border: "1px solid var(--color-border)",
+                borderRadius: "var(--radius-sm)",
                 cursor: isLoading ? "not-allowed" : "pointer",
                 fontSize: "1rem",
                 fontWeight: "500",
@@ -603,10 +623,10 @@ export default function ProductForm({
               disabled={isLoading}
               style={{
                 padding: "0.75rem 1.5rem",
-                backgroundColor: "#28a745",
+                backgroundColor: "var(--color-success)",
                 color: "white",
                 border: "none",
-                borderRadius: "4px",
+                borderRadius: "var(--radius-sm)",
                 cursor: isLoading ? "not-allowed" : "pointer",
                 fontSize: "1rem",
                 fontWeight: "500",

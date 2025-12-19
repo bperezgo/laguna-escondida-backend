@@ -36,7 +36,7 @@ export default function StockList({
   if (isLoading) {
     return (
       <div style={{ textAlign: "center", padding: "3rem" }}>
-        <p style={{ fontSize: "1.1rem", color: "#666" }}>
+        <p style={{ fontSize: "1.1rem", color: "var(--color-text-secondary)" }}>
           Cargando inventarios...
         </p>
       </div>
@@ -46,7 +46,7 @@ export default function StockList({
   if (stocks.length === 0) {
     return (
       <div style={{ textAlign: "center", padding: "3rem" }}>
-        <p style={{ fontSize: "1.1rem", color: "#666" }}>
+        <p style={{ fontSize: "1.1rem", color: "var(--color-text-secondary)" }}>
           No se encontraron inventarios. ¡Crea tu primer inventario!
         </p>
       </div>
@@ -59,8 +59,9 @@ export default function StockList({
         style={{
           marginBottom: "2rem",
           padding: "1.5rem",
-          backgroundColor: "#f8f9fa",
-          borderRadius: "8px",
+          backgroundColor: "var(--color-surface)",
+          borderRadius: "var(--radius-md)",
+          border: "1px solid var(--color-border)",
         }}
       >
         <div style={{ flex: "1", minWidth: "200px" }}>
@@ -70,6 +71,7 @@ export default function StockList({
               marginBottom: "0.5rem",
               fontWeight: "500",
               fontSize: "0.875rem",
+              color: "var(--color-text-primary)",
             }}
           >
             Buscar Inventarios
@@ -82,23 +84,25 @@ export default function StockList({
             style={{
               width: "100%",
               padding: "0.75rem",
-              border: "1px solid #ced4da",
-              borderRadius: "4px",
+              border: "1px solid var(--color-border)",
+              borderRadius: "var(--radius-sm)",
               fontSize: "1rem",
               boxSizing: "border-box",
+              backgroundColor: "var(--color-bg)",
+              color: "var(--color-text-primary)",
             }}
           />
         </div>
       </div>
 
-      <div style={{ marginBottom: "1rem", color: "#666", fontSize: "0.9rem" }}>
+      <div style={{ marginBottom: "1rem", color: "var(--color-text-secondary)", fontSize: "0.9rem" }}>
         Mostrando {filteredStocks.length} de {stocks.length} inventario
         {stocks.length !== 1 ? "s" : ""}
       </div>
 
       {filteredStocks.length === 0 ? (
         <div style={{ textAlign: "center", padding: "3rem" }}>
-          <p style={{ fontSize: "1.1rem", color: "#666" }}>
+          <p style={{ fontSize: "1.1rem", color: "var(--color-text-secondary)" }}>
             No hay inventarios que coincidan con tu búsqueda.
           </p>
         </div>

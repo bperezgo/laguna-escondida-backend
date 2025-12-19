@@ -47,7 +47,7 @@ export default function SignInForm() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: "#f9fafb",
+        backgroundColor: "var(--color-bg)",
         padding: "1rem",
       }}
     >
@@ -64,7 +64,7 @@ export default function SignInForm() {
               textAlign: "center",
               fontSize: "1.875rem",
               fontWeight: "800",
-              color: "#111827",
+              color: "var(--color-text-primary)",
               marginBottom: "2rem",
             }}
           >
@@ -79,8 +79,11 @@ export default function SignInForm() {
         >
           <div
             style={{
-              borderRadius: "0.375rem",
-              boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
+              borderRadius: "var(--radius-md)",
+              boxShadow: "var(--shadow-sm)",
+              backgroundColor: "var(--color-surface)",
+              border: "1px solid var(--color-border)",
+              overflow: "hidden",
             }}
           >
             <div>
@@ -114,17 +117,17 @@ export default function SignInForm() {
                   position: "relative",
                   display: "block",
                   width: "100%",
-                  padding: "0.625rem 0.75rem",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "0.375rem 0.375rem 0 0",
-                  color: "#111827",
-                  fontSize: "0.875rem",
+                  padding: "0.875rem 1rem",
+                  border: "none",
+                  borderBottom: "1px solid var(--color-border)",
+                  color: "var(--color-text-primary)",
+                  fontSize: "1rem",
                   outline: "none",
-                  backgroundColor: "white",
+                  backgroundColor: "transparent",
                 }}
               />
             </div>
-            <div style={{ marginTop: "-1px" }}>
+            <div>
               <label
                 htmlFor="password"
                 style={{
@@ -155,13 +158,12 @@ export default function SignInForm() {
                   position: "relative",
                   display: "block",
                   width: "100%",
-                  padding: "0.625rem 0.75rem",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "0 0 0.375rem 0.375rem",
-                  color: "#111827",
-                  fontSize: "0.875rem",
+                  padding: "0.875rem 1rem",
+                  border: "none",
+                  color: "var(--color-text-primary)",
+                  fontSize: "1rem",
                   outline: "none",
-                  backgroundColor: "white",
+                  backgroundColor: "transparent",
                 }}
               />
             </div>
@@ -171,9 +173,10 @@ export default function SignInForm() {
             <div
               style={{
                 marginTop: "1.5rem",
-                borderRadius: "0.375rem",
-                backgroundColor: "#fef2f2",
+                borderRadius: "var(--radius-md)",
+                backgroundColor: "var(--color-danger-light)",
                 padding: "1rem",
+                border: "1px solid var(--color-danger)",
               }}
             >
               <div style={{ display: "flex" }}>
@@ -182,7 +185,7 @@ export default function SignInForm() {
                     style={{
                       fontSize: "0.875rem",
                       fontWeight: "500",
-                      color: "#991b1b",
+                      color: "var(--color-danger)",
                       margin: 0,
                     }}
                   >
@@ -202,24 +205,25 @@ export default function SignInForm() {
                 width: "100%",
                 display: "flex",
                 justifyContent: "center",
-                padding: "0.625rem 1rem",
+                padding: "0.875rem 1rem",
                 border: "none",
-                fontSize: "0.875rem",
-                fontWeight: "500",
-                borderRadius: "0.375rem",
+                fontSize: "1rem",
+                fontWeight: "600",
+                borderRadius: "var(--radius-md)",
                 color: "white",
-                backgroundColor: isLoading ? "#9ca3af" : "#4f46e5",
+                backgroundColor: isLoading ? "var(--color-text-muted)" : "var(--color-primary)",
                 cursor: isLoading ? "not-allowed" : "pointer",
-                opacity: isLoading ? 0.5 : 1,
+                opacity: isLoading ? 0.7 : 1,
+                transition: "background-color var(--transition-normal)",
               }}
               onMouseEnter={(e) => {
                 if (!isLoading) {
-                  e.currentTarget.style.backgroundColor = "#4338ca";
+                  e.currentTarget.style.backgroundColor = "var(--color-primary-hover)";
                 }
               }}
               onMouseLeave={(e) => {
                 if (!isLoading) {
-                  e.currentTarget.style.backgroundColor = "#4f46e5";
+                  e.currentTarget.style.backgroundColor = "var(--color-primary)";
                 }
               }}
             >

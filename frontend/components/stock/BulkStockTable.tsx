@@ -117,11 +117,12 @@ export default function BulkStockTable({
   return (
     <div
       style={{
-        backgroundColor: "#fff",
-        borderRadius: "8px",
+        backgroundColor: "var(--color-surface)",
+        borderRadius: "var(--radius-md)",
         padding: "2rem",
-        boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+        boxShadow: "var(--shadow-sm)",
         marginTop: "2rem",
+        border: "1px solid var(--color-border)",
       }}
     >
       <h2
@@ -129,7 +130,7 @@ export default function BulkStockTable({
           margin: "0 0 1.5rem 0",
           fontSize: "1.5rem",
           fontWeight: "bold",
-          color: "#333",
+          color: "var(--color-text-primary)",
         }}
       >
         Actualización Masiva de Inventario
@@ -137,7 +138,7 @@ export default function BulkStockTable({
       <p
         style={{
           margin: "0 0 1.5rem 0",
-          color: "#666",
+          color: "var(--color-text-secondary)",
           fontSize: "0.9rem",
         }}
       >
@@ -149,10 +150,10 @@ export default function BulkStockTable({
         <div
           style={{
             padding: "1rem",
-            backgroundColor: "#f8d7da",
-            color: "#721c24",
-            border: "1px solid #f5c6cb",
-            borderRadius: "4px",
+            backgroundColor: "var(--color-danger-light)",
+            color: "var(--color-danger)",
+            border: "1px solid var(--color-danger)",
+            borderRadius: "var(--radius-sm)",
             marginBottom: "1.5rem",
           }}
         >
@@ -176,8 +177,8 @@ export default function BulkStockTable({
           <thead>
             <tr
               style={{
-                backgroundColor: "#f8f9fa",
-                borderBottom: "2px solid #dee2e6",
+                backgroundColor: "var(--color-bg)",
+                borderBottom: "1px solid var(--color-border)",
               }}
             >
               <th
@@ -185,7 +186,7 @@ export default function BulkStockTable({
                   padding: "0.75rem",
                   textAlign: "left",
                   fontWeight: "600",
-                  color: "#333",
+                  color: "var(--color-text-primary)",
                   fontSize: "0.875rem",
                   textTransform: "uppercase",
                 }}
@@ -197,7 +198,7 @@ export default function BulkStockTable({
                   padding: "0.75rem",
                   textAlign: "left",
                   fontWeight: "600",
-                  color: "#333",
+                  color: "var(--color-text-primary)",
                   fontSize: "0.875rem",
                   textTransform: "uppercase",
                 }}
@@ -209,7 +210,7 @@ export default function BulkStockTable({
                   padding: "0.75rem",
                   textAlign: "left",
                   fontWeight: "600",
-                  color: "#333",
+                  color: "var(--color-text-primary)",
                   fontSize: "0.875rem",
                   textTransform: "uppercase",
                 }}
@@ -221,7 +222,7 @@ export default function BulkStockTable({
                   padding: "0.75rem",
                   textAlign: "left",
                   fontWeight: "600",
-                  color: "#333",
+                  color: "var(--color-text-primary)",
                   fontSize: "0.875rem",
                   textTransform: "uppercase",
                 }}
@@ -237,15 +238,15 @@ export default function BulkStockTable({
                 <tr
                   key={row.product_id}
                   style={{
-                    borderBottom: "1px solid #e0e0e0",
-                    backgroundColor: hasChanged ? "#fff3cd" : "transparent",
-                    transition: "background-color 0.2s",
+                    borderBottom: "1px solid var(--color-border)",
+                    backgroundColor: hasChanged ? "var(--color-warning-light)" : "transparent",
+                    transition: "background-color var(--transition-normal)",
                   }}
                 >
                   <td
                     style={{
                       padding: "0.75rem",
-                      color: "#333",
+                      color: "var(--color-text-primary)",
                     }}
                   >
                     {row.product_name}
@@ -253,7 +254,7 @@ export default function BulkStockTable({
                   <td
                     style={{
                       padding: "0.75rem",
-                      color: "#666",
+                      color: "var(--color-text-secondary)",
                       fontFamily: "monospace",
                       fontSize: "0.9rem",
                     }}
@@ -263,7 +264,7 @@ export default function BulkStockTable({
                   <td
                     style={{
                       padding: "0.75rem",
-                      color: "#666",
+                      color: "var(--color-text-secondary)",
                       fontWeight: "500",
                     }}
                   >
@@ -286,12 +287,13 @@ export default function BulkStockTable({
                         maxWidth: "150px",
                         padding: "0.5rem",
                         border: `1px solid ${
-                          hasChanged ? "#ffc107" : "#ced4da"
+                          hasChanged ? "var(--color-warning)" : "var(--color-border)"
                         }`,
-                        borderRadius: "4px",
+                        borderRadius: "var(--radius-sm)",
                         fontSize: "1rem",
                         boxSizing: "border-box",
-                        backgroundColor: hasChanged ? "#fff" : "#f8f9fa",
+                        backgroundColor: hasChanged ? "var(--color-surface)" : "var(--color-bg)",
+                        color: "var(--color-text-primary)",
                       }}
                       placeholder="0"
                     />
@@ -309,19 +311,19 @@ export default function BulkStockTable({
           justifyContent: "space-between",
           alignItems: "center",
           paddingTop: "1.5rem",
-          borderTop: "1px solid #e0e0e0",
+          borderTop: "1px solid var(--color-border)",
           gap: "1rem",
           flexWrap: "wrap",
         }}
       >
         <div
           style={{
-            color: "#666",
+            color: "var(--color-text-secondary)",
             fontSize: "0.9rem",
           }}
         >
           {hasChanges ? (
-            <span style={{ color: "#ffc107", fontWeight: "500" }}>
+            <span style={{ color: "var(--color-warning)", fontWeight: "500" }}>
               Tienes cambios sin guardar
             </span>
           ) : (
@@ -339,24 +341,14 @@ export default function BulkStockTable({
             disabled={submitting || !hasChanges}
             style={{
               padding: "0.75rem 1.5rem",
-              backgroundColor: "#6c757d",
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
+              backgroundColor: "var(--color-surface-hover)",
+              color: "var(--color-text-primary)",
+              border: "1px solid var(--color-border)",
+              borderRadius: "var(--radius-sm)",
               cursor: submitting || !hasChanges ? "not-allowed" : "pointer",
               fontSize: "1rem",
               fontWeight: "500",
               opacity: submitting || !hasChanges ? 0.6 : 1,
-            }}
-            onMouseEnter={(e) => {
-              if (!submitting && hasChanges) {
-                e.currentTarget.style.backgroundColor = "#5a6268";
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!submitting && hasChanges) {
-                e.currentTarget.style.backgroundColor = "#6c757d";
-              }
             }}
           >
             Restablecer Valores
@@ -366,10 +358,10 @@ export default function BulkStockTable({
             disabled={submitting || !hasChanges || isLoading}
             style={{
               padding: "0.75rem 1.5rem",
-              backgroundColor: "#28a745",
+              backgroundColor: "var(--color-success)",
               color: "white",
               border: "none",
-              borderRadius: "4px",
+              borderRadius: "var(--radius-sm)",
               cursor:
                 submitting || !hasChanges || isLoading
                   ? "not-allowed"
@@ -377,16 +369,6 @@ export default function BulkStockTable({
               fontSize: "1rem",
               fontWeight: "500",
               opacity: submitting || !hasChanges || isLoading ? 0.6 : 1,
-            }}
-            onMouseEnter={(e) => {
-              if (!submitting && hasChanges && !isLoading) {
-                e.currentTarget.style.backgroundColor = "#218838";
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!submitting && hasChanges && !isLoading) {
-                e.currentTarget.style.backgroundColor = "#28a745";
-              }
             }}
           >
             {submitting ? "Enviando..." : "Enviar Solicitud Masiva"}

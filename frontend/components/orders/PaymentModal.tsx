@@ -284,7 +284,7 @@ export default function PaymentModal({
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: "rgba(0, 0, 0, 0.5)",
+        backgroundColor: "var(--color-overlay)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -295,13 +295,14 @@ export default function PaymentModal({
     >
       <div
         style={{
-          backgroundColor: "white",
-          borderRadius: "12px",
+          backgroundColor: "var(--color-surface)",
+          borderRadius: "var(--radius-lg)",
           maxWidth: "600px",
           width: "100%",
           maxHeight: "90vh",
           overflow: "auto",
-          boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
+          boxShadow: "var(--shadow-xl)",
+          border: "1px solid var(--color-border)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -309,13 +310,13 @@ export default function PaymentModal({
         <div
           style={{
             padding: "1.5rem",
-            borderBottom: "2px solid #e0e0e0",
+            borderBottom: "1px solid var(--color-border)",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
             position: "sticky",
             top: 0,
-            backgroundColor: "white",
+            backgroundColor: "var(--color-surface)",
             zIndex: 1,
           }}
         >
@@ -324,7 +325,7 @@ export default function PaymentModal({
               margin: 0,
               fontSize: "1.5rem",
               fontWeight: "bold",
-              color: "#333",
+              color: "var(--color-text-primary)",
             }}
           >
             Resumen de Cuenta
@@ -336,9 +337,16 @@ export default function PaymentModal({
               border: "none",
               fontSize: "1.5rem",
               cursor: "pointer",
-              color: "#666",
+              color: "var(--color-text-secondary)",
               padding: "0.25rem",
               lineHeight: 1,
+              transition: "color var(--transition-fast)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = "var(--color-text-primary)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = "var(--color-text-secondary)";
             }}
           >
             ×
@@ -352,10 +360,10 @@ export default function PaymentModal({
             <div
               style={{
                 padding: "1rem",
-                backgroundColor: "#fee",
-                border: "1px solid #fcc",
-                borderRadius: "8px",
-                color: "#c00",
+                backgroundColor: "var(--color-danger-light)",
+                border: "1px solid var(--color-danger)",
+                borderRadius: "var(--radius-md)",
+                color: "var(--color-danger)",
                 marginBottom: "1rem",
               }}
             >
@@ -368,26 +376,34 @@ export default function PaymentModal({
             style={{
               marginBottom: "1.5rem",
               padding: "1rem",
-              backgroundColor: "#f8f9fa",
-              borderRadius: "8px",
+              backgroundColor: "var(--color-bg)",
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--color-border)",
             }}
           >
             <div
               style={{
                 fontSize: "1.5rem",
                 fontWeight: "bold",
-                color: "#007bff",
+                color: "var(--color-primary)",
                 marginBottom: "0.5rem",
               }}
             >
               {openBill.temporal_identifier}
             </div>
             {openBill.descriptor && (
-              <div style={{ marginBottom: "0.5rem", color: "#666" }}>
+              <div
+                style={{
+                  marginBottom: "0.5rem",
+                  color: "var(--color-text-secondary)",
+                }}
+              >
                 {openBill.descriptor}
               </div>
             )}
-            <div style={{ fontSize: "0.875rem", color: "#666" }}>
+            <div
+              style={{ fontSize: "0.875rem", color: "var(--color-text-muted)" }}
+            >
               <div>Creado por: {openBill.created_by?.user_name}</div>
               <div>Fecha: {formatDate(openBill.created_at)}</div>
             </div>
@@ -400,7 +416,7 @@ export default function PaymentModal({
                 display: "block",
                 marginBottom: "0.5rem",
                 fontWeight: "bold",
-                color: "#333",
+                color: "var(--color-text-primary)",
               }}
             >
               Tipo de Pago *
@@ -413,10 +429,11 @@ export default function PaymentModal({
                 width: "100%",
                 padding: "0.75rem",
                 fontSize: "1rem",
-                border: "2px solid #e0e0e0",
-                borderRadius: "8px",
+                border: "1px solid var(--color-border)",
+                borderRadius: "var(--radius-md)",
                 outline: "none",
-                backgroundColor: "white",
+                backgroundColor: "var(--color-bg)",
+                color: "var(--color-text-primary)",
                 cursor: isPaying ? "not-allowed" : "pointer",
               }}
             >
@@ -442,7 +459,7 @@ export default function PaymentModal({
                 display: "block",
                 marginBottom: "0.5rem",
                 fontWeight: "bold",
-                color: "#333",
+                color: "var(--color-text-primary)",
               }}
             >
               ID de Cliente (Opcional)
@@ -458,9 +475,11 @@ export default function PaymentModal({
                   flex: 1,
                   padding: "0.75rem",
                   fontSize: "1rem",
-                  border: "2px solid #e0e0e0",
-                  borderRadius: "8px",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "var(--radius-md)",
                   outline: "none",
+                  backgroundColor: "var(--color-bg)",
+                  color: "var(--color-text-primary)",
                 }}
               />
               <button
@@ -472,17 +491,20 @@ export default function PaymentModal({
                   fontSize: "1rem",
                   fontWeight: "bold",
                   backgroundColor:
-                    isPaying || isSearching ? "#6c757d" : "#007bff",
+                    isPaying || isSearching
+                      ? "var(--color-text-muted)"
+                      : "var(--color-primary)",
                   color: "white",
                   border: "none",
-                  borderRadius: "8px",
+                  borderRadius: "var(--radius-md)",
                   cursor: isPaying || isSearching ? "not-allowed" : "pointer",
                   display: "flex",
                   alignItems: "center",
                   gap: "0.5rem",
+                  transition: "background-color var(--transition-normal)",
                 }}
               >
-                🔍 {isSearching ? "Buscando..." : "Buscar"}
+                {isSearching ? "Buscando..." : "Buscar"}
               </button>
             </div>
           </div>
@@ -492,9 +514,9 @@ export default function PaymentModal({
             style={{
               marginBottom: "1.5rem",
               padding: "1rem",
-              backgroundColor: "#f8f9fa",
-              borderRadius: "8px",
-              border: "1px solid #e0e0e0",
+              backgroundColor: "var(--color-bg)",
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--color-border)",
             }}
           >
             <h4
@@ -502,7 +524,7 @@ export default function PaymentModal({
                 margin: "0 0 1rem 0",
                 fontSize: "1rem",
                 fontWeight: "bold",
-                color: "#333",
+                color: "var(--color-text-primary)",
               }}
             >
               Información del Cliente (Opcional)
@@ -516,7 +538,7 @@ export default function PaymentModal({
                     display: "block",
                     marginBottom: "0.25rem",
                     fontSize: "0.875rem",
-                    color: "#666",
+                    color: "var(--color-text-secondary)",
                   }}
                 >
                   Nombre
@@ -531,10 +553,11 @@ export default function PaymentModal({
                     width: "100%",
                     padding: "0.5rem",
                     fontSize: "0.875rem",
-                    border: "1px solid #e0e0e0",
-                    borderRadius: "6px",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: "var(--radius-sm)",
                     outline: "none",
-                    backgroundColor: "white",
+                    backgroundColor: "var(--color-surface)",
+                    color: "var(--color-text-primary)",
                   }}
                 />
               </div>
@@ -551,7 +574,7 @@ export default function PaymentModal({
                       display: "block",
                       marginBottom: "0.25rem",
                       fontSize: "0.875rem",
-                      color: "#666",
+                      color: "var(--color-text-secondary)",
                     }}
                   >
                     Correo Electrónico
@@ -566,10 +589,11 @@ export default function PaymentModal({
                       width: "100%",
                       padding: "0.5rem",
                       fontSize: "0.875rem",
-                      border: "1px solid #e0e0e0",
-                      borderRadius: "6px",
+                      border: "1px solid var(--color-border)",
+                      borderRadius: "var(--radius-sm)",
                       outline: "none",
-                      backgroundColor: "white",
+                      backgroundColor: "var(--color-surface)",
+                      color: "var(--color-text-primary)",
                     }}
                   />
                 </div>
@@ -579,7 +603,7 @@ export default function PaymentModal({
                       display: "block",
                       marginBottom: "0.25rem",
                       fontSize: "0.875rem",
-                      color: "#666",
+                      color: "var(--color-text-secondary)",
                     }}
                   >
                     Teléfono (opcional)
@@ -594,10 +618,11 @@ export default function PaymentModal({
                       width: "100%",
                       padding: "0.5rem",
                       fontSize: "0.875rem",
-                      border: "1px solid #e0e0e0",
-                      borderRadius: "6px",
+                      border: "1px solid var(--color-border)",
+                      borderRadius: "var(--radius-sm)",
                       outline: "none",
-                      backgroundColor: "white",
+                      backgroundColor: "var(--color-surface)",
+                      color: "var(--color-text-primary)",
                     }}
                   />
                 </div>
@@ -608,7 +633,7 @@ export default function PaymentModal({
                     display: "block",
                     marginBottom: "0.25rem",
                     fontSize: "0.875rem",
-                    color: "#666",
+                    color: "var(--color-text-secondary)",
                   }}
                 >
                   Dirección (opcional)
@@ -623,10 +648,11 @@ export default function PaymentModal({
                     width: "100%",
                     padding: "0.5rem",
                     fontSize: "0.875rem",
-                    border: "1px solid #e0e0e0",
-                    borderRadius: "6px",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: "var(--radius-sm)",
                     outline: "none",
-                    backgroundColor: "white",
+                    backgroundColor: "var(--color-surface)",
+                    color: "var(--color-text-primary)",
                   }}
                 />
               </div>
@@ -643,7 +669,7 @@ export default function PaymentModal({
                       display: "block",
                       marginBottom: "0.25rem",
                       fontSize: "0.875rem",
-                      color: "#666",
+                      color: "var(--color-text-secondary)",
                     }}
                   >
                     Tipo de ID
@@ -658,10 +684,11 @@ export default function PaymentModal({
                       width: "100%",
                       padding: "0.5rem",
                       fontSize: "0.875rem",
-                      border: "1px solid #e0e0e0",
-                      borderRadius: "6px",
+                      border: "1px solid var(--color-border)",
+                      borderRadius: "var(--radius-sm)",
                       outline: "none",
-                      backgroundColor: "white",
+                      backgroundColor: "var(--color-surface)",
+                      color: "var(--color-text-primary)",
                       cursor: "pointer",
                     }}
                   >
@@ -676,7 +703,7 @@ export default function PaymentModal({
                       display: "block",
                       marginBottom: "0.25rem",
                       fontSize: "0.875rem",
-                      color: "#666",
+                      color: "var(--color-text-secondary)",
                     }}
                   >
                     Identificación
@@ -691,10 +718,11 @@ export default function PaymentModal({
                       width: "100%",
                       padding: "0.5rem",
                       fontSize: "0.875rem",
-                      border: "1px solid #e0e0e0",
-                      borderRadius: "6px",
+                      border: "1px solid var(--color-border)",
+                      borderRadius: "var(--radius-sm)",
                       outline: "none",
-                      backgroundColor: "white",
+                      backgroundColor: "var(--color-surface)",
+                      color: "var(--color-text-primary)",
                     }}
                   />
                 </div>
@@ -709,7 +737,7 @@ export default function PaymentModal({
                 margin: "0 0 1rem 0",
                 fontSize: "1.1rem",
                 fontWeight: "bold",
-                color: "#333",
+                color: "var(--color-text-primary)",
               }}
             >
               Artículos
@@ -725,9 +753,9 @@ export default function PaymentModal({
                     key={product.id}
                     style={{
                       padding: "1rem",
-                      backgroundColor: "white",
-                      borderRadius: "8px",
-                      border: "1px solid #e0e0e0",
+                      backgroundColor: "var(--color-bg)",
+                      borderRadius: "var(--radius-md)",
+                      border: "1px solid var(--color-border)",
                     }}
                   >
                     <div
@@ -742,13 +770,18 @@ export default function PaymentModal({
                         <div
                           style={{
                             fontWeight: "bold",
-                            color: "#333",
+                            color: "var(--color-text-primary)",
                             marginBottom: "0.25rem",
                           }}
                         >
                           {product.name}
                         </div>
-                        <div style={{ fontSize: "0.875rem", color: "#666" }}>
+                        <div
+                          style={{
+                            fontSize: "0.875rem",
+                            color: "var(--color-text-secondary)",
+                          }}
+                        >
                           ${product.total_price_with_taxes.toFixed(2)} ×{" "}
                           {totalQuantity}
                         </div>
@@ -757,7 +790,7 @@ export default function PaymentModal({
                         style={{
                           fontWeight: "bold",
                           fontSize: "1.1rem",
-                          color: "#333",
+                          color: "var(--color-secondary)",
                         }}
                       >
                         ${itemTotal.toFixed(2)}
@@ -773,9 +806,10 @@ export default function PaymentModal({
           <div
             style={{
               padding: "1.5rem",
-              backgroundColor: "#f8f9fa",
-              borderRadius: "8px",
+              backgroundColor: "var(--color-bg)",
+              borderRadius: "var(--radius-md)",
               marginBottom: "1rem",
+              border: "1px solid var(--color-border)",
             }}
           >
             <div
@@ -786,8 +820,17 @@ export default function PaymentModal({
                 fontSize: "1rem",
               }}
             >
-              <span style={{ color: "#666" }}>Subtotal:</span>
-              <span style={{ fontWeight: "500" }}>${subtotal.toFixed(2)}</span>
+              <span style={{ color: "var(--color-text-secondary)" }}>
+                Subtotal:
+              </span>
+              <span
+                style={{
+                  fontWeight: "500",
+                  color: "var(--color-text-primary)",
+                }}
+              >
+                ${subtotal.toFixed(2)}
+              </span>
             </div>
             <div
               style={{
@@ -797,8 +840,17 @@ export default function PaymentModal({
                 fontSize: "1rem",
               }}
             >
-              <span style={{ color: "#666" }}>VAT (IVA):</span>
-              <span style={{ fontWeight: "500" }}>${totalVAT.toFixed(2)}</span>
+              <span style={{ color: "var(--color-text-secondary)" }}>
+                VAT (IVA):
+              </span>
+              <span
+                style={{
+                  fontWeight: "500",
+                  color: "var(--color-text-primary)",
+                }}
+              >
+                ${totalVAT.toFixed(2)}
+              </span>
             </div>
             <div
               style={{
@@ -808,21 +860,30 @@ export default function PaymentModal({
                 fontSize: "1rem",
               }}
             >
-              <span style={{ color: "#666" }}>ICO:</span>
-              <span style={{ fontWeight: "500" }}>${totalICO.toFixed(2)}</span>
+              <span style={{ color: "var(--color-text-secondary)" }}>ICO:</span>
+              <span
+                style={{
+                  fontWeight: "500",
+                  color: "var(--color-text-primary)",
+                }}
+              >
+                ${totalICO.toFixed(2)}
+              </span>
             </div>
             <div
               style={{
                 display: "flex",
                 justifyContent: "space-between",
                 paddingTop: "1rem",
-                borderTop: "2px solid #333",
+                borderTop: "2px solid var(--color-border)",
                 fontSize: "1.5rem",
                 fontWeight: "bold",
               }}
             >
-              <span style={{ color: "#333" }}>Total:</span>
-              <span style={{ color: "#28a745" }}>${total.toFixed(2)}</span>
+              <span style={{ color: "var(--color-text-primary)" }}>Total:</span>
+              <span style={{ color: "var(--color-success)" }}>
+                ${total.toFixed(2)}
+              </span>
             </div>
           </div>
         </div>
@@ -892,13 +953,13 @@ export default function PaymentModal({
         <div
           style={{
             padding: "1.5rem",
-            borderTop: "2px solid #e0e0e0",
+            borderTop: "1px solid var(--color-border)",
             display: "flex",
             gap: "1rem",
             justifyContent: "flex-end",
             position: "sticky",
             bottom: 0,
-            backgroundColor: "white",
+            backgroundColor: "var(--color-surface)",
           }}
         >
           <button
@@ -909,12 +970,13 @@ export default function PaymentModal({
               padding: "0.75rem 1.5rem",
               fontSize: "1rem",
               fontWeight: "bold",
-              backgroundColor: "#6c757d",
-              color: "white",
-              border: "none",
-              borderRadius: "8px",
+              backgroundColor: "var(--color-surface-hover)",
+              color: "var(--color-text-primary)",
+              border: "1px solid var(--color-border)",
+              borderRadius: "var(--radius-md)",
               cursor: isPaying ? "not-allowed" : "pointer",
               opacity: isPaying ? 0.6 : 1,
+              transition: "all var(--transition-normal)",
             }}
           >
             Cerrar
@@ -927,15 +989,16 @@ export default function PaymentModal({
               padding: "0.75rem 1.5rem",
               fontSize: "1rem",
               fontWeight: "bold",
-              backgroundColor: "#007bff",
+              backgroundColor: "var(--color-primary)",
               color: "white",
               border: "none",
-              borderRadius: "8px",
+              borderRadius: "var(--radius-md)",
               cursor: isPaying ? "not-allowed" : "pointer",
               opacity: isPaying ? 0.6 : 1,
+              transition: "background-color var(--transition-normal)",
             }}
           >
-            🖨️ Imprimir Cuenta
+            Imprimir Cuenta
           </button>
           <button
             type="button"
@@ -945,14 +1008,17 @@ export default function PaymentModal({
               padding: "0.75rem 1.5rem",
               fontSize: "1rem",
               fontWeight: "bold",
-              backgroundColor: isPaying ? "#6c757d" : "#28a745",
+              backgroundColor: isPaying
+                ? "var(--color-text-muted)"
+                : "var(--color-success)",
               color: "white",
               border: "none",
-              borderRadius: "8px",
+              borderRadius: "var(--radius-md)",
               cursor: isPaying ? "not-allowed" : "pointer",
+              transition: "background-color var(--transition-normal)",
             }}
           >
-            {isPaying ? "Procesando..." : "💳 Pagar y Cerrar Cuenta"}
+            {isPaying ? "Procesando..." : "Pagar y Cerrar Cuenta"}
           </button>
         </div>
       </div>

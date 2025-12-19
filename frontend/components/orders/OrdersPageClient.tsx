@@ -101,7 +101,7 @@ export default function OrdersPageClient() {
     <div
       style={{
         minHeight: "100vh",
-        backgroundColor: "#f5f5f5",
+        backgroundColor: "var(--color-bg)",
         padding: "1rem",
       }}
     >
@@ -127,7 +127,7 @@ export default function OrdersPageClient() {
               fontSize: "clamp(1.75rem, 4vw, 2.5rem)",
               fontWeight: "bold",
               margin: 0,
-              color: "#333",
+              color: "var(--color-text-primary)",
             }}
           >
             Cuentas Abiertas
@@ -138,19 +138,19 @@ export default function OrdersPageClient() {
               padding: "0.875rem 1.75rem",
               fontSize: "1.05rem",
               fontWeight: "bold",
-              backgroundColor: "#007bff",
+              backgroundColor: "var(--color-primary)",
               color: "white",
               border: "none",
-              borderRadius: "8px",
+              borderRadius: "var(--radius-md)",
               cursor: "pointer",
-              transition: "background-color 0.2s",
-              boxShadow: "0 2px 6px rgba(0, 123, 255, 0.3)",
+              transition: "background-color var(--transition-normal)",
+              boxShadow: "var(--shadow-md)",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#0056b3";
+              e.currentTarget.style.backgroundColor = "var(--color-primary-hover)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "#007bff";
+              e.currentTarget.style.backgroundColor = "var(--color-primary)";
             }}
           >
             + Crear Nueva Orden
@@ -168,10 +168,10 @@ export default function OrdersPageClient() {
           <div
             style={{
               padding: "1rem",
-              backgroundColor: "#fee",
-              border: "2px solid #fcc",
-              borderRadius: "8px",
-              color: "#c00",
+              backgroundColor: "var(--color-danger-light)",
+              border: "1px solid var(--color-danger)",
+              borderRadius: "var(--radius-md)",
+              color: "var(--color-danger)",
               marginBottom: "1.5rem",
               fontWeight: "500",
             }}
@@ -186,7 +186,7 @@ export default function OrdersPageClient() {
             style={{
               textAlign: "center",
               padding: "4rem",
-              color: "#666",
+              color: "var(--color-text-secondary)",
               fontSize: "1.1rem",
             }}
           >
@@ -195,20 +195,14 @@ export default function OrdersPageClient() {
                 display: "inline-block",
                 width: "40px",
                 height: "40px",
-                border: "4px solid #e0e0e0",
-                borderTop: "4px solid #007bff",
+                border: "4px solid var(--color-border)",
+                borderTop: "4px solid var(--color-primary)",
                 borderRadius: "50%",
                 animation: "spin 1s linear infinite",
                 marginBottom: "1rem",
               }}
             />
             <div>Cargando cuentas abiertas...</div>
-            <style>{`
-              @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-              }
-            `}</style>
           </div>
         )}
 
@@ -220,9 +214,9 @@ export default function OrdersPageClient() {
                 style={{
                   textAlign: "center",
                   padding: "4rem",
-                  backgroundColor: "white",
-                  borderRadius: "12px",
-                  border: "2px dashed #e0e0e0",
+                  backgroundColor: "var(--color-surface)",
+                  borderRadius: "var(--radius-lg)",
+                  border: "2px dashed var(--color-border)",
                 }}
               >
                 <div
@@ -237,7 +231,7 @@ export default function OrdersPageClient() {
                   style={{
                     margin: "0 0 0.5rem 0",
                     fontSize: "1.25rem",
-                    color: "#333",
+                    color: "var(--color-text-primary)",
                   }}
                 >
                   {searchQuery
@@ -247,7 +241,7 @@ export default function OrdersPageClient() {
                 <p
                   style={{
                     margin: 0,
-                    color: "#666",
+                    color: "var(--color-text-secondary)",
                     fontSize: "1rem",
                   }}
                 >
@@ -261,7 +255,7 @@ export default function OrdersPageClient() {
                 <div
                   style={{
                     marginBottom: "1rem",
-                    color: "#666",
+                    color: "var(--color-text-secondary)",
                     fontSize: "0.95rem",
                   }}
                 >
@@ -327,7 +321,7 @@ export default function OrdersPageClient() {
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            backgroundColor: "var(--color-overlay)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -336,26 +330,27 @@ export default function OrdersPageClient() {
         >
           <div
             style={{
-              backgroundColor: "white",
+              backgroundColor: "var(--color-surface)",
               padding: "2rem",
-              borderRadius: "12px",
+              borderRadius: "var(--radius-lg)",
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
               gap: "1rem",
+              border: "1px solid var(--color-border)",
             }}
           >
             <div
               style={{
                 width: "40px",
                 height: "40px",
-                border: "4px solid #e0e0e0",
-                borderTop: "4px solid #007bff",
+                border: "4px solid var(--color-border)",
+                borderTop: "4px solid var(--color-primary)",
                 borderRadius: "50%",
                 animation: "spin 1s linear infinite",
               }}
             />
-            <div style={{ color: "#333", fontWeight: "500" }}>
+            <div style={{ color: "var(--color-text-primary)", fontWeight: "500" }}>
               Cargando detalles de la orden...
             </div>
           </div>

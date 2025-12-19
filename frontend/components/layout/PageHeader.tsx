@@ -36,14 +36,13 @@ export default function PageHeader() {
   return (
     <header
       style={{
-        backgroundColor: "white",
-        borderBottom: "1px solid #e5e7eb",
+        backgroundColor: "var(--color-surface)",
+        borderBottom: "1px solid var(--color-border)",
         padding: "1rem 1.5rem",
         position: "sticky",
         top: 0,
         zIndex: 50,
-        boxShadow:
-          "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)",
+        boxShadow: "var(--shadow-md)",
       }}
     >
       <div
@@ -64,16 +63,19 @@ export default function PageHeader() {
               padding: "0.5rem",
               backgroundColor: "transparent",
               border: "none",
-              borderRadius: "0.375rem",
+              borderRadius: "var(--radius-md)",
               cursor: "pointer",
-              color: "#4b5563",
-              transition: "background-color 0.2s",
+              color: "var(--color-text-secondary)",
+              transition: "all var(--transition-normal)",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#f3f4f6";
+              e.currentTarget.style.backgroundColor =
+                "var(--color-surface-hover)";
+              e.currentTarget.style.color = "var(--color-primary)";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = "transparent";
+              e.currentTarget.style.color = "var(--color-text-secondary)";
             }}
             title="Volver al Inicio"
           >
@@ -95,7 +97,7 @@ export default function PageHeader() {
             style={{
               fontSize: "1.5rem",
               fontWeight: "600",
-              color: "#111827",
+              color: "var(--color-text-primary)",
               margin: 0,
             }}
           >
@@ -107,20 +109,20 @@ export default function PageHeader() {
           onClick={handleSignOut}
           style={{
             padding: "0.5rem 1rem",
-            backgroundColor: "#dc2626",
+            backgroundColor: "var(--color-danger)",
             color: "white",
             border: "none",
-            borderRadius: "0.375rem",
+            borderRadius: "var(--radius-md)",
             cursor: "pointer",
             fontSize: "0.875rem",
             fontWeight: "500",
-            transition: "background-color 0.2s",
+            transition: "background-color var(--transition-normal)",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = "#b91c1c";
+            e.currentTarget.style.backgroundColor = "var(--color-danger-hover)";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = "#dc2626";
+            e.currentTarget.style.backgroundColor = "var(--color-danger)";
           }}
         >
           Cerrar Sesión

@@ -121,7 +121,7 @@ export default function StockForm({
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: "rgba(0, 0, 0, 0.5)",
+        backgroundColor: "var(--color-overlay)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -131,14 +131,15 @@ export default function StockForm({
     >
       <div
         style={{
-          backgroundColor: "white",
-          borderRadius: "8px",
+          backgroundColor: "var(--color-surface)",
+          borderRadius: "var(--radius-md)",
           padding: "2rem",
           maxWidth: "500px",
           width: "100%",
           maxHeight: "90vh",
           overflowY: "auto",
-          boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+          boxShadow: "var(--shadow-xl)",
+          border: "1px solid var(--color-border)",
         }}
       >
         <h2
@@ -147,6 +148,7 @@ export default function StockForm({
             marginBottom: "1.5rem",
             fontSize: "1.5rem",
             fontWeight: "bold",
+            color: "var(--color-text-primary)",
           }}
         >
           {mode === "adjust"
@@ -163,7 +165,7 @@ export default function StockForm({
                 display: "block",
                 marginBottom: "0.5rem",
                 fontWeight: "500",
-                color: "#333",
+                color: "var(--color-text-primary)",
               }}
             >
               Producto *
@@ -176,12 +178,13 @@ export default function StockForm({
                 width: "100%",
                 padding: "0.75rem",
                 border: `1px solid ${
-                  errors.product_id ? "#dc3545" : "#ced4da"
+                  errors.product_id ? "var(--color-danger)" : "var(--color-border)"
                 }`,
-                borderRadius: "4px",
+                borderRadius: "var(--radius-sm)",
                 fontSize: "1rem",
                 boxSizing: "border-box",
-                backgroundColor: mode === "adjust" ? "#f8f9fa" : "white",
+                backgroundColor: mode === "adjust" ? "var(--color-surface-hover)" : "var(--color-bg)",
+                color: "var(--color-text-primary)",
               }}
             >
               <option value="">Selecciona un producto</option>
@@ -195,7 +198,7 @@ export default function StockForm({
               <p
                 style={{
                   margin: "0.25rem 0 0 0",
-                  color: "#dc3545",
+                  color: "var(--color-danger)",
                   fontSize: "0.875rem",
                 }}
               >
@@ -211,7 +214,7 @@ export default function StockForm({
                   display: "block",
                   marginBottom: "0.5rem",
                   fontWeight: "500",
-                  color: "#333",
+                  color: "var(--color-text-primary)",
                 }}
               >
                 Cantidad Inicial *
@@ -223,10 +226,12 @@ export default function StockForm({
                 style={{
                   width: "100%",
                   padding: "0.75rem",
-                  border: `1px solid ${errors.amount ? "#dc3545" : "#ced4da"}`,
-                  borderRadius: "4px",
+                  border: `1px solid ${errors.amount ? "var(--color-danger)" : "var(--color-border)"}`,
+                  borderRadius: "var(--radius-sm)",
                   fontSize: "1rem",
                   boxSizing: "border-box",
+                  backgroundColor: "var(--color-bg)",
+                  color: "var(--color-text-primary)",
                 }}
                 placeholder="Ingresa la cantidad inicial de inventario"
               />
@@ -234,7 +239,7 @@ export default function StockForm({
                 <p
                   style={{
                     margin: "0.25rem 0 0 0",
-                    color: "#dc3545",
+                    color: "var(--color-danger)",
                     fontSize: "0.875rem",
                   }}
                 >
@@ -249,7 +254,7 @@ export default function StockForm({
                   display: "block",
                   marginBottom: "0.5rem",
                   fontWeight: "500",
-                  color: "#333",
+                  color: "var(--color-text-primary)",
                 }}
               >
                 Cantidad de Cambio *
@@ -261,17 +266,19 @@ export default function StockForm({
                 style={{
                   width: "100%",
                   padding: "0.75rem",
-                  border: `1px solid ${errors.change ? "#dc3545" : "#ced4da"}`,
-                  borderRadius: "4px",
+                  border: `1px solid ${errors.change ? "var(--color-danger)" : "var(--color-border)"}`,
+                  borderRadius: "var(--radius-sm)",
                   fontSize: "1rem",
                   boxSizing: "border-box",
+                  backgroundColor: "var(--color-bg)",
+                  color: "var(--color-text-primary)",
                 }}
                 placeholder="Ingresa positivo para agregar, negativo para disminuir"
               />
               <p
                 style={{
                   margin: "0.25rem 0 0 0",
-                  color: "#666",
+                  color: "var(--color-text-muted)",
                   fontSize: "0.875rem",
                 }}
               >
@@ -282,7 +289,7 @@ export default function StockForm({
                 <p
                   style={{
                     margin: "0.25rem 0 0 0",
-                    color: "#dc3545",
+                    color: "var(--color-danger)",
                     fontSize: "0.875rem",
                   }}
                 >
@@ -301,10 +308,10 @@ export default function StockForm({
               disabled={isLoading}
               style={{
                 padding: "0.75rem 1.5rem",
-                backgroundColor: "#6c757d",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
+                backgroundColor: "var(--color-surface-hover)",
+                color: "var(--color-text-primary)",
+                border: "1px solid var(--color-border)",
+                borderRadius: "var(--radius-sm)",
                 cursor: isLoading ? "not-allowed" : "pointer",
                 fontSize: "1rem",
                 fontWeight: "500",
@@ -318,10 +325,10 @@ export default function StockForm({
               disabled={isLoading}
               style={{
                 padding: "0.75rem 1.5rem",
-                backgroundColor: "#28a745",
+                backgroundColor: "var(--color-success)",
                 color: "white",
                 border: "none",
-                borderRadius: "4px",
+                borderRadius: "var(--radius-sm)",
                 cursor: isLoading ? "not-allowed" : "pointer",
                 fontSize: "1rem",
                 fontWeight: "500",
