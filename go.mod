@@ -17,6 +17,7 @@ require (
 	golang.org/x/crypto v0.40.0
 	gorm.io/driver/postgres v1.5.0
 	gorm.io/gorm v1.25.0
+	moul.io/number-to-words v0.7.0
 )
 
 require (
