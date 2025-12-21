@@ -712,41 +712,17 @@ export default function InvoiceForm({
               borderBottom: "1px solid var(--color-border)",
             }}
           >
-            <div
+            <h3
               style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
+                margin: 0,
                 marginBottom: "1rem",
+                fontSize: "1.2rem",
+                fontWeight: "600",
+                color: "var(--color-text-primary)",
               }}
             >
-              <h3
-                style={{
-                  margin: 0,
-                  fontSize: "1.2rem",
-                  fontWeight: "600",
-                  color: "var(--color-text-primary)",
-                }}
-              >
-                Artículos de la Factura
-              </h3>
-              <button
-                type="button"
-                onClick={addItem}
-                style={{
-                  padding: "0.5rem 1rem",
-                  backgroundColor: "var(--color-primary)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "var(--radius-sm)",
-                  cursor: "pointer",
-                  fontSize: "0.875rem",
-                  fontWeight: "500",
-                }}
-              >
-                + Agregar Artículo
-              </button>
-            </div>
+              Artículos de la Factura
+            </h3>
             {errors.items && (
               <p
                 style={{
@@ -1013,6 +989,10 @@ export default function InvoiceForm({
                         <div>
                           <strong>VAT:</strong>{" "}
                           {itemSelectedProduct[index]!.vat}%
+                        </div>
+                        <div>
+                          <strong>ICO:</strong>{" "}
+                          {itemSelectedProduct[index]!.ico}%
                         </div>
                       </div>
                     </div>
@@ -1401,6 +1381,24 @@ export default function InvoiceForm({
                 </div>
               </div>
             ))}
+            <button
+              type="button"
+              onClick={addItem}
+              style={{
+                padding: "0.75rem 1.5rem",
+                backgroundColor: "var(--color-primary)",
+                color: "white",
+                border: "none",
+                borderRadius: "var(--radius-sm)",
+                cursor: "pointer",
+                fontSize: "1rem",
+                fontWeight: "500",
+                width: "100%",
+                marginTop: "0.5rem",
+              }}
+            >
+              + Agregar Artículo
+            </button>
           </div>
 
           {/* Form Actions */}
