@@ -3,22 +3,22 @@ package bill
 import (
 	billError "laguna-escondida/backend/internal/domain/aggregate/bill/error"
 	"laguna-escondida/backend/internal/domain/dto"
-	"strconv"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/samber/lo"
+	"github.com/shopspring/decimal"
 )
 
 type Aggregate struct {
 	id             string
-	totalAmount    float64
-	discountAmount float64
-	taxAmount      float64
-	payAmount      float64
-	vat            float64
-	ico            float64
-	tip            float64
+	totalAmount    decimal.Decimal
+	discountAmount decimal.Decimal
+	taxAmount      decimal.Decimal
+	payAmount      decimal.Decimal
+	vat            decimal.Decimal
+	ico            decimal.Decimal
+	tip            decimal.Decimal
 	documentURL    *string
 	customer       *dto.Customer
 	paymentCode    *PaymentCode
@@ -37,42 +37,41 @@ func NewBillFromCreateElectronicInvoiceRequest(invoice *dto.ElectronicInvoice, p
 		return nil, err
 	}
 
-	totalAmount := 0.0
-	discountAmount := 0.0
-	taxAmount := 0.0
-	payAmount := 0.0
-	totalVat := 0.0
-	totalIco := 0.0
-	totalTip := 0.0
+	totalAmount := decimal.Zero
+	discountAmount := decimal.Zero
+	taxAmount := decimal.Zero
+	totalVat := decimal.Zero
+	totalIco := decimal.Zero
+	totalTip := decimal.Zero
 
 	for _, product := range products {
-		totalAmount += product.unitPrice * float64(product.quantity)
+		totalAmount = totalAmount.Add(product.unitPrice.Mul(decimal.NewFromInt(int64(product.quantity))))
 
 		for _, allowance := range product.allowance {
-			allowanceAmount, err := strconv.ParseFloat(allowance.Amount, 64)
+			allowanceAmount, err := decimal.NewFromString(allowance.Amount)
 			if err != nil {
 				return nil, billError.NewInvalidAllowanceAmountError(allowance.Amount)
 			}
-			discountAmount += allowanceAmount
+			discountAmount = discountAmount.Add(allowanceAmount)
 		}
 
 		for _, tax := range product.taxes {
-			parsedTaxAmount, err := strconv.ParseFloat(tax.TaxAmount, 64)
+			parsedTaxAmount, err := decimal.NewFromString(tax.TaxAmount)
 			if err != nil {
 				return nil, billError.NewInvalidTaxAmountError(tax.TaxAmount)
 			}
 
 			switch tax.TaxCode {
 			case dto.TaxCodeVAT:
-				totalVat += parsedTaxAmount
+				totalVat = totalVat.Add(parsedTaxAmount)
 			case dto.TaxCodeICO:
-				totalIco += parsedTaxAmount
+				totalIco = totalIco.Add(parsedTaxAmount)
 			}
-			taxAmount += parsedTaxAmount
+			taxAmount = taxAmount.Add(parsedTaxAmount)
 		}
 	}
 
-	payAmount = totalAmount + taxAmount - discountAmount
+	payAmount := totalAmount.Add(taxAmount).Sub(discountAmount)
 
 	return &Aggregate{
 		id:             uuid.New().String(),

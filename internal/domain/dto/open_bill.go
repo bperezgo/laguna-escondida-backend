@@ -1,6 +1,10 @@
 package dto
 
-import "time"
+import (
+	"time"
+
+	"github.com/shopspring/decimal"
+)
 
 type OpenBillCreator struct {
 	ID       string `json:"id"`
@@ -10,7 +14,7 @@ type OpenBillCreator struct {
 type OpenBill struct {
 	ID                 string           `json:"id"`
 	TemporalIdentifier string           `json:"temporal_identifier"`
-	TotalAmount        float64          `json:"total_amount"`
+	TotalAmount        decimal.Decimal  `json:"total_amount"`
 	CreatedBy          *OpenBillCreator `json:"created_by,omitempty"`
 	Descriptor         *string          `json:"descriptor,omitempty"`
 	Products           []Product        `json:"products,omitempty"`
@@ -27,7 +31,7 @@ type OpenBillProductDetail struct {
 type OpenBillWithProducts struct {
 	ID                 string                  `json:"id"`
 	TemporalIdentifier string                  `json:"temporal_identifier"`
-	TotalAmount        float64                 `json:"total_amount"`
+	TotalAmount        decimal.Decimal         `json:"total_amount"`
 	CreatedBy          *OpenBillCreator        `json:"created_by,omitempty"`
 	Descriptor         *string                 `json:"descriptor,omitempty"`
 	Products           []OpenBillProductDetail `json:"products"`
@@ -60,7 +64,7 @@ type BillProduct struct {
 	ProductID   string
 	Name        string
 	Quantity    int
-	UnitPrice   float64
+	UnitPrice   decimal.Decimal
 	Description *string
 	Brand       *string
 	Model       *string
@@ -70,17 +74,17 @@ type BillProduct struct {
 }
 
 type Bill struct {
-	ID             string        `json:"id"`
-	TotalAmount    float64       `json:"total_amount"`
-	DiscountAmount float64       `json:"discount_amount"`
-	TaxAmount      float64       `json:"tax_amount"`
-	PayAmount      float64       `json:"pay_amount"`
-	VAT            float64       `json:"vat"`
-	ICO            float64       `json:"ico"`
-	Tip            float64       `json:"tip"`
-	DocumentURL    *string       `json:"document_url,omitempty"`
-	Customer       *Customer     `json:"customer,omitempty"`
-	Products       []BillProduct `json:"products,omitempty"`
-	CreatedAt      time.Time     `json:"created_at"`
-	UpdatedAt      time.Time     `json:"updated_at"`
+	ID             string          `json:"id"`
+	TotalAmount    decimal.Decimal `json:"total_amount"`
+	DiscountAmount decimal.Decimal `json:"discount_amount"`
+	TaxAmount      decimal.Decimal `json:"tax_amount"`
+	PayAmount      decimal.Decimal `json:"pay_amount"`
+	VAT            decimal.Decimal `json:"vat"`
+	ICO            decimal.Decimal `json:"ico"`
+	Tip            decimal.Decimal `json:"tip"`
+	DocumentURL    *string         `json:"document_url,omitempty"`
+	Customer       *Customer       `json:"customer,omitempty"`
+	Products       []BillProduct   `json:"products,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
 }

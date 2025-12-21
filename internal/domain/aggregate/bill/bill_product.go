@@ -2,15 +2,16 @@ package bill
 
 import (
 	"laguna-escondida/backend/internal/domain/dto"
-	"strconv"
 	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 type BillProduct struct {
 	id          string
 	name        string
 	quantity    int
-	unitPrice   float64
+	unitPrice   decimal.Decimal
 	description *string
 	brand       *string
 	model       *string
@@ -24,34 +25,34 @@ type BillProduct struct {
 func NewBillProduct(
 	productID string,
 	quantity int,
-	unitPrice float64,
+	unitPrice decimal.Decimal,
 	name string,
 	description *string,
 	brand *string,
 	model *string,
 	code string,
 	allowance []dto.InvoiceAllowance,
-	vat float64,
-	ico float64,
+	vat decimal.Decimal,
+	ico decimal.Decimal,
 ) *BillProduct {
-	baseAmount := unitPrice * float64(quantity)
+	baseAmount := unitPrice.Mul(decimal.NewFromInt(int64(quantity)))
 	taxes := []dto.InvoiceTax{}
 
-	if vat > 0 {
-		vatAmount := baseAmount * vat
+	if vat.GreaterThan(decimal.Zero) {
+		vatAmount := baseAmount.Mul(vat)
 		taxes = append(taxes, dto.InvoiceTax{
 			TaxCode:   dto.TaxCodeVAT,
-			TaxAmount: strconv.FormatFloat(vatAmount, 'f', 2, 64),
-			Percent:   strconv.FormatFloat(vat*100, 'f', 2, 64),
+			TaxAmount: vatAmount.StringFixed(2),
+			Percent:   vat.Mul(decimal.NewFromInt(100)).StringFixed(2),
 		})
 	}
 
-	if ico > 0 {
-		icoAmount := baseAmount * ico
+	if ico.GreaterThan(decimal.Zero) {
+		icoAmount := baseAmount.Mul(ico)
 		taxes = append(taxes, dto.InvoiceTax{
 			TaxCode:   dto.TaxCodeICO,
-			TaxAmount: strconv.FormatFloat(icoAmount, 'f', 2, 64),
-			Percent:   strconv.FormatFloat(ico*100, 'f', 2, 64),
+			TaxAmount: icoAmount.StringFixed(2),
+			Percent:   ico.Mul(decimal.NewFromInt(100)).StringFixed(2),
 		})
 	}
 
@@ -79,7 +80,7 @@ func (bp *BillProduct) Quantity() int {
 	return bp.quantity
 }
 
-func (bp *BillProduct) UnitPrice() float64 {
+func (bp *BillProduct) UnitPrice() decimal.Decimal {
 	return bp.unitPrice
 }
 

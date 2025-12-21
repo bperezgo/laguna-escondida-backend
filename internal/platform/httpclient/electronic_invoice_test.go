@@ -10,6 +10,7 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/platform/config"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -35,10 +36,10 @@ func createTestBill() *dto.Bill {
 
 	return &dto.Bill{
 		ID:             "bill-123",
-		TotalAmount:    100.00,
-		DiscountAmount: 10.00,
-		TaxAmount:      19.00,
-		PayAmount:      109.00,
+		TotalAmount:    decimal.NewFromFloat(100.00),
+		DiscountAmount: decimal.NewFromFloat(10.00),
+		TaxAmount:      decimal.NewFromFloat(19.00),
+		PayAmount:      decimal.NewFromFloat(109.00),
 		Customer: &dto.Customer{
 			DocumentNumber: "123456789",
 			DocumentType:   dto.DocumentTypeNationalIdentificationNumber,
@@ -50,7 +51,7 @@ func createTestBill() *dto.Bill {
 				ProductID:   "prod-1",
 				Name:        "Test Product",
 				Quantity:    2,
-				UnitPrice:   50.00,
+				UnitPrice:   decimal.NewFromFloat(50.00),
 				Description: &description,
 				Brand:       &brand,
 				Model:       &model,

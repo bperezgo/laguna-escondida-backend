@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/samber/lo"
+	"github.com/shopspring/decimal"
 )
 
 type ElectronicInvoiceClient struct {
@@ -213,10 +214,10 @@ func (c *ElectronicInvoiceClient) Create(
 	issueDate := now.Format("20060102")
 	issueTime := now.Format("150405")
 
-	totalAmount := strconv.FormatFloat(createReq.Bill.TotalAmount, 'f', 2, 64)
-	discountAmount := strconv.FormatFloat(createReq.Bill.DiscountAmount, 'f', 2, 64)
-	taxAmount := strconv.FormatFloat(createReq.Bill.TaxAmount, 'f', 2, 64)
-	payAmount := strconv.FormatFloat(createReq.Bill.PayAmount, 'f', 2, 64)
+	totalAmount := createReq.Bill.TotalAmount.StringFixed(2)
+	discountAmount := createReq.Bill.DiscountAmount.StringFixed(2)
+	taxAmount := createReq.Bill.TaxAmount.StringFixed(2)
+	payAmount := createReq.Bill.PayAmount.StringFixed(2)
 
 	customer := createReq.Bill.Customer
 	if customer == nil {
@@ -255,7 +256,7 @@ func (c *ElectronicInvoiceClient) Create(
 				PayAmount:      payAmount,
 			},
 			Items: lo.Map(createReq.Bill.Products, func(billProduct dto.BillProduct, _ int) invoiceItem {
-				total := billProduct.UnitPrice * float64(billProduct.Quantity)
+				total := billProduct.UnitPrice.Mul(decimal.NewFromInt(int64(billProduct.Quantity)))
 
 				name := billProduct.Name
 
@@ -276,9 +277,9 @@ func (c *ElectronicInvoiceClient) Create(
 				code := billProduct.Code
 
 				return invoiceItem{
-					Quantity:    strconv.FormatFloat(float64(billProduct.Quantity), 'f', 2, 64),
-					UnitPrice:   strconv.FormatFloat(billProduct.UnitPrice, 'f', -1, 64),
-					Total:       strconv.FormatFloat(total, 'f', -1, 64),
+					Quantity:    decimal.NewFromInt(int64(billProduct.Quantity)).StringFixed(2),
+					UnitPrice:   billProduct.UnitPrice.String(),
+					Total:       total.StringFixed(2),
 					Description: name,
 					Brand:       brand,
 					Model:       model,

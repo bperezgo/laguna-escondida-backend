@@ -15,6 +15,7 @@ import (
 	"laguna-escondida/backend/internal/domain/ports"
 
 	"github.com/samber/lo"
+	"github.com/shopspring/decimal"
 )
 
 type OrderService struct {
@@ -54,7 +55,7 @@ func (s *OrderService) CreateOrder(
 	user dto.UserDomain,
 ) (*dto.OpenBill, error) {
 	var products []*dto.Product
-	var totalAmount float64
+	totalAmount := decimal.Zero
 
 	if len(req.Products) > 0 {
 		var err error
@@ -78,7 +79,7 @@ func (s *OrderService) CreateOrder(
 
 		for _, item := range req.Products {
 			if product, exists := productPriceMap[item.ProductID]; exists {
-				totalAmount += product.TotalPriceWithTaxes * float64(item.Quantity)
+				totalAmount = totalAmount.Add(product.TotalPriceWithTaxes.Mul(decimal.NewFromInt(int64(item.Quantity))))
 			}
 		}
 	}
@@ -117,7 +118,7 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 	}
 
 	var products []*dto.Product
-	var totalAmount float64
+	totalAmount := decimal.Zero
 
 	if len(req.Products) > 0 {
 		uniqueProductIDs := lo.Uniq(lo.Map(req.Products, func(item dto.OrderProductItem, _ int) string {
@@ -140,7 +141,7 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 
 		for _, item := range req.Products {
 			if product, exists := productPriceMap[item.ProductID]; exists {
-				totalAmount += product.TotalPriceWithTaxes * float64(item.Quantity)
+				totalAmount = totalAmount.Add(product.TotalPriceWithTaxes.Mul(decimal.NewFromInt(int64(item.Quantity))))
 			}
 		}
 	}

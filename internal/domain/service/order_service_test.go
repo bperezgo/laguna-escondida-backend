@@ -14,6 +14,7 @@ import (
 	orderError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -189,8 +190,8 @@ func createTestProduct(id, name, category string, version int, price, vat float6
 		Name:                name,
 		Category:            category,
 		Version:             version,
-		TotalPriceWithTaxes: price,
-		VAT:                 vat,
+		TotalPriceWithTaxes: decimal.NewFromFloat(price),
+		VAT:                 decimal.NewFromFloat(vat),
 		SKU:                 "SKU001",
 		CreatedAt:           time.Now(),
 		UpdatedAt:           time.Now(),
@@ -765,7 +766,7 @@ func TestUpdateOrder_EmptyOrder(t *testing.T) {
 	existingBill := &dto.OpenBillWithProducts{
 		ID:                 openBillID,
 		TemporalIdentifier: "ORDER-123",
-		TotalAmount:        100.0,
+		TotalAmount:        decimal.NewFromFloat(100.0),
 		Products:           []dto.OpenBillProductDetail{},
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
@@ -806,7 +807,7 @@ func TestUpdateOrder_SingleProduct(t *testing.T) {
 	existingBill := &dto.OpenBillWithProducts{
 		ID:                 openBillID,
 		TemporalIdentifier: "ORDER-123",
-		TotalAmount:        50.0,
+		TotalAmount:        decimal.NewFromFloat(50.0),
 		Products:           []dto.OpenBillProductDetail{},
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
@@ -856,7 +857,7 @@ func TestUpdateOrder_MultipleProductsWithQuantities(t *testing.T) {
 	existingBill := &dto.OpenBillWithProducts{
 		ID:                 openBillID,
 		TemporalIdentifier: "ORDER-123",
-		TotalAmount:        100.0,
+		TotalAmount:        decimal.NewFromFloat(100.0),
 		Products:           []dto.OpenBillProductDetail{},
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
@@ -909,7 +910,7 @@ func TestUpdateOrder_UpdateQuantity(t *testing.T) {
 	existingBill := &dto.OpenBillWithProducts{
 		ID:                 openBillID,
 		TemporalIdentifier: "ORDER-123",
-		TotalAmount:        100.0,
+		TotalAmount:        decimal.NewFromFloat(100.0),
 		Products:           []dto.OpenBillProductDetail{},
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
@@ -994,7 +995,7 @@ func TestUpdateOrder_ProductNotFound(t *testing.T) {
 	existingBill := &dto.OpenBillWithProducts{
 		ID:                 openBillID,
 		TemporalIdentifier: "ORDER-123",
-		TotalAmount:        100.0,
+		TotalAmount:        decimal.NewFromFloat(100.0),
 		Products:           []dto.OpenBillProductDetail{},
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
@@ -1040,7 +1041,7 @@ func TestUpdateOrder_RepositoryError_ProductFetch(t *testing.T) {
 	existingBill := &dto.OpenBillWithProducts{
 		ID:                 openBillID,
 		TemporalIdentifier: "ORDER-123",
-		TotalAmount:        100.0,
+		TotalAmount:        decimal.NewFromFloat(100.0),
 		Products:           []dto.OpenBillProductDetail{},
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
@@ -1085,7 +1086,7 @@ func TestUpdateOrder_RepositoryError_Update(t *testing.T) {
 	existingBill := &dto.OpenBillWithProducts{
 		ID:                 openBillID,
 		TemporalIdentifier: "ORDER-123",
-		TotalAmount:        100.0,
+		TotalAmount:        decimal.NewFromFloat(100.0),
 		Products:           []dto.OpenBillProductDetail{},
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
@@ -1137,14 +1138,14 @@ func TestGetAllActiveOpenBills_Success(t *testing.T) {
 		{
 			ID:                 "bill-1",
 			TemporalIdentifier: "ORDER-001",
-			TotalAmount:        100.0,
+			TotalAmount:        decimal.NewFromFloat(100.0),
 			CreatedAt:          time.Now(),
 			UpdatedAt:          time.Now(),
 		},
 		{
 			ID:                 "bill-2",
 			TemporalIdentifier: "ORDER-002",
-			TotalAmount:        200.0,
+			TotalAmount:        decimal.NewFromFloat(200.0),
 			CreatedAt:          time.Now(),
 			UpdatedAt:          time.Now(),
 		},
@@ -1228,7 +1229,7 @@ func TestGetOpenBillWithProducts_Success(t *testing.T) {
 	openBillWithProducts := &dto.OpenBillWithProducts{
 		ID:                 openBillID,
 		TemporalIdentifier: "ORDER-001",
-		TotalAmount:        150.0,
+		TotalAmount:        decimal.NewFromFloat(150.0),
 		Products: []dto.OpenBillProductDetail{
 			{
 				Product: dto.Product{
@@ -1236,10 +1237,10 @@ func TestGetOpenBillWithProducts_Success(t *testing.T) {
 					Name:                "Product 1",
 					Category:            "Category 1",
 					Version:             1,
-					UnitPrice:           50.0,
-					VAT:                 0.0,
-					ICO:                 0.0,
-					TotalPriceWithTaxes: 50.0,
+					UnitPrice:           decimal.NewFromFloat(50.0),
+					VAT:                 decimal.NewFromFloat(0.0),
+					ICO:                 decimal.NewFromFloat(0.0),
+					TotalPriceWithTaxes: decimal.NewFromFloat(50.0),
 				},
 				Quantity: 2,
 			},
@@ -1249,10 +1250,10 @@ func TestGetOpenBillWithProducts_Success(t *testing.T) {
 					Name:                "Product 2",
 					Category:            "Category 2",
 					Version:             1,
-					UnitPrice:           50.0,
-					VAT:                 0.0,
-					ICO:                 0.0,
-					TotalPriceWithTaxes: 50.0,
+					UnitPrice:           decimal.NewFromFloat(50.0),
+					VAT:                 decimal.NewFromFloat(0.0),
+					ICO:                 decimal.NewFromFloat(0.0),
+					TotalPriceWithTaxes: decimal.NewFromFloat(50.0),
 				},
 				Quantity: 1,
 			},
@@ -1290,7 +1291,7 @@ func TestGetOpenBillWithProducts_NoProducts(t *testing.T) {
 	openBillWithProducts := &dto.OpenBillWithProducts{
 		ID:                 openBillID,
 		TemporalIdentifier: "ORDER-001",
-		TotalAmount:        0.0,
+		TotalAmount:        decimal.NewFromFloat(0.0),
 		Products:           []dto.OpenBillProductDetail{},
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
@@ -1378,7 +1379,7 @@ func TestPayOrder_Success(t *testing.T) {
 	openBillWithProducts := &dto.OpenBillWithProducts{
 		ID:                 openBillID,
 		TemporalIdentifier: "TABLE-01",
-		TotalAmount:        100.0,
+		TotalAmount:        decimal.NewFromFloat(100.0),
 		Products: []dto.OpenBillProductDetail{
 			{
 				Product: dto.Product{
@@ -1386,11 +1387,11 @@ func TestPayOrder_Success(t *testing.T) {
 					Name:                "Product 1",
 					Category:            "Category 1",
 					Version:             1,
-					UnitPrice:           39.37,
-					VAT:                 0.19,
-					ICO:                 0.08,
+					UnitPrice:           decimal.NewFromFloat(39.37),
+					VAT:                 decimal.NewFromFloat(0.19),
+					ICO:                 decimal.NewFromFloat(0.08),
 					SKU:                 "SKU001",
-					TotalPriceWithTaxes: 50.0,
+					TotalPriceWithTaxes: decimal.NewFromFloat(50.0),
 				},
 				Quantity: 2,
 			},
@@ -1436,7 +1437,7 @@ func TestPayOrder_SuccessWithoutCustomer(t *testing.T) {
 	openBillWithProducts := &dto.OpenBillWithProducts{
 		ID:                 openBillID,
 		TemporalIdentifier: "TABLE-01",
-		TotalAmount:        100.0,
+		TotalAmount:        decimal.NewFromFloat(100.0),
 		Products: []dto.OpenBillProductDetail{
 			{
 				Product: dto.Product{
@@ -1444,11 +1445,11 @@ func TestPayOrder_SuccessWithoutCustomer(t *testing.T) {
 					Name:                "Product 1",
 					Category:            "Category 1",
 					Version:             1,
-					UnitPrice:           39.37,
-					VAT:                 0.19,
-					ICO:                 0.08,
+					UnitPrice:           decimal.NewFromFloat(39.37),
+					VAT:                 decimal.NewFromFloat(0.19),
+					ICO:                 decimal.NewFromFloat(0.08),
 					SKU:                 "SKU001",
-					TotalPriceWithTaxes: 50.0,
+					TotalPriceWithTaxes: decimal.NewFromFloat(50.0),
 				},
 				Quantity: 2,
 			},
@@ -1500,7 +1501,7 @@ func TestPayOrder_RepeatedProductsWithDifferentNotes(t *testing.T) {
 	openBillWithProducts := &dto.OpenBillWithProducts{
 		ID:                 openBillID,
 		TemporalIdentifier: "TABLE-02",
-		TotalAmount:        150.0,
+		TotalAmount:        decimal.NewFromFloat(150.0),
 		Products: []dto.OpenBillProductDetail{
 			{
 				Product: dto.Product{
@@ -1508,11 +1509,11 @@ func TestPayOrder_RepeatedProductsWithDifferentNotes(t *testing.T) {
 					Name:                "Burger",
 					Category:            "Food",
 					Version:             1,
-					UnitPrice:           39.37,
-					VAT:                 0.19,
-					ICO:                 0.08,
+					UnitPrice:           decimal.NewFromFloat(39.37),
+					VAT:                 decimal.NewFromFloat(0.19),
+					ICO:                 decimal.NewFromFloat(0.08),
 					SKU:                 "BURGER001",
-					TotalPriceWithTaxes: 50.0,
+					TotalPriceWithTaxes: decimal.NewFromFloat(50.0),
 				},
 				Quantity: 1,
 				Notes:    &note1,
@@ -1523,11 +1524,11 @@ func TestPayOrder_RepeatedProductsWithDifferentNotes(t *testing.T) {
 					Name:                "Burger",
 					Category:            "Food",
 					Version:             1,
-					UnitPrice:           39.37,
-					VAT:                 0.19,
-					ICO:                 0.08,
+					UnitPrice:           decimal.NewFromFloat(39.37),
+					VAT:                 decimal.NewFromFloat(0.19),
+					ICO:                 decimal.NewFromFloat(0.08),
 					SKU:                 "BURGER001",
-					TotalPriceWithTaxes: 50.0,
+					TotalPriceWithTaxes: decimal.NewFromFloat(50.0),
 				},
 				Quantity: 1,
 				Notes:    &note2,
@@ -1538,11 +1539,11 @@ func TestPayOrder_RepeatedProductsWithDifferentNotes(t *testing.T) {
 					Name:                "Fries",
 					Category:            "Food",
 					Version:             1,
-					UnitPrice:           19.69,
-					VAT:                 0.19,
-					ICO:                 0.08,
+					UnitPrice:           decimal.NewFromFloat(19.69),
+					VAT:                 decimal.NewFromFloat(0.19),
+					ICO:                 decimal.NewFromFloat(0.08),
 					SKU:                 "FRIES001",
-					TotalPriceWithTaxes: 25.0,
+					TotalPriceWithTaxes: decimal.NewFromFloat(25.0),
 				},
 				Quantity: 2,
 			},
@@ -1648,7 +1649,7 @@ func TestPayOrder_InvalidPaymentCode(t *testing.T) {
 	openBillWithProducts := &dto.OpenBillWithProducts{
 		ID:                 openBillID,
 		TemporalIdentifier: "TABLE-01",
-		TotalAmount:        100.0,
+		TotalAmount:        decimal.NewFromFloat(100.0),
 		Products: []dto.OpenBillProductDetail{
 			{
 				Product: dto.Product{
@@ -1656,11 +1657,11 @@ func TestPayOrder_InvalidPaymentCode(t *testing.T) {
 					Name:                "Product 1",
 					Category:            "Category 1",
 					Version:             1,
-					UnitPrice:           39.37,
-					VAT:                 0.19,
-					ICO:                 0.08,
+					UnitPrice:           decimal.NewFromFloat(39.37),
+					VAT:                 decimal.NewFromFloat(0.19),
+					ICO:                 decimal.NewFromFloat(0.08),
 					SKU:                 "SKU001",
-					TotalPriceWithTaxes: 50.0,
+					TotalPriceWithTaxes: decimal.NewFromFloat(50.0),
 				},
 				Quantity: 2,
 			},
@@ -1713,7 +1714,7 @@ func TestPayOrder_BillCreateError(t *testing.T) {
 	openBillWithProducts := &dto.OpenBillWithProducts{
 		ID:                 openBillID,
 		TemporalIdentifier: "TABLE-01",
-		TotalAmount:        100.0,
+		TotalAmount:        decimal.NewFromFloat(100.0),
 		Products: []dto.OpenBillProductDetail{
 			{
 				Product: dto.Product{
@@ -1721,11 +1722,11 @@ func TestPayOrder_BillCreateError(t *testing.T) {
 					Name:                "Product 1",
 					Category:            "Category 1",
 					Version:             1,
-					UnitPrice:           39.37,
-					VAT:                 0.19,
-					ICO:                 0.08,
+					UnitPrice:           decimal.NewFromFloat(39.37),
+					VAT:                 decimal.NewFromFloat(0.19),
+					ICO:                 decimal.NewFromFloat(0.08),
 					SKU:                 "SKU001",
-					TotalPriceWithTaxes: 50.0,
+					TotalPriceWithTaxes: decimal.NewFromFloat(50.0),
 				},
 				Quantity: 2,
 			},
@@ -1780,7 +1781,7 @@ func TestPayOrder_DeleteError(t *testing.T) {
 	openBillWithProducts := &dto.OpenBillWithProducts{
 		ID:                 openBillID,
 		TemporalIdentifier: "TABLE-01",
-		TotalAmount:        100.0,
+		TotalAmount:        decimal.NewFromFloat(100.0),
 		Products: []dto.OpenBillProductDetail{
 			{
 				Product: dto.Product{
@@ -1788,11 +1789,11 @@ func TestPayOrder_DeleteError(t *testing.T) {
 					Name:                "Product 1",
 					Category:            "Category 1",
 					Version:             1,
-					UnitPrice:           39.37,
-					VAT:                 0.19,
-					ICO:                 0.08,
+					UnitPrice:           decimal.NewFromFloat(39.37),
+					VAT:                 decimal.NewFromFloat(0.19),
+					ICO:                 decimal.NewFromFloat(0.08),
 					SKU:                 "SKU001",
-					TotalPriceWithTaxes: 50.0,
+					TotalPriceWithTaxes: decimal.NewFromFloat(50.0),
 				},
 				Quantity: 2,
 			},

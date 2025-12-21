@@ -8,6 +8,7 @@ import (
 	"laguna-escondida/backend/internal/domain/ports"
 	"laguna-escondida/backend/internal/platform/postgres"
 
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -20,14 +21,14 @@ func NewOpenBillRepository(db *gorm.DB) ports.OpenBillRepository {
 }
 
 type openBillModel struct {
-	ID                 string     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	TemporalIdentifier string     `gorm:"type:varchar(255);not null"`
-	TotalAmount        float64    `gorm:"type:double precision;not null"`
-	CreatedBy          *string    `gorm:"type:uuid"`
-	Descriptor         *string    `gorm:"type:text"`
-	CreatedAt          time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
-	UpdatedAt          time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
-	DeletedAt          *time.Time `gorm:"type:timestamp"`
+	ID                 string          `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	TemporalIdentifier string          `gorm:"type:varchar(255);not null"`
+	TotalAmount        decimal.Decimal `gorm:"type:numeric(19,4);not null"`
+	CreatedBy          *string         `gorm:"type:uuid"`
+	Descriptor         *string         `gorm:"type:text"`
+	CreatedAt          time.Time       `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	UpdatedAt          time.Time       `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	DeletedAt          *time.Time      `gorm:"type:timestamp"`
 }
 
 func (openBillModel) TableName() string {
@@ -63,19 +64,19 @@ func (productPreparationResponsibilityModel) TableName() string {
 }
 
 type billModel struct {
-	ID             string     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	BillOwnerID    *string    `gorm:"type:varchar(255)"`
-	TotalAmount    float64    `gorm:"type:double precision;not null;column:total_amount"`
-	DiscountAmount float64    `gorm:"type:double precision;not null;default:0;column:discount_amount"`
-	VAT            float64    `gorm:"type:double precision;not null"`
-	ICO            float64    `gorm:"type:double precision;not null"`
-	Tip            float64    `gorm:"type:double precision;not null"`
-	DocumentURL    *string    `gorm:"type:text"`
-	CUFE           *string    `gorm:"type:varchar(255)"`
-	Tascode        *string    `gorm:"type:varchar(255)"`
-	CreatedAt      time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
-	UpdatedAt      time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
-	DeletedAt      *time.Time `gorm:"type:timestamp"`
+	ID             string          `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	BillOwnerID    *string         `gorm:"type:varchar(255)"`
+	TotalAmount    decimal.Decimal `gorm:"type:numeric(19,4);not null;column:total_amount"`
+	DiscountAmount decimal.Decimal `gorm:"type:numeric(19,4);not null;default:0;column:discount_amount"`
+	VAT            decimal.Decimal `gorm:"type:numeric(19,4);not null"`
+	ICO            decimal.Decimal `gorm:"type:numeric(19,4);not null"`
+	Tip            decimal.Decimal `gorm:"type:numeric(19,4);not null"`
+	DocumentURL    *string         `gorm:"type:text"`
+	CUFE           *string         `gorm:"type:varchar(255)"`
+	Tascode        *string         `gorm:"type:varchar(255)"`
+	CreatedAt      time.Time       `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	UpdatedAt      time.Time       `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	DeletedAt      *time.Time      `gorm:"type:timestamp"`
 }
 
 func (billModel) TableName() string {
@@ -143,7 +144,7 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 		// Open Bill fields
 		ID                 string
 		TemporalIdentifier string
-		TotalAmount        float64
+		TotalAmount        decimal.Decimal
 		CreatedBy          *string
 		Descriptor         *string
 		CreatedAt          time.Time
@@ -195,14 +196,14 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 		ProductName                string
 		ProductCategory            string
 		ProductVersion             int
-		ProductUnitPrice           float64
-		ProductVAT                 float64
-		ProductICO                 float64
+		ProductUnitPrice           decimal.Decimal
+		ProductVAT                 decimal.Decimal
+		ProductICO                 decimal.Decimal
 		ProductDescription         *string
 		ProductBrand               *string
 		ProductModel               *string
 		ProductSKU                 string
-		ProductTotalPriceWithTaxes float64
+		ProductTotalPriceWithTaxes decimal.Decimal
 		ProductCreatedAt           time.Time
 		ProductUpdatedAt           time.Time
 	}
@@ -397,10 +398,10 @@ func (r *OpenBillRepository) PayOrder(ctx context.Context, openBillID string) (*
 		now := time.Now()
 		billModel := &billModel{
 			TotalAmount:    openBillModel.TotalAmount,
-			DiscountAmount: 0.0,
-			VAT:            0.0,
-			ICO:            0.0,
-			Tip:            0.0,
+			DiscountAmount: decimal.Zero,
+			VAT:            decimal.Zero,
+			ICO:            decimal.Zero,
+			Tip:            decimal.Zero,
 			DocumentURL:    nil,
 			CreatedAt:      now,
 			UpdatedAt:      now,
@@ -452,7 +453,7 @@ func (r *OpenBillRepository) FindAll(ctx context.Context) ([]*dto.OpenBill, erro
 		// Open Bill fields
 		ID                 string
 		TemporalIdentifier string
-		TotalAmount        float64
+		TotalAmount        decimal.Decimal
 		CreatedBy          *string
 		Descriptor         *string
 		CreatedAt          time.Time
@@ -513,7 +514,7 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 		// Open Bill fields
 		ID                 string
 		TemporalIdentifier string
-		TotalAmount        float64
+		TotalAmount        decimal.Decimal
 		CreatedBy          *string
 		Descriptor         *string
 		CreatedAt          time.Time
@@ -556,14 +557,14 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 		ProductName                string
 		ProductCategory            string
 		ProductVersion             int
-		ProductUnitPrice           float64
-		ProductVAT                 float64
-		ProductICO                 float64
+		ProductUnitPrice           decimal.Decimal
+		ProductVAT                 decimal.Decimal
+		ProductICO                 decimal.Decimal
 		ProductDescription         *string
 		ProductBrand               *string
 		ProductModel               *string
 		ProductSKU                 string
-		ProductTotalPriceWithTaxes float64
+		ProductTotalPriceWithTaxes decimal.Decimal
 		ProductCreatedAt           time.Time
 		ProductUpdatedAt           time.Time
 	}

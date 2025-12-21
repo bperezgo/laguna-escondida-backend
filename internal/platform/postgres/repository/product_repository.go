@@ -8,6 +8,7 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
 
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -20,21 +21,21 @@ func NewProductRepository(db *gorm.DB) ports.ProductRepository {
 }
 
 type productModel struct {
-	ID                  string     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	Name                string     `gorm:"type:varchar(255);not null"`
-	Category            string     `gorm:"type:varchar(100);not null"`
-	Version             int        `gorm:"type:integer;not null"`
-	UnitPrice           float64    `gorm:"type:double precision;not null;column:unit_price"`
-	VAT                 float64    `gorm:"type:double precision;not null"`
-	ICO                 float64    `gorm:"type:double precision;not null"`
-	Description         *string    `gorm:"type:text"`
-	Brand               *string    `gorm:"type:varchar(255)"`
-	Model               *string    `gorm:"type:varchar(255)"`
-	SKU                 string     `gorm:"type:varchar(255);not null"`
-	TotalPriceWithTaxes float64    `gorm:"type:double precision;not null;column:total_price_with_taxes"`
-	CreatedAt           time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
-	UpdatedAt           time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
-	DeletedAt           *time.Time `gorm:"type:timestamp"`
+	ID                  string          `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	Name                string          `gorm:"type:varchar(255);not null"`
+	Category            string          `gorm:"type:varchar(100);not null"`
+	Version             int             `gorm:"type:integer;not null"`
+	UnitPrice           decimal.Decimal `gorm:"type:numeric(19,4);not null;column:unit_price"`
+	VAT                 decimal.Decimal `gorm:"type:numeric(19,4);not null"`
+	ICO                 decimal.Decimal `gorm:"type:numeric(19,4);not null"`
+	Description         *string         `gorm:"type:text"`
+	Brand               *string         `gorm:"type:varchar(255)"`
+	Model               *string         `gorm:"type:varchar(255)"`
+	SKU                 string          `gorm:"type:varchar(255);not null"`
+	TotalPriceWithTaxes decimal.Decimal `gorm:"type:numeric(19,4);not null;column:total_price_with_taxes"`
+	CreatedAt           time.Time       `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	UpdatedAt           time.Time       `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	DeletedAt           *time.Time      `gorm:"type:timestamp"`
 }
 
 func (productModel) TableName() string {

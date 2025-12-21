@@ -1,0 +1,21 @@
+-- Revert financial columns back to double precision
+
+-- Bills table
+ALTER TABLE bills
+  ALTER COLUMN total_amount TYPE DOUBLE PRECISION,
+  ALTER COLUMN discount_amount TYPE DOUBLE PRECISION,
+  ALTER COLUMN vat TYPE DOUBLE PRECISION,
+  ALTER COLUMN ico TYPE DOUBLE PRECISION,
+  ALTER COLUMN tip TYPE DOUBLE PRECISION;
+
+-- Products table
+ALTER TABLE products
+  ALTER COLUMN unit_price TYPE DOUBLE PRECISION,
+  ALTER COLUMN vat TYPE DOUBLE PRECISION,
+  ALTER COLUMN ico TYPE DOUBLE PRECISION,
+  ALTER COLUMN total_price_with_taxes TYPE DOUBLE PRECISION;
+
+-- Open bills table
+ALTER TABLE open_bills
+  ALTER COLUMN total_amount TYPE DOUBLE PRECISION;
+

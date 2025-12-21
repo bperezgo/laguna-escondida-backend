@@ -11,6 +11,7 @@ import (
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -71,8 +72,8 @@ func createTestProductDTO(id, name, category string, version int, price, vat flo
 		Name:                name,
 		Category:            category,
 		Version:             version,
-		TotalPriceWithTaxes: price,
-		VAT:                 vat,
+		TotalPriceWithTaxes: decimal.NewFromFloat(price),
+		VAT:                 decimal.NewFromFloat(vat),
 		SKU:                 "SKU001",
 		CreatedAt:           time.Now(),
 		UpdatedAt:           time.Now(),
@@ -100,7 +101,7 @@ func TestCreateProduct_Success(t *testing.T) {
 	mockRepo.On("Create", ctx, mock.MatchedBy(func(p *product.Aggregate) bool {
 		dto := p.ToDTO()
 		return dto.Name == req.Name && dto.Category == req.Category &&
-			dto.TotalPriceWithTaxes == 127.0 && dto.VAT == 0.19 &&
+			dto.TotalPriceWithTaxes == decimal.NewFromFloat(127.0) && dto.VAT == decimal.NewFromFloat(0.19) &&
 			dto.Version == 1 // Version should always be 1
 	})).Return(nil)
 
@@ -340,7 +341,7 @@ func TestUpdateProduct_Success(t *testing.T) {
 	mockRepo.On("Update", ctx, productID, mock.MatchedBy(func(p *product.Aggregate) bool {
 		dto := p.ToDTO()
 		return dto.Name == req.Name && dto.Category == req.Category &&
-			dto.TotalPriceWithTaxes == 200.0 && dto.VAT == 0.38 &&
+			dto.TotalPriceWithTaxes == decimal.NewFromFloat(200.0) && dto.VAT == decimal.NewFromFloat(0.38) &&
 			dto.Version == 1 // Version should remain 1
 	})).Return(nil)
 

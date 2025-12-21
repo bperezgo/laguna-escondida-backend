@@ -3,11 +3,10 @@ package product
 import (
 	productError "laguna-escondida/backend/internal/domain/aggregate/product/error"
 	"laguna-escondida/backend/internal/domain/dto"
-	"math"
-	"strconv"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 type Aggregate struct {
@@ -15,61 +14,62 @@ type Aggregate struct {
 	name                string
 	category            string
 	version             int
-	unitPrice           float64
-	vat                 float64
-	ico                 float64
+	unitPrice           decimal.Decimal
+	vat                 decimal.Decimal
+	ico                 decimal.Decimal
 	description         string
 	brand               string
 	model               string
 	sku                 *SKU
-	totalPriceWithTaxes float64
+	totalPriceWithTaxes decimal.Decimal
 	createdAt           time.Time
 	updatedAt           time.Time
 }
 
 // calculateTaxesAndUnitPrice parses and validates tax values, then calculates unit price
-// Returns: totalPriceWithTaxes, vat (as decimal), ico (as decimal), unitPrice, error
-func calculateTaxesAndUnitPrice(totalPriceWithTaxesStr, vatStr, icoStr, taxesFormat string) (float64, float64, float64, float64, error) {
-	totalPriceWithTaxes, err := strconv.ParseFloat(totalPriceWithTaxesStr, 64)
+// Returns: totalPriceWithTaxes, vat (as decimal percentage), ico (as decimal percentage), unitPrice, error
+func calculateTaxesAndUnitPrice(totalPriceWithTaxesStr, vatStr, icoStr, taxesFormat string) (decimal.Decimal, decimal.Decimal, decimal.Decimal, decimal.Decimal, error) {
+	totalPriceWithTaxes, err := decimal.NewFromString(totalPriceWithTaxesStr)
 	if err != nil {
-		return 0, 0, 0, 0, productError.NewInvalidPriceErrorWithField("total_price_with_taxes must be a number", totalPriceWithTaxesStr)
+		return decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero, productError.NewInvalidPriceErrorWithField("total_price_with_taxes must be a number", totalPriceWithTaxesStr)
 	}
-	if totalPriceWithTaxes <= 0 {
-		return 0, 0, 0, 0, productError.NewInvalidPriceErrorWithField("total_price_with_taxes must be greater than 0", totalPriceWithTaxesStr)
+	if totalPriceWithTaxes.LessThanOrEqual(decimal.Zero) {
+		return decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero, productError.NewInvalidPriceErrorWithField("total_price_with_taxes must be greater than 0", totalPriceWithTaxesStr)
 	}
 
-	vat, err := strconv.ParseFloat(vatStr, 64)
+	vat, err := decimal.NewFromString(vatStr)
 	if err != nil {
-		return 0, 0, 0, 0, productError.NewInvalidVATError("vat must be a number", vatStr)
+		return decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero, productError.NewInvalidVATError("vat must be a number", vatStr)
 	}
-	if vat < 0 {
-		return 0, 0, 0, 0, productError.NewInvalidVATError("vat must be greater than or equal to 0", vatStr)
+	if vat.LessThan(decimal.Zero) {
+		return decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero, productError.NewInvalidVATError("vat must be greater than or equal to 0", vatStr)
 	}
 
-	ico, err := strconv.ParseFloat(icoStr, 64)
+	ico, err := decimal.NewFromString(icoStr)
 	if err != nil {
-		return 0, 0, 0, 0, productError.NewInvalidICOError("ico must be a number", icoStr)
+		return decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero, productError.NewInvalidICOError("ico must be a number", icoStr)
 	}
-	if ico < 0 {
-		return 0, 0, 0, 0, productError.NewInvalidICOError("ico must be greater than or equal to 0", icoStr)
+	if ico.LessThan(decimal.Zero) {
+		return decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero, productError.NewInvalidICOError("ico must be greater than or equal to 0", icoStr)
 	}
 
-	taxSum := vat + ico
-	if taxSum == 0 {
-		return 0, 0, 0, 0, productError.NewInvalidTaxCalculationErrorWithField("vat and ico cannot both be 0 (would result in division by zero)", map[string]string{"vat": vatStr, "ico": icoStr})
+	taxSum := vat.Add(ico)
+	if taxSum.IsZero() {
+		return decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero, productError.NewInvalidTaxCalculationErrorWithField("vat and ico cannot both be 0 (would result in division by zero)", map[string]string{"vat": vatStr, "ico": icoStr})
 	}
 
 	if taxesFormat != "percentage" {
-		return 0, 0, 0, 0, productError.NewInvalidTaxCalculationErrorWithField("taxes_format must be 'percentage'", taxesFormat)
+		return decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero, productError.NewInvalidTaxCalculationErrorWithField("taxes_format must be 'percentage'", taxesFormat)
 	}
 
-	vatPercentage := vat / 100
-	icoPercentage := ico / 100
-	taxSumPercentage := vatPercentage + icoPercentage
-	unitPrice := totalPriceWithTaxes / (1 + taxSumPercentage)
+	hundred := decimal.NewFromInt(100)
+	vatPercentage := vat.Div(hundred)
+	icoPercentage := ico.Div(hundred)
+	taxSumPercentage := vatPercentage.Add(icoPercentage)
+	unitPrice := totalPriceWithTaxes.Div(decimal.NewFromInt(1).Add(taxSumPercentage))
 
 	// Round unitPrice to 2 decimal places
-	unitPrice = math.Round(unitPrice*100) / 100
+	unitPrice = unitPrice.Round(2)
 
 	return totalPriceWithTaxes, vatPercentage, icoPercentage, unitPrice, nil
 }

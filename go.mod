@@ -12,6 +12,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/samber/lo v1.52.0
+	github.com/shopspring/decimal v1.4.0
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/zap v1.27.1
 	golang.org/x/crypto v0.40.0
