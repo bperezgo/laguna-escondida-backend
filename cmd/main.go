@@ -57,6 +57,8 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
+	httpClient := httpclient.NewClient(logger)
+
 	// Initialize repositories
 	productRepo := repository.NewProductRepository(db.DB)
 	openBillRepo := repository.NewOpenBillRepository(db.DB)
@@ -65,7 +67,7 @@ func main() {
 	roleRepo := repository.NewRoleRepository(db.DB)
 	userRoleRepo := repository.NewUserRoleRepository(db.DB)
 	billOwnerRepo := repository.NewBillOwnerRepository(db.DB)
-	electronicInvoiceClient := httpclient.NewElectronicInvoiceClient(cfg)
+	electronicInvoiceClient := httpclient.NewElectronicInvoiceClient(cfg, httpClient)
 	billRepo := repository.NewBillRepository(db.DB, electronicInvoiceClient, cfg)
 	invoiceService := service.NewInvoiceService(electronicInvoiceClient, productRepo, billRepo)
 

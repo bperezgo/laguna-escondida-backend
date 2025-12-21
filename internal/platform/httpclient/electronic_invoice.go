@@ -18,15 +18,15 @@ import (
 )
 
 type ElectronicInvoiceClient struct {
-	client   *http.Client
+	client   *Client
 	url      string
 	user     string
 	password string
 }
 
-func NewElectronicInvoiceClient(cfg *config.Config) *ElectronicInvoiceClient {
+func NewElectronicInvoiceClient(cfg *config.Config, client *Client) *ElectronicInvoiceClient {
 	return &ElectronicInvoiceClient{
-		client:   &http.Client{},
+		client:   client,
 		url:      cfg.ElectronicInvoiceURL,
 		user:     cfg.ElectronicInvoiceUser,
 		password: cfg.ElectronicInvoicePassword,
