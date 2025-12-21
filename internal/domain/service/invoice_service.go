@@ -41,8 +41,19 @@ func (s *InvoiceService) CreateElectronicInvoice(ctx context.Context, invoice *d
 		return domainError.ErrProductNotFound
 	}
 
-	bill, err := bill.NewBillFromCreateElectronicInvoiceRequest(invoice, lo.Map(invoice.Items, func(item dto.InvoiceItem, idx int) *bill.BillProduct {
-		product := products[idx]
+	productMap := lo.SliceToMap(products, func(p *dto.Product) (string, *dto.Product) {
+		return p.ID, p
+	})
+
+	errBillProducts := make([]error, 0, len(invoice.Items))
+
+	billProducts := lo.Map(invoice.Items, func(item dto.InvoiceItem, _ int) *bill.BillProduct {
+		product, ok := productMap[item.ProductID]
+
+		if !ok {
+			errBillProducts = append(errBillProducts, domainError.ErrProductNotFound)
+			return nil
+		}
 
 		return bill.NewBillProduct(
 			item.ProductID,
@@ -57,7 +68,13 @@ func (s *InvoiceService) CreateElectronicInvoice(ctx context.Context, invoice *d
 			product.VAT,
 			product.ICO,
 		)
-	}))
+	})
+
+	if len(errBillProducts) > 0 {
+		return domainError.ErrProductNotFound
+	}
+
+	bill, err := bill.NewBillFromCreateElectronicInvoiceRequest(invoice, billProducts)
 
 	if err != nil {
 		return err
