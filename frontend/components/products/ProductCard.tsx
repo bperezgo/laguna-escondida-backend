@@ -101,7 +101,8 @@ export default function ProductCard({
               transition: "background-color var(--transition-normal)",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--color-primary-hover)";
+              e.currentTarget.style.backgroundColor =
+                "var(--color-primary-hover)";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = "var(--color-primary)";
@@ -123,7 +124,8 @@ export default function ProductCard({
               transition: "background-color var(--transition-normal)",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--color-danger-hover)";
+              e.currentTarget.style.backgroundColor =
+                "var(--color-danger-hover)";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = "var(--color-danger)";
@@ -163,7 +165,7 @@ export default function ProductCard({
               color: "var(--color-text-primary)",
             }}
           >
-            {formatCurrency(product.unit_price)}
+            {formatCurrency(parseFloat(product.unit_price))}
           </p>
         </div>
         <div>
@@ -174,7 +176,7 @@ export default function ProductCard({
               fontSize: "0.85rem",
             }}
           >
-            VAT ({product.vat * 100}%)
+            VAT ({parseFloat(product.vat) * 100}%)
           </p>
           <p
             style={{
@@ -184,7 +186,9 @@ export default function ProductCard({
               color: "var(--color-text-primary)",
             }}
           >
-            {formatCurrency(product.unit_price * product.vat)}
+            {formatCurrency(
+              parseFloat(product.unit_price) * parseFloat(product.vat)
+            )}
           </p>
         </div>
         <div>
@@ -195,7 +199,7 @@ export default function ProductCard({
               fontSize: "0.85rem",
             }}
           >
-            ICO ({product.ico * 100}%)
+            ICO ({parseFloat(product.ico) * 100}%)
           </p>
           <p
             style={{
@@ -205,7 +209,9 @@ export default function ProductCard({
               color: "var(--color-text-primary)",
             }}
           >
-            {formatCurrency(product.unit_price * product.ico)}
+            {formatCurrency(
+              parseFloat(product.unit_price) * parseFloat(product.ico)
+            )}
           </p>
         </div>
         <div
@@ -232,7 +238,7 @@ export default function ProductCard({
               color: "var(--color-success)",
             }}
           >
-            {formatCurrency(totalPrice)}
+            {formatCurrency(parseFloat(totalPrice))}
           </p>
         </div>
       </div>
@@ -244,10 +250,22 @@ export default function ProductCard({
           borderTop: "1px solid var(--color-border)",
         }}
       >
-        <p style={{ margin: "0.25rem 0", color: "var(--color-text-muted)", fontSize: "0.75rem" }}>
+        <p
+          style={{
+            margin: "0.25rem 0",
+            color: "var(--color-text-muted)",
+            fontSize: "0.75rem",
+          }}
+        >
           Creado: {formatDate(product.created_at)}
         </p>
-        <p style={{ margin: "0.25rem 0", color: "var(--color-text-muted)", fontSize: "0.75rem" }}>
+        <p
+          style={{
+            margin: "0.25rem 0",
+            color: "var(--color-text-muted)",
+            fontSize: "0.75rem",
+          }}
+        >
           Actualizado: {formatDate(product.updated_at)}
         </p>
       </div>
