@@ -219,7 +219,8 @@ export default function InvoicesPageClient() {
               transition: "background-color var(--transition-normal)",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--color-success-hover)";
+              e.currentTarget.style.backgroundColor =
+                "var(--color-success-hover)";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = "var(--color-success)";
@@ -392,7 +393,8 @@ export default function InvoicesPageClient() {
                 transition: "background-color var(--transition-normal)",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--color-primary-hover)";
+                e.currentTarget.style.backgroundColor =
+                  "var(--color-primary-hover)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.backgroundColor = "var(--color-primary)";
@@ -414,10 +416,12 @@ export default function InvoicesPageClient() {
                 transition: "background-color var(--transition-normal)",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--color-surface-active)";
+                e.currentTarget.style.backgroundColor =
+                  "var(--color-surface-active)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--color-surface-hover)";
+                e.currentTarget.style.backgroundColor =
+                  "var(--color-surface-hover)";
               }}
             >
               Limpiar Filtros
@@ -436,7 +440,13 @@ export default function InvoicesPageClient() {
               border: "1px solid var(--color-border)",
             }}
           >
-            <p style={{ color: "var(--color-text-secondary)", fontSize: "1rem", margin: 0 }}>
+            <p
+              style={{
+                color: "var(--color-text-secondary)",
+                fontSize: "1rem",
+                margin: 0,
+              }}
+            >
               Cargando facturas...
             </p>
           </div>
@@ -450,7 +460,13 @@ export default function InvoicesPageClient() {
               border: "1px solid var(--color-border)",
             }}
           >
-            <p style={{ color: "var(--color-text-secondary)", fontSize: "1rem", margin: 0 }}>
+            <p
+              style={{
+                color: "var(--color-text-secondary)",
+                fontSize: "1rem",
+                margin: 0,
+              }}
+            >
               No se encontraron facturas. Haz clic en "Crear Factura" para
               comenzar a crear una nueva factura electrónica.
             </p>
@@ -608,7 +624,9 @@ export default function InvoicesPageClient() {
                         style={{
                           borderBottom: "1px solid var(--color-border)",
                           backgroundColor:
-                            index % 2 === 0 ? "var(--color-surface)" : "var(--color-bg)",
+                            index % 2 === 0
+                              ? "var(--color-surface)"
+                              : "var(--color-bg)",
                         }}
                       >
                         <td
@@ -652,7 +670,7 @@ export default function InvoicesPageClient() {
                             textAlign: "right",
                           }}
                         >
-                          ${invoice.total_amount.toFixed(2)}
+                          ${invoice.total_amount}
                         </td>
                         <td
                           style={{
@@ -662,7 +680,7 @@ export default function InvoicesPageClient() {
                             textAlign: "right",
                           }}
                         >
-                          ${invoice.discount_amount.toFixed(2)}
+                          ${invoice.discount_amount}
                         </td>
                         <td
                           style={{
@@ -672,7 +690,7 @@ export default function InvoicesPageClient() {
                             textAlign: "right",
                           }}
                         >
-                          ${invoice.vat.toFixed(2)}
+                          ${invoice.vat}
                         </td>
                         <td
                           style={{
@@ -682,7 +700,7 @@ export default function InvoicesPageClient() {
                             textAlign: "right",
                           }}
                         >
-                          ${invoice.ico.toFixed(2)}
+                          ${invoice.ico}
                         </td>
                         <td
                           style={{
@@ -692,7 +710,7 @@ export default function InvoicesPageClient() {
                             textAlign: "right",
                           }}
                         >
-                          ${invoice.tip.toFixed(2)}
+                          ${invoice.tip}
                         </td>
                         <td
                           style={{
@@ -798,8 +816,12 @@ export default function InvoicesPageClient() {
                   disabled={currentPage === 1}
                   style={{
                     padding: "0.5rem 1rem",
-                    backgroundColor: currentPage === 1 ? "var(--color-border)" : "var(--color-primary)",
-                    color: currentPage === 1 ? "var(--color-text-muted)" : "white",
+                    backgroundColor:
+                      currentPage === 1
+                        ? "var(--color-border)"
+                        : "var(--color-primary)",
+                    color:
+                      currentPage === 1 ? "var(--color-text-muted)" : "white",
                     border: "none",
                     borderRadius: "var(--radius-sm)",
                     cursor: currentPage === 1 ? "not-allowed" : "pointer",
@@ -824,8 +846,13 @@ export default function InvoicesPageClient() {
                   style={{
                     padding: "0.5rem 1rem",
                     backgroundColor:
-                      currentPage === totalPages ? "var(--color-border)" : "var(--color-primary)",
-                    color: currentPage === totalPages ? "var(--color-text-muted)" : "white",
+                      currentPage === totalPages
+                        ? "var(--color-border)"
+                        : "var(--color-primary)",
+                    color:
+                      currentPage === totalPages
+                        ? "var(--color-text-muted)"
+                        : "white",
                     border: "none",
                     borderRadius: "var(--radius-sm)",
                     cursor:
