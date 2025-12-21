@@ -291,7 +291,12 @@ export default function EditOrderForm({
               }}
             >
               <div style={{ marginBottom: "0.5rem" }}>
-                <strong style={{ color: "var(--color-text-muted)", fontSize: "0.875rem" }}>
+                <strong
+                  style={{
+                    color: "var(--color-text-muted)",
+                    fontSize: "0.875rem",
+                  }}
+                >
                   Creado por:{" "}
                 </strong>
                 <span style={{ color: "var(--color-text-primary)" }}>
@@ -299,7 +304,12 @@ export default function EditOrderForm({
                 </span>
               </div>
               <div>
-                <strong style={{ color: "var(--color-text-muted)", fontSize: "0.875rem" }}>
+                <strong
+                  style={{
+                    color: "var(--color-text-muted)",
+                    fontSize: "0.875rem",
+                  }}
+                >
                   Creado el:{" "}
                 </strong>
                 <span style={{ color: "var(--color-text-secondary)" }}>
@@ -394,13 +404,18 @@ export default function EditOrderForm({
                           }}
                         >
                           <div>
-                            <strong style={{ color: "var(--color-text-primary)" }}>
+                            <strong
+                              style={{ color: "var(--color-text-primary)" }}
+                            >
                               {product.name}
                             </strong>
                             <div
-                              style={{ fontSize: "0.875rem", color: "var(--color-text-secondary)" }}
+                              style={{
+                                fontSize: "0.875rem",
+                                color: "var(--color-text-secondary)",
+                              }}
                             >
-                              ${product.total_price_with_taxes.toFixed(2)}
+                              ${product.total_price_with_taxes}
                             </div>
                           </div>
                           <div
@@ -565,12 +580,16 @@ export default function EditOrderForm({
                           transition: "all var(--transition-normal)",
                         }}
                         onMouseEnter={(e) => {
-                          e.currentTarget.style.borderColor = "var(--color-primary)";
-                          e.currentTarget.style.backgroundColor = "var(--color-surface-hover)";
+                          e.currentTarget.style.borderColor =
+                            "var(--color-primary)";
+                          e.currentTarget.style.backgroundColor =
+                            "var(--color-surface-hover)";
                         }}
                         onMouseLeave={(e) => {
-                          e.currentTarget.style.borderColor = "var(--color-border)";
-                          e.currentTarget.style.backgroundColor = "var(--color-surface)";
+                          e.currentTarget.style.borderColor =
+                            "var(--color-border)";
+                          e.currentTarget.style.backgroundColor =
+                            "var(--color-surface)";
                         }}
                       >
                         <div
@@ -599,7 +618,7 @@ export default function EditOrderForm({
                             color: "var(--color-success)",
                           }}
                         >
-                          ${product.total_price_with_taxes.toFixed(2)}
+                          ${product.total_price_with_taxes}
                         </div>
                       </div>
                     );
@@ -645,7 +664,9 @@ export default function EditOrderForm({
                 padding: "0.75rem 1.5rem",
                 fontSize: "1rem",
                 fontWeight: "bold",
-                backgroundColor: isSubmitting ? "var(--color-text-muted)" : "var(--color-primary)",
+                backgroundColor: isSubmitting
+                  ? "var(--color-text-muted)"
+                  : "var(--color-primary)",
                 color: "white",
                 border: "none",
                 borderRadius: "var(--radius-md)",

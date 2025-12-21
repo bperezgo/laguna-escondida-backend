@@ -119,7 +119,7 @@ export default function OrderItemCard({
                 fontSize: "0.9rem",
               }}
             >
-              ${product.price.toFixed(2)} + {product.vat}% VAT
+              ${product.price} + {product.vat}% VAT
             </p>
           </div>
           <div

@@ -67,9 +67,9 @@ export default function PaymentModal({
     let totalICO = 0;
 
     openBill.products.forEach(({ product, quantity }) => {
-      const itemSubtotal = product.unit_price * quantity;
-      const itemVAT = itemSubtotal * product.vat;
-      const itemICO = itemSubtotal * product.ico;
+      const itemSubtotal = parseFloat(product.unit_price) * quantity;
+      const itemVAT = itemSubtotal * parseFloat(product.vat);
+      const itemICO = itemSubtotal * parseFloat(product.ico);
 
       subtotal += itemSubtotal;
       totalVAT += itemVAT;
@@ -747,7 +747,7 @@ export default function PaymentModal({
             >
               {consolidated.map(({ product, totalQuantity }) => {
                 const itemTotal =
-                  product.total_price_with_taxes * totalQuantity;
+                  parseFloat(product.total_price_with_taxes) * totalQuantity;
                 return (
                   <div
                     key={product.id}
@@ -782,8 +782,7 @@ export default function PaymentModal({
                             color: "var(--color-text-secondary)",
                           }}
                         >
-                          ${product.total_price_with_taxes.toFixed(2)} ×{" "}
-                          {totalQuantity}
+                          ${product.total_price_with_taxes} × {totalQuantity}
                         </div>
                       </div>
                       <div
@@ -907,14 +906,13 @@ export default function PaymentModal({
             <div className="items">
               {consolidated.map(({ product, totalQuantity }) => {
                 const itemTotal =
-                  product.total_price_with_taxes * totalQuantity;
+                  parseFloat(product.total_price_with_taxes) * totalQuantity;
                 return (
                   <div key={product.id} className="item">
                     <div className="item-name">{product.name}</div>
                     <div className="item-details">
                       <span>
-                        ${product.total_price_with_taxes.toFixed(2)} ×{" "}
-                        {totalQuantity}
+                        ${product.total_price_with_taxes} × {totalQuantity}
                       </span>
                       <span>${itemTotal.toFixed(2)}</span>
                     </div>

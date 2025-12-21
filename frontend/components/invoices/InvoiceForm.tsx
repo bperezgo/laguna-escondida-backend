@@ -539,7 +539,9 @@ export default function InvoiceForm({
                     width: "100%",
                     padding: "0.75rem",
                     border: `1px solid ${
-                      errors["customer.id"] ? "var(--color-danger)" : "var(--color-border)"
+                      errors["customer.id"]
+                        ? "var(--color-danger)"
+                        : "var(--color-border)"
                     }`,
                     borderRadius: "var(--radius-sm)",
                     fontSize: "1rem",
@@ -629,7 +631,9 @@ export default function InvoiceForm({
                     width: "100%",
                     padding: "0.75rem",
                     border: `1px solid ${
-                      errors["customer.name"] ? "var(--color-danger)" : "var(--color-border)"
+                      errors["customer.name"]
+                        ? "var(--color-danger)"
+                        : "var(--color-border)"
                     }`,
                     borderRadius: "var(--radius-sm)",
                     fontSize: "1rem",
@@ -673,7 +677,9 @@ export default function InvoiceForm({
                     width: "100%",
                     padding: "0.75rem",
                     border: `1px solid ${
-                      errors["customer.email"] ? "var(--color-danger)" : "var(--color-border)"
+                      errors["customer.email"]
+                        ? "var(--color-danger)"
+                        : "var(--color-border)"
                     }`,
                     borderRadius: "var(--radius-sm)",
                     fontSize: "1rem",
@@ -714,7 +720,14 @@ export default function InvoiceForm({
                 marginBottom: "1rem",
               }}
             >
-              <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: "600", color: "var(--color-text-primary)" }}>
+              <h3
+                style={{
+                  margin: 0,
+                  fontSize: "1.2rem",
+                  fontWeight: "600",
+                  color: "var(--color-text-primary)",
+                }}
+              >
                 Artículos de la Factura
               </h3>
               <button
@@ -765,7 +778,12 @@ export default function InvoiceForm({
                   }}
                 >
                   <h4
-                    style={{ margin: 0, fontSize: "1rem", fontWeight: "600", color: "var(--color-text-primary)" }}
+                    style={{
+                      margin: 0,
+                      fontSize: "1rem",
+                      fontWeight: "600",
+                      color: "var(--color-text-primary)",
+                    }}
                   >
                     Artículo {index + 1}
                   </h4>
@@ -865,14 +883,16 @@ export default function InvoiceForm({
                                 padding: "0.75rem",
                                 cursor: "pointer",
                                 borderBottom: "1px solid var(--color-border)",
-                                transition: "background-color var(--transition-fast)",
+                                transition:
+                                  "background-color var(--transition-fast)",
                               }}
                               onMouseEnter={(e) => {
                                 e.currentTarget.style.backgroundColor =
                                   "var(--color-surface-hover)";
                               }}
                               onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = "var(--color-surface)";
+                                e.currentTarget.style.backgroundColor =
+                                  "var(--color-surface)";
                               }}
                             >
                               <div
@@ -886,10 +906,13 @@ export default function InvoiceForm({
                                 {product.name}
                               </div>
                               <div
-                                style={{ fontSize: "0.75rem", color: "var(--color-text-muted)" }}
+                                style={{
+                                  fontSize: "0.75rem",
+                                  color: "var(--color-text-muted)",
+                                }}
                               >
                                 SKU: {product.sku} | Price: $
-                                {product.unit_price.toFixed(2)}
+                                {product.unit_price}
                                 {product.description &&
                                   ` | ${product.description.substring(0, 50)}${
                                     product.description.length > 50 ? "..." : ""
@@ -946,7 +969,13 @@ export default function InvoiceForm({
                           Limpiar
                         </button>
                       </div>
-                      <div style={{ fontSize: "0.875rem", lineHeight: "1.6", color: "var(--color-text-primary)" }}>
+                      <div
+                        style={{
+                          fontSize: "0.875rem",
+                          lineHeight: "1.6",
+                          color: "var(--color-text-primary)",
+                        }}
+                      >
                         <div>
                           <strong>Name:</strong>{" "}
                           {itemSelectedProduct[index]!.name}
@@ -957,9 +986,7 @@ export default function InvoiceForm({
                         </div>
                         <div>
                           <strong>Unit Price with Taxes:</strong> $
-                          {itemSelectedProduct[
-                            index
-                          ]!.total_price_with_taxes.toFixed(2)}
+                          {itemSelectedProduct[index]!.total_price_with_taxes}
                         </div>
                         {itemSelectedProduct[index]!.description && (
                           <div>
@@ -985,7 +1012,7 @@ export default function InvoiceForm({
                         </div>
                         <div>
                           <strong>VAT:</strong>{" "}
-                          {itemSelectedProduct[index]!.vat * 100}%
+                          {itemSelectedProduct[index]!.vat}%
                         </div>
                       </div>
                     </div>
