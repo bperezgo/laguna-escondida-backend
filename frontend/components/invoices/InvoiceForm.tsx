@@ -1041,7 +1041,7 @@ export default function InvoiceForm({
                       type="number"
                       min="0"
                       step="1"
-                      value={item.quantity ?? ""}
+                      value={item.quantity || ""}
                       onChange={(e) => {
                         const numValue =
                           e.target.value === ""
