@@ -1826,3 +1826,112 @@ func TestPayOrder_DeleteError(t *testing.T) {
 	mockBillRepo.AssertExpectations(t)
 	mockBillOwnerRepo.AssertExpectations(t)
 }
+
+// ============================================================================
+// DeleteOrder Tests
+// ============================================================================
+
+func TestDeleteOrder_Success(t *testing.T) {
+	ctx := context.Background()
+	mockProductRepo := new(MockProductRepository)
+	mockOpenBillRepo := new(MockOpenBillRepository)
+	mockBillRepo := new(MockBillRepository)
+	mockBillOwnerRepo := new(MockBillOwnerRepository)
+	mockUnitOfWork := new(MockUnitOfWork)
+
+	service := NewOrderService(
+		mockOpenBillRepo,
+		mockProductRepo,
+		mockBillRepo,
+		mockBillOwnerRepo,
+		nil,
+		mockUnitOfWork,
+	)
+
+	openBillID := "open-bill-1"
+	openBillWithProducts := &dto.OpenBillWithProducts{
+		ID:                 openBillID,
+		TemporalIdentifier: "TABLE-01",
+		TotalAmount:        decimal.NewFromFloat(100.0),
+		Products:           []dto.OpenBillProductDetail{},
+		CreatedAt:          time.Now(),
+		UpdatedAt:          time.Now(),
+	}
+
+	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(openBillWithProducts, nil)
+	mockOpenBillRepo.On("Delete", ctx, openBillID).Return(nil)
+
+	err := service.DeleteOrder(ctx, openBillID)
+
+	require.NoError(t, err)
+	mockOpenBillRepo.AssertExpectations(t)
+}
+
+func TestDeleteOrder_OrderNotFound(t *testing.T) {
+	ctx := context.Background()
+	mockProductRepo := new(MockProductRepository)
+	mockOpenBillRepo := new(MockOpenBillRepository)
+	mockBillRepo := new(MockBillRepository)
+	mockBillOwnerRepo := new(MockBillOwnerRepository)
+	mockUnitOfWork := new(MockUnitOfWork)
+
+	service := NewOrderService(
+		mockOpenBillRepo,
+		mockProductRepo,
+		mockBillRepo,
+		mockBillOwnerRepo,
+		nil,
+		mockUnitOfWork,
+	)
+
+	openBillID := "non-existent-order"
+	findError := errors.New("order not found in database")
+
+	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(nil, findError)
+
+	err := service.DeleteOrder(ctx, openBillID)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, orderError.ErrOrderNotFound)
+	mockOpenBillRepo.AssertExpectations(t)
+	mockOpenBillRepo.AssertNotCalled(t, "Delete", ctx, openBillID)
+}
+
+func TestDeleteOrder_DeleteFails(t *testing.T) {
+	ctx := context.Background()
+	mockProductRepo := new(MockProductRepository)
+	mockOpenBillRepo := new(MockOpenBillRepository)
+	mockBillRepo := new(MockBillRepository)
+	mockBillOwnerRepo := new(MockBillOwnerRepository)
+	mockUnitOfWork := new(MockUnitOfWork)
+
+	service := NewOrderService(
+		mockOpenBillRepo,
+		mockProductRepo,
+		mockBillRepo,
+		mockBillOwnerRepo,
+		nil,
+		mockUnitOfWork,
+	)
+
+	openBillID := "open-bill-1"
+	openBillWithProducts := &dto.OpenBillWithProducts{
+		ID:                 openBillID,
+		TemporalIdentifier: "TABLE-01",
+		TotalAmount:        decimal.NewFromFloat(100.0),
+		Products:           []dto.OpenBillProductDetail{},
+		CreatedAt:          time.Now(),
+		UpdatedAt:          time.Now(),
+	}
+
+	deleteError := errors.New("database connection failed")
+
+	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(openBillWithProducts, nil)
+	mockOpenBillRepo.On("Delete", ctx, openBillID).Return(deleteError)
+
+	err := service.DeleteOrder(ctx, openBillID)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, orderError.ErrOrderDeletionFailed)
+	mockOpenBillRepo.AssertExpectations(t)
+}

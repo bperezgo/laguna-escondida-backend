@@ -117,6 +117,7 @@ func main() {
 	router.GET("/api/orders", handler.JWTAuthMiddleware(jwtService), orderHandler.GetAllActiveOpenBillsHandler)
 	router.GET("/api/orders/:id", handler.JWTAuthMiddleware(jwtService), orderHandler.GetOpenBillWithProductsHandler)
 	router.PUT("/api/orders/:id", handler.JWTAuthMiddleware(jwtService), orderHandler.UpdateOrderHandler)
+	router.DELETE("/api/orders/:id", handler.JWTAuthMiddleware(jwtService), orderHandler.DeleteOrderHandler)
 	router.POST("/api/orders/pay-order", handler.JWTAuthMiddleware(jwtService), orderHandler.PayOrderHandler)
 
 	// Product routes

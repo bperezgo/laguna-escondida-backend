@@ -170,3 +170,29 @@ func (h *OrderHandler) GetOpenBillWithProductsHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, openBill)
 }
+
+func (h *OrderHandler) DeleteOrderHandler(c *gin.Context) {
+	openBillID := c.Param("id")
+	if openBillID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Order ID is required"})
+		return
+	}
+
+	err := h.orderService.DeleteOrder(c.Request.Context(), openBillID)
+	if err != nil {
+		log.Printf("Error deleting order: %v", err)
+
+		if errors.Is(err, orderError.ErrOrderNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
+			return
+		}
+		if errors.Is(err, orderError.ErrOrderDeletionFailed) {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete order"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Order deleted successfully"})
+}

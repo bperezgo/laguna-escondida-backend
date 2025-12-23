@@ -257,3 +257,17 @@ func (s *OrderService) GetOpenBillWithProducts(ctx context.Context, openBillID s
 
 	return openBill, nil
 }
+
+// DeleteOrder soft deletes an open order by setting deleted_at
+func (s *OrderService) DeleteOrder(ctx context.Context, openBillID string) error {
+	_, err := s.openBillRepo.FindByID(ctx, openBillID)
+	if err != nil {
+		return fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
+	}
+
+	if err := s.openBillRepo.Delete(ctx, openBillID); err != nil {
+		return fmt.Errorf("%w: %w", orderError.ErrOrderDeletionFailed, err)
+	}
+
+	return nil
+}
