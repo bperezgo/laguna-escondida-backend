@@ -13,6 +13,7 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 	orderError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
+	pkgports "laguna-escondida/backend/pkg/domain/ports"
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -179,6 +180,16 @@ func (m *MockBillOwnerRepository) Update(ctx context.Context, customerAggregate 
 	return args.Error(0)
 }
 
+// MockEventBus is a mock implementation of pkgports.EventBus
+type MockEventBus struct {
+	mock.Mock
+}
+
+func (m *MockEventBus) Publish(ctx context.Context, event pkgports.Event) error {
+	args := m.Called(ctx, event)
+	return args.Error(0)
+}
+
 // Test helpers
 func createTestContext() context.Context {
 	return context.Background()
@@ -206,7 +217,9 @@ func createTestUser() dto.UserDomain {
 
 func createTestService(productRepo ports.ProductRepository, openBillRepo ports.OpenBillRepository, billRepo ports.BillRepository, billOwnerRepo ports.BillOwnerRepository) *OrderService {
 	mockUnitOfWork := new(MockUnitOfWork)
-	return NewOrderService(openBillRepo, productRepo, billRepo, billOwnerRepo, nil, mockUnitOfWork, nil)
+	mockEventBus := new(MockEventBus)
+	mockEventBus.On("Publish", mock.Anything, mock.Anything).Return(nil)
+	return NewOrderService(openBillRepo, productRepo, billRepo, billOwnerRepo, nil, mockUnitOfWork, mockEventBus)
 }
 
 // Success Cases
@@ -1746,14 +1759,13 @@ func TestPayOrder_BillCreateError(t *testing.T) {
 	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(openBillWithProducts, nil)
 	mockBillOwnerRepo.On("FindByID", ctx, customer.DocumentNumber).Return(nil, orderError.ErrBillOwnerNotFound)
 	mockBillOwnerRepo.On("Create", ctx, mock.AnythingOfType("*customer.Aggregate")).Return(nil)
+	mockOpenBillRepo.On("Delete", ctx, openBillID).Return(nil)
 	mockBillRepo.On("Create", ctx, mock.Anything, mock.Anything).Return(createError)
 
 	err := service.PayOrder(ctx, payOrderCmd)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, orderError.ErrOrderPaymentFailed)
-
-	mockOpenBillRepo.AssertNotCalled(t, "Delete")
 
 	mockProductRepo.AssertExpectations(t)
 	mockOpenBillRepo.AssertExpectations(t)
@@ -1813,7 +1825,6 @@ func TestPayOrder_DeleteError(t *testing.T) {
 	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(openBillWithProducts, nil)
 	mockBillOwnerRepo.On("FindByID", ctx, customer.DocumentNumber).Return(nil, orderError.ErrBillOwnerNotFound)
 	mockBillOwnerRepo.On("Create", ctx, mock.AnythingOfType("*customer.Aggregate")).Return(nil)
-	mockBillRepo.On("Create", ctx, mock.Anything, mock.Anything).Return(nil)
 	mockOpenBillRepo.On("Delete", ctx, openBillID).Return(deleteError)
 
 	err := service.PayOrder(ctx, payOrderCmd)
@@ -1821,9 +1832,10 @@ func TestPayOrder_DeleteError(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, orderError.ErrOrderPaymentFailed)
 
+	mockBillRepo.AssertNotCalled(t, "Create")
+
 	mockProductRepo.AssertExpectations(t)
 	mockOpenBillRepo.AssertExpectations(t)
-	mockBillRepo.AssertExpectations(t)
 	mockBillOwnerRepo.AssertExpectations(t)
 }
 
@@ -1838,6 +1850,8 @@ func TestDeleteOrder_Success(t *testing.T) {
 	mockBillRepo := new(MockBillRepository)
 	mockBillOwnerRepo := new(MockBillOwnerRepository)
 	mockUnitOfWork := new(MockUnitOfWork)
+	mockEventBus := new(MockEventBus)
+	mockEventBus.On("Publish", mock.Anything, mock.Anything).Return(nil)
 
 	service := NewOrderService(
 		mockOpenBillRepo,
@@ -1846,7 +1860,7 @@ func TestDeleteOrder_Success(t *testing.T) {
 		mockBillOwnerRepo,
 		nil,
 		mockUnitOfWork,
-		nil,
+		mockEventBus,
 	)
 
 	openBillID := "open-bill-1"
@@ -1875,6 +1889,8 @@ func TestDeleteOrder_OrderNotFound(t *testing.T) {
 	mockBillRepo := new(MockBillRepository)
 	mockBillOwnerRepo := new(MockBillOwnerRepository)
 	mockUnitOfWork := new(MockUnitOfWork)
+	mockEventBus := new(MockEventBus)
+	mockEventBus.On("Publish", mock.Anything, mock.Anything).Return(nil)
 
 	service := NewOrderService(
 		mockOpenBillRepo,
@@ -1883,7 +1899,7 @@ func TestDeleteOrder_OrderNotFound(t *testing.T) {
 		mockBillOwnerRepo,
 		nil,
 		mockUnitOfWork,
-		nil,
+		mockEventBus,
 	)
 
 	openBillID := "non-existent-order"
@@ -1906,6 +1922,8 @@ func TestDeleteOrder_DeleteFails(t *testing.T) {
 	mockBillRepo := new(MockBillRepository)
 	mockBillOwnerRepo := new(MockBillOwnerRepository)
 	mockUnitOfWork := new(MockUnitOfWork)
+	mockEventBus := new(MockEventBus)
+	mockEventBus.On("Publish", mock.Anything, mock.Anything).Return(nil)
 
 	service := NewOrderService(
 		mockOpenBillRepo,
@@ -1914,7 +1932,7 @@ func TestDeleteOrder_DeleteFails(t *testing.T) {
 		mockBillOwnerRepo,
 		nil,
 		mockUnitOfWork,
-		nil,
+		mockEventBus,
 	)
 
 	openBillID := "open-bill-1"
