@@ -89,6 +89,24 @@ export default function InvoiceForm({
     [formData.items]
   );
 
+  // Calculate purchase summary
+  const purchaseSummary = useMemo(() => {
+    const totalItems = formData.items.length;
+    const totalQuantity = formData.items.reduce(
+      (sum, item) => sum + (item.quantity || 0),
+      0
+    );
+    const totalAmount = formData.items.reduce(
+      (sum, item) => sum + (parseFloat(item.total) || 0),
+      0
+    );
+    return {
+      totalItems,
+      totalQuantity,
+      totalAmount,
+    };
+  }, [formData.items]);
+
   // Auto-calculate totals when quantity or totalPriceWithTaxes changes
   useEffect(() => {
     formData.items.forEach((item, index) => {
@@ -987,7 +1005,7 @@ export default function InvoiceForm({
                           {itemSelectedProduct[index]!.category}
                         </div>
                         <div>
-                          <strong>VAT:</strong>{" "}
+                          <strong>IVA:</strong>{" "}
                           {itemSelectedProduct[index]!.vat}%
                         </div>
                         <div>
@@ -1399,6 +1417,126 @@ export default function InvoiceForm({
             >
               + Agregar Artículo
             </button>
+          </div>
+
+          {/* Purchase Summary */}
+          <div
+            style={{
+              marginBottom: "2rem",
+              padding: "1.5rem",
+              backgroundColor: "var(--color-surface-hover)",
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--color-border)",
+            }}
+          >
+            <h3
+              style={{
+                margin: 0,
+                marginBottom: "1rem",
+                fontSize: "1.2rem",
+                fontWeight: "600",
+                color: "var(--color-text-primary)",
+              }}
+            >
+              Resumen de Compra
+            </h3>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: "1rem",
+              }}
+            >
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "1rem",
+                  backgroundColor: "var(--color-surface)",
+                  borderRadius: "var(--radius-sm)",
+                  border: "1px solid var(--color-border)",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "0.875rem",
+                    color: "var(--color-text-muted)",
+                    marginBottom: "0.5rem",
+                  }}
+                >
+                  Artículos
+                </div>
+                <div
+                  style={{
+                    fontSize: "1.5rem",
+                    fontWeight: "700",
+                    color: "var(--color-text-primary)",
+                  }}
+                >
+                  {purchaseSummary.totalItems}
+                </div>
+              </div>
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "1rem",
+                  backgroundColor: "var(--color-surface)",
+                  borderRadius: "var(--radius-sm)",
+                  border: "1px solid var(--color-border)",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "0.875rem",
+                    color: "var(--color-text-muted)",
+                    marginBottom: "0.5rem",
+                  }}
+                >
+                  Cantidad Total
+                </div>
+                <div
+                  style={{
+                    fontSize: "1.5rem",
+                    fontWeight: "700",
+                    color: "var(--color-text-primary)",
+                  }}
+                >
+                  {purchaseSummary.totalQuantity}
+                </div>
+              </div>
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "1rem",
+                  backgroundColor: "var(--color-primary-light)",
+                  borderRadius: "var(--radius-sm)",
+                  border: "1px solid var(--color-primary)",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "0.875rem",
+                    color: "var(--color-primary)",
+                    marginBottom: "0.5rem",
+                    fontWeight: "500",
+                  }}
+                >
+                  Total a Pagar
+                </div>
+                <div
+                  style={{
+                    fontSize: "1.5rem",
+                    fontWeight: "700",
+                    color: "var(--color-primary)",
+                  }}
+                >
+                  $
+                  {purchaseSummary.totalAmount.toLocaleString("es-CO", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Form Actions */}
