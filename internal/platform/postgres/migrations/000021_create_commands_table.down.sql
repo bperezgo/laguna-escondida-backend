@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS command_items;
+DROP TABLE IF EXISTS commands;

@@ -13,6 +13,7 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 	orderError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
+	pkgports "laguna-escondida/backend/pkg/domain/ports"
 
 	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
@@ -25,6 +26,7 @@ type OrderService struct {
 	billOwnerRepo  ports.BillOwnerRepository
 	invoiceService *InvoiceService
 	unitOfWork     ports.UnitOfWork
+	eventBus       pkgports.EventBus
 	taxConfig      dto.TaxConfig
 }
 
@@ -35,6 +37,7 @@ func NewOrderService(
 	billOwnerRepo ports.BillOwnerRepository,
 	invoiceService *InvoiceService,
 	unitOfWork ports.UnitOfWork,
+	eventBus pkgports.EventBus,
 ) *OrderService {
 	return &OrderService{
 		openBillRepo:   openBillRepo,
@@ -44,6 +47,7 @@ func NewOrderService(
 		billOwnerRepo:  billOwnerRepo,
 		invoiceService: invoiceService,
 		unitOfWork:     unitOfWork,
+		eventBus:       eventBus,
 	}
 }
 
@@ -102,6 +106,14 @@ func (s *OrderService) CreateOrder(
 			productDTOs[i] = *p
 		}
 		openBill.Products = productDTOs
+	}
+
+	if len(req.Products) > 0 {
+		createdByID := user.ID
+		event := dto.NewOrderCreatedEvent(openBill.ID, openBill.TemporalIdentifier, createdByID, req.Products)
+		if err := s.eventBus.Publish(ctx, event); err != nil {
+			fmt.Printf("failed to publish order created event: %v\n", err)
+		}
 	}
 
 	return openBill, nil

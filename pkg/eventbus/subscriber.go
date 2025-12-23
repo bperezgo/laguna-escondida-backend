@@ -8,6 +8,7 @@ import (
 
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill/message"
+	"github.com/ThreeDotsLabs/watermill/message/router/middleware"
 	"github.com/ThreeDotsLabs/watermill/pubsub/gochannel"
 )
 
@@ -29,6 +30,8 @@ func NewGoChannelEventSubscriber(pubSub *gochannel.GoChannel, logger watermill.L
 	if err != nil {
 		return nil, fmt.Errorf("failed to create router: %w", err)
 	}
+
+	router.AddMiddleware(middleware.Recoverer)
 
 	return &GoChannelEventSubscriber{
 		router:   router,

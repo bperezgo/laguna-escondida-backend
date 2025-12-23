@@ -206,7 +206,7 @@ func createTestUser() dto.UserDomain {
 
 func createTestService(productRepo ports.ProductRepository, openBillRepo ports.OpenBillRepository, billRepo ports.BillRepository, billOwnerRepo ports.BillOwnerRepository) *OrderService {
 	mockUnitOfWork := new(MockUnitOfWork)
-	return NewOrderService(openBillRepo, productRepo, billRepo, billOwnerRepo, nil, mockUnitOfWork)
+	return NewOrderService(openBillRepo, productRepo, billRepo, billOwnerRepo, nil, mockUnitOfWork, nil)
 }
 
 // Success Cases
@@ -233,7 +233,7 @@ func TestCreateOrder_EmptyOrder(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, 0.0, result.TotalAmount)
+	assert.True(t, result.TotalAmount.Equal(decimal.Zero))
 	assert.Equal(t, "TABLE-01", result.TemporalIdentifier)
 	assert.Nil(t, result.CreatedBy)
 	assert.Empty(t, result.Products)
@@ -279,7 +279,7 @@ func TestCreateOrder_SingleProduct(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, productPrice, result.TotalAmount)
+	assert.True(t, result.TotalAmount.Equal(decimal.NewFromFloat(productPrice)))
 	assert.Equal(t, "TABLE-01", result.TemporalIdentifier)
 	assert.Nil(t, result.CreatedBy)
 	assert.Len(t, result.Products, 1)
@@ -337,7 +337,7 @@ func TestCreateOrder_MultipleProducts(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, expectedTotal, result.TotalAmount)
+	assert.True(t, result.TotalAmount.Equal(decimal.NewFromFloat(expectedTotal)))
 	assert.Equal(t, "TABLE-01", result.TemporalIdentifier)
 	assert.Len(t, result.Products, 3)
 
@@ -555,7 +555,7 @@ func TestCreateOrder_TotalAmountCalculations(t *testing.T) {
 
 			// Assert
 			require.NoError(t, err)
-			assert.Equal(t, tc.expectedTotal, result.TotalAmount)
+			assert.True(t, result.TotalAmount.Equal(decimal.NewFromFloat(tc.expectedTotal)))
 		})
 	}
 }
@@ -648,7 +648,7 @@ func TestCreateOrder_ZeroPriceProducts(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, 0.0, result.TotalAmount)
+	assert.True(t, result.TotalAmount.Equal(decimal.Zero))
 
 	// Verify mocks
 	mockProductRepo.AssertExpectations(t)
@@ -684,7 +684,7 @@ func TestCreateOrder_LargePriceValues(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, largePrice, result.TotalAmount)
+	assert.True(t, result.TotalAmount.Equal(decimal.NewFromFloat(largePrice)))
 
 	// Verify mocks
 	mockProductRepo.AssertExpectations(t)
@@ -713,7 +713,7 @@ func TestCreateOrder_NilProducts(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, 0.0, result.TotalAmount)
+	assert.True(t, result.TotalAmount.Equal(decimal.Zero))
 	assert.Empty(t, result.Products)
 
 	// Verify mocks
@@ -743,7 +743,7 @@ func TestCreateOrder_EmptySliceProducts(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, 0.0, result.TotalAmount)
+	assert.True(t, result.TotalAmount.Equal(decimal.Zero))
 	assert.Empty(t, result.Products)
 
 	// Verify mocks
@@ -788,7 +788,7 @@ func TestUpdateOrder_EmptyOrder(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.Equal(t, openBillID, result.ID)
 	assert.Equal(t, existingBill.TemporalIdentifier, result.TemporalIdentifier)
-	assert.Equal(t, 0.0, result.TotalAmount)
+	assert.True(t, result.TotalAmount.Equal(decimal.Zero))
 	assert.Empty(t, result.Products)
 
 	// Verify mocks
@@ -837,7 +837,7 @@ func TestUpdateOrder_SingleProduct(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, openBillID, result.ID)
-	assert.Equal(t, productPrice, result.TotalAmount)
+	assert.True(t, result.TotalAmount.Equal(decimal.NewFromFloat(productPrice)))
 	assert.Len(t, result.Products, 1)
 	assert.Equal(t, productID, result.Products[0].ID)
 
@@ -891,7 +891,7 @@ func TestUpdateOrder_MultipleProductsWithQuantities(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, openBillID, result.ID)
-	assert.Equal(t, expectedTotal, result.TotalAmount)
+	assert.True(t, result.TotalAmount.Equal(decimal.NewFromFloat(expectedTotal)))
 	assert.Len(t, result.Products, 2)
 
 	// Verify mocks
@@ -941,7 +941,7 @@ func TestUpdateOrder_UpdateQuantity(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, expectedTotal, result.TotalAmount)
+	assert.True(t, result.TotalAmount.Equal(decimal.NewFromFloat(expectedTotal)))
 
 	// Verify mocks
 	mockProductRepo.AssertExpectations(t)
@@ -1270,7 +1270,7 @@ func TestGetOpenBillWithProducts_Success(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.Equal(t, openBillID, result.ID)
 	assert.Equal(t, "ORDER-001", result.TemporalIdentifier)
-	assert.Equal(t, 150.0, result.TotalAmount)
+	assert.True(t, result.TotalAmount.Equal(decimal.NewFromFloat(150.0)))
 	assert.Len(t, result.Products, 2)
 	assert.Equal(t, "product-1", result.Products[0].Product.ID)
 	assert.Equal(t, 2, result.Products[0].Quantity)
@@ -1846,6 +1846,7 @@ func TestDeleteOrder_Success(t *testing.T) {
 		mockBillOwnerRepo,
 		nil,
 		mockUnitOfWork,
+		nil,
 	)
 
 	openBillID := "open-bill-1"
@@ -1882,6 +1883,7 @@ func TestDeleteOrder_OrderNotFound(t *testing.T) {
 		mockBillOwnerRepo,
 		nil,
 		mockUnitOfWork,
+		nil,
 	)
 
 	openBillID := "non-existent-order"
@@ -1912,6 +1914,7 @@ func TestDeleteOrder_DeleteFails(t *testing.T) {
 		mockBillOwnerRepo,
 		nil,
 		mockUnitOfWork,
+		nil,
 	)
 
 	openBillID := "open-bill-1"

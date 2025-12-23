@@ -10,12 +10,15 @@ import (
 	"syscall"
 	"time"
 
+	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/handler"
 	"laguna-escondida/backend/internal/platform/httpclient"
 	"laguna-escondida/backend/internal/platform/postgres"
 	"laguna-escondida/backend/internal/platform/postgres/repository"
+	"laguna-escondida/backend/internal/platform/sse"
+	"laguna-escondida/backend/pkg/eventbus"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-migrate/migrate/v4"
@@ -67,20 +70,53 @@ func main() {
 	roleRepo := repository.NewRoleRepository(db.DB)
 	userRoleRepo := repository.NewUserRoleRepository(db.DB)
 	billOwnerRepo := repository.NewBillOwnerRepository(db.DB)
+	commandRepo := repository.NewCommandRepository(db.DB)
 	electronicInvoiceClient := httpclient.NewElectronicInvoiceClient(cfg, httpClient)
 	billRepo := repository.NewBillRepository(db.DB, electronicInvoiceClient, cfg)
 	invoiceService := service.NewInvoiceService(electronicInvoiceClient, productRepo, billRepo)
+
+	// Initialize SSE Hub
+	sseHub := sse.NewHub()
+
+	// Initialize Event Bus
+	watermillLogger := eventbus.NewZapLoggerAdapter(logger)
+	eventBusImpl := eventbus.NewGoChannelEventBus(watermillLogger)
+	defer eventBusImpl.Close()
 
 	// Initialize JWT service
 	jwtService := service.NewJWTService(cfg.JWTSecret)
 
 	// Initialize services
 	unitOfWork := postgres.NewUnitOfWork(db.DB)
-	orderService := service.NewOrderService(openBillRepo, productRepo, billRepo, billOwnerRepo, invoiceService, unitOfWork)
+	commandService := service.NewCommandService(commandRepo, productRepo, userRepo, sseHub)
+	orderService := service.NewOrderService(openBillRepo, productRepo, billRepo, billOwnerRepo, invoiceService, unitOfWork, eventBusImpl)
 	productService := service.NewProductService(productRepo)
 	stockService := service.NewStockService(stockRepo, productRepo)
 	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, jwtService)
 	billOwnerService := service.NewBillOwnerService(billOwnerRepo)
+
+	// Initialize Event Subscriber
+	eventSubscriber, err := eventbus.NewGoChannelEventSubscriber(eventBusImpl.PubSub(), watermillLogger)
+	if err != nil {
+		log.Fatalf("Failed to create event subscriber: %v", err)
+	}
+	defer eventSubscriber.Close()
+
+	// Register event handlers
+	orderCreatedHandler := eventbus.NewTypedEventHandler(
+		dto.OrderCreatedEventName,
+		commandService.HandleOrderCreated,
+	)
+	if err := eventSubscriber.Subscribe(orderCreatedHandler); err != nil {
+		log.Fatalf("Failed to subscribe to order created events: %v", err)
+	}
+
+	// Start event subscriber in background
+	go func() {
+		if err := eventSubscriber.Start(context.Background()); err != nil {
+			log.Printf("Event subscriber stopped: %v", err)
+		}
+	}()
 
 	// Initialize handlers
 	orderHandler := handler.NewOrderHandler(orderService)
@@ -89,6 +125,7 @@ func main() {
 	invoiceHandler := handler.NewInvoiceHandler(invoiceService)
 	userHandler := handler.NewUserHandler(userService)
 	billOwnerHandler := handler.NewBillOwnerHandler(billOwnerService)
+	sseHandler := handler.NewSSEHandler(sseHub, commandService)
 
 	// Setup routes
 	router := gin.Default()
@@ -140,6 +177,10 @@ func main() {
 
 	// Bill Owner routes
 	router.GET("/api/bill-owners/:id", handler.JWTAuthMiddleware(jwtService), billOwnerHandler.GetByIDHandler)
+
+	// SSE routes for real-time command notifications
+	router.GET("/api/sse/commands/:area", handler.JWTAuthMiddleware(jwtService), sseHandler.StreamCommandsHandler)
+	router.GET("/api/commands/:area/pending", handler.JWTAuthMiddleware(jwtService), sseHandler.GetPendingCommandsHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {
