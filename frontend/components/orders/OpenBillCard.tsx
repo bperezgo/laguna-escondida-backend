@@ -6,12 +6,14 @@ interface OpenBillCardProps {
   openBill: OpenBill;
   onClick?: () => void;
   onPayClick?: () => void;
+  onRemoveClick?: () => void;
 }
 
 export default function OpenBillCard({
   openBill,
   onClick,
   onPayClick,
+  onRemoveClick,
 }: OpenBillCardProps) {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -175,35 +177,75 @@ export default function OpenBillCard({
         </div>
       </div>
 
-      {/* Pay Button */}
-      {onPayClick && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onPayClick();
-          }}
+      {/* Action Buttons */}
+      {(onPayClick || onRemoveClick) && (
+        <div
           style={{
             marginTop: "1rem",
-            width: "100%",
-            padding: "0.75rem",
-            fontSize: "1rem",
-            fontWeight: "bold",
-            backgroundColor: "var(--color-success)",
-            color: "white",
-            border: "none",
-            borderRadius: "var(--radius-md)",
-            cursor: "pointer",
-            transition: "background-color var(--transition-normal)",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = "var(--color-success-hover)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = "var(--color-success)";
+            display: "flex",
+            gap: "0.5rem",
           }}
         >
-          Pagar Cuenta
-        </button>
+          {onRemoveClick && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemoveClick();
+              }}
+              style={{
+                flex: onPayClick ? "0 0 auto" : "1",
+                padding: "0.75rem",
+                fontSize: "1rem",
+                fontWeight: "bold",
+                backgroundColor: "var(--color-danger)",
+                color: "white",
+                border: "none",
+                borderRadius: "var(--radius-md)",
+                cursor: "pointer",
+                transition: "background-color var(--transition-normal)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor =
+                  "var(--color-danger-hover)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--color-danger)";
+              }}
+              title="Eliminar cuenta"
+            >
+              Eliminar
+            </button>
+          )}
+          {onPayClick && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onPayClick();
+              }}
+              style={{
+                flex: "1",
+                padding: "0.75rem",
+                fontSize: "1rem",
+                fontWeight: "bold",
+                backgroundColor: "var(--color-success)",
+                color: "white",
+                border: "none",
+                borderRadius: "var(--radius-md)",
+                cursor: "pointer",
+                transition: "background-color var(--transition-normal)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor =
+                  "var(--color-success-hover)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--color-success)";
+              }}
+            >
+              Pagar Cuenta
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

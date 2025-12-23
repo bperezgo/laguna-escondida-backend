@@ -6,7 +6,11 @@ import OpenBillSearch from "./OpenBillSearch";
 import CreateOrderForm from "./CreateOrderForm";
 import EditOrderForm from "./EditOrderForm";
 import PaymentModal from "./PaymentModal";
-import { getOpenBills, getOpenBillById } from "@/lib/api/orders";
+import {
+  getOpenBills,
+  getOpenBillById,
+  removeOpenBill,
+} from "@/lib/api/orders";
 import type { OpenBill, OpenBillWithProducts } from "@/types/order";
 
 export default function OrdersPageClient() {
@@ -97,6 +101,16 @@ export default function OrdersPageClient() {
     }
   };
 
+  const handleRemoveClick = async (bill: OpenBill) => {
+    try {
+      await removeOpenBill(bill.id);
+      setOpenBills((prev) => prev.filter((b) => b.id !== bill.id));
+    } catch (err) {
+      console.error("Error removing bill:", err);
+      setError(err instanceof Error ? err.message : "Failed to remove bill");
+    }
+  };
+
   return (
     <div
       style={{
@@ -147,7 +161,8 @@ export default function OrdersPageClient() {
               boxShadow: "var(--shadow-md)",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--color-primary-hover)";
+              e.currentTarget.style.backgroundColor =
+                "var(--color-primary-hover)";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = "var(--color-primary)";
@@ -277,6 +292,7 @@ export default function OrdersPageClient() {
                       openBill={bill}
                       onClick={() => handleBillClick(bill)}
                       onPayClick={() => handlePayClick(bill)}
+                      onRemoveClick={() => handleRemoveClick(bill)}
                     />
                   ))}
                 </div>
@@ -350,7 +366,9 @@ export default function OrdersPageClient() {
                 animation: "spin 1s linear infinite",
               }}
             />
-            <div style={{ color: "var(--color-text-primary)", fontWeight: "500" }}>
+            <div
+              style={{ color: "var(--color-text-primary)", fontWeight: "500" }}
+            >
               Cargando detalles de la orden...
             </div>
           </div>

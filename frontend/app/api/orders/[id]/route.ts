@@ -36,3 +36,26 @@ export async function PUT(
     );
   }
 }
+
+// DELETE /api/orders/:id - Remove an open bill
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    return await serverApiRequest<void>(`/orders/${id}`, {
+      method: "DELETE",
+    });
+  } catch (error) {
+    console.error("Error removing order:", error);
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to remove order",
+      },
+      { status: 500 }
+    );
+  }
+}

@@ -46,6 +46,12 @@ export async function getOpenBillById(
   return response;
 }
 
+export async function removeOpenBill(id: string): Promise<void> {
+  return apiRequest<void>(`/orders/${id}`, {
+    method: "DELETE",
+  });
+}
+
 // Order endpoints
 export async function createOrder(
   data: CreateOrderRequest
