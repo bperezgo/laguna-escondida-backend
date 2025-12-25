@@ -21,6 +21,7 @@ func NewUserRepository(db *gorm.DB) ports.UserRepository {
 type userModel struct {
 	ID        string     `gorm:"type:uuid;primaryKey"`
 	Username  string     `gorm:"type:varchar(255);not null;uniqueIndex"`
+	Name      string     `gorm:"type:varchar(255);not null;default:'undefined'"`
 	Password  string     `gorm:"type:varchar(255);not null"`
 	CreatedAt time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
 	UpdatedAt time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
@@ -35,6 +36,7 @@ func (r *UserRepository) Create(ctx context.Context, user *dto.User) error {
 	model := &userModel{
 		ID:        user.ID,
 		Username:  user.Username,
+		Name:      user.Name,
 		Password:  user.Password,
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
@@ -74,6 +76,7 @@ func (r *UserRepository) toDTO(model *userModel) *dto.User {
 	return &dto.User{
 		ID:        model.ID,
 		Username:  model.Username,
+		Name:      model.Name,
 		Password:  model.Password,
 		CreatedAt: model.CreatedAt,
 		UpdatedAt: model.UpdatedAt,

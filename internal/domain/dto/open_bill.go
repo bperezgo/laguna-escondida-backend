@@ -9,6 +9,7 @@ import (
 type OpenBillCreator struct {
 	ID       string `json:"id"`
 	Username string `json:"user_name"`
+	Name     string `json:"name"`
 }
 
 type OpenBill struct {

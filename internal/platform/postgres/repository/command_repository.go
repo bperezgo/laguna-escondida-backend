@@ -94,6 +94,7 @@ func (r *CommandRepository) FindByID(ctx context.Context, id string) (*dto.Comma
 		TemporalIdentifier string
 		UserID             string
 		UserUsername       string
+		UserName           string
 	}
 
 	var res result
@@ -107,7 +108,8 @@ func (r *CommandRepository) FindByID(ctx context.Context, id string) (*dto.Comma
 			commands.updated_at,
 			open_bills.temporal_identifier,
 			users.id as user_id,
-			users.username as user_username
+			users.username as user_username,
+			users.name as user_name
 		`).
 		Joins("INNER JOIN open_bills ON commands.open_bill_id = open_bills.id").
 		Joins("LEFT JOIN users ON open_bills.created_by = users.id AND users.deleted_at IS NULL").
@@ -127,6 +129,7 @@ func (r *CommandRepository) FindByID(ctx context.Context, id string) (*dto.Comma
 		createdBy = &dto.OpenBillCreator{
 			ID:       res.UserID,
 			Username: res.UserUsername,
+			Name:     res.UserName,
 		}
 	}
 
@@ -169,6 +172,7 @@ func (r *CommandRepository) findCommandsByAreaAndStatus(db *gorm.DB, area string
 		TemporalIdentifier string
 		UserID             string
 		UserUsername       string
+		UserName           string
 	}
 
 	query := db.Table("commands").
@@ -181,7 +185,8 @@ func (r *CommandRepository) findCommandsByAreaAndStatus(db *gorm.DB, area string
 			commands.updated_at,
 			open_bills.temporal_identifier,
 			users.id as user_id,
-			users.username as user_username
+			users.username as user_username,
+			users.name as user_name
 		`).
 		Joins("INNER JOIN open_bills ON commands.open_bill_id = open_bills.id").
 		Joins("LEFT JOIN users ON open_bills.created_by = users.id AND users.deleted_at IS NULL").
@@ -203,6 +208,7 @@ func (r *CommandRepository) findCommandsByAreaAndStatus(db *gorm.DB, area string
 			createdBy = &dto.OpenBillCreator{
 				ID:       res.UserID,
 				Username: res.UserUsername,
+				Name:     res.UserName,
 			}
 		}
 

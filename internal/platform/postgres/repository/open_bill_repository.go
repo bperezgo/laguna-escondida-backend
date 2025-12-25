@@ -154,6 +154,7 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 		// User fields
 		UserID       string
 		UserUsername string
+		UserName     string
 	}
 
 	var res result
@@ -168,7 +169,8 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 			open_bills.created_at,
 			open_bills.updated_at,
 			users.id as user_id,
-			users.username as user_username
+			users.username as user_username,
+			users.name as user_name
 		`).
 		Joins("INNER JOIN users ON open_bills.created_by = users.id AND users.deleted_at IS NULL").
 		Where("open_bills.id = ? AND open_bills.deleted_at IS NULL", id).
@@ -181,6 +183,7 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 	createdBy := dto.OpenBillCreator{
 		ID:       res.UserID,
 		Username: res.UserUsername,
+		Name:     res.UserName,
 	}
 
 	// Fetch products for this open bill
@@ -460,6 +463,7 @@ func (r *OpenBillRepository) FindAll(ctx context.Context) ([]*dto.OpenBillWithCr
 		// User fields
 		UserID       string
 		UserUsername string
+		UserName     string
 	}
 
 	var results []result
@@ -474,7 +478,8 @@ func (r *OpenBillRepository) FindAll(ctx context.Context) ([]*dto.OpenBillWithCr
 			open_bills.created_at,
 			open_bills.updated_at,
 			users.id as user_id,
-			users.username as user_username
+			users.username as user_username,
+			users.name as user_name
 		`).
 		Joins("INNER JOIN users ON open_bills.created_by = users.id AND users.deleted_at IS NULL").
 		Where("open_bills.deleted_at IS NULL").
@@ -493,6 +498,7 @@ func (r *OpenBillRepository) FindAll(ctx context.Context) ([]*dto.OpenBillWithCr
 			CreatedBy: dto.OpenBillCreator{
 				ID:       r.UserID,
 				Username: r.UserUsername,
+				Name:     r.UserName,
 			},
 			Descriptor: r.Descriptor,
 			CreatedAt:  r.CreatedAt,
@@ -516,6 +522,7 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 		// User fields
 		UserID       string
 		UserUsername string
+		UserName     string
 	}
 
 	var result billResult
@@ -530,7 +537,8 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 			open_bills.created_at,
 			open_bills.updated_at,
 			users.id as user_id,
-			users.username as user_username
+			users.username as user_username,
+			users.name as user_name
 		`).
 		Joins("LEFT JOIN users ON open_bills.created_by = users.id AND users.deleted_at IS NULL").
 		Where("open_bills.id = ? AND open_bills.deleted_at IS NULL", id).
@@ -622,6 +630,7 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 	createdBy := dto.OpenBillCreator{
 		ID:       result.UserID,
 		Username: result.UserUsername,
+		Name:     result.UserName,
 	}
 
 	return &dto.OpenBillWithProducts{

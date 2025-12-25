@@ -1150,20 +1150,30 @@ func TestGetAllActiveOpenBills_Success(t *testing.T) {
 	mockOpenBillRepo := new(MockOpenBillRepository)
 	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 
-	openBills := []*dto.OpenBill{
+	openBills := []*dto.OpenBillWithCreator{
 		{
 			ID:                 "bill-1",
 			TemporalIdentifier: "ORDER-001",
 			TotalAmount:        decimal.NewFromFloat(100.0),
-			CreatedAt:          time.Now(),
-			UpdatedAt:          time.Now(),
+			CreatedBy: dto.OpenBillCreator{
+				ID:       "user-1",
+				Username: "user1",
+				Name:     "User One",
+			},
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
 		},
 		{
 			ID:                 "bill-2",
 			TemporalIdentifier: "ORDER-002",
 			TotalAmount:        decimal.NewFromFloat(200.0),
-			CreatedAt:          time.Now(),
-			UpdatedAt:          time.Now(),
+			CreatedBy: dto.OpenBillCreator{
+				ID:       "user-2",
+				Username: "user2",
+				Name:     "User Two",
+			},
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
 		},
 	}
 
@@ -1190,7 +1200,7 @@ func TestGetAllActiveOpenBills_EmptyList(t *testing.T) {
 	mockOpenBillRepo := new(MockOpenBillRepository)
 	service := createTestService(mockProductRepo, mockOpenBillRepo, nil, nil)
 
-	openBills := []*dto.OpenBill{}
+	openBills := []*dto.OpenBillWithCreator{}
 
 	mockOpenBillRepo.On("FindAll", ctx).Return(openBills, nil)
 
