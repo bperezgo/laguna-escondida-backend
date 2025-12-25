@@ -13,6 +13,7 @@ interface CreateOrderFormProps {
 
 interface ProductWithQuantity {
   lineItemId: string;
+  openBillProductId: string;
   product: Product;
   quantity: number;
   notes: string;
@@ -22,6 +23,7 @@ export default function CreateOrderForm({
   onClose,
   onSuccess,
 }: CreateOrderFormProps) {
+  const [openBillId] = useState(() => crypto.randomUUID());
   const [temporalIdentifier, setTemporalIdentifier] = useState("MESA-");
   const [descriptor, setDescriptor] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
@@ -87,10 +89,12 @@ export default function CreateOrderForm({
   const handleProductSelect = (product: Product) => {
     setLineItemCounter((prev) => {
       const lineItemId = `line-${prev + 1}`;
+      const openBillProductId = crypto.randomUUID();
       setSelectedProducts((prevProducts) => {
         const newMap = new Map(prevProducts);
         newMap.set(lineItemId, {
           lineItemId,
+          openBillProductId,
           product,
           quantity: 1,
           notes: "",
@@ -156,13 +160,15 @@ export default function CreateOrderForm({
     try {
       const orderProducts: OrderProductItem[] = Array.from(
         selectedProducts.values()
-      ).map(({ product, quantity, notes }) => ({
+      ).map(({ openBillProductId, product, quantity, notes }) => ({
+        open_bill_product_id: openBillProductId,
         product_id: product.id,
         quantity,
         notes: notes.trim() || null,
       }));
 
       await createOrder({
+        open_bill_id: openBillId,
         temporal_identifier: temporalIdentifier,
         descriptor: descriptor.trim() || null,
         products: orderProducts,

@@ -40,6 +40,7 @@ export interface OpenBill {
 }
 
 export interface OpenBillProduct {
+  open_bill_product_id: string;
   product: Product;
   quantity: number;
   notes?: string | null;
@@ -56,6 +57,7 @@ export interface OpenBillListResponse {
 
 // Order Product Item for creating orders
 export interface OrderProductItem {
+  open_bill_product_id: string;
   product_id: string;
   quantity: number;
   notes?: string | null;
@@ -63,6 +65,7 @@ export interface OrderProductItem {
 
 // New Create Order Request matching backend
 export interface CreateOrderRequest {
+  open_bill_id: string;
   temporal_identifier: string;
   descriptor?: string | null;
   products: OrderProductItem[];

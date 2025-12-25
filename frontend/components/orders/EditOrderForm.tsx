@@ -14,6 +14,7 @@ interface EditOrderFormProps {
 
 interface ProductWithQuantity {
   lineItemId: string;
+  openBillProductId: string;
   product: Product;
   quantity: number;
   notes: string;
@@ -55,6 +56,7 @@ export default function EditOrderForm({
             const lineItemId = `line-${counter}`;
             initialSelectedProducts.set(lineItemId, {
               lineItemId,
+              openBillProductId: orderProduct.open_bill_product_id,
               product,
               quantity: orderProduct.quantity,
               notes: orderProduct.notes || "",
@@ -89,10 +91,12 @@ export default function EditOrderForm({
   const handleProductSelect = (product: Product) => {
     setLineItemCounter((prev) => {
       const lineItemId = `line-${prev + 1}`;
+      const openBillProductId = crypto.randomUUID();
       setSelectedProducts((prevProducts) => {
         const newMap = new Map(prevProducts);
         newMap.set(lineItemId, {
           lineItemId,
+          openBillProductId,
           product,
           quantity: 1,
           notes: "",
@@ -148,7 +152,8 @@ export default function EditOrderForm({
     try {
       const orderProducts: OrderProductItem[] = Array.from(
         selectedProducts.values()
-      ).map(({ product, quantity, notes }) => ({
+      ).map(({ openBillProductId, product, quantity, notes }) => ({
+        open_bill_product_id: openBillProductId,
         product_id: product.id,
         quantity,
         notes: notes.trim() || null,
