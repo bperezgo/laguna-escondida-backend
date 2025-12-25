@@ -39,6 +39,7 @@ func (h *SSEHandler) StreamCommandsHandler(c *gin.Context) {
 
 	client := sse.NewClient(area)
 	h.hub.Register(client)
+	defer h.hub.Unregister(client)
 
 	ctx := c.Request.Context()
 
@@ -67,7 +68,6 @@ func (h *SSEHandler) StreamCommandsHandler(c *gin.Context) {
 			fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event.Type, data)
 			return true
 		case <-ctx.Done():
-			h.hub.Unregister(client)
 			return false
 		}
 	})
