@@ -9,6 +9,7 @@ import (
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -97,6 +98,7 @@ func (s *CommandService) HandleOrderCreated(ctx context.Context, event dto.Order
 				continue
 			}
 			items = append(items, dto.CommandItem{
+				ID:          uuid.New().String(),
 				ProductID:   productID,
 				ProductName: product.Name,
 				Quantity:    productQuantityMap[productID],
@@ -109,11 +111,12 @@ func (s *CommandService) HandleOrderCreated(ctx context.Context, event dto.Order
 		}
 
 		command := &dto.Command{
+			ID:                 uuid.New().String(),
 			OpenBillID:         event.OpenBillID,
 			TemporalIdentifier: event.TemporalIdentifier,
 			CreatedBy:          createdBy,
 			Area:               area,
-			Status:             dto.CommandStatusPending,
+			Status:             dto.CommandStatusCreated,
 			Items:              items,
 			CreatedAt:          now,
 			UpdatedAt:          now,

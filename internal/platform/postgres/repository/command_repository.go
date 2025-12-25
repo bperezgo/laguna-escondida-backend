@@ -50,6 +50,7 @@ func (r *CommandRepository) Create(ctx context.Context, command *dto.Command) er
 
 	return db.Transaction(func(tx *gorm.DB) error {
 		model := &commandModel{
+			ID:         command.ID,
 			OpenBillID: command.OpenBillID,
 			Area:       command.Area,
 			Status:     string(command.Status),
@@ -61,11 +62,10 @@ func (r *CommandRepository) Create(ctx context.Context, command *dto.Command) er
 			return err
 		}
 
-		command.ID = model.ID
-
 		for i := range command.Items {
 			itemModel := &commandItemModel{
-				CommandID: model.ID,
+				ID:        command.Items[i].ID,
+				CommandID: command.ID,
 				ProductID: command.Items[i].ProductID,
 				Quantity:  command.Items[i].Quantity,
 				Notes:     command.Items[i].Notes,
@@ -158,7 +158,7 @@ func (r *CommandRepository) FindByArea(ctx context.Context, area string) ([]*dto
 
 func (r *CommandRepository) FindPendingByArea(ctx context.Context, area string) ([]*dto.Command, error) {
 	db := postgres.GetTxOrDB(ctx, r.db)
-	return r.findCommandsByAreaAndStatus(db, area, string(dto.CommandStatusPending))
+	return r.findCommandsByAreaAndStatus(db, area, string(dto.CommandStatusCreated))
 }
 
 func (r *CommandRepository) findCommandsByAreaAndStatus(db *gorm.DB, area string, status string) ([]*dto.Command, error) {

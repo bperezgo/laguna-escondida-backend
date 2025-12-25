@@ -194,8 +194,8 @@ func TestGetPendingCommandsByArea_Success(t *testing.T) {
 
 	area := "kitchen"
 	expectedCommands := []*dto.Command{
-		createTestCommand("command-1", "open-bill-1", area, dto.CommandStatusPending),
-		createTestCommand("command-2", "open-bill-2", area, dto.CommandStatusPending),
+		createTestCommand("command-1", "open-bill-1", area, dto.CommandStatusCreated),
+		createTestCommand("command-2", "open-bill-2", area, dto.CommandStatusCreated),
 	}
 
 	mockRepo.On("FindPendingByArea", ctx, area).Return(expectedCommands, nil)
@@ -248,4 +248,3 @@ func TestGetPendingCommandsByArea_RepositoryError(t *testing.T) {
 
 	mockRepo.AssertExpectations(t)
 }
-

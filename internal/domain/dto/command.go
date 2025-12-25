@@ -5,7 +5,7 @@ import "time"
 type CommandStatus string
 
 const (
-	CommandStatusPending   CommandStatus = "pending"
+	CommandStatusCreated   CommandStatus = "created"
 	CommandStatusCompleted CommandStatus = "completed"
 	CommandStatusCancelled CommandStatus = "cancelled"
 )
