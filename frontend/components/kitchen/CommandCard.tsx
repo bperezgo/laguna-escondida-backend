@@ -79,7 +79,9 @@ export default function CommandCard({
           gap: "0.5rem",
         }}
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+        <div
+          style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}
+        >
           <span
             style={{
               fontSize: "1.5rem",
@@ -97,12 +99,19 @@ export default function CommandCard({
                 color: "var(--color-text-secondary)",
               }}
             >
-              👤 {command.created_by.user_name}
+              👤 {command.created_by.name}
             </span>
           )}
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.25rem" }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-end",
+            gap: "0.25rem",
+          }}
+        >
           <span
             style={{
               fontSize: "1.25rem",
@@ -262,4 +271,3 @@ export default function CommandCard({
     </div>
   );
 }
-

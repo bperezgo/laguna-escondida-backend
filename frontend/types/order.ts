@@ -26,6 +26,7 @@ export interface TableListResponse {
 export interface OpenBillUser {
   id: string;
   user_name: string;
+  name: string;
 }
 
 // Open Bill types (new system)

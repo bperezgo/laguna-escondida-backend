@@ -404,7 +404,7 @@ export default function PaymentModal({
             <div
               style={{ fontSize: "0.875rem", color: "var(--color-text-muted)" }}
             >
-              <div>Creado por: {openBill.created_by?.user_name}</div>
+              <div>Creado por: {openBill.created_by?.name}</div>
               <div>Fecha: {formatDate(openBill.created_at)}</div>
             </div>
           </div>
@@ -898,7 +898,7 @@ export default function PaymentModal({
               {openBill.created_by && (
                 <div className="date">
                   {/* TODO: Agregar el nombre del usuario que creó la factura */}
-                  Served by: {openBill.created_by.user_name}
+                  Served by: {openBill.created_by.name}
                 </div>
               )}
             </div>

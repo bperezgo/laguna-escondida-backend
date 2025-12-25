@@ -147,7 +147,7 @@ export default function OpenBillCard({
               fontWeight: "bold",
             }}
           >
-            {openBill.created_by?.user_name}
+            {openBill.created_by?.name}
           </span>
         </div>
         <div

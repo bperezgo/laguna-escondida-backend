@@ -11,6 +11,7 @@ export interface CommandItem {
 export interface OpenBillCreator {
   id: string;
   user_name: string;
+  name: string;
 }
 
 export interface Command {

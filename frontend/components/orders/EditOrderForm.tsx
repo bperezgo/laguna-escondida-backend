@@ -305,7 +305,7 @@ export default function EditOrderForm({
                   Creado por:{" "}
                 </strong>
                 <span style={{ color: "var(--color-text-primary)" }}>
-                  {openBill.created_by?.user_name}
+                  {openBill.created_by?.name}
                 </span>
               </div>
               <div>
