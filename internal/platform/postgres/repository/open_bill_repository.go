@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	openBill "laguna-escondida/backend/internal/domain/aggregate/open_bill"
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
 	"laguna-escondida/backend/internal/platform/postgres"
@@ -24,7 +25,7 @@ type openBillModel struct {
 	ID                 string          `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	TemporalIdentifier string          `gorm:"type:varchar(255);not null"`
 	TotalAmount        decimal.Decimal `gorm:"type:numeric(19,4);not null"`
-	CreatedBy          *string         `gorm:"type:uuid"`
+	CreatedBy          string          `gorm:"type:uuid;not null;column:created_by"`
 	Descriptor         *string         `gorm:"type:text"`
 	CreatedAt          time.Time       `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
 	UpdatedAt          time.Time       `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
@@ -97,35 +98,36 @@ func (billProductModel) TableName() string {
 	return "bill_products"
 }
 
-func (r *OpenBillRepository) Create(ctx context.Context, openBill *dto.OpenBill, products []dto.OrderProductItem, userID string) error {
+func (r *OpenBillRepository) Create(ctx context.Context, aggregate *openBill.Aggregate) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var user userModel
-		if err := tx.Where("id = ? AND deleted_at IS NULL", userID).First(&user).Error; err != nil {
+		if err := tx.Where("id = ? AND deleted_at IS NULL", aggregate.CreatedByID()).First(&user).Error; err != nil {
 			return err
 		}
 
 		model := &openBillModel{
-			TemporalIdentifier: openBill.TemporalIdentifier,
-			TotalAmount:        openBill.TotalAmount,
-			CreatedBy:          &userID,
-			Descriptor:         openBill.Descriptor,
-			CreatedAt:          openBill.CreatedAt,
-			UpdatedAt:          openBill.UpdatedAt,
+			ID:                 aggregate.ID(),
+			TemporalIdentifier: aggregate.TemporalIdentifier(),
+			TotalAmount:        aggregate.TotalAmount(),
+			CreatedBy:          aggregate.CreatedByID(),
+			Descriptor:         aggregate.Descriptor(),
+			CreatedAt:          aggregate.CreatedAt(),
+			UpdatedAt:          aggregate.UpdatedAt(),
 		}
 
 		if err := tx.Create(model).Error; err != nil {
 			return err
 		}
 
-		openBill.ID = model.ID
-
+		products := aggregate.Products()
 		if len(products) > 0 {
 			for _, item := range products {
 				openBillProduct := &openBillProductModel{
-					OpenBillID: model.ID,
-					ProductID:  item.ProductID,
-					Quantity:   item.Quantity,
-					Notes:      item.Notes,
+					ID:         item.ID(),
+					OpenBillID: aggregate.ID(),
+					ProductID:  item.ProductID(),
+					Quantity:   item.Quantity(),
+					Notes:      item.Notes(),
 					CreatedAt:  time.Now(),
 					UpdatedAt:  time.Now(),
 				}
@@ -168,7 +170,7 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 			users.id as user_id,
 			users.username as user_username
 		`).
-		Joins("LEFT JOIN users ON open_bills.created_by = users.id AND users.deleted_at IS NULL").
+		Joins("INNER JOIN users ON open_bills.created_by = users.id AND users.deleted_at IS NULL").
 		Where("open_bills.id = ? AND open_bills.deleted_at IS NULL", id).
 		Scan(&res).Error
 
@@ -176,12 +178,9 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 		return nil, err
 	}
 
-	var createdBy *dto.OpenBillCreator
-	if res.CreatedBy != nil && res.UserID != "" {
-		createdBy = &dto.OpenBillCreator{
-			ID:       res.UserID,
-			Username: res.UserUsername,
-		}
+	createdBy := dto.OpenBillCreator{
+		ID:       res.UserID,
+		Username: res.UserUsername,
 	}
 
 	// Fetch products for this open bill
@@ -233,6 +232,7 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 			products.updated_at as product_updated_at
 		`).
 		Joins("INNER JOIN products ON open_bills_products.product_id = products.id AND products.deleted_at IS NULL").
+		Joins("INNER JOIN users ON open_bills.created_by = users.id AND users.deleted_at IS NULL").
 		Where("open_bills_products.open_bill_id = ? AND open_bills_products.deleted_at IS NULL", id).
 		Scan(&productResults).Error
 
@@ -448,7 +448,7 @@ func (r *OpenBillRepository) PayOrder(ctx context.Context, openBillID string) (*
 	return bill, nil
 }
 
-func (r *OpenBillRepository) FindAll(ctx context.Context) ([]*dto.OpenBill, error) {
+func (r *OpenBillRepository) FindAll(ctx context.Context) ([]*dto.OpenBillWithCreator, error) {
 	type result struct {
 		// Open Bill fields
 		ID                 string
@@ -477,7 +477,7 @@ func (r *OpenBillRepository) FindAll(ctx context.Context) ([]*dto.OpenBill, erro
 			users.id as user_id,
 			users.username as user_username
 		`).
-		Joins("LEFT JOIN users ON open_bills.created_by = users.id AND users.deleted_at IS NULL").
+		Joins("INNER JOIN users ON open_bills.created_by = users.id AND users.deleted_at IS NULL").
 		Where("open_bills.deleted_at IS NULL").
 		Scan(&results).Error
 
@@ -485,24 +485,19 @@ func (r *OpenBillRepository) FindAll(ctx context.Context) ([]*dto.OpenBill, erro
 		return nil, err
 	}
 
-	openBills := make([]*dto.OpenBill, len(results))
+	openBills := make([]*dto.OpenBillWithCreator, len(results))
 	for i, r := range results {
-		var createdBy *dto.OpenBillCreator
-		if r.CreatedBy != nil && r.UserID != "" {
-			createdBy = &dto.OpenBillCreator{
-				ID:       r.UserID,
-				Username: r.UserUsername,
-			}
-		}
-
-		openBills[i] = &dto.OpenBill{
+		openBills[i] = &dto.OpenBillWithCreator{
 			ID:                 r.ID,
 			TemporalIdentifier: r.TemporalIdentifier,
 			TotalAmount:        r.TotalAmount,
-			CreatedBy:          createdBy,
-			Descriptor:         r.Descriptor,
-			CreatedAt:          r.CreatedAt,
-			UpdatedAt:          r.UpdatedAt,
+			CreatedBy: dto.OpenBillCreator{
+				ID:       r.UserID,
+				Username: r.UserUsername,
+			},
+			Descriptor: r.Descriptor,
+			CreatedAt:  r.CreatedAt,
+			UpdatedAt:  r.UpdatedAt,
 		}
 	}
 
@@ -625,12 +620,9 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 		}
 	}
 
-	var createdBy *dto.OpenBillCreator
-	if result.CreatedBy != nil && result.UserID != "" {
-		createdBy = &dto.OpenBillCreator{
-			ID:       result.UserID,
-			Username: result.UserUsername,
-		}
+	createdBy := dto.OpenBillCreator{
+		ID:       result.UserID,
+		Username: result.UserUsername,
 	}
 
 	return &dto.OpenBillWithProducts{

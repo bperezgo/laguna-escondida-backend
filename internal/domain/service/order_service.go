@@ -8,6 +8,7 @@ import (
 
 	"laguna-escondida/backend/internal/domain/aggregate/bill"
 	"laguna-escondida/backend/internal/domain/aggregate/customer"
+	openBill "laguna-escondida/backend/internal/domain/aggregate/open_bill"
 	"laguna-escondida/backend/internal/domain/aggregate/product"
 	"laguna-escondida/backend/internal/domain/command"
 	"laguna-escondida/backend/internal/domain/dto"
@@ -88,35 +89,34 @@ func (s *OrderService) CreateOrder(
 		}
 	}
 
-	openBill := &dto.OpenBill{
-		TemporalIdentifier: req.TemporalIdentifier,
-		TotalAmount:        totalAmount,
-		Descriptor:         req.Descriptor,
-		CreatedAt:          time.Now(),
-		UpdatedAt:          time.Now(),
-	}
-
-	if err := s.openBillRepo.Create(ctx, openBill, req.Products, user.ID); err != nil {
+	openBillAggregate, err := openBill.NewAggregate(req, totalAmount, user.ID)
+	if err != nil {
 		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
 	}
+
+	if err := s.openBillRepo.Create(ctx, openBillAggregate); err != nil {
+		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
+	}
+
+	openBillDTO := openBillAggregate.ToDTO()
 
 	if len(products) > 0 {
 		productDTOs := make([]dto.Product, len(products))
 		for i, p := range products {
 			productDTOs[i] = *p
 		}
-		openBill.Products = productDTOs
+		openBillDTO.Products = productDTOs
 	}
 
 	if len(req.Products) > 0 {
 		createdByID := user.ID
-		event := dto.NewOrderCreatedEvent(openBill.ID, openBill.TemporalIdentifier, createdByID, req.Products)
+		event := dto.NewOrderCreatedEvent(openBillDTO.ID, openBillDTO.TemporalIdentifier, createdByID, req.Products)
 		if err := s.eventBus.Publish(ctx, event); err != nil {
 			fmt.Printf("failed to publish order created event: %v\n", err)
 		}
 	}
 
-	return openBill, nil
+	return openBillDTO, nil
 }
 
 // UpdateOrder updates an existing open order with new products and quantities
@@ -162,7 +162,7 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 		ID:                 existingBill.ID,
 		TemporalIdentifier: existingBill.TemporalIdentifier,
 		TotalAmount:        totalAmount,
-		CreatedBy:          existingBill.CreatedBy,
+		CreatedByID:        existingBill.CreatedBy.ID,
 		Descriptor:         existingBill.Descriptor,
 		CreatedAt:          existingBill.CreatedAt,
 		UpdatedAt:          time.Now(),

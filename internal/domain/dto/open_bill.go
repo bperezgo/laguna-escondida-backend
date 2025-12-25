@@ -12,14 +12,24 @@ type OpenBillCreator struct {
 }
 
 type OpenBill struct {
-	ID                 string           `json:"id"`
-	TemporalIdentifier string           `json:"temporal_identifier"`
-	TotalAmount        decimal.Decimal  `json:"total_amount"`
-	CreatedBy          *OpenBillCreator `json:"created_by,omitempty"`
-	Descriptor         *string          `json:"descriptor,omitempty"`
-	Products           []Product        `json:"products,omitempty"`
-	CreatedAt          time.Time        `json:"created_at"`
-	UpdatedAt          time.Time        `json:"updated_at"`
+	ID                 string          `json:"id"`
+	TemporalIdentifier string          `json:"temporal_identifier"`
+	TotalAmount        decimal.Decimal `json:"total_amount"`
+	CreatedByID        string          `json:"created_by_id"`
+	Descriptor         *string         `json:"descriptor,omitempty"`
+	Products           []Product       `json:"products,omitempty"`
+	CreatedAt          time.Time       `json:"created_at"`
+	UpdatedAt          time.Time       `json:"updated_at"`
+}
+
+type OpenBillWithCreator struct {
+	ID                 string          `json:"id"`
+	TemporalIdentifier string          `json:"temporal_identifier"`
+	TotalAmount        decimal.Decimal `json:"total_amount"`
+	CreatedBy          OpenBillCreator `json:"created_by,omitempty"`
+	Descriptor         *string         `json:"descriptor,omitempty"`
+	CreatedAt          time.Time       `json:"created_at"`
+	UpdatedAt          time.Time       `json:"updated_at"`
 }
 
 type OpenBillProductDetail struct {
@@ -32,7 +42,7 @@ type OpenBillWithProducts struct {
 	ID                 string                  `json:"id"`
 	TemporalIdentifier string                  `json:"temporal_identifier"`
 	TotalAmount        decimal.Decimal         `json:"total_amount"`
-	CreatedBy          *OpenBillCreator        `json:"created_by,omitempty"`
+	CreatedBy          OpenBillCreator         `json:"created_by,omitempty"`
 	Descriptor         *string                 `json:"descriptor,omitempty"`
 	Products           []OpenBillProductDetail `json:"products"`
 	CreatedAt          time.Time               `json:"created_at"`
@@ -40,20 +50,22 @@ type OpenBillWithProducts struct {
 }
 
 type OpenBillListResponse struct {
-	OpenBills []*OpenBill `json:"open_bills"`
-	Total     *int        `json:"total,omitempty"`
+	OpenBills []*OpenBillWithCreator `json:"open_bills"`
+	Total     *int                   `json:"total,omitempty"`
 }
 
 type CreateOrderRequest struct {
+	OpenBillID         string             `json:"open_bill_id" validate:"required,uuid"`
 	TemporalIdentifier string             `json:"temporal_identifier" validate:"required,uuid"`
 	Descriptor         *string            `json:"descriptor,omitempty"`
 	Products           []OrderProductItem `json:"products" validate:"dive"`
 }
 
 type OrderProductItem struct {
-	ProductID string  `json:"product_id" validate:"required,uuid"`
-	Quantity  int     `json:"quantity" validate:"required,min=1"`
-	Notes     *string `json:"notes,omitempty"`
+	OpenBillProductID string  `json:"open_bill_product_id" validate:"required,uuid"`
+	ProductID         string  `json:"product_id" validate:"required,uuid"`
+	Quantity          int     `json:"quantity" validate:"required,min=1"`
+	Notes             *string `json:"notes,omitempty"`
 }
 
 type UpdateOrderRequest struct {

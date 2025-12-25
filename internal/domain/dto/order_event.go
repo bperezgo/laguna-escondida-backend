@@ -9,9 +9,10 @@ import (
 const OrderCreatedEventName = "order.created"
 
 type OrderCreatedEventProduct struct {
-	ProductID string  `json:"product_id"`
-	Quantity  int     `json:"quantity"`
-	Notes     *string `json:"notes,omitempty"`
+	OpenBillProductID string  `json:"open_bill_product_id"`
+	ProductID         string  `json:"product_id"`
+	Quantity          int     `json:"quantity"`
+	Notes             *string `json:"notes,omitempty"`
 }
 
 type OrderCreatedEvent struct {
