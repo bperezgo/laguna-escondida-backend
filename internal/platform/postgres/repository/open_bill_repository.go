@@ -232,7 +232,6 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 			products.updated_at as product_updated_at
 		`).
 		Joins("INNER JOIN products ON open_bills_products.product_id = products.id AND products.deleted_at IS NULL").
-		Joins("INNER JOIN users ON open_bills.created_by = users.id AND users.deleted_at IS NULL").
 		Where("open_bills_products.open_bill_id = ? AND open_bills_products.deleted_at IS NULL", id).
 		Scan(&productResults).Error
 
