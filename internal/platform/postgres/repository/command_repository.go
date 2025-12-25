@@ -267,6 +267,24 @@ func (r *CommandRepository) findItemsByCommandID(db *gorm.DB, commandID string) 
 	return items, nil
 }
 
+func (r *CommandRepository) UpdateStatus(ctx context.Context, id string, status dto.CommandStatus) error {
+	db := postgres.GetTxOrDB(ctx, r.db)
+
+	result := db.Model(&commandModel{}).
+		Where("id = ?", id).
+		Update("status", string(status))
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+
+	return nil
+}
+
 func (r *CommandRepository) GetProductPreparationResponsibilities(ctx context.Context, productIDs []string) ([]ports.ProductPreparationResponsibility, error) {
 	db := postgres.GetTxOrDB(ctx, r.db)
 

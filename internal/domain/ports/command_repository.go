@@ -16,5 +16,6 @@ type CommandRepository interface {
 	FindByID(ctx context.Context, id string) (*dto.Command, error)
 	FindByArea(ctx context.Context, area string) ([]*dto.Command, error)
 	FindPendingByArea(ctx context.Context, area string) ([]*dto.Command, error)
+	UpdateStatus(ctx context.Context, id string, status dto.CommandStatus) error
 	GetProductPreparationResponsibilities(ctx context.Context, productIDs []string) ([]ProductPreparationResponsibility, error)
 }

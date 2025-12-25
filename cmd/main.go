@@ -125,6 +125,7 @@ func main() {
 	invoiceHandler := handler.NewInvoiceHandler(invoiceService)
 	userHandler := handler.NewUserHandler(userService)
 	billOwnerHandler := handler.NewBillOwnerHandler(billOwnerService)
+	commandHandler := handler.NewCommandHandler(commandService)
 	sseHandler := handler.NewSSEHandler(sseHub, commandService)
 
 	// Setup routes
@@ -180,6 +181,9 @@ func main() {
 
 	// Bill Owner routes
 	router.GET("/api/bill-owners/:id", handler.JWTAuthMiddleware(jwtService), billOwnerHandler.GetByIDHandler)
+
+	// Command routes
+	router.PATCH("/api/commands/:id", handler.JWTAuthMiddleware(jwtService), commandHandler.CompleteCommandHandler)
 
 	// SSE routes for real-time command notifications
 	router.GET("/api/sse/commands/:area", handler.JWTAuthMiddleware(jwtService), sseHandler.StreamCommandsHandler)

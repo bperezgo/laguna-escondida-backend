@@ -6,7 +6,10 @@ import (
 	"time"
 
 	"laguna-escondida/backend/internal/domain/dto"
+	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
+
+	"gorm.io/gorm"
 )
 
 const CommandCreatedEventType = "command.created"
@@ -130,4 +133,20 @@ func (s *CommandService) HandleOrderCreated(ctx context.Context, event dto.Order
 
 func (s *CommandService) GetPendingCommandsByArea(ctx context.Context, area string) ([]*dto.Command, error) {
 	return s.commandRepo.FindPendingByArea(ctx, area)
+}
+
+func (s *CommandService) CompleteCommand(ctx context.Context, id string) (*dto.Command, error) {
+	if err := s.commandRepo.UpdateStatus(ctx, id, dto.CommandStatusCompleted); err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, domainError.ErrCommandNotFound
+		}
+		return nil, fmt.Errorf("failed to complete command: %w", err)
+	}
+
+	command, err := s.commandRepo.FindByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch completed command: %w", err)
+	}
+
+	return command, nil
 }
