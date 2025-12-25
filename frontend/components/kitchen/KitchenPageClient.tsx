@@ -31,6 +31,7 @@ export default function KitchenPageClient() {
       eventSourceRef.current = eventSource;
 
       eventSource.onopen = () => {
+        console.log("EventSource connection opened");
         if (isMounted) {
           setIsConnecting(false);
           setConnectionError(null);
@@ -38,8 +39,9 @@ export default function KitchenPageClient() {
       };
 
       // Handler for pending commands
-      const handlePendingCommand = (event: MessageEvent) => {
+      const handleCreatedCommand = (event: MessageEvent) => {
         try {
+          console.log("command.pending event:", event.data);
           const command: Command = JSON.parse(event.data);
 
           setCommands((prev) => {
@@ -86,7 +88,7 @@ export default function KitchenPageClient() {
         }
       };
 
-      eventSource.addEventListener("command.pending", handlePendingCommand);
+      eventSource.addEventListener("command.created", handleCreatedCommand);
       eventSource.addEventListener("command.completed", handleCompletedCommand);
       eventSource.addEventListener("command.cancelled", handleCancelledCommand);
 
@@ -107,6 +109,7 @@ export default function KitchenPageClient() {
     connectToSSE();
 
     return () => {
+      console.log("Cleaning up EventSource...");
       isMounted = false;
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
