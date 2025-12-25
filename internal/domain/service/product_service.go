@@ -91,3 +91,18 @@ func (s *ProductService) GetProductByID(ctx context.Context, id string) (*dto.Pr
 
 	return product, nil
 }
+
+// CreateProductResponsibility assigns a preparation responsibility (area) to a product
+func (s *ProductService) CreateProductResponsibility(ctx context.Context, req *dto.CreateProductResponsibilityRequest) (*dto.ProductPreparationResponsibility, error) {
+	product, err := s.productRepo.FindByName(ctx, req.ProductName)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", domainError.ErrProductNotFound, err)
+	}
+
+	responsibility, err := s.productRepo.CreatePreparationResponsibility(ctx, product.ID, req.Area)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create product responsibility: %w", err)
+	}
+
+	return responsibility, nil
+}

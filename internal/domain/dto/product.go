@@ -54,3 +54,16 @@ type ProductListResponse struct {
 	Products []*Product `json:"products"`
 	Total    *int       `json:"total,omitempty"`
 }
+
+type CreateProductResponsibilityRequest struct {
+	ProductName string `json:"product_name" validate:"required,min=1,max=255"`
+	Area        string `json:"area" validate:"required,min=1,max=255"`
+}
+
+type ProductPreparationResponsibility struct {
+	ID        string    `json:"id"`
+	ProductID string    `json:"product_id"`
+	Area      string    `json:"area"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}

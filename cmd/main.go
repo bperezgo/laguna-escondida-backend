@@ -164,6 +164,9 @@ func main() {
 	router.PUT("/api/products/:id", handler.JWTAuthMiddleware(jwtService), productHandler.UpdateProductHandler)
 	router.DELETE("/api/products/:id", handler.JWTAuthMiddleware(jwtService), productHandler.DeleteProductHandler)
 
+	// Product responsibility routes
+	router.POST("/api/product-responsibilities", handler.JWTAuthMiddleware(jwtService), productHandler.CreateProductResponsibilityHandler)
+
 	// Invoice routes
 	router.POST("/api/invoices", handler.JWTAuthMiddleware(jwtService), invoiceHandler.CreateElectronicInvoiceHandler)
 	router.GET("/api/invoices", handler.JWTAuthMiddleware(jwtService), invoiceHandler.ListInvoicesHandler)

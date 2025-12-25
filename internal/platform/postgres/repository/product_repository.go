@@ -42,6 +42,19 @@ func (productModel) TableName() string {
 	return "products"
 }
 
+type productResponsibilityModel struct {
+	ID        string     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	ProductID string     `gorm:"type:uuid;not null"`
+	Area      string     `gorm:"type:varchar(255);not null"`
+	CreatedAt time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	UpdatedAt time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	DeletedAt *time.Time `gorm:"type:timestamp"`
+}
+
+func (productResponsibilityModel) TableName() string {
+	return "product_preparation_responsibilities"
+}
+
 func (r *ProductRepository) FindByIDs(ctx context.Context, ids []string) ([]*dto.Product, error) {
 	if len(ids) == 0 {
 		return []*dto.Product{}, nil
@@ -160,4 +173,35 @@ func (r *ProductRepository) toDTO(model *productModel) *dto.Product {
 		CreatedAt:           model.CreatedAt,
 		UpdatedAt:           model.UpdatedAt,
 	}
+}
+
+func (r *ProductRepository) FindByName(ctx context.Context, name string) (*dto.Product, error) {
+	var model productModel
+	if err := r.db.WithContext(ctx).Where("name = ? AND deleted_at IS NULL", name).First(&model).Error; err != nil {
+		return nil, err
+	}
+
+	return r.toDTO(&model), nil
+}
+
+func (r *ProductRepository) CreatePreparationResponsibility(ctx context.Context, productID, area string) (*dto.ProductPreparationResponsibility, error) {
+	now := time.Now()
+	model := &productResponsibilityModel{
+		ProductID: productID,
+		Area:      area,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	if err := r.db.WithContext(ctx).Create(model).Error; err != nil {
+		return nil, err
+	}
+
+	return &dto.ProductPreparationResponsibility{
+		ID:        model.ID,
+		ProductID: model.ProductID,
+		Area:      model.Area,
+		CreatedAt: model.CreatedAt,
+		UpdatedAt: model.UpdatedAt,
+	}, nil
 }

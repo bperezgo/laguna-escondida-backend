@@ -142,3 +142,26 @@ func (h *ProductHandler) GetProductByIDHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, product)
 }
+
+func (h *ProductHandler) CreateProductResponsibilityHandler(c *gin.Context) {
+	var req dto.CreateProductResponsibilityRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("Error decoding request: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	responsibility, err := h.productService.CreateProductResponsibility(c.Request.Context(), &req)
+	if err != nil {
+		log.Printf("Error creating product responsibility: %v", err)
+
+		if errors.Is(err, domainError.ErrProductNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Product not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create product responsibility"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, responsibility)
+}

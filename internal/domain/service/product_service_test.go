@@ -61,6 +61,22 @@ func (m *MockProductRepositoryForService) FindByIDs(ctx context.Context, ids []s
 	return args.Get(0).([]*dto.Product), args.Error(1)
 }
 
+func (m *MockProductRepositoryForService) FindByName(ctx context.Context, name string) (*dto.Product, error) {
+	args := m.Called(ctx, name)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*dto.Product), args.Error(1)
+}
+
+func (m *MockProductRepositoryForService) CreatePreparationResponsibility(ctx context.Context, productID, area string) (*dto.ProductPreparationResponsibility, error) {
+	args := m.Called(ctx, productID, area)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*dto.ProductPreparationResponsibility), args.Error(1)
+}
+
 // Test helpers
 func createTestProductService(productRepo ports.ProductRepository) *ProductService {
 	return NewProductService(productRepo)

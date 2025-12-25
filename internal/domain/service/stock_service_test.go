@@ -112,6 +112,22 @@ func (m *MockProductRepositoryForStock) FindByIDs(ctx context.Context, ids []str
 	return args.Get(0).([]*dto.Product), args.Error(1)
 }
 
+func (m *MockProductRepositoryForStock) FindByName(ctx context.Context, name string) (*dto.Product, error) {
+	args := m.Called(ctx, name)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*dto.Product), args.Error(1)
+}
+
+func (m *MockProductRepositoryForStock) CreatePreparationResponsibility(ctx context.Context, productID, area string) (*dto.ProductPreparationResponsibility, error) {
+	args := m.Called(ctx, productID, area)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*dto.ProductPreparationResponsibility), args.Error(1)
+}
+
 func createTestStockService(stockRepo ports.StockRepository, productRepo ports.ProductRepository) *StockService {
 	return NewStockService(stockRepo, productRepo)
 }

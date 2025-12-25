@@ -65,6 +65,22 @@ func (m *MockProductRepository) FindByIDs(ctx context.Context, ids []string) ([]
 	return args.Get(0).([]*dto.Product), args.Error(1)
 }
 
+func (m *MockProductRepository) FindByName(ctx context.Context, name string) (*dto.Product, error) {
+	args := m.Called(ctx, name)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*dto.Product), args.Error(1)
+}
+
+func (m *MockProductRepository) CreatePreparationResponsibility(ctx context.Context, productID, area string) (*dto.ProductPreparationResponsibility, error) {
+	args := m.Called(ctx, productID, area)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*dto.ProductPreparationResponsibility), args.Error(1)
+}
+
 // MockBillRepository is a mock implementation of ports.BillRepository
 type MockBillRepository struct {
 	mock.Mock
