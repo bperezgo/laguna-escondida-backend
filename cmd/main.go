@@ -13,6 +13,7 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/platform/config"
+	"laguna-escondida/backend/internal/platform/cron"
 	"laguna-escondida/backend/internal/platform/handler"
 	"laguna-escondida/backend/internal/platform/httpclient"
 	"laguna-escondida/backend/internal/platform/postgres"
@@ -117,6 +118,16 @@ func main() {
 			log.Printf("Event subscriber stopped: %v", err)
 		}
 	}()
+
+	// Initialize and start cron scheduler
+	cronScheduler, err := cron.NewScheduler(invoiceService, logger)
+	if err != nil {
+		log.Fatalf("Failed to create cron scheduler: %v", err)
+	}
+	if err := cronScheduler.Start(); err != nil {
+		log.Fatalf("Failed to start cron scheduler: %v", err)
+	}
+	defer cronScheduler.Stop()
 
 	// Initialize handlers
 	orderHandler := handler.NewOrderHandler(orderService)
