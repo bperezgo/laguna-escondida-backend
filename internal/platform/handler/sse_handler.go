@@ -50,7 +50,7 @@ func (h *SSEHandler) StreamCommandsHandler(c *gin.Context) {
 			if err != nil {
 				continue
 			}
-			fmt.Fprintf(c.Writer, "event: command.pending\ndata: %s\n\n", data)
+			fmt.Fprintf(c.Writer, "event: command.created\ndata: %s\n\n", data)
 			c.Writer.Flush()
 		}
 	}
