@@ -6,7 +6,6 @@ export async function apiRequest<T>(
   endpoint: string,
   options?: RequestInit
 ): Promise<T> {
-  // Use Next.js API routes instead of calling Golang backend directly
   const url = `/api${endpoint}`;
 
   const response = await fetch(url, {

@@ -209,7 +209,47 @@ export default function HomePage() {
               >
                 Facturas
               </h2>
-              <p style={{ color: "var(--color-text-secondary)", margin: 0 }}>Ver facturas</p>
+              <p style={{ color: "var(--color-text-secondary)", margin: 0 }}>
+                Ver facturas
+              </p>
+            </a>
+
+            <a
+              href="/kitchen"
+              style={{
+                padding: "1.5rem",
+                backgroundColor: "var(--color-surface)",
+                borderRadius: "var(--radius-md)",
+                boxShadow: "var(--shadow-md)",
+                textDecoration: "none",
+                display: "block",
+                transition: "all var(--transition-normal)",
+                border: "1px solid var(--color-border)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.boxShadow = "var(--shadow-lg)";
+                e.currentTarget.style.borderColor = "var(--color-secondary)";
+                e.currentTarget.style.transform = "translateY(-2px)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = "var(--shadow-md)";
+                e.currentTarget.style.borderColor = "var(--color-border)";
+                e.currentTarget.style.transform = "translateY(0)";
+              }}
+            >
+              <h2
+                style={{
+                  fontSize: "1.25rem",
+                  fontWeight: "600",
+                  color: "var(--color-text-primary)",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                🍳 Cocina
+              </h2>
+              <p style={{ color: "var(--color-text-secondary)", margin: 0 }}>
+                Ver comandas en tiempo real
+              </p>
             </a>
           </div>
 
@@ -228,7 +268,8 @@ export default function HomePage() {
                 transition: "background-color var(--transition-normal)",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--color-danger-hover)";
+                e.currentTarget.style.backgroundColor =
+                  "var(--color-danger-hover)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.backgroundColor = "var(--color-danger)";

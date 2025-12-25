@@ -12,6 +12,7 @@ export default function PageHeader() {
     if (pathname.startsWith("/products")) return "Productos";
     if (pathname.startsWith("/stock")) return "Inventario";
     if (pathname.startsWith("/invoices")) return "Facturas";
+    if (pathname.startsWith("/kitchen")) return "Cocina";
     return "Laguna Escondida";
   };
 
