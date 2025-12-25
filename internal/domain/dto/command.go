@@ -11,11 +11,14 @@ const (
 )
 
 type CommandItem struct {
-	ID          string  `json:"id"`
-	ProductID   string  `json:"product_id"`
-	ProductName string  `json:"product_name"`
-	Quantity    int     `json:"quantity"`
-	Notes       *string `json:"notes,omitempty"`
+	ID                string        `json:"id"`
+	OpenBillProductID string        `json:"open_bill_product_id"`
+	ProductID         string        `json:"product_id"`
+	ProductName       string        `json:"product_name"`
+	Quantity          int           `json:"quantity"`
+	Notes             *string       `json:"notes,omitempty"`
+	Status            CommandStatus `json:"status"`
+	Priority          int           `json:"priority"`
 }
 
 type Command struct {
