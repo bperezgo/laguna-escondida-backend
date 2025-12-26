@@ -8,93 +8,19 @@ import (
 
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
+	"laguna-escondida/backend/internal/domain/ports/mocks"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-type MockUserRepository struct {
-	mock.Mock
-}
-
-func (m *MockUserRepository) Create(ctx context.Context, user *dto.User) error {
-	args := m.Called(ctx, user)
-	return args.Error(0)
-}
-
-func (m *MockUserRepository) FindByUsername(ctx context.Context, username string) (*dto.User, error) {
-	args := m.Called(ctx, username)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*dto.User), args.Error(1)
-}
-
-func (m *MockUserRepository) FindByID(ctx context.Context, id string) (*dto.User, error) {
-	args := m.Called(ctx, id)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*dto.User), args.Error(1)
-}
-
-type MockRoleRepository struct {
-	mock.Mock
-}
-
-func (m *MockRoleRepository) FindByID(ctx context.Context, id int) (*dto.Role, error) {
-	args := m.Called(ctx, id)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*dto.Role), args.Error(1)
-}
-
-func (m *MockRoleRepository) FindByIDs(ctx context.Context, ids []int) ([]*dto.Role, error) {
-	args := m.Called(ctx, ids)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]*dto.Role), args.Error(1)
-}
-
-func (m *MockRoleRepository) FindByName(ctx context.Context, name string) (*dto.Role, error) {
-	args := m.Called(ctx, name)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*dto.Role), args.Error(1)
-}
-
-type MockUserRoleRepository struct {
-	mock.Mock
-}
-
-func (m *MockUserRoleRepository) Create(ctx context.Context, userRole *dto.UserRole) error {
-	args := m.Called(ctx, userRole)
-	return args.Error(0)
-}
-
-func (m *MockUserRoleRepository) FindByUserID(ctx context.Context, userID string) ([]*dto.UserRole, error) {
-	args := m.Called(ctx, userID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]*dto.UserRole), args.Error(1)
-}
-
-func (m *MockUserRoleRepository) FindRolesByUserID(ctx context.Context, userID string) ([]*dto.Role, error) {
-	args := m.Called(ctx, userID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]*dto.Role), args.Error(1)
-}
-
-func createTestUserService(userRepo *MockUserRepository, roleRepo *MockRoleRepository, userRoleRepo *MockUserRoleRepository) *UserService {
+func createTestUserService(t *testing.T) (*UserService, *mocks.MockUserRepository, *mocks.MockRoleRepository, *mocks.MockUserRoleRepository) {
+	mockUserRepo := mocks.NewMockUserRepository(t)
+	mockRoleRepo := mocks.NewMockRoleRepository(t)
+	mockUserRoleRepo := mocks.NewMockUserRoleRepository(t)
 	jwtService := NewJWTService("test-secret-key-for-testing")
-	return NewUserService(userRepo, roleRepo, userRoleRepo, jwtService)
+	return NewUserService(mockUserRepo, mockRoleRepo, mockUserRoleRepo, jwtService), mockUserRepo, mockRoleRepo, mockUserRoleRepo
 }
 
 func createTestRole(id int, name string) *dto.Role {
@@ -108,10 +34,7 @@ func createTestRole(id int, name string) *dto.Role {
 // Success Cases
 func TestCreateUser_Success(t *testing.T) {
 	ctx := context.Background()
-	userRepo := new(MockUserRepository)
-	roleRepo := new(MockRoleRepository)
-	userRoleRepo := new(MockUserRoleRepository)
-	service := createTestUserService(userRepo, roleRepo, userRoleRepo)
+	service, userRepo, roleRepo, userRoleRepo := createTestUserService(t)
 
 	req := &dto.CreateUserRequest{
 		Username: "testuser",
@@ -127,7 +50,10 @@ func TestCreateUser_Success(t *testing.T) {
 	userRepo.On("FindByUsername", ctx, req.Username).Return(nil, errors.New("not found"))
 	roleRepo.On("FindByIDs", ctx, req.RoleIDs).Return(roles, nil)
 	userRepo.On("Create", ctx, mock.AnythingOfType("*dto.User")).Run(func(args mock.Arguments) {
-		user := args.Get(1).(*dto.User)
+		user, ok := args.Get(1).(*dto.User)
+		if !ok {
+			panic("user is not a *dto.User")
+		}
 		user.ID = "test-user-id"
 	}).Return(nil)
 	userRoleRepo.On("Create", ctx, mock.AnythingOfType("*dto.UserRole")).Return(nil).Times(2)
@@ -144,18 +70,12 @@ func TestCreateUser_Success(t *testing.T) {
 	assert.NotEmpty(t, result.User.Password)
 	assert.NotEqual(t, req.Password, result.User.Password)
 
-	userRepo.AssertExpectations(t)
-	roleRepo.AssertExpectations(t)
-	userRoleRepo.AssertExpectations(t)
 }
 
 // Error Cases
 func TestCreateUser_UserAlreadyExists(t *testing.T) {
 	ctx := context.Background()
-	userRepo := new(MockUserRepository)
-	roleRepo := new(MockRoleRepository)
-	userRoleRepo := new(MockUserRoleRepository)
-	service := createTestUserService(userRepo, roleRepo, userRoleRepo)
+	service, userRepo, roleRepo, userRoleRepo := createTestUserService(t)
 
 	req := &dto.CreateUserRequest{
 		Username: "existinguser",
@@ -176,17 +96,13 @@ func TestCreateUser_UserAlreadyExists(t *testing.T) {
 	assert.Error(t, err)
 	assert.True(t, errors.Is(err, domainError.ErrUserAlreadyExists))
 
-	userRepo.AssertExpectations(t)
 	roleRepo.AssertNotCalled(t, "FindByIDs")
 	userRoleRepo.AssertNotCalled(t, "Create")
 }
 
 func TestCreateUser_RoleNotFound(t *testing.T) {
 	ctx := context.Background()
-	userRepo := new(MockUserRepository)
-	roleRepo := new(MockRoleRepository)
-	userRoleRepo := new(MockUserRoleRepository)
-	service := createTestUserService(userRepo, roleRepo, userRoleRepo)
+	service, userRepo, roleRepo, userRoleRepo := createTestUserService(t)
 
 	req := &dto.CreateUserRequest{
 		Username: "testuser",
@@ -203,17 +119,13 @@ func TestCreateUser_RoleNotFound(t *testing.T) {
 	assert.Error(t, err)
 	assert.True(t, errors.Is(err, domainError.ErrRoleNotFound))
 
-	userRepo.AssertExpectations(t)
 	roleRepo.AssertExpectations(t)
 	userRoleRepo.AssertNotCalled(t, "Create")
 }
 
 func TestCreateUser_InvalidRoleIDs(t *testing.T) {
 	ctx := context.Background()
-	userRepo := new(MockUserRepository)
-	roleRepo := new(MockRoleRepository)
-	userRoleRepo := new(MockUserRoleRepository)
-	service := createTestUserService(userRepo, roleRepo, userRoleRepo)
+	service, userRepo, roleRepo, userRoleRepo := createTestUserService(t)
 
 	req := &dto.CreateUserRequest{
 		Username: "testuser",
@@ -234,17 +146,13 @@ func TestCreateUser_InvalidRoleIDs(t *testing.T) {
 	assert.Error(t, err)
 	assert.True(t, errors.Is(err, domainError.ErrInvalidRoleIDs))
 
-	userRepo.AssertExpectations(t)
 	roleRepo.AssertExpectations(t)
 	userRoleRepo.AssertNotCalled(t, "Create")
 }
 
 func TestCreateUser_UserCreationFailed(t *testing.T) {
 	ctx := context.Background()
-	userRepo := new(MockUserRepository)
-	roleRepo := new(MockRoleRepository)
-	userRoleRepo := new(MockUserRoleRepository)
-	service := createTestUserService(userRepo, roleRepo, userRoleRepo)
+	service, userRepo, roleRepo, userRoleRepo := createTestUserService(t)
 
 	req := &dto.CreateUserRequest{
 		Username: "testuser",
@@ -266,17 +174,13 @@ func TestCreateUser_UserCreationFailed(t *testing.T) {
 	assert.Error(t, err)
 	assert.True(t, errors.Is(err, domainError.ErrUserCreationFailed))
 
-	userRepo.AssertExpectations(t)
 	roleRepo.AssertExpectations(t)
 	userRoleRepo.AssertNotCalled(t, "Create")
 }
 
 func TestCreateUser_UserRoleAssignmentFailed(t *testing.T) {
 	ctx := context.Background()
-	userRepo := new(MockUserRepository)
-	roleRepo := new(MockRoleRepository)
-	userRoleRepo := new(MockUserRoleRepository)
-	service := createTestUserService(userRepo, roleRepo, userRoleRepo)
+	service, userRepo, roleRepo, userRoleRepo := createTestUserService(t)
 
 	req := &dto.CreateUserRequest{
 		Username: "testuser",
@@ -291,7 +195,10 @@ func TestCreateUser_UserRoleAssignmentFailed(t *testing.T) {
 	userRepo.On("FindByUsername", ctx, req.Username).Return(nil, errors.New("not found"))
 	roleRepo.On("FindByIDs", ctx, req.RoleIDs).Return(roles, nil)
 	userRepo.On("Create", ctx, mock.AnythingOfType("*dto.User")).Run(func(args mock.Arguments) {
-		user := args.Get(1).(*dto.User)
+		user, ok := args.Get(1).(*dto.User)
+		if !ok {
+			panic("user is not a *dto.User")
+		}
 		user.ID = "test-user-id"
 	}).Return(nil)
 	userRoleRepo.On("Create", ctx, mock.AnythingOfType("*dto.UserRole")).Return(errors.New("database error"))
@@ -302,7 +209,4 @@ func TestCreateUser_UserRoleAssignmentFailed(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to assign role to user")
 
-	userRepo.AssertExpectations(t)
-	roleRepo.AssertExpectations(t)
-	userRoleRepo.AssertExpectations(t)
 }

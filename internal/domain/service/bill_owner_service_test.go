@@ -1,12 +1,14 @@
 package service
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"laguna-escondida/backend/internal/domain/aggregate/customer"
 	"laguna-escondida/backend/internal/domain/dto"
 	orderError "laguna-escondida/backend/internal/domain/error"
+	"laguna-escondida/backend/internal/domain/ports/mocks"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -31,14 +33,14 @@ func createTestBillOwnerAggregate(id string) *customer.Aggregate {
 }
 
 func TestGetByID_Success(t *testing.T) {
-	mockRepo := new(MockBillOwnerRepository)
+	mockRepo := mocks.NewMockBillOwnerRepository(t)
 	service := NewBillOwnerService(mockRepo)
-	ctx := createTestContext()
+	ctx := context.Background()
 
 	customerID := "123456789"
 	expectedAggregate := createTestBillOwnerAggregate(customerID)
 
-	mockRepo.On("FindByID", ctx, customerID).Return(expectedAggregate, nil)
+	mockRepo.EXPECT().FindByID(ctx, customerID).Return(expectedAggregate, nil)
 
 	result, err := service.GetByID(ctx, customerID)
 
@@ -51,49 +53,42 @@ func TestGetByID_Success(t *testing.T) {
 	assert.Equal(t, "1234567890", *result.Celphone)
 	assert.NotNil(t, result.IdentificationType)
 	assert.Equal(t, "CC", *result.IdentificationType)
-	mockRepo.AssertExpectations(t)
 }
 
 func TestGetByID_NotFound(t *testing.T) {
-	mockRepo := new(MockBillOwnerRepository)
+	mockRepo := mocks.NewMockBillOwnerRepository(t)
 	service := NewBillOwnerService(mockRepo)
-	ctx := createTestContext()
+	ctx := context.Background()
 
 	customerID := "nonexistent"
 
-	mockRepo.On("FindByID", ctx, customerID).Return(nil, orderError.ErrBillOwnerNotFound)
+	mockRepo.EXPECT().FindByID(ctx, customerID).Return(nil, orderError.ErrBillOwnerNotFound)
 
 	result, err := service.GetByID(ctx, customerID)
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.Equal(t, orderError.ErrBillOwnerNotFound, err)
-	mockRepo.AssertExpectations(t)
 }
 
 func TestGetByID_RepositoryError(t *testing.T) {
-	mockRepo := new(MockBillOwnerRepository)
+	mockRepo := mocks.NewMockBillOwnerRepository(t)
 	service := NewBillOwnerService(mockRepo)
-	ctx := createTestContext()
+	ctx := context.Background()
 
 	customerID := "123456789"
 	expectedError := assert.AnError
 
-	mockRepo.On("FindByID", ctx, customerID).Return(nil, expectedError)
+	mockRepo.EXPECT().FindByID(ctx, customerID).Return(nil, expectedError)
 
 	result, err := service.GetByID(ctx, customerID)
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.Equal(t, expectedError, err)
-	mockRepo.AssertExpectations(t)
 }
 
 func TestGetByID_MultipleCustomers(t *testing.T) {
-	mockRepo := new(MockBillOwnerRepository)
-	service := NewBillOwnerService(mockRepo)
-	ctx := createTestContext()
-
 	testCases := []struct {
 		name       string
 		customerID string
@@ -105,8 +100,12 @@ func TestGetByID_MultipleCustomers(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			mockRepo := mocks.NewMockBillOwnerRepository(t)
+			service := NewBillOwnerService(mockRepo)
+			ctx := context.Background()
+
 			aggregate := createTestBillOwnerAggregate(tc.customerID)
-			mockRepo.On("FindByID", ctx, tc.customerID).Return(aggregate, nil).Once()
+			mockRepo.EXPECT().FindByID(ctx, tc.customerID).Return(aggregate, nil)
 
 			result, err := service.GetByID(ctx, tc.customerID)
 
@@ -115,6 +114,4 @@ func TestGetByID_MultipleCustomers(t *testing.T) {
 			assert.Equal(t, tc.customerID, result.ID)
 		})
 	}
-
-	mockRepo.AssertExpectations(t)
 }

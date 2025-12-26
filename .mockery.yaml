@@ -20,6 +20,8 @@ packages:
       BillOwnerRepository:
       StockRepository:
       UserRepository:
+      RoleRepository:
+      UserRoleRepository:
       UnitOfWork:
       SSENotifier:
       ElectronicInvoiceClient:

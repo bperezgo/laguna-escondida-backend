@@ -6,130 +6,19 @@ import (
 	"testing"
 	"time"
 
-	"laguna-escondida/backend/internal/domain/aggregate/product"
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
-	"laguna-escondida/backend/internal/domain/ports"
+	"laguna-escondida/backend/internal/domain/ports/mocks"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-type MockStockRepository struct {
-	mock.Mock
-}
-
-func (m *MockStockRepository) Create(ctx context.Context, stock *dto.Stock) error {
-	args := m.Called(ctx, stock)
-	return args.Error(0)
-}
-
-func (m *MockStockRepository) FindByProductID(ctx context.Context, productID string) (*dto.Stock, error) {
-	args := m.Called(ctx, productID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*dto.Stock), args.Error(1)
-}
-
-func (m *MockStockRepository) FindAll(ctx context.Context) ([]*dto.Stock, error) {
-	args := m.Called(ctx)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]*dto.Stock), args.Error(1)
-}
-
-func (m *MockStockRepository) UpdateAmount(ctx context.Context, productID string, amount int) error {
-	args := m.Called(ctx, productID, amount)
-	return args.Error(0)
-}
-
-func (m *MockStockRepository) Delete(ctx context.Context, productID string) error {
-	args := m.Called(ctx, productID)
-	return args.Error(0)
-}
-
-func (m *MockStockRepository) BulkCreateOrUpdate(ctx context.Context, stocks []*dto.Stock) error {
-	args := m.Called(ctx, stocks)
-	return args.Error(0)
-}
-
-func (m *MockStockRepository) CreateHistoricRecord(ctx context.Context, historicStock *dto.HistoricStock) error {
-	args := m.Called(ctx, historicStock)
-	return args.Error(0)
-}
-
-func (m *MockStockRepository) FindHistoricByProductID(ctx context.Context, productID string) ([]*dto.HistoricStock, error) {
-	args := m.Called(ctx, productID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]*dto.HistoricStock), args.Error(1)
-}
-
-type MockProductRepositoryForStock struct {
-	mock.Mock
-}
-
-func (m *MockProductRepositoryForStock) Create(ctx context.Context, product *product.Aggregate) error {
-	args := m.Called(ctx, product)
-	return args.Error(0)
-}
-
-func (m *MockProductRepositoryForStock) Update(ctx context.Context, id string, product *product.Aggregate) error {
-	args := m.Called(ctx, id, product)
-	return args.Error(0)
-}
-
-func (m *MockProductRepositoryForStock) Delete(ctx context.Context, id string) error {
-	args := m.Called(ctx, id)
-	return args.Error(0)
-}
-
-func (m *MockProductRepositoryForStock) FindAll(ctx context.Context) ([]*dto.Product, error) {
-	args := m.Called(ctx)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]*dto.Product), args.Error(1)
-}
-
-func (m *MockProductRepositoryForStock) FindByID(ctx context.Context, id string) (*dto.Product, error) {
-	args := m.Called(ctx, id)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*dto.Product), args.Error(1)
-}
-
-func (m *MockProductRepositoryForStock) FindByIDs(ctx context.Context, ids []string) ([]*dto.Product, error) {
-	args := m.Called(ctx, ids)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]*dto.Product), args.Error(1)
-}
-
-func (m *MockProductRepositoryForStock) FindByName(ctx context.Context, name string) (*dto.Product, error) {
-	args := m.Called(ctx, name)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*dto.Product), args.Error(1)
-}
-
-func (m *MockProductRepositoryForStock) CreatePreparationResponsibility(ctx context.Context, productID, area string) (*dto.ProductPreparationResponsibility, error) {
-	args := m.Called(ctx, productID, area)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*dto.ProductPreparationResponsibility), args.Error(1)
-}
-
-func createTestStockService(stockRepo ports.StockRepository, productRepo ports.ProductRepository) *StockService {
-	return NewStockService(stockRepo, productRepo)
+func createTestStockService(t *testing.T) (*StockService, *mocks.MockStockRepository, *mocks.MockProductRepository) {
+	mockStockRepo := mocks.NewMockStockRepository(t)
+	mockProductRepo := mocks.NewMockProductRepository(t)
+	return NewStockService(mockStockRepo, mockProductRepo), mockStockRepo, mockProductRepo
 }
 
 func createTestStock(productID string, version int, amount int) *dto.Stock {
@@ -147,9 +36,7 @@ func createTestStock(productID string, version int, amount int) *dto.Stock {
 
 func TestCreateStock_Success(t *testing.T) {
 	ctx := context.Background()
-	mockStockRepo := new(MockStockRepository)
-	mockProductRepo := new(MockProductRepositoryForStock)
-	service := createTestStockService(mockStockRepo, mockProductRepo)
+	service, mockStockRepo, mockProductRepo := createTestStockService(t)
 
 	productID := "product-1"
 	product := createTestProduct(productID, "Test Product", "Category A", 1, 100.0, 19.0)
@@ -175,15 +62,11 @@ func TestCreateStock_Success(t *testing.T) {
 	assert.Equal(t, product.Version, result.Version)
 	assert.Equal(t, req.Amount, result.Amount)
 
-	mockStockRepo.AssertExpectations(t)
-	mockProductRepo.AssertExpectations(t)
 }
 
 func TestCreateStock_ProductNotFound(t *testing.T) {
 	ctx := context.Background()
-	mockStockRepo := new(MockStockRepository)
-	mockProductRepo := new(MockProductRepositoryForStock)
-	service := createTestStockService(mockStockRepo, mockProductRepo)
+	service, mockStockRepo, mockProductRepo := createTestStockService(t)
 
 	productID := "product-1"
 	req := &dto.CreateStockRequest{
@@ -200,15 +83,11 @@ func TestCreateStock_ProductNotFound(t *testing.T) {
 	assert.ErrorIs(t, err, domainError.ErrProductNotFound)
 
 	mockStockRepo.AssertNotCalled(t, "Create")
-	mockStockRepo.AssertExpectations(t)
-	mockProductRepo.AssertExpectations(t)
 }
 
 func TestCreateStock_StockAlreadyExists(t *testing.T) {
 	ctx := context.Background()
-	mockStockRepo := new(MockStockRepository)
-	mockProductRepo := new(MockProductRepositoryForStock)
-	service := createTestStockService(mockStockRepo, mockProductRepo)
+	service, mockStockRepo, mockProductRepo := createTestStockService(t)
 
 	productID := "product-1"
 	product := createTestProduct(productID, "Test Product", "Category A", 1, 100.0, 19.0)
@@ -228,15 +107,11 @@ func TestCreateStock_StockAlreadyExists(t *testing.T) {
 	assert.ErrorIs(t, err, domainError.ErrStockAlreadyExists)
 
 	mockStockRepo.AssertNotCalled(t, "Create")
-	mockStockRepo.AssertExpectations(t)
-	mockProductRepo.AssertExpectations(t)
 }
 
 func TestCreateStock_RepositoryError(t *testing.T) {
 	ctx := context.Background()
-	mockStockRepo := new(MockStockRepository)
-	mockProductRepo := new(MockProductRepositoryForStock)
-	service := createTestStockService(mockStockRepo, mockProductRepo)
+	service, mockStockRepo, mockProductRepo := createTestStockService(t)
 
 	productID := "product-1"
 	product := createTestProduct(productID, "Test Product", "Category A", 1, 100.0, 19.0)
@@ -256,17 +131,13 @@ func TestCreateStock_RepositoryError(t *testing.T) {
 	assert.Nil(t, result)
 	assert.ErrorIs(t, err, domainError.ErrStockCreationFailed)
 
-	mockStockRepo.AssertExpectations(t)
-	mockProductRepo.AssertExpectations(t)
 }
 
 // AddOrDecreaseStock Tests
 
 func TestAddOrDecreaseStock_Success_Add(t *testing.T) {
 	ctx := context.Background()
-	mockStockRepo := new(MockStockRepository)
-	mockProductRepo := new(MockProductRepositoryForStock)
-	service := createTestStockService(mockStockRepo, mockProductRepo)
+	service, mockStockRepo, mockProductRepo := createTestStockService(t)
 
 	productID := "product-1"
 	product := createTestProduct(productID, "Test Product", "Category A", 1, 100.0, 19.0)
@@ -287,15 +158,11 @@ func TestAddOrDecreaseStock_Success_Add(t *testing.T) {
 
 	require.NoError(t, err)
 
-	mockStockRepo.AssertExpectations(t)
-	mockProductRepo.AssertExpectations(t)
 }
 
 func TestAddOrDecreaseStock_Success_Decrease(t *testing.T) {
 	ctx := context.Background()
-	mockStockRepo := new(MockStockRepository)
-	mockProductRepo := new(MockProductRepositoryForStock)
-	service := createTestStockService(mockStockRepo, mockProductRepo)
+	service, mockStockRepo, mockProductRepo := createTestStockService(t)
 
 	productID := "product-1"
 	product := createTestProduct(productID, "Test Product", "Category A", 1, 100.0, 19.0)
@@ -316,15 +183,11 @@ func TestAddOrDecreaseStock_Success_Decrease(t *testing.T) {
 
 	require.NoError(t, err)
 
-	mockStockRepo.AssertExpectations(t)
-	mockProductRepo.AssertExpectations(t)
 }
 
 func TestAddOrDecreaseStock_ProductNotFound(t *testing.T) {
 	ctx := context.Background()
-	mockStockRepo := new(MockStockRepository)
-	mockProductRepo := new(MockProductRepositoryForStock)
-	service := createTestStockService(mockStockRepo, mockProductRepo)
+	service, mockStockRepo, mockProductRepo := createTestStockService(t)
 
 	productID := "product-1"
 	req := &dto.AddOrDecreaseStockRequest{
@@ -340,15 +203,11 @@ func TestAddOrDecreaseStock_ProductNotFound(t *testing.T) {
 	assert.ErrorIs(t, err, domainError.ErrProductNotFound)
 
 	mockStockRepo.AssertNotCalled(t, "UpdateAmount")
-	mockStockRepo.AssertExpectations(t)
-	mockProductRepo.AssertExpectations(t)
 }
 
 func TestAddOrDecreaseStock_StockNotFound(t *testing.T) {
 	ctx := context.Background()
-	mockStockRepo := new(MockStockRepository)
-	mockProductRepo := new(MockProductRepositoryForStock)
-	service := createTestStockService(mockStockRepo, mockProductRepo)
+	service, mockStockRepo, mockProductRepo := createTestStockService(t)
 
 	productID := "product-1"
 	product := createTestProduct(productID, "Test Product", "Category A", 1, 100.0, 19.0)
@@ -366,15 +225,11 @@ func TestAddOrDecreaseStock_StockNotFound(t *testing.T) {
 	assert.ErrorIs(t, err, domainError.ErrStockNotFound)
 
 	mockStockRepo.AssertNotCalled(t, "UpdateAmount")
-	mockStockRepo.AssertExpectations(t)
-	mockProductRepo.AssertExpectations(t)
 }
 
 func TestAddOrDecreaseStock_VersionMismatch(t *testing.T) {
 	ctx := context.Background()
-	mockStockRepo := new(MockStockRepository)
-	mockProductRepo := new(MockProductRepositoryForStock)
-	service := createTestStockService(mockStockRepo, mockProductRepo)
+	service, mockStockRepo, mockProductRepo := createTestStockService(t)
 
 	productID := "product-1"
 	product := createTestProduct(productID, "Test Product", "Category A", 2, 100.0, 19.0)
@@ -393,17 +248,13 @@ func TestAddOrDecreaseStock_VersionMismatch(t *testing.T) {
 	assert.ErrorIs(t, err, domainError.ErrProductVersionMismatch)
 
 	mockStockRepo.AssertNotCalled(t, "UpdateAmount")
-	mockStockRepo.AssertExpectations(t)
-	mockProductRepo.AssertExpectations(t)
 }
 
 // DeleteStock Tests
 
 func TestDeleteStock_Success(t *testing.T) {
 	ctx := context.Background()
-	mockStockRepo := new(MockStockRepository)
-	mockProductRepo := new(MockProductRepositoryForStock)
-	service := createTestStockService(mockStockRepo, mockProductRepo)
+	service, mockStockRepo, _ := createTestStockService(t)
 
 	productID := "product-1"
 	existingStock := createTestStock(productID, 1, 50)
@@ -414,14 +265,11 @@ func TestDeleteStock_Success(t *testing.T) {
 	err := service.DeleteStock(ctx, productID)
 
 	require.NoError(t, err)
-	mockStockRepo.AssertExpectations(t)
 }
 
 func TestDeleteStock_StockNotFound(t *testing.T) {
 	ctx := context.Background()
-	mockStockRepo := new(MockStockRepository)
-	mockProductRepo := new(MockProductRepositoryForStock)
-	service := createTestStockService(mockStockRepo, mockProductRepo)
+	service, mockStockRepo, _ := createTestStockService(t)
 
 	productID := "product-1"
 
@@ -433,14 +281,11 @@ func TestDeleteStock_StockNotFound(t *testing.T) {
 	assert.ErrorIs(t, err, domainError.ErrStockNotFound)
 
 	mockStockRepo.AssertNotCalled(t, "Delete")
-	mockStockRepo.AssertExpectations(t)
 }
 
 func TestDeleteStock_RepositoryError(t *testing.T) {
 	ctx := context.Background()
-	mockStockRepo := new(MockStockRepository)
-	mockProductRepo := new(MockProductRepositoryForStock)
-	service := createTestStockService(mockStockRepo, mockProductRepo)
+	service, mockStockRepo, _ := createTestStockService(t)
 
 	productID := "product-1"
 	existingStock := createTestStock(productID, 1, 50)
@@ -453,16 +298,13 @@ func TestDeleteStock_RepositoryError(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, domainError.ErrStockDeleteFailed)
 
-	mockStockRepo.AssertExpectations(t)
 }
 
 // GetAllStocks Tests
 
 func TestGetAllStocks_Success(t *testing.T) {
 	ctx := context.Background()
-	mockStockRepo := new(MockStockRepository)
-	mockProductRepo := new(MockProductRepositoryForStock)
-	service := createTestStockService(mockStockRepo, mockProductRepo)
+	service, mockStockRepo, _ := createTestStockService(t)
 
 	stocks := []*dto.Stock{
 		createTestStock("product-1", 1, 100),
@@ -477,14 +319,11 @@ func TestGetAllStocks_Success(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.Len(t, result, 2)
 
-	mockStockRepo.AssertExpectations(t)
 }
 
 func TestGetAllStocks_EmptyList(t *testing.T) {
 	ctx := context.Background()
-	mockStockRepo := new(MockStockRepository)
-	mockProductRepo := new(MockProductRepositoryForStock)
-	service := createTestStockService(mockStockRepo, mockProductRepo)
+	service, mockStockRepo, _ := createTestStockService(t)
 
 	mockStockRepo.On("FindAll", ctx).Return([]*dto.Stock{}, nil)
 
@@ -494,14 +333,11 @@ func TestGetAllStocks_EmptyList(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.Empty(t, result)
 
-	mockStockRepo.AssertExpectations(t)
 }
 
 func TestGetAllStocks_RepositoryError(t *testing.T) {
 	ctx := context.Background()
-	mockStockRepo := new(MockStockRepository)
-	mockProductRepo := new(MockProductRepositoryForStock)
-	service := createTestStockService(mockStockRepo, mockProductRepo)
+	service, mockStockRepo, _ := createTestStockService(t)
 
 	mockStockRepo.On("FindAll", ctx).Return(nil, errors.New("database error"))
 
@@ -510,16 +346,13 @@ func TestGetAllStocks_RepositoryError(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, result)
 
-	mockStockRepo.AssertExpectations(t)
 }
 
 // BulkStockCreationOrUpdating Tests
 
 func TestBulkStockCreationOrUpdating_Success_CreateNew(t *testing.T) {
 	ctx := context.Background()
-	mockStockRepo := new(MockStockRepository)
-	mockProductRepo := new(MockProductRepositoryForStock)
-	service := createTestStockService(mockStockRepo, mockProductRepo)
+	service, mockStockRepo, mockProductRepo := createTestStockService(t)
 
 	productID := "product-1"
 	product := createTestProduct(productID, "Test Product", "Category A", 1, 100.0, 19.0)
@@ -541,15 +374,11 @@ func TestBulkStockCreationOrUpdating_Success_CreateNew(t *testing.T) {
 	err := service.BulkStockCreationOrUpdating(ctx, req)
 
 	require.NoError(t, err)
-	mockStockRepo.AssertExpectations(t)
-	mockProductRepo.AssertExpectations(t)
 }
 
 func TestBulkStockCreationOrUpdating_Success_UpdateExisting(t *testing.T) {
 	ctx := context.Background()
-	mockStockRepo := new(MockStockRepository)
-	mockProductRepo := new(MockProductRepositoryForStock)
-	service := createTestStockService(mockStockRepo, mockProductRepo)
+	service, mockStockRepo, mockProductRepo := createTestStockService(t)
 
 	productID := "product-1"
 	product := createTestProduct(productID, "Test Product", "Category A", 1, 100.0, 19.0)
@@ -572,15 +401,11 @@ func TestBulkStockCreationOrUpdating_Success_UpdateExisting(t *testing.T) {
 	err := service.BulkStockCreationOrUpdating(ctx, req)
 
 	require.NoError(t, err)
-	mockStockRepo.AssertExpectations(t)
-	mockProductRepo.AssertExpectations(t)
 }
 
 func TestBulkStockCreationOrUpdating_Success_NoChange(t *testing.T) {
 	ctx := context.Background()
-	mockStockRepo := new(MockStockRepository)
-	mockProductRepo := new(MockProductRepositoryForStock)
-	service := createTestStockService(mockStockRepo, mockProductRepo)
+	service, mockStockRepo, mockProductRepo := createTestStockService(t)
 
 	productID := "product-1"
 	product := createTestProduct(productID, "Test Product", "Category A", 1, 100.0, 19.0)
@@ -599,15 +424,11 @@ func TestBulkStockCreationOrUpdating_Success_NoChange(t *testing.T) {
 
 	require.NoError(t, err)
 	mockStockRepo.AssertNotCalled(t, "CreateHistoricRecord")
-	mockStockRepo.AssertExpectations(t)
-	mockProductRepo.AssertExpectations(t)
 }
 
 func TestBulkStockCreationOrUpdating_EmptyItems(t *testing.T) {
 	ctx := context.Background()
-	mockStockRepo := new(MockStockRepository)
-	mockProductRepo := new(MockProductRepositoryForStock)
-	service := createTestStockService(mockStockRepo, mockProductRepo)
+	service, mockStockRepo, _ := createTestStockService(t)
 
 	req := &dto.BulkStockCreationOrUpdatingRequest{
 		Items: []dto.BulkStockItem{},
@@ -619,15 +440,11 @@ func TestBulkStockCreationOrUpdating_EmptyItems(t *testing.T) {
 	assert.Contains(t, err.Error(), "items cannot be empty")
 
 	mockStockRepo.AssertNotCalled(t, "BulkCreateOrUpdate")
-	mockStockRepo.AssertExpectations(t)
-	mockProductRepo.AssertExpectations(t)
 }
 
 func TestBulkStockCreationOrUpdating_ProductNotFound(t *testing.T) {
 	ctx := context.Background()
-	mockStockRepo := new(MockStockRepository)
-	mockProductRepo := new(MockProductRepositoryForStock)
-	service := createTestStockService(mockStockRepo, mockProductRepo)
+	service, mockStockRepo, mockProductRepo := createTestStockService(t)
 
 	productID := "product-1"
 	req := &dto.BulkStockCreationOrUpdatingRequest{
@@ -644,15 +461,11 @@ func TestBulkStockCreationOrUpdating_ProductNotFound(t *testing.T) {
 	assert.ErrorIs(t, err, domainError.ErrProductNotFound)
 
 	mockStockRepo.AssertNotCalled(t, "BulkCreateOrUpdate")
-	mockStockRepo.AssertExpectations(t)
-	mockProductRepo.AssertExpectations(t)
 }
 
 func TestBulkStockCreationOrUpdating_VersionMismatch(t *testing.T) {
 	ctx := context.Background()
-	mockStockRepo := new(MockStockRepository)
-	mockProductRepo := new(MockProductRepositoryForStock)
-	service := createTestStockService(mockStockRepo, mockProductRepo)
+	service, mockStockRepo, mockProductRepo := createTestStockService(t)
 
 	productID := "product-1"
 	product := createTestProduct(productID, "Test Product", "Category A", 2, 100.0, 19.0)
@@ -672,6 +485,4 @@ func TestBulkStockCreationOrUpdating_VersionMismatch(t *testing.T) {
 	assert.ErrorIs(t, err, domainError.ErrProductVersionMismatch)
 
 	mockStockRepo.AssertNotCalled(t, "BulkCreateOrUpdate")
-	mockStockRepo.AssertExpectations(t)
-	mockProductRepo.AssertExpectations(t)
 }

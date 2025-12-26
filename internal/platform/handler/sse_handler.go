@@ -50,7 +50,10 @@ func (h *SSEHandler) StreamCommandsHandler(c *gin.Context) {
 			if err != nil {
 				continue
 			}
-			fmt.Fprintf(c.Writer, "event: command.created\ndata: %s\n\n", data)
+			_, err = fmt.Fprintf(c.Writer, "event: command.created\ndata: %s\n\n", data)
+			if err != nil {
+				continue
+			}
 			c.Writer.Flush()
 		}
 	}
@@ -65,7 +68,10 @@ func (h *SSEHandler) StreamCommandsHandler(c *gin.Context) {
 			if err != nil {
 				return true
 			}
-			fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event.Type, data)
+			_, err = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event.Type, data)
+			if err != nil {
+				return true
+			}
 			return true
 		case <-ctx.Done():
 			return false

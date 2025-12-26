@@ -9,7 +9,7 @@ import (
 	"laguna-escondida/backend/internal/domain/aggregate/product"
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
-	"laguna-escondida/backend/internal/domain/ports"
+	"laguna-escondida/backend/internal/domain/ports/mocks"
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -17,69 +17,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// MockProductRepository is a mock implementation of ports.ProductRepository
-type MockProductRepositoryForService struct {
-	mock.Mock
-}
-
-func (m *MockProductRepositoryForService) Create(ctx context.Context, product *product.Aggregate) error {
-	args := m.Called(ctx, product)
-	return args.Error(0)
-}
-
-func (m *MockProductRepositoryForService) Update(ctx context.Context, id string, product *product.Aggregate) error {
-	args := m.Called(ctx, id, product)
-	return args.Error(0)
-}
-
-func (m *MockProductRepositoryForService) Delete(ctx context.Context, id string) error {
-	args := m.Called(ctx, id)
-	return args.Error(0)
-}
-
-func (m *MockProductRepositoryForService) FindAll(ctx context.Context) ([]*dto.Product, error) {
-	args := m.Called(ctx)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]*dto.Product), args.Error(1)
-}
-
-func (m *MockProductRepositoryForService) FindByID(ctx context.Context, id string) (*dto.Product, error) {
-	args := m.Called(ctx, id)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*dto.Product), args.Error(1)
-}
-
-func (m *MockProductRepositoryForService) FindByIDs(ctx context.Context, ids []string) ([]*dto.Product, error) {
-	args := m.Called(ctx, ids)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]*dto.Product), args.Error(1)
-}
-
-func (m *MockProductRepositoryForService) FindByName(ctx context.Context, name string) (*dto.Product, error) {
-	args := m.Called(ctx, name)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*dto.Product), args.Error(1)
-}
-
-func (m *MockProductRepositoryForService) CreatePreparationResponsibility(ctx context.Context, productID, area string) (*dto.ProductPreparationResponsibility, error) {
-	args := m.Called(ctx, productID, area)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*dto.ProductPreparationResponsibility), args.Error(1)
-}
-
 // Test helpers
-func createTestProductService(productRepo ports.ProductRepository) *ProductService {
-	return NewProductService(productRepo)
+func createTestProductService(t *testing.T) (*ProductService, *mocks.MockProductRepository) {
+	mockRepo := mocks.NewMockProductRepository(t)
+	return NewProductService(mockRepo), mockRepo
 }
 
 func createTestProductDTO(id, name, category string, version int, price, vat float64) *dto.Product {
@@ -101,8 +42,7 @@ func createTestProductDTO(id, name, category string, version int, price, vat flo
 // Success Cases
 func TestCreateProduct_Success(t *testing.T) {
 	ctx := context.Background()
-	mockRepo := new(MockProductRepositoryForService)
-	service := createTestProductService(mockRepo)
+	service, mockRepo := createTestProductService(t)
 
 	req := &dto.CreateProductRequest{
 		Name:                "Test Product",
@@ -135,14 +75,12 @@ func TestCreateProduct_Success(t *testing.T) {
 	assert.True(t, result.UnitPrice.Equal(decimal.NewFromFloat(100.0)))
 	assert.Equal(t, req.SKU, result.SKU)
 
-	mockRepo.AssertExpectations(t)
 }
 
 // Success Case - SKU with hyphen is valid
 func TestCreateProduct_ValidSKU_WithHyphen(t *testing.T) {
 	ctx := context.Background()
-	mockRepo := new(MockProductRepositoryForService)
-	service := createTestProductService(mockRepo)
+	service, mockRepo := createTestProductService(t)
 
 	req := &dto.CreateProductRequest{
 		Name:                "Test Product",
@@ -165,15 +103,13 @@ func TestCreateProduct_ValidSKU_WithHyphen(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.Equal(t, "SKU-001", result.SKU)
 
-	mockRepo.AssertExpectations(t)
 }
 
 // Error Cases
 
 func TestCreateProduct_InvalidSKU_WithSpace(t *testing.T) {
 	ctx := context.Background()
-	mockRepo := new(MockProductRepositoryForService)
-	service := createTestProductService(mockRepo)
+	service, mockRepo := createTestProductService(t)
 
 	req := &dto.CreateProductRequest{
 		Name:                "Test Product",
@@ -192,13 +128,11 @@ func TestCreateProduct_InvalidSKU_WithSpace(t *testing.T) {
 	assert.Contains(t, err.Error(), "PRODUCT_INVALID_SKU")
 
 	mockRepo.AssertNotCalled(t, "Create")
-	mockRepo.AssertExpectations(t)
 }
 
 func TestCreateProduct_InvalidSKU_WithSpecialChar(t *testing.T) {
 	ctx := context.Background()
-	mockRepo := new(MockProductRepositoryForService)
-	service := createTestProductService(mockRepo)
+	service, mockRepo := createTestProductService(t)
 
 	req := &dto.CreateProductRequest{
 		Name:                "Test Product",
@@ -217,13 +151,11 @@ func TestCreateProduct_InvalidSKU_WithSpecialChar(t *testing.T) {
 	assert.Contains(t, err.Error(), "PRODUCT_INVALID_SKU")
 
 	mockRepo.AssertNotCalled(t, "Create")
-	mockRepo.AssertExpectations(t)
 }
 
 func TestCreateProduct_MissingSKU(t *testing.T) {
 	ctx := context.Background()
-	mockRepo := new(MockProductRepositoryForService)
-	service := createTestProductService(mockRepo)
+	service, mockRepo := createTestProductService(t)
 
 	req := &dto.CreateProductRequest{
 		Name:                "Test Product",
@@ -242,13 +174,11 @@ func TestCreateProduct_MissingSKU(t *testing.T) {
 	assert.Contains(t, err.Error(), "PRODUCT_MISSING_SKU")
 
 	mockRepo.AssertNotCalled(t, "Create")
-	mockRepo.AssertExpectations(t)
 }
 
 func TestCreateProduct_RepositoryError(t *testing.T) {
 	ctx := context.Background()
-	mockRepo := new(MockProductRepositoryForService)
-	service := createTestProductService(mockRepo)
+	service, mockRepo := createTestProductService(t)
 
 	req := &dto.CreateProductRequest{
 		Name:                "Test Product",
@@ -272,13 +202,11 @@ func TestCreateProduct_RepositoryError(t *testing.T) {
 	assert.Nil(t, result)
 	assert.ErrorIs(t, err, repoError)
 
-	mockRepo.AssertExpectations(t)
 }
 
 func TestUpdateProduct_ValidSKU_WithHyphen(t *testing.T) {
 	ctx := context.Background()
-	mockRepo := new(MockProductRepositoryForService)
-	service := createTestProductService(mockRepo)
+	service, mockRepo := createTestProductService(t)
 
 	productID := "product-1"
 	existingProduct := createTestProductDTO(productID, "Old Name", "Old Category", 1, 50.0, 9.5)
@@ -305,13 +233,11 @@ func TestUpdateProduct_ValidSKU_WithHyphen(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.Equal(t, "SKU-002", result.SKU)
 
-	mockRepo.AssertExpectations(t)
 }
 
 func TestUpdateProduct_MissingSKU(t *testing.T) {
 	ctx := context.Background()
-	mockRepo := new(MockProductRepositoryForService)
-	service := createTestProductService(mockRepo)
+	service, mockRepo := createTestProductService(t)
 
 	productID := "product-1"
 	existingProduct := createTestProductDTO(productID, "Old Name", "Old Category", 1, 50.0, 9.5)
@@ -335,7 +261,6 @@ func TestUpdateProduct_MissingSKU(t *testing.T) {
 	assert.Contains(t, err.Error(), "PRODUCT_MISSING_SKU")
 
 	mockRepo.AssertNotCalled(t, "Update")
-	mockRepo.AssertExpectations(t)
 }
 
 // UpdateProduct Tests
@@ -343,8 +268,7 @@ func TestUpdateProduct_MissingSKU(t *testing.T) {
 // Success Cases
 func TestUpdateProduct_Success(t *testing.T) {
 	ctx := context.Background()
-	mockRepo := new(MockProductRepositoryForService)
-	service := createTestProductService(mockRepo)
+	service, mockRepo := createTestProductService(t)
 
 	productID := "product-1"
 	existingProduct := createTestProductDTO(productID, "Old Name", "Old Category", 1, 50.0, 9.5)
@@ -384,14 +308,12 @@ func TestUpdateProduct_Success(t *testing.T) {
 	assert.True(t, result.UnitPrice.Equal(decimal.NewFromFloat(133.33)))
 	assert.Equal(t, req.SKU, result.SKU)
 
-	mockRepo.AssertExpectations(t)
 }
 
 // Error Cases
 func TestUpdateProduct_ProductNotFound(t *testing.T) {
 	ctx := context.Background()
-	mockRepo := new(MockProductRepositoryForService)
-	service := createTestProductService(mockRepo)
+	service, mockRepo := createTestProductService(t)
 
 	productID := "product-1"
 	req := &dto.UpdateProductRequest{
@@ -413,13 +335,11 @@ func TestUpdateProduct_ProductNotFound(t *testing.T) {
 	assert.ErrorIs(t, err, domainError.ErrProductNotFound)
 
 	mockRepo.AssertNotCalled(t, "Update")
-	mockRepo.AssertExpectations(t)
 }
 
 func TestUpdateProduct_RepositoryError(t *testing.T) {
 	ctx := context.Background()
-	mockRepo := new(MockProductRepositoryForService)
-	service := createTestProductService(mockRepo)
+	service, mockRepo := createTestProductService(t)
 
 	productID := "product-1"
 	existingProduct := createTestProductDTO(productID, "Old Name", "Old Category", 1, 50.0, 9.5)
@@ -444,7 +364,6 @@ func TestUpdateProduct_RepositoryError(t *testing.T) {
 	assert.Nil(t, result)
 	assert.ErrorIs(t, err, updateFailedError)
 
-	mockRepo.AssertExpectations(t)
 }
 
 // DeleteProduct Tests
@@ -452,8 +371,7 @@ func TestUpdateProduct_RepositoryError(t *testing.T) {
 // Success Cases
 func TestDeleteProduct_Success(t *testing.T) {
 	ctx := context.Background()
-	mockRepo := new(MockProductRepositoryForService)
-	service := createTestProductService(mockRepo)
+	service, mockRepo := createTestProductService(t)
 
 	productID := "product-1"
 	existingProduct := createTestProductDTO(productID, "Product", "Category", 1, 100.0, 19.0)
@@ -464,14 +382,12 @@ func TestDeleteProduct_Success(t *testing.T) {
 	err := service.DeleteProduct(ctx, productID)
 
 	require.NoError(t, err)
-	mockRepo.AssertExpectations(t)
 }
 
 // Error Cases
 func TestDeleteProduct_ProductNotFound(t *testing.T) {
 	ctx := context.Background()
-	mockRepo := new(MockProductRepositoryForService)
-	service := createTestProductService(mockRepo)
+	service, mockRepo := createTestProductService(t)
 
 	productID := "product-1"
 
@@ -483,13 +399,11 @@ func TestDeleteProduct_ProductNotFound(t *testing.T) {
 	assert.ErrorIs(t, err, domainError.ErrProductNotFound)
 
 	mockRepo.AssertNotCalled(t, "Delete")
-	mockRepo.AssertExpectations(t)
 }
 
 func TestDeleteProduct_RepositoryError(t *testing.T) {
 	ctx := context.Background()
-	mockRepo := new(MockProductRepositoryForService)
-	service := createTestProductService(mockRepo)
+	service, mockRepo := createTestProductService(t)
 
 	productID := "product-1"
 	existingProduct := createTestProductDTO(productID, "Product", "Category", 1, 100.0, 19.0)
@@ -502,7 +416,6 @@ func TestDeleteProduct_RepositoryError(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, domainError.ErrProductDeleteFailed)
 
-	mockRepo.AssertExpectations(t)
 }
 
 // ListProducts Tests
@@ -510,8 +423,7 @@ func TestDeleteProduct_RepositoryError(t *testing.T) {
 // Success Cases
 func TestListProducts_Success(t *testing.T) {
 	ctx := context.Background()
-	mockRepo := new(MockProductRepositoryForService)
-	service := createTestProductService(mockRepo)
+	service, mockRepo := createTestProductService(t)
 
 	products := []*dto.Product{
 		createTestProductDTO("product-1", "Product 1", "Category A", 1, 100.0, 19.0),
@@ -528,13 +440,11 @@ func TestListProducts_Success(t *testing.T) {
 	assert.Equal(t, products[0].ID, result[0].ID)
 	assert.Equal(t, products[1].ID, result[1].ID)
 
-	mockRepo.AssertExpectations(t)
 }
 
 func TestListProducts_EmptyList(t *testing.T) {
 	ctx := context.Background()
-	mockRepo := new(MockProductRepositoryForService)
-	service := createTestProductService(mockRepo)
+	service, mockRepo := createTestProductService(t)
 
 	mockRepo.On("FindAll", ctx).Return([]*dto.Product{}, nil)
 
@@ -544,14 +454,12 @@ func TestListProducts_EmptyList(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.Empty(t, result)
 
-	mockRepo.AssertExpectations(t)
 }
 
 // Error Cases
 func TestListProducts_RepositoryError(t *testing.T) {
 	ctx := context.Background()
-	mockRepo := new(MockProductRepositoryForService)
-	service := createTestProductService(mockRepo)
+	service, mockRepo := createTestProductService(t)
 
 	mockRepo.On("FindAll", ctx).Return(nil, errors.New("database error"))
 
@@ -560,7 +468,6 @@ func TestListProducts_RepositoryError(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, result)
 
-	mockRepo.AssertExpectations(t)
 }
 
 // GetProductByID Tests
@@ -568,8 +475,7 @@ func TestListProducts_RepositoryError(t *testing.T) {
 // Success Cases
 func TestGetProductByID_Success(t *testing.T) {
 	ctx := context.Background()
-	mockRepo := new(MockProductRepositoryForService)
-	service := createTestProductService(mockRepo)
+	service, mockRepo := createTestProductService(t)
 
 	productID := "product-1"
 	expectedProduct := createTestProductDTO(productID, "Product", "Category", 1, 100.0, 19.0)
@@ -585,14 +491,12 @@ func TestGetProductByID_Success(t *testing.T) {
 	assert.Equal(t, expectedProduct.Category, result.Category)
 	assert.Equal(t, 1, result.Version) // Version should be 1
 
-	mockRepo.AssertExpectations(t)
 }
 
 // Error Cases
 func TestGetProductByID_ProductNotFound(t *testing.T) {
 	ctx := context.Background()
-	mockRepo := new(MockProductRepositoryForService)
-	service := createTestProductService(mockRepo)
+	service, mockRepo := createTestProductService(t)
 
 	productID := "product-1"
 
@@ -604,5 +508,4 @@ func TestGetProductByID_ProductNotFound(t *testing.T) {
 	assert.Nil(t, result)
 	assert.ErrorIs(t, err, domainError.ErrProductNotFound)
 
-	mockRepo.AssertExpectations(t)
 }
