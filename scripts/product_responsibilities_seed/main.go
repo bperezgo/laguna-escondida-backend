@@ -63,7 +63,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to open CSV file: %v", err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			err = closeErr
+		}
+	}()
 
 	reader := csv.NewReader(file)
 
@@ -163,7 +167,11 @@ func login(apiURL, username, password string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to send login request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			err = closeErr
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -182,7 +190,7 @@ func login(apiURL, username, password string) (string, error) {
 	return loginResp.Token, nil
 }
 
-func sendCreateResponsibilityRequest(apiURL, jwtToken string, req *CreateProductResponsibilityRequest) error {
+func sendCreateResponsibilityRequest(apiURL, jwtToken string, req *CreateProductResponsibilityRequest) (err error) {
 	endpoint := fmt.Sprintf("%s/api/product-responsibilities", apiURL)
 
 	jsonData, err := json.Marshal(req)
@@ -203,7 +211,11 @@ func sendCreateResponsibilityRequest(apiURL, jwtToken string, req *CreateProduct
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			err = closeErr
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(resp.Body)

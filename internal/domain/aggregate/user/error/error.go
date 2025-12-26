@@ -10,9 +10,9 @@ type UserErrorCode string
 const (
 	CodeInvalidRequest        UserErrorCode = "USER_INVALID_REQUEST"
 	CodeMissingUsername       UserErrorCode = "USER_MISSING_USERNAME"
-	CodeMissingPassword       UserErrorCode = "USER_MISSING_PASSWORD"
-	CodeInvalidPassword       UserErrorCode = "USER_INVALID_PASSWORD"
-	CodePasswordHashingFailed UserErrorCode = "USER_PASSWORD_HASHING_FAILED"
+	CodeMissingPassword       UserErrorCode = "USER_MISSING_PASSWORD"        //nolint:gosec // G101: This is an error code, not a credential
+	CodeInvalidPassword       UserErrorCode = "USER_INVALID_PASSWORD"        //nolint:gosec // G101: This is an error code, not a credential
+	CodePasswordHashingFailed UserErrorCode = "USER_PASSWORD_HASHING_FAILED" //nolint:gosec // G101: This is an error code, not a credential
 )
 
 // NewInvalidRequestError creates an error for invalid request

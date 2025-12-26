@@ -1,0 +1,30 @@
+# Mockery configuration for generating mocks from port interfaces
+# Run: make generate-mocks
+# Or: ~/go/bin/mockery
+
+all: false
+with-expecter: true
+mockname: "Mock{{.InterfaceName}}"
+outpkg: "mocks"
+dir: "internal/domain/ports/mocks"
+resolve-type-alias: false
+disable-version-string: true
+issue-845-fix: true
+packages:
+  laguna-escondida/backend/internal/domain/ports:
+    interfaces:
+      CommandRepository:
+      ProductRepository:
+      OpenBillRepository:
+      BillRepository:
+      BillOwnerRepository:
+      StockRepository:
+      UserRepository:
+      UnitOfWork:
+      SSENotifier:
+      ElectronicInvoiceClient:
+  laguna-escondida/backend/pkg/domain/ports:
+    config:
+      dir: "pkg/domain/ports/mocks"
+    interfaces:
+      EventBus:

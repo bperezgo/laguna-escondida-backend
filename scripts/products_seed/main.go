@@ -83,7 +83,11 @@ func main() {
 	if err2 != nil {
 		log.Fatalf("Failed to open CSV file: %v", err2)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			err = closeErr
+		}
+	}()
 
 	reader := csv.NewReader(file)
 
@@ -216,7 +220,10 @@ func convertPercentageToDecimal(percentage string) string {
 	return cleaned
 }
 
-func login(apiURL, username, password string) (string, error) {
+func login(apiURL, username, password string) (token string, err error) {
+	var jsonData []byte
+	var httpReq *http.Request
+	var resp *http.Response
 	endpoint := fmt.Sprintf("%s/api/auth/signin", apiURL)
 
 	loginReq := LoginRequest{
@@ -228,13 +235,13 @@ func login(apiURL, username, password string) (string, error) {
 	log.Println("Password: ", password)
 
 	// Marshal request to JSON
-	jsonData, err := json.Marshal(loginReq)
+	jsonData, err = json.Marshal(loginReq)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal login request: %w", err)
 	}
 
 	// Create HTTP request
-	httpReq, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(jsonData))
+	httpReq, err = http.NewRequest("POST", endpoint, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return "", fmt.Errorf("failed to create login request: %w", err)
 	}
@@ -244,11 +251,15 @@ func login(apiURL, username, password string) (string, error) {
 
 	// Send request
 	client := &http.Client{}
-	resp, err := client.Do(httpReq)
+	resp, err = client.Do(httpReq)
 	if err != nil {
 		return "", fmt.Errorf("failed to send login request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			err = closeErr
+		}
+	}()
 
 	// Check response status
 	if resp.StatusCode != http.StatusOK {
@@ -269,7 +280,7 @@ func login(apiURL, username, password string) (string, error) {
 	return loginResp.Token, nil
 }
 
-func sendCreateProductRequest(apiURL, jwtToken string, req *CreateProductRequest) error {
+func sendCreateProductRequest(apiURL, jwtToken string, req *CreateProductRequest) (err error) {
 	endpoint := fmt.Sprintf("%s/api/products", apiURL)
 
 	// Marshal request to JSON
@@ -294,7 +305,11 @@ func sendCreateProductRequest(apiURL, jwtToken string, req *CreateProductRequest
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			err = closeErr
+		}
+	}()
 
 	// Check response status
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {

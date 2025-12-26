@@ -46,3 +46,15 @@ uninstall-hooks:
 	@echo "Uninstalling git hooks..."
 	@rm -f .git/hooks/pre-push
 	@echo "Git hooks uninstalled!"
+
+# Generate mocks from port interfaces using mockery
+generate-mocks:
+	@echo "Generating mocks..."
+	@$(HOME)/go/bin/mockery
+	@echo "Mocks generated successfully!"
+
+# Clean and regenerate mocks
+regenerate-mocks:
+	@echo "Cleaning existing mocks..."
+	@rm -rf internal/domain/ports/mocks
+	@$(MAKE) generate-mocks

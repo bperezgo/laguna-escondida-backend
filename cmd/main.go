@@ -40,7 +40,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
-	defer logger.Sync()
+	defer func() {
+		if errLogger := logger.Sync(); errLogger != nil {
+			log.Printf("Failed to sync logger: %v", errLogger)
+		}
+	}()
 
 	// Database connection
 	dsn := getDSN()
@@ -82,7 +86,11 @@ func main() {
 	// Initialize Event Bus
 	watermillLogger := eventbus.NewZapLoggerAdapter(logger)
 	eventBusImpl := eventbus.NewGoChannelEventBus(watermillLogger)
-	defer eventBusImpl.Close()
+	defer func() {
+		if errEventBus := eventBusImpl.Close(); errEventBus != nil {
+			log.Printf("Failed to close event bus: %v", errEventBus)
+		}
+	}()
 
 	// Initialize JWT service
 	jwtService := service.NewJWTService(cfg.JWTSecret)
@@ -101,7 +109,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create event subscriber: %v", err)
 	}
-	defer eventSubscriber.Close()
+	defer func() {
+		if errEventSubscriber := eventSubscriber.Close(); errEventSubscriber != nil {
+			log.Printf("Failed to close event subscriber: %v", errEventSubscriber)
+		}
+	}()
 
 	// Register event handlers
 	orderCreatedHandler := eventbus.NewTypedEventHandler(
@@ -127,7 +139,11 @@ func main() {
 	if err := cronScheduler.Start(); err != nil {
 		log.Fatalf("Failed to start cron scheduler: %v", err)
 	}
-	defer cronScheduler.Stop()
+	defer func() {
+		if err := cronScheduler.Stop(); err != nil {
+			log.Printf("Failed to stop cron scheduler: %v", err)
+		}
+	}()
 
 	// Initialize handlers
 	orderHandler := handler.NewOrderHandler(orderService)
@@ -237,7 +253,7 @@ func main() {
 	log.Println("Server exited")
 }
 
-func runMigrations(dsn string) error {
+func runMigrations(dsn string) (err error) {
 	migrationURL := convertDSNToURL(dsn)
 	migrationsPath, err := getMigrationsPath()
 	if err != nil {
@@ -253,7 +269,12 @@ func runMigrations(dsn string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create migrate instance: %w", err)
 	}
-	defer m.Close()
+	defer func() {
+		if sourceErr, databaseErr := m.Close(); sourceErr != nil || databaseErr != nil {
+			err = fmt.Errorf("failed to close migrate instance: %w", sourceErr)
+			err = fmt.Errorf("failed to close migrate instance: %w", databaseErr)
+		}
+	}()
 
 	if err = m.Up(); err != nil && err != migrate.ErrNoChange {
 		return fmt.Errorf("failed to run migrations: %w", err)

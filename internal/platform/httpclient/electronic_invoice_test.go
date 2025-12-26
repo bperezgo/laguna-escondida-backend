@@ -114,7 +114,8 @@ func TestCreate_Success(t *testing.T) {
 func TestCreate_SuccessWithDefaultCustomer(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var reqBody invoiceRequest
-		json.NewDecoder(r.Body).Decode(&reqBody)
+		err := json.NewDecoder(r.Body).Decode(&reqBody)
+		require.NoError(t, err)
 
 		assert.Equal(t, "222222222222", reqBody.Invoice.Customer.DocumentNumber)
 		assert.Equal(t, "consumidor final", reqBody.Invoice.Customer.Name)
@@ -122,7 +123,7 @@ func TestCreate_SuccessWithDefaultCustomer(t *testing.T) {
 
 		response := createSuccessResponse()
 		w.Header().Set("Content-Type", "application/json")
-		err := json.NewEncoder(w).Encode(response)
+		err = json.NewEncoder(w).Encode(response)
 		require.NoError(t, err)
 	}))
 	defer server.Close()
@@ -148,14 +149,15 @@ func TestCreate_SuccessWithDefaultCustomer(t *testing.T) {
 func TestCreate_SuccessWithNITCustomer(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var reqBody invoiceRequest
-		json.NewDecoder(r.Body).Decode(&reqBody)
+		err := json.NewDecoder(r.Body).Decode(&reqBody)
+		require.NoError(t, err)
 
 		assert.Equal(t, "31", reqBody.Invoice.Customer.DocumentType)
 		assert.Equal(t, "1", reqBody.Invoice.Customer.AdditionalAccountID)
 
 		response := createSuccessResponse()
 		w.Header().Set("Content-Type", "application/json")
-		err := json.NewEncoder(w).Encode(response)
+		err = json.NewEncoder(w).Encode(response)
 		require.NoError(t, err)
 	}))
 	defer server.Close()
@@ -181,7 +183,8 @@ func TestCreate_SuccessWithNITCustomer(t *testing.T) {
 func TestCreate_HTTPError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal Server Error"))
+		_, err := w.Write([]byte("Internal Server Error"))
+		require.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -236,7 +239,8 @@ func TestCreate_APIError(t *testing.T) {
 func TestCreate_InvalidJSONResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte("invalid json"))
+		_, err := w.Write([]byte("invalid json"))
+		require.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -259,14 +263,15 @@ func TestCreate_InvalidJSONResponse(t *testing.T) {
 func TestCreate_ProductWithoutBrandAndModel(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var reqBody invoiceRequest
-		json.NewDecoder(r.Body).Decode(&reqBody)
+		err := json.NewDecoder(r.Body).Decode(&reqBody)
+		require.NoError(t, err)
 
 		assert.Equal(t, "unknown", reqBody.Invoice.Items[0].Brand)
 		assert.Equal(t, "unknown", reqBody.Invoice.Items[0].Model)
 
 		response := createSuccessResponse()
 		w.Header().Set("Content-Type", "application/json")
-		err := json.NewEncoder(w).Encode(response)
+		err = json.NewEncoder(w).Encode(response)
 		require.NoError(t, err)
 	}))
 	defer server.Close()
@@ -293,13 +298,14 @@ func TestCreate_ProductWithoutBrandAndModel(t *testing.T) {
 func TestCreate_ProductWithEmptyName(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var reqBody invoiceRequest
-		json.NewDecoder(r.Body).Decode(&reqBody)
+		err := json.NewDecoder(r.Body).Decode(&reqBody)
+		require.NoError(t, err)
 
 		assert.Equal(t, "unknown", reqBody.Invoice.Items[0].Description)
 
 		response := createSuccessResponse()
 		w.Header().Set("Content-Type", "application/json")
-		err := json.NewEncoder(w).Encode(response)
+		err = json.NewEncoder(w).Encode(response)
 		require.NoError(t, err)
 	}))
 	defer server.Close()
@@ -325,7 +331,8 @@ func TestCreate_ProductWithEmptyName(t *testing.T) {
 func TestCreate_WithAllowances(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var reqBody invoiceRequest
-		json.NewDecoder(r.Body).Decode(&reqBody)
+		err := json.NewDecoder(r.Body).Decode(&reqBody)
+		require.NoError(t, err)
 
 		require.Len(t, reqBody.Invoice.Items[0].Allowance, 1)
 		assert.Equal(t, "false", reqBody.Invoice.Items[0].Allowance[0].Charge)
@@ -334,7 +341,7 @@ func TestCreate_WithAllowances(t *testing.T) {
 
 		response := createSuccessResponse()
 		w.Header().Set("Content-Type", "application/json")
-		err := json.NewEncoder(w).Encode(response)
+		err = json.NewEncoder(w).Encode(response)
 		require.NoError(t, err)
 	}))
 	defer server.Close()
@@ -368,14 +375,15 @@ func TestCreate_WithAllowances(t *testing.T) {
 func TestCreate_WithICOTax(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var reqBody invoiceRequest
-		json.NewDecoder(r.Body).Decode(&reqBody)
+		err := json.NewDecoder(r.Body).Decode(&reqBody)
+		require.NoError(t, err)
 
 		require.Len(t, reqBody.Invoice.Items[0].Taxes, 1)
 		assert.Equal(t, "04", reqBody.Invoice.Items[0].Taxes[0].ID)
 
 		response := createSuccessResponse()
 		w.Header().Set("Content-Type", "application/json")
-		err := json.NewEncoder(w).Encode(response)
+		err = json.NewEncoder(w).Encode(response)
 		require.NoError(t, err)
 	}))
 	defer server.Close()
@@ -408,7 +416,8 @@ func TestGet_Success(t *testing.T) {
 		assert.Equal(t, "/facturacion.v30/invoice/", r.URL.Path)
 
 		var reqBody verifyStatusRequest
-		json.NewDecoder(r.Body).Decode(&reqBody)
+		err := json.NewDecoder(r.Body).Decode(&reqBody)
+		require.NoError(t, err)
 		assert.Equal(t, "TAS123456", reqBody.VerifyStatus.Tascode)
 
 		response := verifyStatusResponse{
@@ -423,7 +432,7 @@ func TestGet_Success(t *testing.T) {
 			},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		err := json.NewEncoder(w).Encode(response)
+		err = json.NewEncoder(w).Encode(response)
 		require.NoError(t, err)
 	}))
 	defer server.Close()
@@ -441,7 +450,8 @@ func TestGet_Success(t *testing.T) {
 func TestGet_HTTPError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal Server Error"))
+		_, err := w.Write([]byte("Internal Server Error"))
+		require.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -549,13 +559,14 @@ func TestCreate_WithDifferentPaymentCodes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				var reqBody invoiceRequest
-				json.NewDecoder(r.Body).Decode(&reqBody)
+				err := json.NewDecoder(r.Body).Decode(&reqBody)
+				require.NoError(t, err)
 
 				assert.Equal(t, tt.expected, reqBody.Invoice.PaymentCode)
 
 				response := createSuccessResponse()
 				w.Header().Set("Content-Type", "application/json")
-				err := json.NewEncoder(w).Encode(response)
+				err = json.NewEncoder(w).Encode(response)
 				require.NoError(t, err)
 			}))
 			defer server.Close()

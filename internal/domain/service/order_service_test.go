@@ -22,15 +22,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const openBillID1 = "open-bill-1"
-const billID1 = "bill-1"
-const billID2 = "bill-2"
-const productID1 = "product-1"
-const uuidPlaceholder0 = "550e8400-e29b-41d4-a716-446655440000"
-const uuidPlaceholder1 = "550e8400-e29b-41d4-a716-446655440001"
-const uuidPlaceholder2 = "550e8400-e29b-41d4-a716-446655440002"
-const uuidPlaceholder3 = "550e8400-e29b-41d4-a716-446655440003"
-const productID2 = "product-2"
+const (
+	openBillID1      = "open-bill-1"
+	billID1          = "bill-1"
+	billID2          = "bill-2"
+	productID1       = "product-1"
+	productID2       = "product-2"
+	uuidPlaceholder0 = "550e8400-e29b-41d4-a716-446655440000"
+	uuidPlaceholder1 = "550e8400-e29b-41d4-a716-446655440001"
+	uuidPlaceholder2 = "550e8400-e29b-41d4-a716-446655440002"
+	uuidPlaceholder3 = "550e8400-e29b-41d4-a716-446655440003"
+)
 
 // MockProductRepository is a mock implementation of ports.ProductRepository
 type MockProductRepository struct {

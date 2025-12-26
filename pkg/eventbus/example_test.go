@@ -32,7 +32,11 @@ func Example() {
 	logger := watermill.NopLogger{}
 
 	eventBus := eventbus.NewGoChannelEventBus(logger)
-	defer eventBus.Close()
+	defer func() {
+		if err := eventBus.Close(); err != nil {
+			panic(err)
+		}
+	}()
 
 	subscriber, err := eventbus.NewGoChannelEventSubscriber(eventBus.PubSub(), logger)
 	if err != nil {
@@ -49,12 +53,12 @@ func Example() {
 		},
 	)
 
-	if err := subscriber.Subscribe(handler); err != nil {
+	if err = subscriber.Subscribe(handler); err != nil {
 		panic(err)
 	}
 
 	go func() {
-		if err := subscriber.Start(ctx); err != nil {
+		if err = subscriber.Start(ctx); err != nil {
 			fmt.Printf("Subscriber error: %v\n", err)
 		}
 	}()
@@ -72,11 +76,14 @@ func Example() {
 		TotalAmount: 150.00,
 	}
 
-	if err := eventBus.Publish(ctx, event); err != nil {
+	if err = eventBus.Publish(ctx, event); err != nil {
 		panic(err)
 	}
 
 	time.Sleep(100 * time.Millisecond)
 
-	subscriber.Close()
+	err = subscriber.Close()
+	if err != nil {
+		panic(err)
+	}
 }
