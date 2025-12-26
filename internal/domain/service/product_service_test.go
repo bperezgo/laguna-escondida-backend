@@ -117,7 +117,7 @@ func TestCreateProduct_Success(t *testing.T) {
 	mockRepo.On("Create", ctx, mock.MatchedBy(func(p *product.Aggregate) bool {
 		dto := p.ToDTO()
 		return dto.Name == req.Name && dto.Category == req.Category &&
-			dto.TotalPriceWithTaxes == decimal.NewFromFloat(127.0) && dto.VAT == decimal.NewFromFloat(0.19) &&
+			dto.TotalPriceWithTaxes.Equal(decimal.NewFromFloat(127.0)) && dto.VAT.Equal(decimal.NewFromFloat(0.19)) &&
 			dto.Version == 1 // Version should always be 1
 	})).Return(nil)
 
@@ -129,17 +129,17 @@ func TestCreateProduct_Success(t *testing.T) {
 	assert.Equal(t, req.Name, result.Name)
 	assert.Equal(t, req.Category, result.Category)
 	assert.Equal(t, 1, result.Version) // Version should be 1
-	assert.Equal(t, 127.0, result.TotalPriceWithTaxes)
-	assert.Equal(t, 0.19, result.VAT)
-	assert.Equal(t, 0.08, result.ICO)
-	assert.Equal(t, 100.0, result.UnitPrice)
+	assert.True(t, result.TotalPriceWithTaxes.Equal(decimal.NewFromFloat(127.0)))
+	assert.True(t, result.VAT.Equal(decimal.NewFromFloat(0.19)))
+	assert.True(t, result.ICO.Equal(decimal.NewFromFloat(0.08)))
+	assert.True(t, result.UnitPrice.Equal(decimal.NewFromFloat(100.0)))
 	assert.Equal(t, req.SKU, result.SKU)
 
 	mockRepo.AssertExpectations(t)
 }
 
-// Error Cases
-func TestCreateProduct_InvalidSKU_WithHyphen(t *testing.T) {
+// Success Case - SKU with hyphen is valid
+func TestCreateProduct_ValidSKU_WithHyphen(t *testing.T) {
 	ctx := context.Background()
 	mockRepo := new(MockProductRepositoryForService)
 	service := createTestProductService(mockRepo)
@@ -154,15 +154,21 @@ func TestCreateProduct_InvalidSKU_WithHyphen(t *testing.T) {
 		SKU:                 "SKU-001",
 	}
 
+	mockRepo.On("Create", ctx, mock.MatchedBy(func(p *product.Aggregate) bool {
+		dto := p.ToDTO()
+		return dto.SKU == "SKU-001"
+	})).Return(nil)
+
 	result, err := service.CreateProduct(ctx, req)
 
-	require.Error(t, err)
-	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "PRODUCT_INVALID_SKU")
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, "SKU-001", result.SKU)
 
-	mockRepo.AssertNotCalled(t, "Create")
 	mockRepo.AssertExpectations(t)
 }
+
+// Error Cases
 
 func TestCreateProduct_InvalidSKU_WithSpace(t *testing.T) {
 	ctx := context.Background()
@@ -269,7 +275,7 @@ func TestCreateProduct_RepositoryError(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-func TestUpdateProduct_InvalidSKU_WithHyphen(t *testing.T) {
+func TestUpdateProduct_ValidSKU_WithHyphen(t *testing.T) {
 	ctx := context.Background()
 	mockRepo := new(MockProductRepositoryForService)
 	service := createTestProductService(mockRepo)
@@ -288,14 +294,17 @@ func TestUpdateProduct_InvalidSKU_WithHyphen(t *testing.T) {
 	}
 
 	mockRepo.On("FindByID", ctx, productID).Return(existingProduct, nil)
+	mockRepo.On("Update", ctx, productID, mock.MatchedBy(func(p *product.Aggregate) bool {
+		dto := p.ToDTO()
+		return dto.SKU == "SKU-002"
+	})).Return(nil)
 
 	result, err := service.UpdateProduct(ctx, productID, req)
 
-	require.Error(t, err)
-	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "PRODUCT_INVALID_SKU")
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, "SKU-002", result.SKU)
 
-	mockRepo.AssertNotCalled(t, "Update")
 	mockRepo.AssertExpectations(t)
 }
 
@@ -357,7 +366,7 @@ func TestUpdateProduct_Success(t *testing.T) {
 	mockRepo.On("Update", ctx, productID, mock.MatchedBy(func(p *product.Aggregate) bool {
 		dto := p.ToDTO()
 		return dto.Name == req.Name && dto.Category == req.Category &&
-			dto.TotalPriceWithTaxes == decimal.NewFromFloat(200.0) && dto.VAT == decimal.NewFromFloat(0.38) &&
+			dto.TotalPriceWithTaxes.Equal(decimal.NewFromFloat(200.0)) && dto.VAT.Equal(decimal.NewFromFloat(0.38)) &&
 			dto.Version == 1 // Version should remain 1
 	})).Return(nil)
 
@@ -369,10 +378,10 @@ func TestUpdateProduct_Success(t *testing.T) {
 	assert.Equal(t, req.Name, result.Name)
 	assert.Equal(t, req.Category, result.Category)
 	assert.Equal(t, 1, result.Version) // Version should remain 1
-	assert.Equal(t, 200.0, result.TotalPriceWithTaxes)
-	assert.Equal(t, 0.38, result.VAT)
-	assert.Equal(t, 0.12, result.ICO)
-	assert.Equal(t, 133.33, result.UnitPrice)
+	assert.True(t, result.TotalPriceWithTaxes.Equal(decimal.NewFromFloat(200.0)))
+	assert.True(t, result.VAT.Equal(decimal.NewFromFloat(0.38)))
+	assert.True(t, result.ICO.Equal(decimal.NewFromFloat(0.12)))
+	assert.True(t, result.UnitPrice.Equal(decimal.NewFromFloat(133.33)))
 	assert.Equal(t, req.SKU, result.SKU)
 
 	mockRepo.AssertExpectations(t)

@@ -1,8 +1,9 @@
 package product
 
 import (
-	productError "laguna-escondida/backend/internal/domain/aggregate/product/error"
 	"regexp"
+
+	productError "laguna-escondida/backend/internal/domain/aggregate/product/error"
 )
 
 // SKU represents a Stock Keeping Unit value object

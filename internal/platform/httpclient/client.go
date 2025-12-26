@@ -32,4 +32,3 @@ func NewClient(logger *zap.Logger, opts ...ClientOption) *Client {
 
 	return client
 }
-

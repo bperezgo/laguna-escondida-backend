@@ -194,7 +194,7 @@ func (s *OrderService) PayOrder(ctx context.Context, payOrderCommand command.Pay
 		}
 
 		if payOrderCommand.Customer != nil {
-			if err := s.createOrUpdateBillOwner(txCtx, payOrderCommand.Customer); err != nil {
+			if err = s.createOrUpdateBillOwner(txCtx, payOrderCommand.Customer); err != nil {
 				return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
 			}
 		}
@@ -231,7 +231,8 @@ func (s *OrderService) createOrUpdateBillOwner(ctx context.Context, customerDTO 
 	existingCustomer, err := s.billOwnerRepo.FindByID(ctx, customerDTO.DocumentNumber)
 	if err != nil {
 		if errors.Is(err, orderError.ErrBillOwnerNotFound) {
-			customerAggregate, err := customer.NewCustomerFromDTO(customerDTO)
+			var customerAggregate *customer.Aggregate
+			customerAggregate, err = customer.NewCustomerFromDTO(customerDTO)
 			if err != nil {
 				return fmt.Errorf("failed to create customer aggregate: %w", err)
 			}

@@ -15,7 +15,7 @@ var documentNumberRegex = regexp.MustCompile(`^[0-9\-]+$`)
 
 func NewDocumentNumber(value string) (*DocumentNumber, error) {
 	trimmedValue := strings.TrimSpace(value)
-	
+
 	if trimmedValue == "" {
 		return nil, customerError.NewMissingDocumentNumberError()
 	}
@@ -41,4 +41,3 @@ func (d *DocumentNumber) Equals(other *DocumentNumber) bool {
 	}
 	return d.value == other.value
 }
-

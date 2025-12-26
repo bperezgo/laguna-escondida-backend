@@ -77,7 +77,7 @@ func (s *UserService) SignIn(ctx context.Context, req *dto.SignInRequest) (*dto.
 	}
 
 	userAggregate := user.NewAggregateFromDTO(userDTO)
-	if err := userAggregate.ComparePassword(req.Password); err != nil {
+	if err = userAggregate.ComparePassword(req.Password); err != nil {
 		return nil, domainError.ErrInvalidCredentials
 	}
 

@@ -12,7 +12,7 @@ type Name struct {
 
 func NewName(value string) (*Name, error) {
 	trimmedValue := strings.TrimSpace(value)
-	
+
 	if trimmedValue == "" {
 		return nil, customerError.NewMissingNameError()
 	}
@@ -34,4 +34,3 @@ func (n *Name) Equals(other *Name) bool {
 	}
 	return n.value == other.value
 }
-

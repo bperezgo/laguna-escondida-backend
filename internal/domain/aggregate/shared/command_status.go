@@ -59,4 +59,3 @@ func (s *CommandStatus) IsCompleted() bool {
 func (s *CommandStatus) IsCancelled() bool {
 	return s.value == dto.CommandStatusCancelled
 }
-

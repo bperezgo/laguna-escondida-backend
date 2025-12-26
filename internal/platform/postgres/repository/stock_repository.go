@@ -121,7 +121,7 @@ func (r *StockRepository) BulkCreateOrUpdate(ctx context.Context, stocks []*dto.
 			var existing stockModel
 			err := tx.Where("product_id = ? AND version = ? AND deleted_at IS NULL", stock.ProductID, stock.Version).First(&existing).Error
 			if err == gorm.ErrRecordNotFound {
-				if err := tx.Create(model).Error; err != nil {
+				if err = tx.Create(model).Error; err != nil {
 					return err
 				}
 			} else if err != nil {

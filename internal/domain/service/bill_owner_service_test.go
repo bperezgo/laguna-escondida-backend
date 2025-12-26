@@ -1,11 +1,12 @@
 package service
 
 import (
+	"testing"
+	"time"
+
 	"laguna-escondida/backend/internal/domain/aggregate/customer"
 	"laguna-escondida/backend/internal/domain/dto"
 	orderError "laguna-escondida/backend/internal/domain/error"
-	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -117,4 +118,3 @@ func TestGetByID_MultipleCustomers(t *testing.T) {
 
 	mockRepo.AssertExpectations(t)
 }
-

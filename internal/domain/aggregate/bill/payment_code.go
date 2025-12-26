@@ -1,9 +1,10 @@
 package bill
 
 import (
+	"slices"
+
 	billError "laguna-escondida/backend/internal/domain/aggregate/bill/error"
 	"laguna-escondida/backend/internal/domain/dto"
-	"slices"
 )
 
 type PaymentCode struct {

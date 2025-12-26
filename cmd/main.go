@@ -47,7 +47,7 @@ func main() {
 
 	// Run migrations before connecting to database
 	log.Println("Running database migrations...")
-	if err := runMigrations(dsn); err != nil {
+	if err = runMigrations(dsn); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 
@@ -108,14 +108,14 @@ func main() {
 		dto.OrderCreatedEventName,
 		commandService.HandleOrderCreated,
 	)
-	if err := eventSubscriber.Subscribe(orderCreatedHandler); err != nil {
+	if err = eventSubscriber.Subscribe(orderCreatedHandler); err != nil {
 		log.Fatalf("Failed to subscribe to order created events: %v", err)
 	}
 
 	// Start event subscriber in background
 	go func() {
-		if err := eventSubscriber.Start(context.Background()); err != nil {
-			log.Printf("Event subscriber stopped: %v", err)
+		if errEventSubscriber := eventSubscriber.Start(context.Background()); errEventSubscriber != nil {
+			log.Printf("Event subscriber stopped: %v", errEventSubscriber)
 		}
 	}()
 
@@ -255,7 +255,7 @@ func runMigrations(dsn string) error {
 	}
 	defer m.Close()
 
-	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+	if err = m.Up(); err != nil && err != migrate.ErrNoChange {
 		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 

@@ -8,4 +8,3 @@ var (
 	ErrInvalidProductID         = errors.New("OPEN_BILL_PRODUCT_INVALID_PRODUCT_ID: product_id must be a valid UUID")
 	ErrInvalidQuantity          = errors.New("OPEN_BILL_PRODUCT_INVALID_QUANTITY: quantity must be greater than 0")
 )
-

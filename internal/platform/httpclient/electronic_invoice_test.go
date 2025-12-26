@@ -90,7 +90,8 @@ func TestCreate_Success(t *testing.T) {
 
 		response := createSuccessResponse()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		err := json.NewEncoder(w).Encode(response)
+		require.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -121,7 +122,8 @@ func TestCreate_SuccessWithDefaultCustomer(t *testing.T) {
 
 		response := createSuccessResponse()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		err := json.NewEncoder(w).Encode(response)
+		require.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -153,7 +155,8 @@ func TestCreate_SuccessWithNITCustomer(t *testing.T) {
 
 		response := createSuccessResponse()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		err := json.NewEncoder(w).Encode(response)
+		require.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -209,7 +212,8 @@ func TestCreate_APIError(t *testing.T) {
 			},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		err := json.NewEncoder(w).Encode(response)
+		require.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -262,7 +266,8 @@ func TestCreate_ProductWithoutBrandAndModel(t *testing.T) {
 
 		response := createSuccessResponse()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		err := json.NewEncoder(w).Encode(response)
+		require.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -294,7 +299,8 @@ func TestCreate_ProductWithEmptyName(t *testing.T) {
 
 		response := createSuccessResponse()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		err := json.NewEncoder(w).Encode(response)
+		require.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -328,7 +334,8 @@ func TestCreate_WithAllowances(t *testing.T) {
 
 		response := createSuccessResponse()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		err := json.NewEncoder(w).Encode(response)
+		require.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -368,7 +375,8 @@ func TestCreate_WithICOTax(t *testing.T) {
 
 		response := createSuccessResponse()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		err := json.NewEncoder(w).Encode(response)
+		require.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -415,7 +423,8 @@ func TestGet_Success(t *testing.T) {
 			},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		err := json.NewEncoder(w).Encode(response)
+		require.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -546,7 +555,8 @@ func TestCreate_WithDifferentPaymentCodes(t *testing.T) {
 
 				response := createSuccessResponse()
 				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(response)
+				err := json.NewEncoder(w).Encode(response)
+				require.NoError(t, err)
 			}))
 			defer server.Close()
 

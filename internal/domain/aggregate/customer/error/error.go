@@ -59,4 +59,3 @@ func NewMissingDocumentNumberError() *baseError.BaseError {
 		"document number is required",
 	)
 }
-

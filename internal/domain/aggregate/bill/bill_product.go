@@ -1,8 +1,9 @@
 package bill
 
 import (
-	"laguna-escondida/backend/internal/domain/dto"
 	"time"
+
+	"laguna-escondida/backend/internal/domain/dto"
 
 	"github.com/shopspring/decimal"
 )

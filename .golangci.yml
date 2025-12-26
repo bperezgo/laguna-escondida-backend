@@ -1,0 +1,67 @@
+# golangci-lint configuration (v2.x format)
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+output:
+  formats:
+    text:
+      path: stdout
+      print-issued-lines: true
+      print-linter-name: true
+  sort-order:
+    - linter
+    - file
+
+formatters:
+  enable:
+    - gofmt         # Check if code is formatted
+    - goimports     # Check import order
+
+  settings:
+    goimports:
+      local-prefixes:
+        - laguna-escondida/backend
+
+linters:
+  # Default enabled: errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - misspell      # Fix spelling errors
+    - unconvert     # Remove unnecessary type conversions
+    - revive        # Fast, configurable, extensible linter
+    - gosec         # Security checks
+    - bodyclose     # Check for HTTP body close
+    - nilerr        # Finds code that returns nil even if it checks err != nil
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: false
+    
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment # Can be too strict for DTOs
+    
+    misspell:
+      ignore-rules:
+        - Corporativo
+        # Add other Spanish words that are being flagged
+    
+    revive:
+      rules:
+        - name: exported
+          disabled: true # Allows unexported return types
+        - name: package-comments
+          disabled: true
+
+    gosec:
+      excludes:
+        - G104 # Audit errors not checked (handled by errcheck)
+
+issues:
+  max-issues-per-linter: 50
+  max-same-issues: 3

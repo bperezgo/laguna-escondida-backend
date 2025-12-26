@@ -15,7 +15,7 @@ var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-
 
 func NewEmail(value string) (*Email, error) {
 	trimmedValue := strings.TrimSpace(value)
-	
+
 	if trimmedValue == "" {
 		return nil, customerError.NewMissingEmailError()
 	}
@@ -41,4 +41,3 @@ func (e *Email) Equals(other *Email) bool {
 	}
 	return e.value == other.value
 }
-

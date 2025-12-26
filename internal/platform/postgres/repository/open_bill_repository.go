@@ -386,8 +386,8 @@ func (r *OpenBillRepository) PayOrder(ctx context.Context, openBillID string) (*
 	var bill *dto.Bill
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Fetch the open bill
-		var openBillModel openBillModel
-		if err := tx.Where("id = ? AND deleted_at IS NULL", openBillID).First(&openBillModel).Error; err != nil {
+		var openBillModelInstance openBillModel
+		if err := tx.Where("id = ? AND deleted_at IS NULL", openBillID).First(&openBillModelInstance).Error; err != nil {
 			return err
 		}
 
@@ -399,7 +399,7 @@ func (r *OpenBillRepository) PayOrder(ctx context.Context, openBillID string) (*
 
 		now := time.Now()
 		billModel := &billModel{
-			TotalAmount:    openBillModel.TotalAmount,
+			TotalAmount:    openBillModelInstance.TotalAmount,
 			DiscountAmount: decimal.Zero,
 			VAT:            decimal.Zero,
 			ICO:            decimal.Zero,

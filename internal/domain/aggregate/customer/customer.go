@@ -1,8 +1,9 @@
 package customer
 
 import (
-	"laguna-escondida/backend/internal/domain/dto"
 	"time"
+
+	"laguna-escondida/backend/internal/domain/dto"
 )
 
 type Aggregate struct {

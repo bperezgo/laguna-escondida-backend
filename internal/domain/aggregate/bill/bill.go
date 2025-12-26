@@ -1,9 +1,10 @@
 package bill
 
 import (
+	"time"
+
 	billError "laguna-escondida/backend/internal/domain/aggregate/bill/error"
 	"laguna-escondida/backend/internal/domain/dto"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/samber/lo"

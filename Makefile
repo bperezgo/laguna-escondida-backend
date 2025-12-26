@@ -25,3 +25,24 @@ lint:
 lint-fix:
 	@echo "Running linter with auto-fix"
 	golangci-lint run --timeout=5m --fix
+
+# Pre-push validation (runs both lint and tests)
+pre-push:
+	@echo "Running pre-push checks..."
+	@$(MAKE) lint
+	@$(MAKE) test
+	@echo "All checks passed!"
+
+# Install git hooks
+install-hooks:
+	@echo "Installing git hooks..."
+	@chmod +x scripts/hooks/*
+	@cp scripts/hooks/pre-push .git/hooks/pre-push
+	@chmod +x .git/hooks/pre-push
+	@echo "Git hooks installed successfully!"
+
+# Uninstall git hooks
+uninstall-hooks:
+	@echo "Uninstalling git hooks..."
+	@rm -f .git/hooks/pre-push
+	@echo "Git hooks uninstalled!"

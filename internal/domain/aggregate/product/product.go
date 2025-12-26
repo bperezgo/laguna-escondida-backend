@@ -1,9 +1,10 @@
 package product
 
 import (
+	"time"
+
 	productError "laguna-escondida/backend/internal/domain/aggregate/product/error"
 	"laguna-escondida/backend/internal/domain/dto"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"

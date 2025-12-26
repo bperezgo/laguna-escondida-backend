@@ -7,16 +7,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"laguna-escondida/backend/internal/domain/dto"
-	"laguna-escondida/backend/internal/platform/config"
-	"laguna-escondida/backend/internal/platform/shared/utils"
 	"net/http"
 	"strconv"
 	"time"
 
+	"laguna-escondida/backend/internal/domain/dto"
+	"laguna-escondida/backend/internal/platform/config"
+	"laguna-escondida/backend/internal/platform/shared/utils"
+
 	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
 )
+
+const unknown = "unknown"
 
 type ElectronicInvoiceClient struct {
 	client   *Client
@@ -261,15 +264,15 @@ func (c *ElectronicInvoiceClient) Create(
 				name := billProduct.Name
 
 				if name == "" {
-					name = "unknown"
+					name = unknown
 				}
 
-				brand := "unknown"
+				brand := unknown
 				if billProduct.Brand != nil {
 					brand = *billProduct.Brand
 				}
 
-				model := "unknown"
+				model := unknown
 				if billProduct.Model != nil {
 					model = *billProduct.Model
 				}

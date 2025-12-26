@@ -1,9 +1,10 @@
 package user
 
 import (
+	"time"
+
 	userError "laguna-escondida/backend/internal/domain/aggregate/user/error"
 	"laguna-escondida/backend/internal/domain/dto"
-	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"

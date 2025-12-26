@@ -2,13 +2,14 @@ package repository
 
 import (
 	"context"
+	"time"
+
 	"laguna-escondida/backend/internal/domain/aggregate/bill"
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
 	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/postgres"
 	"laguna-escondida/backend/internal/platform/shared/constants"
-	"time"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -80,7 +81,7 @@ func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, produ
 				UpdatedAt:          now,
 			}
 
-			if err := tx.Clauses(clause.OnConflict{
+			if err = tx.Clauses(clause.OnConflict{
 				Columns: []clause.Column{{Name: "id"}},
 				DoUpdates: clause.Assignments(map[string]any{
 					"email":               billOwner.Email,
@@ -93,7 +94,7 @@ func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, produ
 			}
 		}
 
-		if err := tx.Create(billModel).Error; err != nil {
+		if err = tx.Create(billModel).Error; err != nil {
 			return err
 		}
 
@@ -104,7 +105,7 @@ func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, produ
 				CreatedAt: time.Now(),
 				UpdatedAt: time.Now(),
 			}
-			if err := tx.Create(billProduct).Error; err != nil {
+			if err = tx.Create(billProduct).Error; err != nil {
 				return err
 			}
 		}
@@ -117,11 +118,10 @@ func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, produ
 			Products:    products,
 		}
 
-		apiResponse, err := r.electronicInvoiceClient.Create(ctx, req)
+		response, err = r.electronicInvoiceClient.Create(ctx, req)
 		if err != nil {
 			return err
 		}
-		response = apiResponse
 
 		return nil
 	})
@@ -146,21 +146,21 @@ func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, produ
 }
 
 func (r *BillRepository) FindByID(ctx context.Context, id string) (*dto.Bill, error) {
-	var billModel billModel
-	if err := r.db.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", id).First(&billModel).Error; err != nil {
+	var bm billModel
+	if err := r.db.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", id).First(&bm).Error; err != nil {
 		return nil, err
 	}
 
 	return &dto.Bill{
-		ID:             billModel.ID,
-		TotalAmount:    billModel.TotalAmount,
-		DiscountAmount: billModel.DiscountAmount,
-		VAT:            billModel.VAT,
-		ICO:            billModel.ICO,
-		Tip:            billModel.Tip,
-		DocumentURL:    billModel.DocumentURL,
-		CreatedAt:      billModel.CreatedAt,
-		UpdatedAt:      billModel.UpdatedAt,
+		ID:             bm.ID,
+		TotalAmount:    bm.TotalAmount,
+		DiscountAmount: bm.DiscountAmount,
+		VAT:            bm.VAT,
+		ICO:            bm.ICO,
+		Tip:            bm.Tip,
+		DocumentURL:    bm.DocumentURL,
+		CreatedAt:      bm.CreatedAt,
+		UpdatedAt:      bm.UpdatedAt,
 	}, nil
 }
 
