@@ -21,6 +21,54 @@ type Aggregate struct {
 	updatedAt          time.Time
 }
 
+func NewCommand(
+	id string,
+	openBillID string,
+	temporalIdentifier string,
+	createdBy *dto.OpenBillCreator,
+	area string,
+	items []*command_item.Aggregate,
+	createdAt time.Time,
+	updatedAt time.Time,
+) (*Aggregate, error) {
+	if id == "" {
+		return nil, commandError.NewMissingIDError()
+	}
+
+	if openBillID == "" {
+		return nil, commandError.NewMissingOpenBillIDError()
+	}
+
+	if temporalIdentifier == "" {
+		return nil, commandError.NewMissingTemporalIdentifierError()
+	}
+
+	if area == "" {
+		return nil, commandError.NewMissingAreaError()
+	}
+
+	if len(items) == 0 {
+		return nil, commandError.NewNoItemsError()
+	}
+
+	status, err := shared.NewCommandStatus(dto.CommandStatusCreated)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Aggregate{
+		id:                 id,
+		openBillID:         openBillID,
+		temporalIdentifier: temporalIdentifier,
+		createdBy:          createdBy,
+		area:               area,
+		status:             status,
+		items:              items,
+		createdAt:          createdAt,
+		updatedAt:          updatedAt,
+	}, nil
+}
+
 func NewCommandFromDTO(cmd *dto.Command) (*Aggregate, error) {
 	if cmd.ID == "" {
 		return nil, commandError.NewMissingIDError()

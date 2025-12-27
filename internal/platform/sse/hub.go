@@ -67,7 +67,7 @@ func (h *Hub) Broadcast(area string, event Event) {
 	}
 }
 
-func (h *Hub) NotifyArea(ctx context.Context, area string, eventType string, data interface{}) error {
+func (h *Hub) NotifyArea(ctx context.Context, area string, eventType string, data any) error {
 	event := Event{
 		Type: eventType,
 		Data: data,

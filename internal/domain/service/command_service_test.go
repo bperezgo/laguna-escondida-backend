@@ -12,13 +12,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 // Test helpers
 func createTestCommandService(t *testing.T) (*CommandService, *mocks.MockCommandRepository) {
 	mockRepo := mocks.NewMockCommandRepository(t)
+	logger := zap.NewNop()
 	service := &CommandService{
+		logger:      logger,
 		commandRepo: mockRepo,
 	}
 	return service, mockRepo

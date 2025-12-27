@@ -97,7 +97,7 @@ func main() {
 
 	// Initialize services
 	unitOfWork := postgres.NewUnitOfWork(db.DB)
-	commandService := service.NewCommandService(commandRepo, productRepo, userRepo, sseHub)
+	commandService := service.NewCommandService(logger, commandRepo, userRepo, sseHub)
 	orderService := service.NewOrderService(openBillRepo, productRepo, billRepo, billOwnerRepo, invoiceService, unitOfWork, eventBusImpl)
 	productService := service.NewProductService(productRepo)
 	stockService := service.NewStockService(stockRepo, productRepo)

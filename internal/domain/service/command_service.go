@@ -5,32 +5,35 @@ import (
 	"fmt"
 	"time"
 
+	"laguna-escondida/backend/internal/domain/aggregate/command"
+	"laguna-escondida/backend/internal/domain/aggregate/command_item"
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 const CommandCreatedEventType = "command.created"
 
 type CommandService struct {
+	logger      *zap.Logger
 	commandRepo ports.CommandRepository
-	productRepo ports.ProductRepository
 	userRepo    ports.UserRepository
 	sseNotifier ports.SSENotifier
 }
 
 func NewCommandService(
+	logger *zap.Logger,
 	commandRepo ports.CommandRepository,
-	productRepo ports.ProductRepository,
 	userRepo ports.UserRepository,
 	sseNotifier ports.SSENotifier,
 ) *CommandService {
 	return &CommandService{
+		logger:      logger,
 		commandRepo: commandRepo,
-		productRepo: productRepo,
 		userRepo:    userRepo,
 		sseNotifier: sseNotifier,
 	}
@@ -55,11 +58,6 @@ func (s *CommandService) HandleOrderCreated(ctx context.Context, event dto.Order
 		return nil
 	}
 
-	products, err := s.productRepo.FindByIDs(ctx, productIDs)
-	if err != nil {
-		return fmt.Errorf("failed to get products: %w", err)
-	}
-
 	var createdBy *dto.OpenBillCreator
 	if event.CreatedByID != "" {
 		user, err := s.userRepo.FindByID(ctx, event.CreatedByID)
@@ -72,61 +70,57 @@ func (s *CommandService) HandleOrderCreated(ctx context.Context, event dto.Order
 		}
 	}
 
-	productMap := make(map[string]*dto.Product)
-	for _, p := range products {
-		productMap[p.ID] = p
+	responsibilityMap := make(map[string]*dto.ProductPreparationResponsibilityWithProduct)
+	for i := range responsibilities {
+		responsibilityMap[responsibilities[i].ProductID] = &responsibilities[i]
 	}
 
-	productQuantityMap := make(map[string]int)
-	productNotesMap := make(map[string]*string)
+	areaItemsMap := make(map[string][]*command_item.Aggregate)
 	for _, p := range event.Products {
-		productQuantityMap[p.ProductID] = p.Quantity
-		productNotesMap[p.ProductID] = p.Notes
-	}
-
-	areaProductMap := make(map[string][]string)
-	for _, r := range responsibilities {
-		areaProductMap[r.Area] = append(areaProductMap[r.Area], r.ProductID)
-	}
-
-	now := time.Now()
-	for area, areaProductIDs := range areaProductMap {
-		items := make([]dto.CommandItem, 0, len(areaProductIDs))
-		for _, productID := range areaProductIDs {
-			product, exists := productMap[productID]
-			if !exists {
-				continue
-			}
-			items = append(items, dto.CommandItem{
-				ID:          uuid.New().String(),
-				ProductID:   productID,
-				ProductName: product.Name,
-				Quantity:    productQuantityMap[productID],
-				Notes:       productNotesMap[productID],
-			})
-		}
-
-		if len(items) == 0 {
+		responsibility, exists := responsibilityMap[p.ProductID]
+		// This will remove all the products without an assigned area, we will just create the command for the products with an assigned area
+		if !exists {
 			continue
 		}
 
-		command := &dto.Command{
-			ID:                 uuid.New().String(),
-			OpenBillID:         event.OpenBillID,
-			TemporalIdentifier: event.TemporalIdentifier,
-			CreatedBy:          createdBy,
-			Area:               area,
-			Status:             dto.CommandStatusCreated,
-			Items:              items,
-			CreatedAt:          now,
-			UpdatedAt:          now,
+		item, err := command_item.NewCommandItem(
+			uuid.New().String(),
+			p.OpenBillProductID,
+			p.ProductID,
+			responsibility.ProductName,
+			p.Quantity,
+			p.Notes,
+			responsibility.Priority,
+		)
+		if err != nil {
+			s.logger.Error("failed to create command item", zap.Error(err))
+			continue
 		}
 
-		if err := s.commandRepo.Create(ctx, command); err != nil {
+		areaItemsMap[responsibility.Area] = append(areaItemsMap[responsibility.Area], item)
+	}
+
+	now := time.Now()
+	for area, items := range areaItemsMap {
+		cmd, err := command.NewCommand(
+			uuid.New().String(),
+			event.OpenBillID,
+			event.TemporalIdentifier,
+			createdBy,
+			area,
+			items,
+			now,
+			now,
+		)
+		if err != nil {
 			return fmt.Errorf("failed to create command for area %s: %w", area, err)
 		}
 
-		if err := s.sseNotifier.NotifyArea(ctx, area, CommandCreatedEventType, command); err != nil {
+		if err := s.commandRepo.Create(ctx, cmd); err != nil {
+			return fmt.Errorf("failed to create command for area %s: %w", area, err)
+		}
+
+		if err := s.sseNotifier.NotifyArea(ctx, area, CommandCreatedEventType, cmd.ToDTO()); err != nil {
 			return fmt.Errorf("failed to notify area %s: %w", area, err)
 		}
 	}

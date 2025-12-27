@@ -17,6 +17,49 @@ type Aggregate struct {
 	priority          *Priority
 }
 
+func NewCommandItem(
+	id string,
+	openBillProductID string,
+	productID string,
+	productName string,
+	quantity int,
+	notes *string,
+	priorityValue int,
+) (*Aggregate, error) {
+	if id == "" {
+		return nil, commandItemError.NewMissingIDError()
+	}
+
+	if openBillProductID == "" {
+		return nil, commandItemError.NewMissingOpenBillProductIDError()
+	}
+
+	if productID == "" {
+		return nil, commandItemError.NewMissingProductIDError()
+	}
+
+	status, err := shared.NewCommandStatus(dto.CommandStatusCreated)
+	if err != nil {
+		return nil, err
+	}
+
+	priority, err := NewPriority(priorityValue)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Aggregate{
+		id:                id,
+		openBillProductID: openBillProductID,
+		productID:         productID,
+		productName:       productName,
+		quantity:          quantity,
+		notes:             notes,
+		status:            status,
+		priority:          priority,
+	}, nil
+}
+
 func NewCommandItemFromDTO(item *dto.CommandItem) (*Aggregate, error) {
 	if item.ID == "" {
 		return nil, commandItemError.NewMissingIDError()

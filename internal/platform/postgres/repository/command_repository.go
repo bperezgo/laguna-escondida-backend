@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"laguna-escondida/backend/internal/domain/aggregate/command"
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
 	"laguna-escondida/backend/internal/platform/postgres"
@@ -33,48 +34,53 @@ func (commandModel) TableName() string {
 }
 
 type commandItemModel struct {
-	ID        string    `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	CommandID string    `gorm:"type:uuid;not null"`
-	ProductID string    `gorm:"type:uuid;not null"`
-	Quantity  int       `gorm:"type:integer;not null;default:1"`
-	Notes     *string   `gorm:"type:text"`
-	CreatedAt time.Time `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	ID                string    `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	CommandID         string    `gorm:"type:uuid;not null"`
+	ProductID         string    `gorm:"type:uuid;not null"`
+	OpenBillProductID string    `gorm:"type:uuid;not null;references:open_bills_products(id)"`
+	Priority          int       `gorm:"type:integer;not null;default:0"`
+	Status            string    `gorm:"type:varchar(50);not null;default:created"`
+	Quantity          int       `gorm:"type:integer;not null;default:1"`
+	Notes             *string   `gorm:"type:text"`
+	CreatedAt         time.Time `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
 }
 
 func (commandItemModel) TableName() string {
 	return "command_items"
 }
 
-func (r *CommandRepository) Create(ctx context.Context, command *dto.Command) error {
+func (r *CommandRepository) Create(ctx context.Context, cmd *command.Aggregate) error {
 	db := postgres.GetTxOrDB(ctx, r.db)
 
 	return db.Transaction(func(tx *gorm.DB) error {
 		model := &commandModel{
-			ID:         command.ID,
-			OpenBillID: command.OpenBillID,
-			Area:       command.Area,
-			Status:     string(command.Status),
-			CreatedAt:  command.CreatedAt,
-			UpdatedAt:  command.UpdatedAt,
+			ID:         cmd.ID(),
+			OpenBillID: cmd.OpenBillID(),
+			Area:       cmd.Area(),
+			Status:     string(cmd.Status()),
+			CreatedAt:  cmd.CreatedAt(),
+			UpdatedAt:  cmd.UpdatedAt(),
 		}
 
 		if err := tx.Create(model).Error; err != nil {
 			return err
 		}
 
-		for i := range command.Items {
+		for _, item := range cmd.Items() {
 			itemModel := &commandItemModel{
-				ID:        command.Items[i].ID,
-				CommandID: command.ID,
-				ProductID: command.Items[i].ProductID,
-				Quantity:  command.Items[i].Quantity,
-				Notes:     command.Items[i].Notes,
-				CreatedAt: command.CreatedAt,
+				ID:                item.ID(),
+				CommandID:         cmd.ID(),
+				ProductID:         item.ProductID(),
+				OpenBillProductID: item.OpenBillProductID(),
+				Priority:          item.Priority(),
+				Status:            string(item.Status()),
+				Quantity:          item.Quantity(),
+				Notes:             item.Notes(),
+				CreatedAt:         cmd.CreatedAt(),
 			}
 			if err := tx.Create(itemModel).Error; err != nil {
 				return err
 			}
-			command.Items[i].ID = itemModel.ID
 		}
 
 		return nil
@@ -235,11 +241,14 @@ func (r *CommandRepository) findCommandsByAreaAndStatus(db *gorm.DB, area string
 
 func (r *CommandRepository) findItemsByCommandID(db *gorm.DB, commandID string) ([]dto.CommandItem, error) {
 	type itemResult struct {
-		ID          string
-		ProductID   string
-		ProductName string
-		Quantity    int
-		Notes       *string
+		ID                string
+		ProductID         string
+		ProductName       string
+		Quantity          int
+		Notes             *string
+		OpenBillProductID string
+		Priority          int
+		Status            dto.CommandStatus
 	}
 
 	var itemResults []itemResult
@@ -249,7 +258,10 @@ func (r *CommandRepository) findItemsByCommandID(db *gorm.DB, commandID string) 
 			command_items.product_id,
 			products.name as product_name,
 			command_items.quantity,
-			command_items.notes
+			command_items.notes,
+			command_items.open_bill_product_id,
+			command_items.priority,
+			command_items.status
 		`).
 		Joins("INNER JOIN products ON command_items.product_id = products.id").
 		Where("command_items.command_id = ?", commandID).
@@ -262,11 +274,14 @@ func (r *CommandRepository) findItemsByCommandID(db *gorm.DB, commandID string) 
 	items := make([]dto.CommandItem, len(itemResults))
 	for i, ir := range itemResults {
 		items[i] = dto.CommandItem{
-			ID:          ir.ID,
-			ProductID:   ir.ProductID,
-			ProductName: ir.ProductName,
-			Quantity:    ir.Quantity,
-			Notes:       ir.Notes,
+			ID:                ir.ID,
+			ProductID:         ir.ProductID,
+			ProductName:       ir.ProductName,
+			Quantity:          ir.Quantity,
+			Notes:             ir.Notes,
+			OpenBillProductID: ir.OpenBillProductID,
+			Priority:          ir.Priority,
+			Status:            ir.Status,
 		}
 	}
 
@@ -291,22 +306,39 @@ func (r *CommandRepository) UpdateStatus(ctx context.Context, id string, status 
 	return nil
 }
 
-func (r *CommandRepository) GetProductPreparationResponsibilities(ctx context.Context, productIDs []string) ([]ports.ProductPreparationResponsibility, error) {
+func (r *CommandRepository) GetProductPreparationResponsibilities(ctx context.Context, productIDs []string) ([]dto.ProductPreparationResponsibilityWithProduct, error) {
 	db := postgres.GetTxOrDB(ctx, r.db)
 
-	var models []productPreparationResponsibilityModel
-	err := db.Where("product_id IN ? AND deleted_at IS NULL", productIDs).
-		Find(&models).Error
+	type result struct {
+		ProductID   string
+		ProductName string
+		Area        string
+		Priority    int
+	}
+
+	var results []result
+	err := db.Table("product_preparation_responsibilities").
+		Select(`
+			product_preparation_responsibilities.product_id,
+			products.name as product_name,
+			product_preparation_responsibilities.area,
+			product_preparation_responsibilities.priority
+		`).
+		Joins("INNER JOIN products ON product_preparation_responsibilities.product_id = products.id").
+		Where("product_preparation_responsibilities.product_id IN ? AND product_preparation_responsibilities.deleted_at IS NULL", productIDs).
+		Scan(&results).Error
 
 	if err != nil {
 		return nil, err
 	}
 
-	responsibilities := make([]ports.ProductPreparationResponsibility, len(models))
-	for i, m := range models {
-		responsibilities[i] = ports.ProductPreparationResponsibility{
-			ProductID: m.ProductID,
-			Area:      m.Area,
+	responsibilities := make([]dto.ProductPreparationResponsibilityWithProduct, len(results))
+	for i, r := range results {
+		responsibilities[i] = dto.ProductPreparationResponsibilityWithProduct{
+			ProductID:   r.ProductID,
+			ProductName: r.ProductName,
+			Area:        r.Area,
+			Priority:    r.Priority,
 		}
 	}
 
