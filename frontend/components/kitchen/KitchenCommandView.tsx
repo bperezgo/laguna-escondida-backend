@@ -5,7 +5,7 @@ import CommandCard from "./CommandCard";
 import { completeCommand } from "@/lib/api/commands";
 import type { Command } from "@/types/command";
 
-export default function KitchenPageClient() {
+export default function KitchenCommandView() {
   const [commands, setCommands] = useState<Command[]>([]);
   const [isConnecting, setIsConnecting] = useState(true);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -38,10 +38,9 @@ export default function KitchenPageClient() {
         }
       };
 
-      // Handler for pending commands
       const handleCreatedCommand = (event: MessageEvent) => {
         try {
-          console.log("command.pending event:", event.data);
+          console.log("command.created event:", event.data);
           const command: Command = JSON.parse(event.data);
 
           setCommands((prev) => {
@@ -64,11 +63,10 @@ export default function KitchenPageClient() {
             return updated;
           });
         } catch (error) {
-          console.error("Error parsing command.pending event:", error);
+          console.error("Error parsing command.created event:", error);
         }
       };
 
-      // Handler for completed commands
       const handleCompletedCommand = (event: MessageEvent) => {
         try {
           const command: Command = JSON.parse(event.data);
@@ -78,7 +76,6 @@ export default function KitchenPageClient() {
         }
       };
 
-      // Handler for cancelled commands
       const handleCancelledCommand = (event: MessageEvent) => {
         try {
           const command: Command = JSON.parse(event.data);
@@ -333,7 +330,7 @@ export default function KitchenPageClient() {
         )}
       </div>
 
-      {/* Pulse animation for connection indicator */}
+      {/* Animations */}
       <style jsx global>{`
         @keyframes pulse {
           0%,
@@ -342,6 +339,14 @@ export default function KitchenPageClient() {
           }
           50% {
             opacity: 0.4;
+          }
+        }
+        @keyframes spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
           }
         }
       `}</style>
