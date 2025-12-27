@@ -282,5 +282,10 @@ func (s *OrderService) DeleteOrder(ctx context.Context, openBillID string) error
 		return fmt.Errorf("%w: %w", orderError.ErrOrderDeletionFailed, err)
 	}
 
+	event := dto.NewOrderDeletedEvent(openBillID)
+	if err := s.eventBus.Publish(ctx, event); err != nil {
+		fmt.Printf("failed to publish order deleted event: %v\n", err)
+	}
+
 	return nil
 }

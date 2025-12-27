@@ -7,6 +7,7 @@ import (
 )
 
 const OrderCreatedEventName = "order.created"
+const OrderDeletedEventName = "order.deleted"
 
 type OrderCreatedEventProduct struct {
 	OpenBillProductID string  `json:"open_bill_product_id"`
@@ -46,5 +47,23 @@ func NewOrderCreatedEvent(
 		CreatedByID:        createdByID,
 		Products:           eventProducts,
 		OccurredAt:         time.Now(),
+	}
+}
+
+type OrderDeletedEvent struct {
+	EventID    string    `json:"event_id"`
+	OpenBillID string    `json:"open_bill_id"`
+	OccurredAt time.Time `json:"occurred_at"`
+}
+
+func (e OrderDeletedEvent) EventName() string {
+	return OrderDeletedEventName
+}
+
+func NewOrderDeletedEvent(openBillID string) OrderDeletedEvent {
+	return OrderDeletedEvent{
+		EventID:    uuid.NewString(),
+		OpenBillID: openBillID,
+		OccurredAt: time.Now(),
 	}
 }

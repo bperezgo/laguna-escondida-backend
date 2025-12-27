@@ -15,6 +15,7 @@ import (
 )
 
 const CommandCreatedEventType = "command.created"
+const CommandCancelledEventType = "command.cancelled"
 
 type CommandService struct {
 	logger      *zap.Logger
@@ -166,4 +167,32 @@ func (s *CommandService) CompleteCommandItem(ctx context.Context, itemID string)
 	}
 
 	return cmd.ToDTO(), nil
+}
+
+func (s *CommandService) HandleOrderDeleted(ctx context.Context, event dto.OrderDeletedEvent) error {
+	cmd, err := s.commandRepo.FindByOpenBillID(ctx, event.OpenBillID)
+	if err != nil {
+		return fmt.Errorf("failed to find command for open bill: %w", err)
+	}
+
+	if cmd.IsCancelled() || cmd.IsCompleted() {
+		return nil
+	}
+
+	if err := cmd.CancelAllItems(); err != nil {
+		return fmt.Errorf("failed to cancel command items: %w", err)
+	}
+
+	if err := s.commandRepo.Update(ctx, cmd); err != nil {
+		return fmt.Errorf("failed to update cancelled command: %w", err)
+	}
+
+	if err := s.sseNotifier.NotifyArea(ctx, cmd.Area(), CommandCancelledEventType, cmd.ToDTO()); err != nil {
+		s.logger.Error("failed to notify area about cancelled command",
+			zap.String("area", cmd.Area()),
+			zap.Error(err),
+		)
+	}
+
+	return nil
 }

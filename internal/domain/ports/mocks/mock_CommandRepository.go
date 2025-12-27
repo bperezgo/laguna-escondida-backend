@@ -248,6 +248,65 @@ func (_c *MockCommandRepository_FindByItemID_Call) RunAndReturn(run func(context
 	return _c
 }
 
+// FindByOpenBillID provides a mock function with given fields: ctx, openBillID
+func (_m *MockCommandRepository) FindByOpenBillID(ctx context.Context, openBillID string) (*command.Aggregate, error) {
+	ret := _m.Called(ctx, openBillID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindByOpenBillID")
+	}
+
+	var r0 *command.Aggregate
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*command.Aggregate, error)); ok {
+		return rf(ctx, openBillID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *command.Aggregate); ok {
+		r0 = rf(ctx, openBillID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*command.Aggregate)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, openBillID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockCommandRepository_FindByOpenBillID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindByOpenBillID'
+type MockCommandRepository_FindByOpenBillID_Call struct {
+	*mock.Call
+}
+
+// FindByOpenBillID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - openBillID string
+func (_e *MockCommandRepository_Expecter) FindByOpenBillID(ctx interface{}, openBillID interface{}) *MockCommandRepository_FindByOpenBillID_Call {
+	return &MockCommandRepository_FindByOpenBillID_Call{Call: _e.mock.On("FindByOpenBillID", ctx, openBillID)}
+}
+
+func (_c *MockCommandRepository_FindByOpenBillID_Call) Run(run func(ctx context.Context, openBillID string)) *MockCommandRepository_FindByOpenBillID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockCommandRepository_FindByOpenBillID_Call) Return(_a0 *command.Aggregate, _a1 error) *MockCommandRepository_FindByOpenBillID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockCommandRepository_FindByOpenBillID_Call) RunAndReturn(run func(context.Context, string) (*command.Aggregate, error)) *MockCommandRepository_FindByOpenBillID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // FindPendingByArea provides a mock function with given fields: ctx, area
 func (_m *MockCommandRepository) FindPendingByArea(ctx context.Context, area string) ([]*dto.Command, error) {
 	ret := _m.Called(ctx, area)
