@@ -36,12 +36,7 @@ func NewOrderCreatedEvent(
 ) OrderCreatedEvent {
 	eventProducts := make([]OrderCreatedEventProduct, len(products))
 	for i, p := range products {
-		eventProducts[i] = OrderCreatedEventProduct{
-			OpenBillProductID: p.OpenBillProductID,
-			ProductID:         p.ProductID,
-			Quantity:          p.Quantity,
-			Notes:             p.Notes,
-		}
+		eventProducts[i] = OrderCreatedEventProduct(p)
 	}
 
 	return OrderCreatedEvent{
