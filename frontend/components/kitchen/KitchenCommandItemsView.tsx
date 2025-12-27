@@ -7,11 +7,14 @@ import type { CommandItemFromSSE } from "@/types/commandItem";
 
 const PINNED_STORAGE_KEY = "pinned-command-items";
 const COUNTDOWN_CONSTANT = 30;
+const UTC_OFFSET_HOURS = 5; // Backend sends time in UTC-5
 
 function calculateRemainingMs(priority: number, createdAt: string): number {
   const totalMinutes = COUNTDOWN_CONSTANT / (priority + 1);
   const totalMs = totalMinutes * 60 * 1000;
-  const createdTime = new Date(createdAt).getTime();
+  // Backend sends time in UTC-5, so we add 5 hours to convert to UTC
+  const createdTime =
+    new Date(createdAt).getTime() + UTC_OFFSET_HOURS * 60 * 60 * 1000;
   const elapsed = Date.now() - createdTime;
   return totalMs - elapsed;
 }
