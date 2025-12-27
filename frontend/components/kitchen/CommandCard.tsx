@@ -213,7 +213,7 @@ export default function CommandCard({
       </div>
 
       {/* Complete button - only show for pending commands */}
-      {command.status === "pending" && (
+      {command.status === "created" && (
         <button
           onClick={() => onComplete(command.id)}
           disabled={isCompleting}

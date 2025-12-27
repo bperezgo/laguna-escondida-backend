@@ -1,4 +1,4 @@
-export type CommandStatus = "pending" | "completed" | "cancelled";
+export type CommandStatus = "created" | "completed" | "cancelled";
 
 export interface CommandItem {
   id: string;
