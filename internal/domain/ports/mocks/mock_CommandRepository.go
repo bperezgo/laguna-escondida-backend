@@ -189,6 +189,65 @@ func (_c *MockCommandRepository_FindByID_Call) RunAndReturn(run func(context.Con
 	return _c
 }
 
+// FindByItemID provides a mock function with given fields: ctx, itemID
+func (_m *MockCommandRepository) FindByItemID(ctx context.Context, itemID string) (*command.Aggregate, error) {
+	ret := _m.Called(ctx, itemID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindByItemID")
+	}
+
+	var r0 *command.Aggregate
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*command.Aggregate, error)); ok {
+		return rf(ctx, itemID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *command.Aggregate); ok {
+		r0 = rf(ctx, itemID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*command.Aggregate)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, itemID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockCommandRepository_FindByItemID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindByItemID'
+type MockCommandRepository_FindByItemID_Call struct {
+	*mock.Call
+}
+
+// FindByItemID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - itemID string
+func (_e *MockCommandRepository_Expecter) FindByItemID(ctx interface{}, itemID interface{}) *MockCommandRepository_FindByItemID_Call {
+	return &MockCommandRepository_FindByItemID_Call{Call: _e.mock.On("FindByItemID", ctx, itemID)}
+}
+
+func (_c *MockCommandRepository_FindByItemID_Call) Run(run func(ctx context.Context, itemID string)) *MockCommandRepository_FindByItemID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockCommandRepository_FindByItemID_Call) Return(_a0 *command.Aggregate, _a1 error) *MockCommandRepository_FindByItemID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockCommandRepository_FindByItemID_Call) RunAndReturn(run func(context.Context, string) (*command.Aggregate, error)) *MockCommandRepository_FindByItemID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // FindPendingByArea provides a mock function with given fields: ctx, area
 func (_m *MockCommandRepository) FindPendingByArea(ctx context.Context, area string) ([]*dto.Command, error) {
 	ret := _m.Called(ctx, area)

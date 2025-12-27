@@ -146,3 +146,24 @@ func (s *CommandService) CompleteCommand(ctx context.Context, id string) (*dto.C
 
 	return cmd.ToDTO(), nil
 }
+
+func (s *CommandService) CompleteCommandItem(ctx context.Context, itemID string) (*dto.Command, error) {
+	cmd, err := s.commandRepo.FindByItemID(ctx, itemID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := cmd.CompleteItem(itemID); err != nil {
+		return nil, err
+	}
+
+	if _, err := cmd.TryComplete(); err != nil {
+		return nil, err
+	}
+
+	if err := s.commandRepo.Update(ctx, cmd); err != nil {
+		return nil, err
+	}
+
+	return cmd.ToDTO(), nil
+}

@@ -327,10 +327,31 @@ func (a *Aggregate) Cancel() error {
 func (a *Aggregate) CompleteItem(itemID string) error {
 	for _, item := range a.items {
 		if item.ID() == itemID {
-			return item.Complete()
+			if err := item.Complete(); err != nil {
+				return err
+			}
+			a.updatedAt = time.Now()
+			return nil
 		}
 	}
-	return nil
+	return commandError.NewItemNotFoundError()
+}
+
+// TryComplete attempts to complete the command if all items are completed
+// Returns true if the command was completed, false otherwise
+func (a *Aggregate) TryComplete() (bool, error) {
+	if !a.CanComplete() {
+		return false, nil
+	}
+
+	status, err := shared.NewCommandStatus(dto.CommandStatusCompleted)
+	if err != nil {
+		return false, err
+	}
+
+	a.status = status
+	a.updatedAt = time.Now()
+	return true, nil
 }
 
 // CancelItem marks a specific item as cancelled by its ID

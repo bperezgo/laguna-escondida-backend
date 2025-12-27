@@ -152,6 +152,151 @@ func TestCompleteCommand_FindByIDError(t *testing.T) {
 	assert.ErrorIs(t, err, findError)
 }
 
+// CompleteCommandItem Tests
+
+func createTestCommandAggregateWithMultipleItems(t *testing.T, id, openBillID, area string) *command.Aggregate {
+	item1, err := command_item.NewCommandItem(
+		"item-1",
+		"open-bill-product-1",
+		"product-1",
+		"Test Product 1",
+		2,
+		nil,
+		0,
+	)
+	require.NoError(t, err)
+
+	item2, err := command_item.NewCommandItem(
+		"item-2",
+		"open-bill-product-2",
+		"product-2",
+		"Test Product 2",
+		1,
+		nil,
+		0,
+	)
+	require.NoError(t, err)
+
+	now := time.Now()
+	cmd, err := command.NewCommand(
+		id,
+		openBillID,
+		"TEMP-001",
+		nil,
+		area,
+		[]*command_item.Aggregate{item1, item2},
+		now,
+		now,
+	)
+	require.NoError(t, err)
+
+	return cmd
+}
+
+// Success Cases
+func TestCompleteCommandItem_Success_SingleItemCompleted(t *testing.T) {
+	ctx := context.Background()
+	service, mockRepo := createTestCommandService(t)
+
+	itemID := "item-1"
+	cmdAggregate := createTestCommandAggregate(t, "command-1", "open-bill-1", "kitchen")
+
+	mockRepo.EXPECT().FindByItemID(ctx, itemID).Return(cmdAggregate, nil)
+	mockRepo.EXPECT().Update(ctx, mock.AnythingOfType("*command.Aggregate")).Return(nil)
+
+	result, err := service.CompleteCommandItem(ctx, itemID)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, dto.CommandStatusCompleted, result.Status)
+
+	for _, item := range result.Items {
+		if item.ID == itemID {
+			assert.Equal(t, dto.CommandStatusCompleted, item.Status)
+		}
+	}
+}
+
+func TestCompleteCommandItem_Success_PartialComplete(t *testing.T) {
+	ctx := context.Background()
+	service, mockRepo := createTestCommandService(t)
+
+	itemID := "item-1"
+	cmdAggregate := createTestCommandAggregateWithMultipleItems(t, "command-1", "open-bill-1", "kitchen")
+
+	mockRepo.EXPECT().FindByItemID(ctx, itemID).Return(cmdAggregate, nil)
+	mockRepo.EXPECT().Update(ctx, mock.AnythingOfType("*command.Aggregate")).Return(nil)
+
+	result, err := service.CompleteCommandItem(ctx, itemID)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, dto.CommandStatusCreated, result.Status)
+
+	for _, item := range result.Items {
+		if item.ID == itemID {
+			assert.Equal(t, dto.CommandStatusCompleted, item.Status)
+		} else {
+			assert.Equal(t, dto.CommandStatusCreated, item.Status)
+		}
+	}
+}
+
+func TestCompleteCommandItem_Success_AllItemsCompleted(t *testing.T) {
+	ctx := context.Background()
+	service, mockRepo := createTestCommandService(t)
+
+	cmdAggregate := createTestCommandAggregateWithMultipleItems(t, "command-1", "open-bill-1", "kitchen")
+
+	mockRepo.EXPECT().FindByItemID(ctx, "item-1").Return(cmdAggregate, nil)
+	mockRepo.EXPECT().Update(ctx, mock.AnythingOfType("*command.Aggregate")).Return(nil)
+
+	result1, err := service.CompleteCommandItem(ctx, "item-1")
+	require.NoError(t, err)
+	assert.Equal(t, dto.CommandStatusCreated, result1.Status)
+
+	mockRepo.EXPECT().FindByItemID(ctx, "item-2").Return(cmdAggregate, nil)
+	mockRepo.EXPECT().Update(ctx, mock.AnythingOfType("*command.Aggregate")).Return(nil)
+
+	result2, err := service.CompleteCommandItem(ctx, "item-2")
+	require.NoError(t, err)
+	assert.Equal(t, dto.CommandStatusCompleted, result2.Status)
+}
+
+// Error Cases
+func TestCompleteCommandItem_ItemNotFound(t *testing.T) {
+	ctx := context.Background()
+	service, mockRepo := createTestCommandService(t)
+
+	itemID := "non-existent-item"
+
+	mockRepo.EXPECT().FindByItemID(ctx, itemID).Return(nil, domainError.ErrCommandItemNotFound)
+
+	result, err := service.CompleteCommandItem(ctx, itemID)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, domainError.ErrCommandItemNotFound)
+}
+
+func TestCompleteCommandItem_UpdateRepositoryError(t *testing.T) {
+	ctx := context.Background()
+	service, mockRepo := createTestCommandService(t)
+
+	itemID := "item-1"
+	cmdAggregate := createTestCommandAggregate(t, "command-1", "open-bill-1", "kitchen")
+	repoError := errors.New("database error")
+
+	mockRepo.EXPECT().FindByItemID(ctx, itemID).Return(cmdAggregate, nil)
+	mockRepo.EXPECT().Update(ctx, mock.AnythingOfType("*command.Aggregate")).Return(repoError)
+
+	result, err := service.CompleteCommandItem(ctx, itemID)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, repoError)
+}
+
 // GetPendingCommandsByArea Tests
 
 // Success Cases

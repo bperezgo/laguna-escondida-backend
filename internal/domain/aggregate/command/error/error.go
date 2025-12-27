@@ -18,6 +18,7 @@ const (
 	CodeItemsNotAllCompleted      CommandErrorCode = "COMMAND_ITEMS_NOT_ALL_COMPLETED"
 	CodeItemsNotAllCancelled      CommandErrorCode = "COMMAND_ITEMS_NOT_ALL_CANCELLED"
 	CodeNoItems                   CommandErrorCode = "COMMAND_NO_ITEMS"
+	CodeItemNotFound              CommandErrorCode = "COMMAND_ITEM_NOT_FOUND"
 )
 
 func NewCannotCompleteError() *baseError.BaseError {
@@ -94,5 +95,12 @@ func NewNoItemsError() *baseError.BaseError {
 	return baseError.NewBaseError(
 		baseError.ErrorCode(CodeNoItems),
 		"command must have at least one item",
+	)
+}
+
+func NewItemNotFoundError() *baseError.BaseError {
+	return baseError.NewBaseError(
+		baseError.ErrorCode(CodeItemNotFound),
+		"command item not found",
 	)
 }

@@ -158,6 +158,26 @@ func (r *CommandRepository) FindByID(ctx context.Context, id string) (*command.A
 	)
 }
 
+func (r *CommandRepository) FindByItemID(ctx context.Context, itemID string) (*command.Aggregate, error) {
+	db := postgres.GetTxOrDB(ctx, r.db)
+
+	var commandID string
+	err := db.Table("command_items").
+		Select("command_id").
+		Where("id = ?", itemID).
+		Scan(&commandID).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	if commandID == "" {
+		return nil, domainError.ErrCommandItemNotFound
+	}
+
+	return r.FindByID(ctx, commandID)
+}
+
 func (r *CommandRepository) FindByArea(ctx context.Context, area string) ([]*dto.Command, error) {
 	db := postgres.GetTxOrDB(ctx, r.db)
 	return r.findCommandsByAreaAndStatus(db, area, "")
