@@ -80,8 +80,9 @@ func main() {
 	billRepo := repository.NewBillRepository(db.DB, electronicInvoiceClient, cfg)
 	invoiceService := service.NewInvoiceService(electronicInvoiceClient, productRepo, billRepo)
 
-	// Initialize SSE Hub
+	// Initialize SSE Hubs
 	sseHub := sse.NewHub()
+	commandItemHub := sse.NewCommandItemHub()
 
 	// Initialize Event Bus
 	watermillLogger := eventbus.NewZapLoggerAdapter(logger)
@@ -97,7 +98,7 @@ func main() {
 
 	// Initialize services
 	unitOfWork := postgres.NewUnitOfWork(db.DB)
-	commandService := service.NewCommandService(logger, commandRepo, userRepo, sseHub)
+	commandService := service.NewCommandService(logger, commandRepo, userRepo, sseHub, commandItemHub)
 	orderService := service.NewOrderService(openBillRepo, productRepo, billRepo, billOwnerRepo, invoiceService, unitOfWork, eventBusImpl)
 	productService := service.NewProductService(productRepo)
 	stockService := service.NewStockService(stockRepo, productRepo)
@@ -122,6 +123,14 @@ func main() {
 	)
 	if err = eventSubscriber.Subscribe(orderCreatedHandler); err != nil {
 		log.Fatalf("Failed to subscribe to order created events: %v", err)
+	}
+
+	orderDeletedHandler := eventbus.NewTypedEventHandler(
+		dto.OrderDeletedEventName,
+		commandService.HandleOrderDeleted,
+	)
+	if err = eventSubscriber.Subscribe(orderDeletedHandler); err != nil {
+		log.Fatalf("Failed to subscribe to order deleted events: %v", err)
 	}
 
 	// Start event subscriber in background
@@ -153,7 +162,7 @@ func main() {
 	userHandler := handler.NewUserHandler(userService)
 	billOwnerHandler := handler.NewBillOwnerHandler(billOwnerService)
 	commandHandler := handler.NewCommandHandler(commandService)
-	sseHandler := handler.NewSSEHandler(sseHub, commandService)
+	sseHandler := handler.NewSSEHandler(sseHub, commandItemHub, commandService)
 
 	// Setup routes
 	router := gin.Default()
@@ -214,6 +223,7 @@ func main() {
 
 	// SSE routes for real-time command notifications
 	router.GET("/api/sse/commands/:area", handler.JWTAuthMiddleware(jwtService), sseHandler.StreamCommandsHandler)
+	router.GET("/api/sse/command-items/:area", handler.JWTAuthMiddleware(jwtService), sseHandler.StreamCommandItemsHandler)
 	router.GET("/api/commands/:area/pending", handler.JWTAuthMiddleware(jwtService), sseHandler.GetPendingCommandsHandler)
 
 	port := os.Getenv("PORT")
@@ -244,6 +254,11 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	log.Println("Shutting down server...")
+
+	// Close SSE hubs to disconnect all SSE clients
+	log.Println("Closing SSE connections...")
+	sseHub.Close()
+	commandItemHub.Close()
 
 	// The context is used to inform the server it has 5 seconds to finish
 	// the request it is currently handling

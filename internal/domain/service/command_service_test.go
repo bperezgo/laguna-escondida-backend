@@ -19,14 +19,16 @@ import (
 )
 
 // Test helpers
-func createTestCommandService(t *testing.T) (*CommandService, *mocks.MockCommandRepository) {
+func createTestCommandService(t *testing.T) (*CommandService, *mocks.MockCommandRepository, *mocks.MockCommandItemSSENotifier) {
 	mockRepo := mocks.NewMockCommandRepository(t)
+	mockCommandItemSSENotifier := mocks.NewMockCommandItemSSENotifier(t)
 	logger := zap.NewNop()
 	service := &CommandService{
-		logger:      logger,
-		commandRepo: mockRepo,
+		logger:                 logger,
+		commandRepo:            mockRepo,
+		commandItemSSENotifier: mockCommandItemSSENotifier,
 	}
-	return service, mockRepo
+	return service, mockRepo, mockCommandItemSSENotifier
 }
 
 func createTestCommandAggregate(t *testing.T, id, openBillID, area string) *command.Aggregate {
@@ -82,7 +84,7 @@ func createTestCommand(id, openBillID, area string, status dto.CommandStatus) *d
 // Success Cases
 func TestCompleteCommand_Success(t *testing.T) {
 	ctx := context.Background()
-	service, mockRepo := createTestCommandService(t)
+	service, mockRepo, _ := createTestCommandService(t)
 
 	commandID := "command-1"
 	cmdAggregate := createTestCommandAggregate(t, commandID, "open-bill-1", "kitchen")
@@ -105,7 +107,7 @@ func TestCompleteCommand_Success(t *testing.T) {
 // Error Cases
 func TestCompleteCommand_CommandNotFound(t *testing.T) {
 	ctx := context.Background()
-	service, mockRepo := createTestCommandService(t)
+	service, mockRepo, _ := createTestCommandService(t)
 
 	commandID := "non-existent-command"
 
@@ -120,7 +122,7 @@ func TestCompleteCommand_CommandNotFound(t *testing.T) {
 
 func TestCompleteCommand_UpdateRepositoryError(t *testing.T) {
 	ctx := context.Background()
-	service, mockRepo := createTestCommandService(t)
+	service, mockRepo, _ := createTestCommandService(t)
 
 	commandID := "command-1"
 	cmdAggregate := createTestCommandAggregate(t, commandID, "open-bill-1", "kitchen")
@@ -138,7 +140,7 @@ func TestCompleteCommand_UpdateRepositoryError(t *testing.T) {
 
 func TestCompleteCommand_FindByIDError(t *testing.T) {
 	ctx := context.Background()
-	service, mockRepo := createTestCommandService(t)
+	service, mockRepo, _ := createTestCommandService(t)
 
 	commandID := "command-1"
 	findError := errors.New("database error on find")
@@ -196,7 +198,7 @@ func createTestCommandAggregateWithMultipleItems(t *testing.T, id, openBillID, a
 // Success Cases
 func TestCompleteCommandItem_Success_SingleItemCompleted(t *testing.T) {
 	ctx := context.Background()
-	service, mockRepo := createTestCommandService(t)
+	service, mockRepo, _ := createTestCommandService(t)
 
 	itemID := "item-1"
 	cmdAggregate := createTestCommandAggregate(t, "command-1", "open-bill-1", "kitchen")
@@ -219,7 +221,7 @@ func TestCompleteCommandItem_Success_SingleItemCompleted(t *testing.T) {
 
 func TestCompleteCommandItem_Success_PartialComplete(t *testing.T) {
 	ctx := context.Background()
-	service, mockRepo := createTestCommandService(t)
+	service, mockRepo, _ := createTestCommandService(t)
 
 	itemID := "item-1"
 	cmdAggregate := createTestCommandAggregateWithMultipleItems(t, "command-1", "open-bill-1", "kitchen")
@@ -244,7 +246,7 @@ func TestCompleteCommandItem_Success_PartialComplete(t *testing.T) {
 
 func TestCompleteCommandItem_Success_AllItemsCompleted(t *testing.T) {
 	ctx := context.Background()
-	service, mockRepo := createTestCommandService(t)
+	service, mockRepo, _ := createTestCommandService(t)
 
 	cmdAggregate := createTestCommandAggregateWithMultipleItems(t, "command-1", "open-bill-1", "kitchen")
 
@@ -266,7 +268,7 @@ func TestCompleteCommandItem_Success_AllItemsCompleted(t *testing.T) {
 // Error Cases
 func TestCompleteCommandItem_ItemNotFound(t *testing.T) {
 	ctx := context.Background()
-	service, mockRepo := createTestCommandService(t)
+	service, mockRepo, _ := createTestCommandService(t)
 
 	itemID := "non-existent-item"
 
@@ -281,7 +283,7 @@ func TestCompleteCommandItem_ItemNotFound(t *testing.T) {
 
 func TestCompleteCommandItem_UpdateRepositoryError(t *testing.T) {
 	ctx := context.Background()
-	service, mockRepo := createTestCommandService(t)
+	service, mockRepo, _ := createTestCommandService(t)
 
 	itemID := "item-1"
 	cmdAggregate := createTestCommandAggregate(t, "command-1", "open-bill-1", "kitchen")
@@ -302,7 +304,7 @@ func TestCompleteCommandItem_UpdateRepositoryError(t *testing.T) {
 // Success Cases
 func TestGetPendingCommandsByArea_Success(t *testing.T) {
 	ctx := context.Background()
-	service, mockRepo := createTestCommandService(t)
+	service, mockRepo, _ := createTestCommandService(t)
 
 	area := "kitchen"
 	expectedCommands := []*dto.Command{
@@ -323,7 +325,7 @@ func TestGetPendingCommandsByArea_Success(t *testing.T) {
 
 func TestGetPendingCommandsByArea_EmptyList(t *testing.T) {
 	ctx := context.Background()
-	service, mockRepo := createTestCommandService(t)
+	service, mockRepo, _ := createTestCommandService(t)
 
 	area := "kitchen"
 
@@ -339,7 +341,7 @@ func TestGetPendingCommandsByArea_EmptyList(t *testing.T) {
 // Error Cases
 func TestGetPendingCommandsByArea_RepositoryError(t *testing.T) {
 	ctx := context.Background()
-	service, mockRepo := createTestCommandService(t)
+	service, mockRepo, _ := createTestCommandService(t)
 
 	area := "kitchen"
 	repoError := errors.New("database error")

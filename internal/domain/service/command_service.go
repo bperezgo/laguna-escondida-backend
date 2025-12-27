@@ -16,12 +16,15 @@ import (
 
 const CommandCreatedEventType = "command.created"
 const CommandCancelledEventType = "command.cancelled"
+const CommandItemCreatedEventType = "command_item.created"
+const CommandItemCancelledEventType = "command_item.cancelled"
 
 type CommandService struct {
-	logger      *zap.Logger
-	commandRepo ports.CommandRepository
-	userRepo    ports.UserRepository
-	sseNotifier ports.SSENotifier
+	logger                 *zap.Logger
+	commandRepo            ports.CommandRepository
+	userRepo               ports.UserRepository
+	sseNotifier            ports.SSENotifier
+	commandItemSSENotifier ports.CommandItemSSENotifier
 }
 
 func NewCommandService(
@@ -29,12 +32,14 @@ func NewCommandService(
 	commandRepo ports.CommandRepository,
 	userRepo ports.UserRepository,
 	sseNotifier ports.SSENotifier,
+	commandItemSSENotifier ports.CommandItemSSENotifier,
 ) *CommandService {
 	return &CommandService{
-		logger:      logger,
-		commandRepo: commandRepo,
-		userRepo:    userRepo,
-		sseNotifier: sseNotifier,
+		logger:                 logger,
+		commandRepo:            commandRepo,
+		userRepo:               userRepo,
+		sseNotifier:            sseNotifier,
+		commandItemSSENotifier: commandItemSSENotifier,
 	}
 }
 
@@ -99,6 +104,11 @@ func (s *CommandService) HandleOrderCreated(ctx context.Context, event dto.Order
 		areaItemsMap[responsibility.Area] = append(areaItemsMap[responsibility.Area], item)
 	}
 
+	userName := ""
+	if createdBy != nil {
+		userName = createdBy.Username
+	}
+
 	now := time.Now()
 	for area, items := range areaItemsMap {
 		cmd, err := command.NewCommand(
@@ -122,6 +132,25 @@ func (s *CommandService) HandleOrderCreated(ctx context.Context, event dto.Order
 		if err := s.sseNotifier.NotifyArea(ctx, area, CommandCreatedEventType, cmd.ToDTO()); err != nil {
 			return fmt.Errorf("failed to notify area %s: %w", area, err)
 		}
+
+		for _, item := range items {
+			itemSSE := &dto.CommandItemSSE{
+				OpenBillProductID:  item.OpenBillProductID(),
+				OpenBillID:         event.OpenBillID,
+				ProductName:        item.ProductName(),
+				Notes:              item.Notes(),
+				TemporalIdentifier: event.TemporalIdentifier,
+				Priority:           item.Priority(),
+				CreatedAt:          now,
+				Name:               userName,
+			}
+			if err := s.commandItemSSENotifier.NotifyArea(ctx, area, CommandItemCreatedEventType, itemSSE); err != nil {
+				s.logger.Error("failed to notify command item created",
+					zap.String("area", area),
+					zap.Error(err),
+				)
+			}
+		}
 	}
 
 	return nil
@@ -129,6 +158,39 @@ func (s *CommandService) HandleOrderCreated(ctx context.Context, event dto.Order
 
 func (s *CommandService) GetPendingCommandsByArea(ctx context.Context, area string) ([]*dto.Command, error) {
 	return s.commandRepo.FindPendingByArea(ctx, area)
+}
+
+func (s *CommandService) GetPendingCommandItemsByArea(ctx context.Context, area string) ([]*dto.CommandItemSSE, error) {
+	commands, err := s.commandRepo.FindPendingByArea(ctx, area)
+	if err != nil {
+		return nil, err
+	}
+
+	var items []*dto.CommandItemSSE
+	for _, cmd := range commands {
+		userName := ""
+		if cmd.CreatedBy != nil {
+			userName = cmd.CreatedBy.Username
+		}
+
+		for _, item := range cmd.Items {
+			if item.Status != dto.CommandStatusCreated {
+				continue
+			}
+			items = append(items, &dto.CommandItemSSE{
+				OpenBillProductID:  item.OpenBillProductID,
+				OpenBillID:         cmd.OpenBillID,
+				ProductName:        item.ProductName,
+				Notes:              item.Notes,
+				TemporalIdentifier: cmd.TemporalIdentifier,
+				Priority:           item.Priority,
+				CreatedAt:          cmd.CreatedAt,
+				Name:               userName,
+			})
+		}
+	}
+
+	return items, nil
 }
 
 func (s *CommandService) CompleteCommand(ctx context.Context, id string) (*dto.Command, error) {
@@ -179,6 +241,8 @@ func (s *CommandService) HandleOrderDeleted(ctx context.Context, event dto.Order
 		return nil
 	}
 
+	items := cmd.Items()
+
 	if err := cmd.CancelAllItems(); err != nil {
 		return fmt.Errorf("failed to cancel command items: %w", err)
 	}
@@ -192,6 +256,30 @@ func (s *CommandService) HandleOrderDeleted(ctx context.Context, event dto.Order
 			zap.String("area", cmd.Area()),
 			zap.Error(err),
 		)
+	}
+
+	userName := ""
+	if cmd.CreatedBy() != nil {
+		userName = cmd.CreatedBy().Username
+	}
+
+	for _, item := range items {
+		itemSSE := &dto.CommandItemSSE{
+			OpenBillProductID:  item.OpenBillProductID(),
+			OpenBillID:         cmd.OpenBillID(),
+			ProductName:        item.ProductName(),
+			Notes:              item.Notes(),
+			TemporalIdentifier: cmd.TemporalIdentifier(),
+			Priority:           item.Priority(),
+			CreatedAt:          cmd.CreatedAt(),
+			Name:               userName,
+		}
+		if err := s.commandItemSSENotifier.NotifyArea(ctx, cmd.Area(), CommandItemCancelledEventType, itemSSE); err != nil {
+			s.logger.Error("failed to notify command item cancelled",
+				zap.String("area", cmd.Area()),
+				zap.Error(err),
+			)
+		}
 	}
 
 	return nil

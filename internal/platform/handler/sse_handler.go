@@ -14,12 +14,14 @@ import (
 
 type SSEHandler struct {
 	hub            *sse.Hub
+	commandItemHub *sse.CommandItemHub
 	commandService *service.CommandService
 }
 
-func NewSSEHandler(hub *sse.Hub, commandService *service.CommandService) *SSEHandler {
+func NewSSEHandler(hub *sse.Hub, commandItemHub *sse.CommandItemHub, commandService *service.CommandService) *SSEHandler {
 	return &SSEHandler{
 		hub:            hub,
+		commandItemHub: commandItemHub,
 		commandService: commandService,
 	}
 }
@@ -94,4 +96,59 @@ func (h *SSEHandler) GetPendingCommandsHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"commands": commands})
+}
+
+func (h *SSEHandler) StreamCommandItemsHandler(c *gin.Context) {
+	area := c.Param("area")
+	if area == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Area is required"})
+		return
+	}
+
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("Access-Control-Allow-Origin", "*")
+	c.Header("X-Accel-Buffering", "no")
+
+	client := sse.NewCommandItemClient(area)
+	h.commandItemHub.Register(client)
+	defer h.commandItemHub.Unregister(client)
+
+	ctx := c.Request.Context()
+
+	pendingItems, err := h.commandService.GetPendingCommandItemsByArea(ctx, area)
+	if err == nil && len(pendingItems) > 0 {
+		for _, item := range pendingItems {
+			data, err := json.Marshal(item)
+			if err != nil {
+				continue
+			}
+			_, err = fmt.Fprintf(c.Writer, "event: command_item.created\ndata: %s\n\n", data)
+			if err != nil {
+				continue
+			}
+			c.Writer.Flush()
+		}
+	}
+
+	c.Stream(func(w io.Writer) bool {
+		select {
+		case event, ok := <-client.Events:
+			if !ok {
+				return false
+			}
+			data, err := json.Marshal(event.Data)
+			if err != nil {
+				return true
+			}
+			_, err = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event.Type, data)
+			if err != nil {
+				return true
+			}
+			return true
+		case <-ctx.Done():
+			return false
+		}
+	})
 }

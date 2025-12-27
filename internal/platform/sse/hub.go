@@ -14,8 +14,15 @@ type Event struct {
 }
 
 type Client struct {
-	Area   string
-	Events chan Event
+	Area      string
+	Events    chan Event
+	closeOnce sync.Once
+}
+
+func (c *Client) Close() {
+	c.closeOnce.Do(func() {
+		close(c.Events)
+	})
 }
 
 type Hub struct {
@@ -49,7 +56,19 @@ func (h *Hub) Unregister(client *Client) {
 			delete(h.clients, client.Area)
 		}
 	}
-	close(client.Events)
+	client.Close()
+}
+
+func (h *Hub) Close() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	for area, clients := range h.clients {
+		for client := range clients {
+			client.Close()
+		}
+		delete(h.clients, area)
+	}
 }
 
 func (h *Hub) Broadcast(area string, event Event) {

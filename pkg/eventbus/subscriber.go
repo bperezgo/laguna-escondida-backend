@@ -3,6 +3,7 @@ package eventbus
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"laguna-escondida/backend/pkg/domain/ports"
 
@@ -32,6 +33,13 @@ func NewGoChannelEventSubscriber(pubSub *gochannel.GoChannel, logger watermill.L
 	}
 
 	router.AddMiddleware(middleware.Recoverer)
+	router.AddMiddleware(middleware.Retry{
+		MaxRetries:      5,
+		InitialInterval: 100 * time.Millisecond,
+		MaxInterval:     1 * time.Second,
+		Multiplier:      2,
+		Logger:          logger,
+	}.Middleware)
 
 	return &GoChannelEventSubscriber{
 		router:   router,
