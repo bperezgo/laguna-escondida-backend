@@ -51,19 +51,6 @@ func (openBillProductModel) TableName() string {
 	return "open_bills_products"
 }
 
-type productPreparationResponsibilityModel struct {
-	ID        string     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	ProductID string     `gorm:"type:uuid;not null"`
-	Area      string     `gorm:"type:varchar(255);not null"`
-	CreatedAt time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
-	UpdatedAt time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
-	DeletedAt *time.Time `gorm:"type:timestamp"`
-}
-
-func (productPreparationResponsibilityModel) TableName() string {
-	return "product_preparation_responsibilities"
-}
-
 type billModel struct {
 	ID             string          `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	BillOwnerID    *string         `gorm:"type:varchar(255)"`
