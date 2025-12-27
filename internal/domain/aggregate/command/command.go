@@ -272,6 +272,32 @@ func (a *Aggregate) Complete() error {
 	return nil
 }
 
+// CompleteAllItems marks all items as completed and then completes the command
+func (a *Aggregate) CompleteAllItems() error {
+	if a.status.IsCompleted() {
+		return commandError.NewAlreadyCompletedError()
+	}
+
+	if a.status.IsCancelled() {
+		return commandError.NewCannotCompleteError()
+	}
+
+	for _, item := range a.items {
+		if err := item.Complete(); err != nil {
+			return err
+		}
+	}
+
+	status, err := shared.NewCommandStatus(dto.CommandStatusCompleted)
+	if err != nil {
+		return err
+	}
+
+	a.status = status
+	a.updatedAt = time.Now()
+	return nil
+}
+
 // Cancel marks the command as cancelled
 // Returns an error if the command cannot be cancelled
 func (a *Aggregate) Cancel() error {

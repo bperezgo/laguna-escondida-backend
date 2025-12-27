@@ -6,14 +6,16 @@ import (
 	"testing"
 	"time"
 
+	"laguna-escondida/backend/internal/domain/aggregate/command"
+	"laguna-escondida/backend/internal/domain/aggregate/command_item"
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports/mocks"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-	"gorm.io/gorm"
 )
 
 // Test helpers
@@ -25,6 +27,34 @@ func createTestCommandService(t *testing.T) (*CommandService, *mocks.MockCommand
 		commandRepo: mockRepo,
 	}
 	return service, mockRepo
+}
+
+func createTestCommandAggregate(t *testing.T, id, openBillID, area string) *command.Aggregate {
+	item, err := command_item.NewCommandItem(
+		"item-1",
+		"open-bill-product-1",
+		"product-1",
+		"Test Product",
+		2,
+		nil,
+		0,
+	)
+	require.NoError(t, err)
+
+	now := time.Now()
+	cmd, err := command.NewCommand(
+		id,
+		openBillID,
+		"TEMP-001",
+		nil,
+		area,
+		[]*command_item.Aggregate{item},
+		now,
+		now,
+	)
+	require.NoError(t, err)
+
+	return cmd
 }
 
 func createTestCommand(id, openBillID, area string, status dto.CommandStatus) *dto.Command {
@@ -55,10 +85,10 @@ func TestCompleteCommand_Success(t *testing.T) {
 	service, mockRepo := createTestCommandService(t)
 
 	commandID := "command-1"
-	expectedCommand := createTestCommand(commandID, "open-bill-1", "kitchen", dto.CommandStatusCompleted)
+	cmdAggregate := createTestCommandAggregate(t, commandID, "open-bill-1", "kitchen")
 
-	mockRepo.EXPECT().UpdateStatus(ctx, commandID, dto.CommandStatusCompleted).Return(nil)
-	mockRepo.EXPECT().FindByID(ctx, commandID).Return(expectedCommand, nil)
+	mockRepo.EXPECT().FindByID(ctx, commandID).Return(cmdAggregate, nil)
+	mockRepo.EXPECT().Update(ctx, mock.AnythingOfType("*command.Aggregate")).Return(nil)
 
 	result, err := service.CompleteCommand(ctx, commandID)
 
@@ -66,6 +96,10 @@ func TestCompleteCommand_Success(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.Equal(t, commandID, result.ID)
 	assert.Equal(t, dto.CommandStatusCompleted, result.Status)
+
+	for _, item := range result.Items {
+		assert.Equal(t, dto.CommandStatusCompleted, item.Status)
+	}
 }
 
 // Error Cases
@@ -75,7 +109,7 @@ func TestCompleteCommand_CommandNotFound(t *testing.T) {
 
 	commandID := "non-existent-command"
 
-	mockRepo.EXPECT().UpdateStatus(ctx, commandID, dto.CommandStatusCompleted).Return(gorm.ErrRecordNotFound)
+	mockRepo.EXPECT().FindByID(ctx, commandID).Return(nil, domainError.ErrCommandNotFound)
 
 	result, err := service.CompleteCommand(ctx, commandID)
 
@@ -84,20 +118,22 @@ func TestCompleteCommand_CommandNotFound(t *testing.T) {
 	assert.ErrorIs(t, err, domainError.ErrCommandNotFound)
 }
 
-func TestCompleteCommand_UpdateStatusRepositoryError(t *testing.T) {
+func TestCompleteCommand_UpdateRepositoryError(t *testing.T) {
 	ctx := context.Background()
 	service, mockRepo := createTestCommandService(t)
 
 	commandID := "command-1"
+	cmdAggregate := createTestCommandAggregate(t, commandID, "open-bill-1", "kitchen")
 	repoError := errors.New("database error")
 
-	mockRepo.EXPECT().UpdateStatus(ctx, commandID, dto.CommandStatusCompleted).Return(repoError)
+	mockRepo.EXPECT().FindByID(ctx, commandID).Return(cmdAggregate, nil)
+	mockRepo.EXPECT().Update(ctx, mock.AnythingOfType("*command.Aggregate")).Return(repoError)
 
 	result, err := service.CompleteCommand(ctx, commandID)
 
 	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "failed to complete command")
+	assert.ErrorIs(t, err, repoError)
 }
 
 func TestCompleteCommand_FindByIDError(t *testing.T) {
@@ -107,14 +143,13 @@ func TestCompleteCommand_FindByIDError(t *testing.T) {
 	commandID := "command-1"
 	findError := errors.New("database error on find")
 
-	mockRepo.EXPECT().UpdateStatus(ctx, commandID, dto.CommandStatusCompleted).Return(nil)
 	mockRepo.EXPECT().FindByID(ctx, commandID).Return(nil, findError)
 
 	result, err := service.CompleteCommand(ctx, commandID)
 
 	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "failed to fetch completed command")
+	assert.ErrorIs(t, err, findError)
 }
 
 // GetPendingCommandsByArea Tests

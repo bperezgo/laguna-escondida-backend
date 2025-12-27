@@ -9,9 +9,9 @@ import (
 
 type CommandRepository interface {
 	Create(ctx context.Context, cmd *command.Aggregate) error
-	FindByID(ctx context.Context, id string) (*dto.Command, error)
+	FindByID(ctx context.Context, id string) (*command.Aggregate, error)
 	FindByArea(ctx context.Context, area string) ([]*dto.Command, error)
 	FindPendingByArea(ctx context.Context, area string) ([]*dto.Command, error)
-	UpdateStatus(ctx context.Context, id string, status dto.CommandStatus) error
+	Update(ctx context.Context, cmd *command.Aggregate) error
 	GetProductPreparationResponsibilities(ctx context.Context, productIDs []string) ([]dto.ProductPreparationResponsibilityWithProduct, error)
 }

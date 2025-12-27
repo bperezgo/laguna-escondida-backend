@@ -5,7 +5,9 @@ import (
 	"time"
 
 	"laguna-escondida/backend/internal/domain/aggregate/command"
+	"laguna-escondida/backend/internal/domain/aggregate/command_item"
 	"laguna-escondida/backend/internal/domain/dto"
+	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
 	"laguna-escondida/backend/internal/platform/postgres"
 
@@ -87,7 +89,7 @@ func (r *CommandRepository) Create(ctx context.Context, cmd *command.Aggregate) 
 	})
 }
 
-func (r *CommandRepository) FindByID(ctx context.Context, id string) (*dto.Command, error) {
+func (r *CommandRepository) FindByID(ctx context.Context, id string) (*command.Aggregate, error) {
 	db := postgres.GetTxOrDB(ctx, r.db)
 
 	type result struct {
@@ -127,7 +129,7 @@ func (r *CommandRepository) FindByID(ctx context.Context, id string) (*dto.Comma
 	}
 
 	if res.ID == "" {
-		return nil, gorm.ErrRecordNotFound
+		return nil, domainError.ErrCommandNotFound
 	}
 
 	var createdBy *dto.OpenBillCreator
@@ -139,22 +141,21 @@ func (r *CommandRepository) FindByID(ctx context.Context, id string) (*dto.Comma
 		}
 	}
 
-	items, err := r.findItemsByCommandID(db, id)
+	items, err := r.findItemAggregatesByCommandID(db, id)
 	if err != nil {
 		return nil, err
 	}
 
-	return &dto.Command{
-		ID:                 res.ID,
-		OpenBillID:         res.OpenBillID,
-		TemporalIdentifier: res.TemporalIdentifier,
-		CreatedBy:          createdBy,
-		Area:               res.Area,
-		Status:             dto.CommandStatus(res.Status),
-		Items:              items,
-		CreatedAt:          res.CreatedAt,
-		UpdatedAt:          res.UpdatedAt,
-	}, nil
+	return command.NewCommandFromRepository(
+		res.ID,
+		res.OpenBillID,
+		res.TemporalIdentifier,
+		createdBy,
+		res.Area,
+		items,
+		res.CreatedAt,
+		res.UpdatedAt,
+	)
 }
 
 func (r *CommandRepository) FindByArea(ctx context.Context, area string) ([]*dto.Command, error) {
@@ -288,22 +289,90 @@ func (r *CommandRepository) findItemsByCommandID(db *gorm.DB, commandID string) 
 	return items, nil
 }
 
-func (r *CommandRepository) UpdateStatus(ctx context.Context, id string, status dto.CommandStatus) error {
+func (r *CommandRepository) findItemAggregatesByCommandID(db *gorm.DB, commandID string) ([]*command_item.Aggregate, error) {
+	type itemResult struct {
+		ID                string
+		ProductID         string
+		ProductName       string
+		Quantity          int
+		Notes             *string
+		OpenBillProductID string
+		Priority          int
+		Status            dto.CommandStatus
+	}
+
+	var itemResults []itemResult
+	err := db.Table("command_items").
+		Select(`
+			command_items.id,
+			command_items.product_id,
+			products.name as product_name,
+			command_items.quantity,
+			command_items.notes,
+			command_items.open_bill_product_id,
+			command_items.priority,
+			command_items.status
+		`).
+		Joins("INNER JOIN products ON command_items.product_id = products.id").
+		Where("command_items.command_id = ?", commandID).
+		Scan(&itemResults).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]*command_item.Aggregate, len(itemResults))
+	for i, ir := range itemResults {
+		item, err := command_item.NewCommandItemFromRepository(
+			ir.ID,
+			ir.OpenBillProductID,
+			ir.ProductID,
+			ir.ProductName,
+			ir.Quantity,
+			ir.Notes,
+			ir.Status,
+			ir.Priority,
+		)
+		if err != nil {
+			return nil, err
+		}
+		items[i] = item
+	}
+
+	return items, nil
+}
+
+func (r *CommandRepository) Update(ctx context.Context, cmd *command.Aggregate) error {
 	db := postgres.GetTxOrDB(ctx, r.db)
 
-	result := db.Model(&commandModel{}).
-		Where("id = ?", id).
-		Update("status", string(status))
+	return db.Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&commandModel{}).
+			Where("id = ?", cmd.ID()).
+			Updates(map[string]interface{}{
+				"status":     string(cmd.Status()),
+				"updated_at": cmd.UpdatedAt(),
+			})
 
-	if result.Error != nil {
-		return result.Error
-	}
+		if result.Error != nil {
+			return result.Error
+		}
 
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
 
-	return nil
+		for _, item := range cmd.Items() {
+			itemResult := tx.Model(&commandItemModel{}).
+				Where("id = ?", item.ID()).
+				Update("status", string(item.Status()))
+
+			if itemResult.Error != nil {
+				return itemResult.Error
+			}
+		}
+
+		return nil
+	})
 }
 
 func (r *CommandRepository) GetProductPreparationResponsibilities(ctx context.Context, productIDs []string) ([]dto.ProductPreparationResponsibilityWithProduct, error) {

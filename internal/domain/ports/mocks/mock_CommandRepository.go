@@ -131,23 +131,23 @@ func (_c *MockCommandRepository_FindByArea_Call) RunAndReturn(run func(context.C
 }
 
 // FindByID provides a mock function with given fields: ctx, id
-func (_m *MockCommandRepository) FindByID(ctx context.Context, id string) (*dto.Command, error) {
+func (_m *MockCommandRepository) FindByID(ctx context.Context, id string) (*command.Aggregate, error) {
 	ret := _m.Called(ctx, id)
 
 	if len(ret) == 0 {
 		panic("no return value specified for FindByID")
 	}
 
-	var r0 *dto.Command
+	var r0 *command.Aggregate
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (*dto.Command, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*command.Aggregate, error)); ok {
 		return rf(ctx, id)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) *dto.Command); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) *command.Aggregate); ok {
 		r0 = rf(ctx, id)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*dto.Command)
+			r0 = ret.Get(0).(*command.Aggregate)
 		}
 	}
 
@@ -179,12 +179,12 @@ func (_c *MockCommandRepository_FindByID_Call) Run(run func(ctx context.Context,
 	return _c
 }
 
-func (_c *MockCommandRepository_FindByID_Call) Return(_a0 *dto.Command, _a1 error) *MockCommandRepository_FindByID_Call {
+func (_c *MockCommandRepository_FindByID_Call) Return(_a0 *command.Aggregate, _a1 error) *MockCommandRepository_FindByID_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockCommandRepository_FindByID_Call) RunAndReturn(run func(context.Context, string) (*dto.Command, error)) *MockCommandRepository_FindByID_Call {
+func (_c *MockCommandRepository_FindByID_Call) RunAndReturn(run func(context.Context, string) (*command.Aggregate, error)) *MockCommandRepository_FindByID_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -307,17 +307,17 @@ func (_c *MockCommandRepository_GetProductPreparationResponsibilities_Call) RunA
 	return _c
 }
 
-// UpdateStatus provides a mock function with given fields: ctx, id, status
-func (_m *MockCommandRepository) UpdateStatus(ctx context.Context, id string, status dto.CommandStatus) error {
-	ret := _m.Called(ctx, id, status)
+// Update provides a mock function with given fields: ctx, cmd
+func (_m *MockCommandRepository) Update(ctx context.Context, cmd *command.Aggregate) error {
+	ret := _m.Called(ctx, cmd)
 
 	if len(ret) == 0 {
-		panic("no return value specified for UpdateStatus")
+		panic("no return value specified for Update")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, dto.CommandStatus) error); ok {
-		r0 = rf(ctx, id, status)
+	if rf, ok := ret.Get(0).(func(context.Context, *command.Aggregate) error); ok {
+		r0 = rf(ctx, cmd)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -325,32 +325,31 @@ func (_m *MockCommandRepository) UpdateStatus(ctx context.Context, id string, st
 	return r0
 }
 
-// MockCommandRepository_UpdateStatus_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateStatus'
-type MockCommandRepository_UpdateStatus_Call struct {
+// MockCommandRepository_Update_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Update'
+type MockCommandRepository_Update_Call struct {
 	*mock.Call
 }
 
-// UpdateStatus is a helper method to define mock.On call
+// Update is a helper method to define mock.On call
 //   - ctx context.Context
-//   - id string
-//   - status dto.CommandStatus
-func (_e *MockCommandRepository_Expecter) UpdateStatus(ctx interface{}, id interface{}, status interface{}) *MockCommandRepository_UpdateStatus_Call {
-	return &MockCommandRepository_UpdateStatus_Call{Call: _e.mock.On("UpdateStatus", ctx, id, status)}
+//   - cmd *command.Aggregate
+func (_e *MockCommandRepository_Expecter) Update(ctx interface{}, cmd interface{}) *MockCommandRepository_Update_Call {
+	return &MockCommandRepository_Update_Call{Call: _e.mock.On("Update", ctx, cmd)}
 }
 
-func (_c *MockCommandRepository_UpdateStatus_Call) Run(run func(ctx context.Context, id string, status dto.CommandStatus)) *MockCommandRepository_UpdateStatus_Call {
+func (_c *MockCommandRepository_Update_Call) Run(run func(ctx context.Context, cmd *command.Aggregate)) *MockCommandRepository_Update_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(dto.CommandStatus))
+		run(args[0].(context.Context), args[1].(*command.Aggregate))
 	})
 	return _c
 }
 
-func (_c *MockCommandRepository_UpdateStatus_Call) Return(_a0 error) *MockCommandRepository_UpdateStatus_Call {
+func (_c *MockCommandRepository_Update_Call) Return(_a0 error) *MockCommandRepository_Update_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *MockCommandRepository_UpdateStatus_Call) RunAndReturn(run func(context.Context, string, dto.CommandStatus) error) *MockCommandRepository_UpdateStatus_Call {
+func (_c *MockCommandRepository_Update_Call) RunAndReturn(run func(context.Context, *command.Aggregate) error) *MockCommandRepository_Update_Call {
 	_c.Call.Return(run)
 	return _c
 }

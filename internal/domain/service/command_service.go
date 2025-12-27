@@ -8,12 +8,10 @@ import (
 	"laguna-escondida/backend/internal/domain/aggregate/command"
 	"laguna-escondida/backend/internal/domain/aggregate/command_item"
 	"laguna-escondida/backend/internal/domain/dto"
-	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
-	"gorm.io/gorm"
 )
 
 const CommandCreatedEventType = "command.created"
@@ -133,17 +131,18 @@ func (s *CommandService) GetPendingCommandsByArea(ctx context.Context, area stri
 }
 
 func (s *CommandService) CompleteCommand(ctx context.Context, id string) (*dto.Command, error) {
-	if err := s.commandRepo.UpdateStatus(ctx, id, dto.CommandStatusCompleted); err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, domainError.ErrCommandNotFound
-		}
-		return nil, fmt.Errorf("failed to complete command: %w", err)
-	}
-
-	command, err := s.commandRepo.FindByID(ctx, id)
+	cmd, err := s.commandRepo.FindByID(ctx, id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch completed command: %w", err)
+		return nil, err
 	}
 
-	return command, nil
+	if err := cmd.CompleteAllItems(); err != nil {
+		return nil, err
+	}
+
+	if err := s.commandRepo.Update(ctx, cmd); err != nil {
+		return nil, err
+	}
+
+	return cmd.ToDTO(), nil
 }
