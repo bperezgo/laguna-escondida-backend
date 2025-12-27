@@ -216,19 +216,23 @@ func (a *Aggregate) IsCancelled() bool {
 }
 
 // CanComplete checks if the command can be completed
-// A command can only be completed if all its items are completed
+// A command can be completed if at least one item is completed
+// and all items are either completed or cancelled (no items in created status)
 func (a *Aggregate) CanComplete() bool {
 	if !a.status.IsCreated() {
 		return false
 	}
 
+	hasCompleted := false
 	for _, item := range a.items {
-		if !item.IsCompleted() {
+		if item.IsCompleted() {
+			hasCompleted = true
+		} else if !item.IsCancelled() {
 			return false
 		}
 	}
 
-	return true
+	return hasCompleted
 }
 
 // CanCancel checks if the command can be cancelled
@@ -400,19 +404,24 @@ func deriveStatusFromItems(items []*command_item.Aggregate) dto.CommandStatus {
 		return dto.CommandStatusCreated
 	}
 
-	allCompleted := true
+	hasCompleted := false
 	allCancelled := true
+	allFinalized := true
 
 	for _, item := range items {
-		if !item.IsCompleted() {
-			allCompleted = false
-		}
-		if !item.IsCancelled() {
+		if item.IsCompleted() {
+			hasCompleted = true
+			allCancelled = false
+		} else if item.IsCancelled() {
+			// Item is cancelled, continue
+		} else {
+			// Item is still in created status
+			allFinalized = false
 			allCancelled = false
 		}
 	}
 
-	if allCompleted {
+	if allFinalized && hasCompleted {
 		return dto.CommandStatusCompleted
 	}
 
