@@ -139,17 +139,40 @@ export default function CommandItemCard({
 
       {/* Content */}
       <div style={{ padding: "1rem" }}>
-        {/* Product name */}
-        <h3
+        {/* Product name with quantity */}
+        <div
           style={{
-            margin: "0 0 0.5rem 0",
-            fontSize: "1.25rem",
-            fontWeight: "bold",
-            color: "var(--color-text-primary)",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+            marginBottom: "0.5rem",
           }}
         >
-          {item.product_name}
-        </h3>
+          <span
+            style={{
+              backgroundColor: "var(--color-text-primary)",
+              color: "white",
+              padding: "0.25rem 0.5rem",
+              borderRadius: "var(--radius-sm)",
+              fontWeight: "bold",
+              fontSize: "1.1rem",
+              minWidth: "2rem",
+              textAlign: "center",
+            }}
+          >
+            {item.quantity}x
+          </span>
+          <h3
+            style={{
+              margin: 0,
+              fontSize: "1.25rem",
+              fontWeight: "bold",
+              color: "var(--color-text-primary)",
+            }}
+          >
+            {item.product_name}
+          </h3>
+        </div>
 
         {/* Notes */}
         {item.notes && (

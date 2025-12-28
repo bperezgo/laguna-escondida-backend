@@ -70,7 +70,6 @@ export default function KitchenCommandItemsView() {
       eventSourceRef.current = eventSource;
 
       eventSource.onopen = () => {
-        console.log("Command items EventSource connection opened");
         if (isMounted) {
           setIsConnecting(false);
           setConnectionError(null);
@@ -79,7 +78,6 @@ export default function KitchenCommandItemsView() {
 
       const handleCreatedItem = (event: MessageEvent) => {
         try {
-          console.log("command_item.created event:", event.data);
           const item: CommandItemFromSSE = JSON.parse(event.data);
 
           setItems((prev) => {
@@ -171,7 +169,6 @@ export default function KitchenCommandItemsView() {
     connectToSSE();
 
     return () => {
-      console.log("Cleaning up command items EventSource...");
       isMounted = false;
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
