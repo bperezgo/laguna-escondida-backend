@@ -428,6 +428,29 @@ func (a *Aggregate) CancelItemByOpenBillProductID(openBillProductID string) erro
 	return commandError.NewItemNotFoundError()
 }
 
+// UpdateItemByOpenBillProductID updates a specific item's quantity and notes by its OpenBillProductID
+func (a *Aggregate) UpdateItemByOpenBillProductID(openBillProductID string, quantity int, notes *string) error {
+	for _, item := range a.items {
+		if item.OpenBillProductID() == openBillProductID {
+			if err := item.Update(quantity, notes); err != nil {
+				return err
+			}
+			a.updatedAt = time.Now()
+			return nil
+		}
+	}
+	return commandError.NewItemNotFoundError()
+}
+
+// HasItemChanged checks if an item's quantity or notes have changed compared to the provided values
+func (a *Aggregate) HasItemChanged(openBillProductID string, quantity int, notes *string) bool {
+	item := a.GetItemByOpenBillProductID(openBillProductID)
+	if item == nil {
+		return false
+	}
+	return item.Quantity() != quantity || !item.HasSameNotes(notes)
+}
+
 // AddItems adds new items to the command
 func (a *Aggregate) AddItems(items []*command_item.Aggregate) error {
 	if a.status.IsCancelled() {

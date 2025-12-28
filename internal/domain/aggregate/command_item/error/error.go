@@ -10,6 +10,8 @@ const (
 	CodeInvalidPriority          CommandItemErrorCode = "COMMAND_ITEM_INVALID_PRIORITY"
 	CodeCannotComplete           CommandItemErrorCode = "COMMAND_ITEM_CANNOT_COMPLETE"
 	CodeCannotCancel             CommandItemErrorCode = "COMMAND_ITEM_CANNOT_CANCEL"
+	CodeCannotUpdateCancelled    CommandItemErrorCode = "COMMAND_ITEM_CANNOT_UPDATE_CANCELLED"
+	CodeCannotUpdateCompleted    CommandItemErrorCode = "COMMAND_ITEM_CANNOT_UPDATE_COMPLETED"
 	CodeAlreadyCompleted         CommandItemErrorCode = "COMMAND_ITEM_ALREADY_COMPLETED"
 	CodeAlreadyCancelled         CommandItemErrorCode = "COMMAND_ITEM_ALREADY_CANCELLED"
 	CodeMissingID                CommandItemErrorCode = "COMMAND_ITEM_MISSING_ID"
@@ -71,5 +73,19 @@ func NewMissingProductIDError() *baseError.BaseError {
 	return baseError.NewBaseError(
 		baseError.ErrorCode(CodeMissingProductID),
 		"product id is required",
+	)
+}
+
+func NewCannotUpdateCancelledError() *baseError.BaseError {
+	return baseError.NewBaseError(
+		baseError.ErrorCode(CodeCannotUpdateCancelled),
+		"command item cannot be updated when cancelled",
+	)
+}
+
+func NewCannotUpdateCompletedError() *baseError.BaseError {
+	return baseError.NewBaseError(
+		baseError.ErrorCode(CodeCannotUpdateCompleted),
+		"command item cannot be updated when completed",
 	)
 }

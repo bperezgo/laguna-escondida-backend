@@ -221,6 +221,21 @@ func (a *Aggregate) Cancel() error {
 	return nil
 }
 
+// Update updates the quantity and notes of the command item
+func (a *Aggregate) Update(quantity int, notes *string) error {
+	if a.status.IsCancelled() {
+		return commandItemError.NewCannotUpdateCancelledError()
+	}
+
+	if a.status.IsCompleted() {
+		return commandItemError.NewCannotUpdateCompletedError()
+	}
+
+	a.quantity = quantity
+	a.notes = notes
+	return nil
+}
+
 // ToDTO converts the aggregate to a DTO
 func (a *Aggregate) ToDTO() *dto.CommandItem {
 	return &dto.CommandItem{
@@ -233,4 +248,15 @@ func (a *Aggregate) ToDTO() *dto.CommandItem {
 		Status:            a.status.Value(),
 		Priority:          a.priority.Value(),
 	}
+}
+
+// HasSameNotes compares the item's notes with another notes value
+func (a *Aggregate) HasSameNotes(other *string) bool {
+	if a.notes == nil && other == nil {
+		return true
+	}
+	if a.notes == nil || other == nil {
+		return false
+	}
+	return *a.notes == *other
 }
