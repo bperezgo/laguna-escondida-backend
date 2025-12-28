@@ -118,6 +118,65 @@ func (_c *MockOpenBillRepository_Delete_Call) RunAndReturn(run func(context.Cont
 	return _c
 }
 
+// FindAggregateByID provides a mock function with given fields: ctx, id
+func (_m *MockOpenBillRepository) FindAggregateByID(ctx context.Context, id string) (*open_bill.Aggregate, error) {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindAggregateByID")
+	}
+
+	var r0 *open_bill.Aggregate
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*open_bill.Aggregate, error)); ok {
+		return rf(ctx, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *open_bill.Aggregate); ok {
+		r0 = rf(ctx, id)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*open_bill.Aggregate)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOpenBillRepository_FindAggregateByID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindAggregateByID'
+type MockOpenBillRepository_FindAggregateByID_Call struct {
+	*mock.Call
+}
+
+// FindAggregateByID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+func (_e *MockOpenBillRepository_Expecter) FindAggregateByID(ctx interface{}, id interface{}) *MockOpenBillRepository_FindAggregateByID_Call {
+	return &MockOpenBillRepository_FindAggregateByID_Call{Call: _e.mock.On("FindAggregateByID", ctx, id)}
+}
+
+func (_c *MockOpenBillRepository_FindAggregateByID_Call) Run(run func(ctx context.Context, id string)) *MockOpenBillRepository_FindAggregateByID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockOpenBillRepository_FindAggregateByID_Call) Return(_a0 *open_bill.Aggregate, _a1 error) *MockOpenBillRepository_FindAggregateByID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOpenBillRepository_FindAggregateByID_Call) RunAndReturn(run func(context.Context, string) (*open_bill.Aggregate, error)) *MockOpenBillRepository_FindAggregateByID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // FindAll provides a mock function with given fields: ctx
 func (_m *MockOpenBillRepository) FindAll(ctx context.Context) ([]*dto.OpenBillWithCreator, error) {
 	ret := _m.Called(ctx)
@@ -294,17 +353,17 @@ func (_c *MockOpenBillRepository_FindByIDWithProducts_Call) RunAndReturn(run fun
 	return _c
 }
 
-// Update provides a mock function with given fields: ctx, openBillID, openBill, products
-func (_m *MockOpenBillRepository) Update(ctx context.Context, openBillID string, openBill *dto.OpenBill, products []dto.OrderProductItem) error {
-	ret := _m.Called(ctx, openBillID, openBill, products)
+// Update provides a mock function with given fields: ctx, aggregate
+func (_m *MockOpenBillRepository) Update(ctx context.Context, aggregate *open_bill.Aggregate) error {
+	ret := _m.Called(ctx, aggregate)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Update")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, *dto.OpenBill, []dto.OrderProductItem) error); ok {
-		r0 = rf(ctx, openBillID, openBill, products)
+	if rf, ok := ret.Get(0).(func(context.Context, *open_bill.Aggregate) error); ok {
+		r0 = rf(ctx, aggregate)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -319,16 +378,14 @@ type MockOpenBillRepository_Update_Call struct {
 
 // Update is a helper method to define mock.On call
 //   - ctx context.Context
-//   - openBillID string
-//   - openBill *dto.OpenBill
-//   - products []dto.OrderProductItem
-func (_e *MockOpenBillRepository_Expecter) Update(ctx interface{}, openBillID interface{}, openBill interface{}, products interface{}) *MockOpenBillRepository_Update_Call {
-	return &MockOpenBillRepository_Update_Call{Call: _e.mock.On("Update", ctx, openBillID, openBill, products)}
+//   - aggregate *open_bill.Aggregate
+func (_e *MockOpenBillRepository_Expecter) Update(ctx interface{}, aggregate interface{}) *MockOpenBillRepository_Update_Call {
+	return &MockOpenBillRepository_Update_Call{Call: _e.mock.On("Update", ctx, aggregate)}
 }
 
-func (_c *MockOpenBillRepository_Update_Call) Run(run func(ctx context.Context, openBillID string, openBill *dto.OpenBill, products []dto.OrderProductItem)) *MockOpenBillRepository_Update_Call {
+func (_c *MockOpenBillRepository_Update_Call) Run(run func(ctx context.Context, aggregate *open_bill.Aggregate)) *MockOpenBillRepository_Update_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(*dto.OpenBill), args[3].([]dto.OrderProductItem))
+		run(args[0].(context.Context), args[1].(*open_bill.Aggregate))
 	})
 	return _c
 }
@@ -338,7 +395,7 @@ func (_c *MockOpenBillRepository_Update_Call) Return(_a0 error) *MockOpenBillRep
 	return _c
 }
 
-func (_c *MockOpenBillRepository_Update_Call) RunAndReturn(run func(context.Context, string, *dto.OpenBill, []dto.OrderProductItem) error) *MockOpenBillRepository_Update_Call {
+func (_c *MockOpenBillRepository_Update_Call) RunAndReturn(run func(context.Context, *open_bill.Aggregate) error) *MockOpenBillRepository_Update_Call {
 	_c.Call.Return(run)
 	return _c
 }

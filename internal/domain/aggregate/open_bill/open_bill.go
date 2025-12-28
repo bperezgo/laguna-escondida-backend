@@ -90,3 +90,35 @@ func (a *Aggregate) ToDTO() *dto.OpenBill {
 		UpdatedAt:          a.updatedAt,
 	}
 }
+
+func NewAggregateFromRepository(
+	id string,
+	temporalIdentifier string,
+	totalAmount decimal.Decimal,
+	descriptor *string,
+	products []*OpenBillProduct,
+	createdByID string,
+	createdAt time.Time,
+	updatedAt time.Time,
+) (*Aggregate, error) {
+	if _, err := uuid.Parse(id); err != nil {
+		return nil, openBillError.ErrInvalidOpenBillID
+	}
+
+	return &Aggregate{
+		id:                 id,
+		temporalIdentifier: temporalIdentifier,
+		totalAmount:        totalAmount,
+		descriptor:         descriptor,
+		products:           products,
+		createdByID:        createdByID,
+		createdAt:          createdAt,
+		updatedAt:          updatedAt,
+	}, nil
+}
+
+func (a *Aggregate) UpdateProducts(products []*OpenBillProduct, totalAmount decimal.Decimal) {
+	a.products = products
+	a.totalAmount = totalAmount
+	a.updatedAt = time.Now()
+}

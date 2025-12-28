@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	openBill "laguna-escondida/backend/internal/domain/aggregate/open_bill"
 	"laguna-escondida/backend/internal/domain/command"
 	"laguna-escondida/backend/internal/domain/dto"
 	orderError "laguna-escondida/backend/internal/domain/error"
@@ -20,15 +21,16 @@ import (
 )
 
 const (
-	openBillID1      = "open-bill-1"
-	billID1          = "bill-1"
-	billID2          = "bill-2"
-	productID1       = "product-1"
-	productID2       = "product-2"
+	openBillID1      = "550e8400-e29b-41d4-a716-446655440010"
+	billID1          = "550e8400-e29b-41d4-a716-446655440011"
+	billID2          = "550e8400-e29b-41d4-a716-446655440012"
+	productID1       = "550e8400-e29b-41d4-a716-446655440013"
+	productID2       = "550e8400-e29b-41d4-a716-446655440014"
 	uuidPlaceholder0 = "550e8400-e29b-41d4-a716-446655440000"
 	uuidPlaceholder1 = "550e8400-e29b-41d4-a716-446655440001"
 	uuidPlaceholder2 = "550e8400-e29b-41d4-a716-446655440002"
 	uuidPlaceholder3 = "550e8400-e29b-41d4-a716-446655440003"
+	userID1          = "550e8400-e29b-41d4-a716-446655440020"
 )
 
 // Test helpers
@@ -54,6 +56,20 @@ func createTestUser() dto.UserDomain {
 	return dto.UserDomain{
 		ID: "user-123",
 	}
+}
+
+func createTestOpenBillAggregate(id string, products []*openBill.OpenBillProduct) *openBill.Aggregate {
+	aggregate, _ := openBill.NewAggregateFromRepository(
+		id,
+		"ORDER-123",
+		decimal.NewFromFloat(100.0),
+		nil,
+		products,
+		userID1,
+		time.Now(),
+		time.Now(),
+	)
+	return aggregate
 }
 
 // createMockUnitOfWork creates a UnitOfWork mock that executes the function immediately
@@ -602,9 +618,11 @@ func TestUpdateOrder_EmptyOrder(t *testing.T) {
 		TemporalIdentifier: "ORDER-123",
 		TotalAmount:        decimal.NewFromFloat(100.0),
 		Products:           []dto.OpenBillProductDetail{},
+		CreatedBy:          dto.OpenBillCreator{ID: "user-123"},
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
 	}
+	existingAggregate := createTestOpenBillAggregate(openBillID, []*openBill.OpenBillProduct{})
 
 	req := &dto.UpdateOrderRequest{
 		Products: []dto.OrderProductItem{},
@@ -612,7 +630,8 @@ func TestUpdateOrder_EmptyOrder(t *testing.T) {
 
 	// Mock expectations
 	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(existingBill, nil)
-	mockOpenBillRepo.On("Update", ctx, openBillID, mock.AnythingOfType("*dto.OpenBill"), []dto.OrderProductItem{}).Return(nil)
+	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(existingAggregate, nil)
+	mockOpenBillRepo.On("Update", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
 
 	// Execute
 	result, err := service.UpdateOrder(ctx, openBillID, req)
@@ -641,9 +660,11 @@ func TestUpdateOrder_SingleProduct(t *testing.T) {
 		TemporalIdentifier: "ORDER-123",
 		TotalAmount:        decimal.NewFromFloat(50.0),
 		Products:           []dto.OpenBillProductDetail{},
+		CreatedBy:          dto.OpenBillCreator{ID: "user-123"},
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
 	}
+	existingAggregate := createTestOpenBillAggregate(openBillID, []*openBill.OpenBillProduct{})
 
 	productID := productID1
 	productPrice := 100.0
@@ -651,16 +672,15 @@ func TestUpdateOrder_SingleProduct(t *testing.T) {
 
 	req := &dto.UpdateOrderRequest{
 		Products: []dto.OrderProductItem{
-			{ProductID: productID, Quantity: 1},
+			{OpenBillProductID: uuidPlaceholder0, ProductID: productID, Quantity: 1},
 		},
 	}
 
 	// Mock expectations
 	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(existingBill, nil)
+	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(existingAggregate, nil)
 	mockProductRepo.On("FindByIDs", ctx, []string{productID}).Return([]*dto.Product{product}, nil)
-	mockOpenBillRepo.On("Update", ctx, openBillID, mock.AnythingOfType("*dto.OpenBill"), mock.MatchedBy(func(products []dto.OrderProductItem) bool {
-		return len(products) == 1 && products[0].ProductID == productID && products[0].Quantity == 1
-	})).Return(nil)
+	mockOpenBillRepo.On("Update", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
 
 	// Execute
 	result, err := service.UpdateOrder(ctx, openBillID, req)
@@ -689,17 +709,19 @@ func TestUpdateOrder_MultipleProductsWithQuantities(t *testing.T) {
 		TemporalIdentifier: "ORDER-123",
 		TotalAmount:        decimal.NewFromFloat(100.0),
 		Products:           []dto.OpenBillProductDetail{},
+		CreatedBy:          dto.OpenBillCreator{ID: "user-123"},
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
 	}
+	existingAggregate := createTestOpenBillAggregate(openBillID, []*openBill.OpenBillProduct{})
 
 	product1 := createTestProduct(productID1, "Product 1", "Category", 1, 50.0, 9.5)
 	product2 := createTestProduct(productID2, "Product 2", "Category", 1, 75.0, 14.25)
 
 	req := &dto.UpdateOrderRequest{
 		Products: []dto.OrderProductItem{
-			{ProductID: productID1, Quantity: 2},
-			{ProductID: productID2, Quantity: 3},
+			{OpenBillProductID: uuidPlaceholder0, ProductID: productID1, Quantity: 2},
+			{OpenBillProductID: uuidPlaceholder1, ProductID: productID2, Quantity: 3},
 		},
 	}
 
@@ -707,12 +729,9 @@ func TestUpdateOrder_MultipleProductsWithQuantities(t *testing.T) {
 
 	// Mock expectations
 	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(existingBill, nil)
+	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(existingAggregate, nil)
 	mockProductRepo.On("FindByIDs", ctx, []string{productID1, productID2}).Return([]*dto.Product{product1, product2}, nil)
-	mockOpenBillRepo.On("Update", ctx, openBillID, mock.AnythingOfType("*dto.OpenBill"), mock.MatchedBy(func(products []dto.OrderProductItem) bool {
-		return len(products) == 2 &&
-			products[0].ProductID == productID1 && products[0].Quantity == 2 &&
-			products[1].ProductID == productID2 && products[1].Quantity == 3
-	})).Return(nil)
+	mockOpenBillRepo.On("Update", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
 
 	// Execute
 	result, err := service.UpdateOrder(ctx, openBillID, req)
@@ -740,9 +759,11 @@ func TestUpdateOrder_UpdateQuantity(t *testing.T) {
 		TemporalIdentifier: "ORDER-123",
 		TotalAmount:        decimal.NewFromFloat(100.0),
 		Products:           []dto.OpenBillProductDetail{},
+		CreatedBy:          dto.OpenBillCreator{ID: "user-123"},
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
 	}
+	existingAggregate := createTestOpenBillAggregate(openBillID, []*openBill.OpenBillProduct{})
 
 	productID := productID1
 	productPrice := 50.0
@@ -750,7 +771,7 @@ func TestUpdateOrder_UpdateQuantity(t *testing.T) {
 
 	req := &dto.UpdateOrderRequest{
 		Products: []dto.OrderProductItem{
-			{ProductID: productID, Quantity: 5},
+			{OpenBillProductID: uuidPlaceholder0, ProductID: productID, Quantity: 5},
 		},
 	}
 
@@ -758,10 +779,9 @@ func TestUpdateOrder_UpdateQuantity(t *testing.T) {
 
 	// Mock expectations
 	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(existingBill, nil)
+	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(existingAggregate, nil)
 	mockProductRepo.On("FindByIDs", ctx, []string{productID}).Return([]*dto.Product{product}, nil)
-	mockOpenBillRepo.On("Update", ctx, openBillID, mock.AnythingOfType("*dto.OpenBill"), mock.MatchedBy(func(products []dto.OrderProductItem) bool {
-		return len(products) == 1 && products[0].ProductID == productID && products[0].Quantity == 5
-	})).Return(nil)
+	mockOpenBillRepo.On("Update", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
 
 	// Execute
 	result, err := service.UpdateOrder(ctx, openBillID, req)
@@ -821,21 +841,24 @@ func TestUpdateOrder_ProductNotFound(t *testing.T) {
 		TemporalIdentifier: "ORDER-123",
 		TotalAmount:        decimal.NewFromFloat(100.0),
 		Products:           []dto.OpenBillProductDetail{},
+		CreatedBy:          dto.OpenBillCreator{ID: "user-123"},
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
 	}
+	existingAggregate := createTestOpenBillAggregate(openBillID, []*openBill.OpenBillProduct{})
 
 	product1 := createTestProduct(productID1, "Product 1", "Category", 1, 50.0, 9.5)
 
 	req := &dto.UpdateOrderRequest{
 		Products: []dto.OrderProductItem{
-			{ProductID: productID1, Quantity: 1},
-			{ProductID: productID2, Quantity: 1},
+			{OpenBillProductID: uuidPlaceholder0, ProductID: productID1, Quantity: 1},
+			{OpenBillProductID: uuidPlaceholder1, ProductID: productID2, Quantity: 1},
 		},
 	}
 
 	// Mock expectations - only one product found
 	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(existingBill, nil)
+	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(existingAggregate, nil)
 	mockProductRepo.On("FindByIDs", ctx, []string{productID1, productID2}).Return([]*dto.Product{product1}, nil)
 
 	// Execute
@@ -865,13 +888,15 @@ func TestUpdateOrder_RepositoryError_ProductFetch(t *testing.T) {
 		TemporalIdentifier: "ORDER-123",
 		TotalAmount:        decimal.NewFromFloat(100.0),
 		Products:           []dto.OpenBillProductDetail{},
+		CreatedBy:          dto.OpenBillCreator{ID: "user-123"},
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
 	}
+	existingAggregate := createTestOpenBillAggregate(openBillID, []*openBill.OpenBillProduct{})
 
 	req := &dto.UpdateOrderRequest{
 		Products: []dto.OrderProductItem{
-			{ProductID: productID1, Quantity: 1},
+			{OpenBillProductID: uuidPlaceholder0, ProductID: productID1, Quantity: 1},
 		},
 	}
 
@@ -879,6 +904,7 @@ func TestUpdateOrder_RepositoryError_ProductFetch(t *testing.T) {
 
 	// Mock expectations
 	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(existingBill, nil)
+	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(existingAggregate, nil)
 	mockProductRepo.On("FindByIDs", ctx, []string{productID1}).Return(nil, repoError)
 
 	// Execute
@@ -908,9 +934,11 @@ func TestUpdateOrder_RepositoryError_Update(t *testing.T) {
 		TemporalIdentifier: "ORDER-123",
 		TotalAmount:        decimal.NewFromFloat(100.0),
 		Products:           []dto.OpenBillProductDetail{},
+		CreatedBy:          dto.OpenBillCreator{ID: "user-123"},
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
 	}
+	existingAggregate := createTestOpenBillAggregate(openBillID, []*openBill.OpenBillProduct{})
 
 	productID := productID1
 	productPrice := 100.0
@@ -918,7 +946,7 @@ func TestUpdateOrder_RepositoryError_Update(t *testing.T) {
 
 	req := &dto.UpdateOrderRequest{
 		Products: []dto.OrderProductItem{
-			{ProductID: productID, Quantity: 1},
+			{OpenBillProductID: uuidPlaceholder0, ProductID: productID, Quantity: 1},
 		},
 	}
 
@@ -926,8 +954,9 @@ func TestUpdateOrder_RepositoryError_Update(t *testing.T) {
 
 	// Mock expectations
 	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(existingBill, nil)
+	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(existingAggregate, nil)
 	mockProductRepo.On("FindByIDs", ctx, []string{productID}).Return([]*dto.Product{product}, nil)
-	mockOpenBillRepo.On("Update", ctx, openBillID, mock.AnythingOfType("*dto.OpenBill"), mock.Anything).Return(repoError)
+	mockOpenBillRepo.On("Update", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(repoError)
 
 	// Execute
 	result, err := service.UpdateOrder(ctx, openBillID, req)

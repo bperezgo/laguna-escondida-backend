@@ -247,6 +247,80 @@ func (r *CommandRepository) FindByOpenBillID(ctx context.Context, openBillID str
 	)
 }
 
+func (r *CommandRepository) FindAllByOpenBillID(ctx context.Context, openBillID string) ([]*command.Aggregate, error) {
+	db := postgres.GetTxOrDB(ctx, r.db)
+
+	type result struct {
+		ID                 string
+		OpenBillID         string
+		Area               string
+		Status             string
+		CreatedAt          time.Time
+		UpdatedAt          time.Time
+		TemporalIdentifier string
+		UserID             string
+		UserUsername       string
+		UserName           string
+	}
+
+	var results []result
+	err := db.Table("commands").
+		Select(`
+			commands.id,
+			commands.open_bill_id,
+			commands.area,
+			commands.status,
+			commands.created_at,
+			commands.updated_at,
+			open_bills.temporal_identifier,
+			users.id as user_id,
+			users.username as user_username,
+			users.name as user_name
+		`).
+		Joins("INNER JOIN open_bills ON commands.open_bill_id = open_bills.id").
+		Joins("LEFT JOIN users ON open_bills.created_by = users.id AND users.deleted_at IS NULL").
+		Where("commands.open_bill_id = ?", openBillID).
+		Scan(&results).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	commands := make([]*command.Aggregate, 0, len(results))
+	for _, res := range results {
+		var createdBy *dto.OpenBillCreator
+		if res.UserID != "" {
+			createdBy = &dto.OpenBillCreator{
+				ID:       res.UserID,
+				Username: res.UserUsername,
+				Name:     res.UserName,
+			}
+		}
+
+		items, err := r.findItemAggregatesByCommandID(db, res.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		cmd, err := command.NewCommandFromRepository(
+			res.ID,
+			res.OpenBillID,
+			res.TemporalIdentifier,
+			createdBy,
+			res.Area,
+			items,
+			res.CreatedAt,
+			res.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		commands = append(commands, cmd)
+	}
+
+	return commands, nil
+}
+
 func (r *CommandRepository) FindByArea(ctx context.Context, area string) ([]*dto.Command, error) {
 	db := postgres.GetTxOrDB(ctx, r.db)
 	return r.findCommandsByAreaAndStatus(db, area, "")

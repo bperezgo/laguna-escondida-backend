@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"laguna-escondida/backend/internal/domain/aggregate/bill"
 	"laguna-escondida/backend/internal/domain/aggregate/customer"
@@ -124,7 +123,14 @@ func (s *OrderService) CreateOrder(
 // If product exists with different quantity, updates the quantity
 // If product is removed, soft deletes it (sets deleted_at)
 func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *dto.UpdateOrderRequest) (*dto.OpenBill, error) {
-	existingBill, err := s.openBillRepo.FindByID(ctx, openBillID)
+	existingBillDTO, err := s.openBillRepo.FindByID(ctx, openBillID)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
+	}
+
+	previousProducts := existingBillDTO.Products
+
+	existingBillAggregate, err := s.openBillRepo.FindAggregateByID(ctx, openBillID)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
 	}
@@ -147,37 +153,50 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 		}
 
 		productPriceMap := make(map[string]*dto.Product)
-		for _, product := range products {
-			productPriceMap[product.ID] = product
+		for _, p := range products {
+			productPriceMap[p.ID] = p
 		}
 
 		for _, item := range req.Products {
-			if product, exists := productPriceMap[item.ProductID]; exists {
-				totalAmount = totalAmount.Add(product.TotalPriceWithTaxes.Mul(decimal.NewFromInt(int64(item.Quantity))))
+			if p, exists := productPriceMap[item.ProductID]; exists {
+				totalAmount = totalAmount.Add(p.TotalPriceWithTaxes.Mul(decimal.NewFromInt(int64(item.Quantity))))
 			}
 		}
 	}
 
-	updatedBill := &dto.OpenBill{
-		ID:                 existingBill.ID,
-		TemporalIdentifier: existingBill.TemporalIdentifier,
-		TotalAmount:        totalAmount,
-		CreatedByID:        existingBill.CreatedBy.ID,
-		Descriptor:         existingBill.Descriptor,
-		CreatedAt:          existingBill.CreatedAt,
-		UpdatedAt:          time.Now(),
+	openBillProducts := make([]*openBill.OpenBillProduct, 0, len(req.Products))
+	for _, item := range req.Products {
+		product, err := openBill.NewOpenBillProduct(item.OpenBillProductID, item.ProductID, item.Quantity, item.Notes)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
+		}
+		openBillProducts = append(openBillProducts, product)
 	}
 
-	if err := s.openBillRepo.Update(ctx, openBillID, updatedBill, req.Products); err != nil {
+	existingBillAggregate.UpdateProducts(openBillProducts, totalAmount)
+
+	if err := s.openBillRepo.Update(ctx, existingBillAggregate); err != nil {
 		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
 	}
 
+	updatedBill := existingBillAggregate.ToDTO()
 	if len(products) > 0 {
 		productDTOs := make([]dto.Product, len(products))
 		for i, p := range products {
 			productDTOs[i] = *p
 		}
 		updatedBill.Products = productDTOs
+	}
+
+	event := dto.NewOrderUpdatedEvent(
+		existingBillDTO.ID,
+		existingBillDTO.TemporalIdentifier,
+		existingBillDTO.CreatedBy.ID,
+		previousProducts,
+		req.Products,
+	)
+	if err := s.eventBus.Publish(ctx, event); err != nil {
+		fmt.Printf("failed to publish order updated event: %v\n", err)
 	}
 
 	return updatedBill, nil

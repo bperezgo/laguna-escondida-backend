@@ -404,6 +404,61 @@ func (a *Aggregate) GetItem(itemID string) *command_item.Aggregate {
 	return nil
 }
 
+// GetItemByOpenBillProductID returns an item by its OpenBillProductID
+func (a *Aggregate) GetItemByOpenBillProductID(openBillProductID string) *command_item.Aggregate {
+	for _, item := range a.items {
+		if item.OpenBillProductID() == openBillProductID {
+			return item
+		}
+	}
+	return nil
+}
+
+// CancelItemByOpenBillProductID marks a specific item as cancelled by its OpenBillProductID
+func (a *Aggregate) CancelItemByOpenBillProductID(openBillProductID string) error {
+	for _, item := range a.items {
+		if item.OpenBillProductID() == openBillProductID {
+			if err := item.Cancel(); err != nil {
+				return err
+			}
+			a.updatedAt = time.Now()
+			return nil
+		}
+	}
+	return commandError.NewItemNotFoundError()
+}
+
+// AddItems adds new items to the command
+func (a *Aggregate) AddItems(items []*command_item.Aggregate) error {
+	if a.status.IsCancelled() {
+		return commandError.NewCannotAddItemsError()
+	}
+
+	if a.status.IsCompleted() {
+		return commandError.NewCannotAddItemsError()
+	}
+
+	a.items = append(a.items, items...)
+	a.updatedAt = time.Now()
+	return nil
+}
+
+// TryCancel attempts to cancel the command if all items are cancelled
+func (a *Aggregate) TryCancel() (bool, error) {
+	if !a.CanCancel() {
+		return false, nil
+	}
+
+	status, err := shared.NewCommandStatus(dto.CommandStatusCancelled)
+	if err != nil {
+		return false, err
+	}
+
+	a.status = status
+	a.updatedAt = time.Now()
+	return true, nil
+}
+
 // ToDTO converts the aggregate to a DTO
 func (a *Aggregate) ToDTO() *dto.Command {
 	items := make([]dto.CommandItem, 0, len(a.items))

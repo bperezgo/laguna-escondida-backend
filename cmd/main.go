@@ -133,6 +133,14 @@ func main() {
 		log.Fatalf("Failed to subscribe to order deleted events: %v", err)
 	}
 
+	orderUpdatedHandler := eventbus.NewTypedEventHandler(
+		dto.OrderUpdatedEventName,
+		commandService.HandleOrderUpdated,
+	)
+	if err = eventSubscriber.Subscribe(orderUpdatedHandler); err != nil {
+		log.Fatalf("Failed to subscribe to order updated events: %v", err)
+	}
+
 	// Start event subscriber in background
 	go func() {
 		if errEventSubscriber := eventSubscriber.Start(context.Background()); errEventSubscriber != nil {

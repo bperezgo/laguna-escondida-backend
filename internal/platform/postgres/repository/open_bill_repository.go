@@ -232,6 +232,7 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 	productDetails := make([]dto.OpenBillProductDetail, len(productResults))
 	for i, pr := range productResults {
 		productDetails[i] = dto.OpenBillProductDetail{
+			OpenBillProductID: pr.ID,
 			Product: dto.Product{
 				ID:                  pr.ProductID,
 				Name:                pr.ProductName,
@@ -273,47 +274,79 @@ func (r *OpenBillRepository) Delete(ctx context.Context, openBillID string) erro
 		Update("deleted_at", now).Error
 }
 
-func (r *OpenBillRepository) Update(ctx context.Context, openBillID string, openBill *dto.OpenBill, products []dto.OrderProductItem) error {
+func (r *OpenBillRepository) FindAggregateByID(ctx context.Context, id string) (*openBill.Aggregate, error) {
+	db := postgres.GetTxOrDB(ctx, r.db)
+
+	var model openBillModel
+	err := db.Where("id = ? AND deleted_at IS NULL", id).First(&model).Error
+	if err != nil {
+		return nil, err
+	}
+
+	var productModels []openBillProductModel
+	err = db.Where("open_bill_id = ? AND deleted_at IS NULL", id).Find(&productModels).Error
+	if err != nil {
+		return nil, err
+	}
+
+	products := make([]*openBill.OpenBillProduct, 0, len(productModels))
+	for _, pm := range productModels {
+		product, err := openBill.NewOpenBillProduct(pm.ID, pm.ProductID, pm.Quantity, pm.Notes)
+		if err != nil {
+			return nil, err
+		}
+		products = append(products, product)
+	}
+
+	return openBill.NewAggregateFromRepository(
+		model.ID,
+		model.TemporalIdentifier,
+		model.TotalAmount,
+		model.Descriptor,
+		products,
+		model.CreatedBy,
+		model.CreatedAt,
+		model.UpdatedAt,
+	)
+}
+
+func (r *OpenBillRepository) Update(ctx context.Context, aggregate *openBill.Aggregate) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		updateData := map[string]interface{}{
-			"total_amount": openBill.TotalAmount,
-			"updated_at":   openBill.UpdatedAt,
+		updateData := map[string]any{
+			"total_amount": aggregate.TotalAmount(),
+			"updated_at":   aggregate.UpdatedAt(),
 		}
-		if openBill.Descriptor != nil {
-			updateData["descriptor"] = openBill.Descriptor
+		if aggregate.Descriptor() != nil {
+			updateData["descriptor"] = aggregate.Descriptor()
 		}
-		if err := tx.Model(&openBillModel{}).Where("id = ? AND deleted_at IS NULL", openBillID).Updates(updateData).Error; err != nil {
+		if err := tx.Model(&openBillModel{}).Where("id = ? AND deleted_at IS NULL", aggregate.ID()).Updates(updateData).Error; err != nil {
 			return err
 		}
 
-		// Fetch all existing products (including soft-deleted ones) to check what exists
 		var existingProducts []openBillProductModel
-		if err := tx.Where("open_bill_id = ?", openBillID).Find(&existingProducts).Error; err != nil {
+		if err := tx.Where("open_bill_id = ?", aggregate.ID()).Find(&existingProducts).Error; err != nil {
 			return err
 		}
 
-		// Create a map of existing products by product_id
 		existingProductMap := make(map[string]*openBillProductModel)
 		for i := range existingProducts {
-			existingProductMap[existingProducts[i].ProductID] = &existingProducts[i]
+			existingProductMap[existingProducts[i].ID] = &existingProducts[i]
 		}
 
-		// Create a map of requested products by product_id
-		requestedProductMap := make(map[string]dto.OrderProductItem)
-		for _, item := range products {
-			requestedProductMap[item.ProductID] = item
+		requestedProductMap := make(map[string]*openBill.OpenBillProduct)
+		for _, item := range aggregate.Products() {
+			requestedProductMap[item.ID()] = item
 		}
 
-		// Process each requested product
-		for _, item := range products {
-			existing, exists := existingProductMap[item.ProductID]
+		for _, item := range aggregate.Products() {
+			existing, exists := existingProductMap[item.ID()]
 			now := time.Now()
 
 			if exists {
 				if existing.DeletedAt != nil {
 					if err := tx.Model(existing).Updates(map[string]any{
-						"quantity":   item.Quantity,
-						"notes":      item.Notes,
+						"quantity":   item.Quantity(),
+						"notes":      item.Notes(),
 						"updated_at": now,
 						"deleted_at": nil,
 					}).Error; err != nil {
@@ -321,14 +354,14 @@ func (r *OpenBillRepository) Update(ctx context.Context, openBillID string, open
 					}
 				} else {
 					updateFields := map[string]any{"updated_at": now}
-					if existing.Quantity != item.Quantity {
-						updateFields["quantity"] = item.Quantity
+					if existing.Quantity != item.Quantity() {
+						updateFields["quantity"] = item.Quantity()
 					}
-					notesChanged := (existing.Notes == nil && item.Notes != nil) ||
-						(existing.Notes != nil && item.Notes == nil) ||
-						(existing.Notes != nil && item.Notes != nil && *existing.Notes != *item.Notes)
+					notesChanged := (existing.Notes == nil && item.Notes() != nil) ||
+						(existing.Notes != nil && item.Notes() == nil) ||
+						(existing.Notes != nil && item.Notes() != nil && *existing.Notes != *item.Notes())
 					if notesChanged {
-						updateFields["notes"] = item.Notes
+						updateFields["notes"] = item.Notes()
 					}
 					if len(updateFields) > 1 {
 						if err := tx.Model(existing).Updates(updateFields).Error; err != nil {
@@ -338,10 +371,11 @@ func (r *OpenBillRepository) Update(ctx context.Context, openBillID string, open
 				}
 			} else {
 				newProduct := &openBillProductModel{
-					OpenBillID: openBillID,
-					ProductID:  item.ProductID,
-					Quantity:   item.Quantity,
-					Notes:      item.Notes,
+					ID:         item.ID(),
+					OpenBillID: aggregate.ID(),
+					ProductID:  item.ProductID(),
+					Quantity:   item.Quantity(),
+					Notes:      item.Notes(),
 					CreatedAt:  now,
 					UpdatedAt:  now,
 				}
@@ -351,12 +385,10 @@ func (r *OpenBillRepository) Update(ctx context.Context, openBillID string, open
 			}
 		}
 
-		// Soft delete products that are not in the request
-		for productID, existing := range existingProductMap {
-			if _, inRequest := requestedProductMap[productID]; !inRequest && existing.DeletedAt == nil {
-				// Product exists but not in request - soft delete it
+		for openBillProductID, existing := range existingProductMap {
+			if _, inRequest := requestedProductMap[openBillProductID]; !inRequest && existing.DeletedAt == nil {
 				now := time.Now()
-				if err := tx.Model(existing).Updates(map[string]interface{}{
+				if err := tx.Model(existing).Updates(map[string]any{
 					"deleted_at": &now,
 					"updated_at": now,
 				}).Error; err != nil {
@@ -593,6 +625,7 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 	productDetails := make([]dto.OpenBillProductDetail, len(productResults))
 	for i, pr := range productResults {
 		productDetails[i] = dto.OpenBillProductDetail{
+			OpenBillProductID: pr.ID,
 			Product: dto.Product{
 				ID:                  pr.ProductID,
 				Name:                pr.ProductName,

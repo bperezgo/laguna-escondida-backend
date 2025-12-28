@@ -9,6 +9,7 @@ type CommandErrorCode string
 const (
 	CodeCannotComplete            CommandErrorCode = "COMMAND_CANNOT_COMPLETE"
 	CodeCannotCancel              CommandErrorCode = "COMMAND_CANNOT_CANCEL"
+	CodeCannotAddItems            CommandErrorCode = "COMMAND_CANNOT_ADD_ITEMS"
 	CodeAlreadyCompleted          CommandErrorCode = "COMMAND_ALREADY_COMPLETED"
 	CodeAlreadyCancelled          CommandErrorCode = "COMMAND_ALREADY_CANCELLED"
 	CodeMissingID                 CommandErrorCode = "COMMAND_MISSING_ID"
@@ -32,6 +33,13 @@ func NewCannotCancelError() *baseError.BaseError {
 	return baseError.NewBaseError(
 		baseError.ErrorCode(CodeCannotCancel),
 		"command cannot be cancelled from current status",
+	)
+}
+
+func NewCannotAddItemsError() *baseError.BaseError {
+	return baseError.NewBaseError(
+		baseError.ErrorCode(CodeCannotAddItems),
+		"cannot add items to a completed or cancelled command",
 	)
 }
 
