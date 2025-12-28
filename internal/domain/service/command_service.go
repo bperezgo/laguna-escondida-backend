@@ -283,8 +283,16 @@ func (s *CommandService) HandleOrderUpdated(ctx context.Context, event dto.Order
 	s.updateModifiedProducts(ctx, previousMap, currentMap, existingCommandsMap, event.OpenBillID, event.TemporalIdentifier, createdBy.Name)
 
 	for _, cmd := range existingCommands {
-		cmd.TryComplete()
-		cmd.TryCancel()
+		_, err := cmd.TryComplete()
+		if err != nil {
+			s.logger.Error("failed to try complete command", zap.String("command_id", cmd.ID()), zap.Error(err))
+			continue
+		}
+		_, err = cmd.TryCancel()
+		if err != nil {
+			s.logger.Error("failed to try cancel command", zap.String("command_id", cmd.ID()), zap.Error(err))
+			continue
+		}
 
 		if err := s.commandRepo.Update(ctx, cmd); err != nil {
 			s.logger.Error("failed to update command", zap.String("command_id", cmd.ID()), zap.Error(err))
