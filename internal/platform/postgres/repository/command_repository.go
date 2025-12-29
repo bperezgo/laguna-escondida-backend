@@ -12,6 +12,7 @@ import (
 	"laguna-escondida/backend/internal/platform/postgres"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type CommandRepository struct {
@@ -525,13 +526,27 @@ func (r *CommandRepository) Update(ctx context.Context, cmd *command.Aggregate) 
 		}
 
 		for _, item := range cmd.Items() {
-			itemResult := tx.Model(&commandItemModel{}).
-				Where("id = ?", item.ID()).
-				Updates(map[string]any{
-					"status":   string(item.Status()),
-					"quantity": item.Quantity(),
-					"notes":    item.Notes(),
-				})
+			itemModel := &commandItemModel{
+				ID:                item.ID(),
+				CommandID:         cmd.ID(),
+				ProductID:         item.ProductID(),
+				OpenBillProductID: item.OpenBillProductID(),
+				Priority:          item.Priority(),
+				Status:            string(item.Status()),
+				Quantity:          item.Quantity(),
+				Notes:             item.Notes(),
+				CreatedAt:         cmd.CreatedAt(),
+			}
+
+			itemResult := tx.Clauses(clause.OnConflict{
+				Columns: []clause.Column{{Name: "id"}},
+				DoUpdates: clause.AssignmentColumns([]string{
+					"status",
+					"quantity",
+					"notes",
+					"priority",
+				}),
+			}).Create(itemModel)
 
 			if itemResult.Error != nil {
 				return itemResult.Error
