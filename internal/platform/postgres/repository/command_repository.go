@@ -511,7 +511,7 @@ func (r *CommandRepository) Update(ctx context.Context, cmd *command.Aggregate) 
 	return db.Transaction(func(tx *gorm.DB) error {
 		result := tx.Model(&commandModel{}).
 			Where("id = ?", cmd.ID()).
-			Updates(map[string]interface{}{
+			Updates(map[string]any{
 				"status":     string(cmd.Status()),
 				"updated_at": cmd.UpdatedAt(),
 			})
@@ -527,7 +527,11 @@ func (r *CommandRepository) Update(ctx context.Context, cmd *command.Aggregate) 
 		for _, item := range cmd.Items() {
 			itemResult := tx.Model(&commandItemModel{}).
 				Where("id = ?", item.ID()).
-				Update("status", string(item.Status()))
+				Updates(map[string]any{
+					"status":   string(item.Status()),
+					"quantity": item.Quantity(),
+					"notes":    item.Notes(),
+				})
 
 			if itemResult.Error != nil {
 				return itemResult.Error
