@@ -150,7 +150,7 @@ export default function CommandItemCard({
         >
           <span
             style={{
-              backgroundColor: "var(--color-text-primary)",
+              backgroundColor: "#1a1a2e",
               color: "white",
               padding: "0.25rem 0.5rem",
               borderRadius: "var(--radius-sm)",

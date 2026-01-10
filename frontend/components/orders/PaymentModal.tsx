@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { payOrder } from "@/lib/api/orders";
 import { getBillOwnerById } from "@/lib/api/billOwners";
+import { generateInvoicePrintHTML } from "@/lib/templates/invoicePrint";
 import type { OpenBillWithProducts } from "@/types/order";
 import type { PaymentType } from "@/types/billOwner";
 
@@ -91,103 +92,12 @@ export default function PaymentModal({
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
 
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Factura - ${openBill.temporal_identifier}</title>
-          <style>
-            * {
-              margin: 0;
-              padding: 0;
-              box-sizing: border-box;
-            }
-            body {
-              font-family: 'Courier New', monospace;
-              padding: 20px;
-              max-width: 80mm;
-              margin: 0 auto;
-            }
-            .header {
-              text-align: center;
-              margin-bottom: 20px;
-              border-bottom: 2px dashed #000;
-              padding-bottom: 10px;
-            }
-            .bill-number {
-              font-size: 18px;
-              font-weight: bold;
-              margin-bottom: 5px;
-            }
-            .date {
-              font-size: 12px;
-              margin-bottom: 5px;
-            }
-            .descriptor {
-              font-size: 12px;
-              margin-top: 10px;
-            }
-            .items {
-              margin: 20px 0;
-            }
-            .item {
-              margin-bottom: 15px;
-              padding-bottom: 10px;
-              border-bottom: 1px dashed #ccc;
-            }
-            .item-name {
-              font-weight: bold;
-              margin-bottom: 5px;
-            }
-            .item-details {
-              display: flex;
-              justify-content: space-between;
-              font-size: 12px;
-              margin-bottom: 3px;
-            }
-            .item-notes {
-              font-size: 11px;
-              font-style: italic;
-              color: #666;
-              margin-top: 5px;
-            }
-            .totals {
-              margin-top: 20px;
-              border-top: 2px solid #000;
-              padding-top: 10px;
-            }
-            .total-row {
-              display: flex;
-              justify-content: space-between;
-              margin-bottom: 8px;
-              font-size: 13px;
-            }
-            .total-row.final {
-              font-size: 16px;
-              font-weight: bold;
-              margin-top: 10px;
-              padding-top: 10px;
-              border-top: 2px dashed #000;
-            }
-            .footer {
-              text-align: center;
-              margin-top: 30px;
-              font-size: 11px;
-              border-top: 2px dashed #000;
-              padding-top: 10px;
-            }
-            @media print {
-              body {
-                padding: 0;
-              }
-            }
-          </style>
-        </head>
-        <body>
-          ${printContent.innerHTML}
-        </body>
-      </html>
-    `);
+    printWindow.document.write(
+      generateInvoicePrintHTML({
+        title: `Factura - ${openBill.temporal_identifier}`,
+        content: printContent.innerHTML,
+      })
+    );
 
     printWindow.document.close();
     printWindow.focus();
