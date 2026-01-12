@@ -459,6 +459,53 @@ func (_c *MockOpenBillRepository_Update_Call) RunAndReturn(run func(context.Cont
 	return _c
 }
 
+// UpdateProductStatus provides a mock function with given fields: ctx, aggregate
+func (_m *MockOpenBillRepository) UpdateProductStatus(ctx context.Context, aggregate *open_bill.Aggregate) error {
+	ret := _m.Called(ctx, aggregate)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateProductStatus")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *open_bill.Aggregate) error); ok {
+		r0 = rf(ctx, aggregate)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockOpenBillRepository_UpdateProductStatus_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateProductStatus'
+type MockOpenBillRepository_UpdateProductStatus_Call struct {
+	*mock.Call
+}
+
+// UpdateProductStatus is a helper method to define mock.On call
+//   - ctx context.Context
+//   - aggregate *open_bill.Aggregate
+func (_e *MockOpenBillRepository_Expecter) UpdateProductStatus(ctx interface{}, aggregate interface{}) *MockOpenBillRepository_UpdateProductStatus_Call {
+	return &MockOpenBillRepository_UpdateProductStatus_Call{Call: _e.mock.On("UpdateProductStatus", ctx, aggregate)}
+}
+
+func (_c *MockOpenBillRepository_UpdateProductStatus_Call) Run(run func(ctx context.Context, aggregate *open_bill.Aggregate)) *MockOpenBillRepository_UpdateProductStatus_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*open_bill.Aggregate))
+	})
+	return _c
+}
+
+func (_c *MockOpenBillRepository_UpdateProductStatus_Call) Return(_a0 error) *MockOpenBillRepository_UpdateProductStatus_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockOpenBillRepository_UpdateProductStatus_Call) RunAndReturn(run func(context.Context, *open_bill.Aggregate) error) *MockOpenBillRepository_UpdateProductStatus_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockOpenBillRepository creates a new instance of MockOpenBillRepository. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockOpenBillRepository(t interface {

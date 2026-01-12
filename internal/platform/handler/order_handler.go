@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 
+	openBillError "laguna-escondida/backend/internal/domain/aggregate/open_bill/error"
 	"laguna-escondida/backend/internal/domain/command"
 	"laguna-escondida/backend/internal/domain/dto"
 	orderError "laguna-escondida/backend/internal/domain/error"
@@ -195,4 +196,120 @@ func (h *OrderHandler) DeleteOrderHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Order deleted successfully"})
+}
+
+func (h *OrderHandler) CompleteOpenBillProductHandler(c *gin.Context) {
+	openBillID := c.Param("id")
+	if openBillID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Order ID is required"})
+		return
+	}
+
+	openBillProductID := c.Param("product_id")
+	if openBillProductID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Product ID is required"})
+		return
+	}
+
+	err := h.orderService.CompleteOpenBillProduct(c.Request.Context(), openBillID, openBillProductID)
+	if err != nil {
+		log.Printf("Error completing open bill product: %v", err)
+
+		if errors.Is(err, orderError.ErrOrderNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
+			return
+		}
+		if errors.Is(err, openBillError.ErrOpenBillProductNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Product not found in order"})
+			return
+		}
+		if errors.Is(err, openBillError.ErrProductAlreadyCompleted) {
+			c.JSON(http.StatusConflict, gin.H{"error": "Product is already completed"})
+			return
+		}
+		if errors.Is(err, openBillError.ErrCannotCompleteProduct) {
+			c.JSON(http.StatusConflict, gin.H{"error": "Product cannot be completed from current status"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Product completed successfully"})
+}
+
+func (h *OrderHandler) SetOpenBillProductInProgressHandler(c *gin.Context) {
+	openBillID := c.Param("id")
+	if openBillID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Order ID is required"})
+		return
+	}
+
+	openBillProductID := c.Param("product_id")
+	if openBillProductID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Product ID is required"})
+		return
+	}
+
+	err := h.orderService.SetOpenBillProductInProgress(c.Request.Context(), openBillID, openBillProductID)
+	if err != nil {
+		log.Printf("Error setting open bill product in progress: %v", err)
+
+		if errors.Is(err, orderError.ErrOrderNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
+			return
+		}
+		if errors.Is(err, openBillError.ErrOpenBillProductNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Product not found in order"})
+			return
+		}
+		if errors.Is(err, openBillError.ErrCannotSetInProgressFromCancelled) {
+			c.JSON(http.StatusConflict, gin.H{"error": "Cannot set in progress from cancelled status"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Product set to in progress successfully"})
+}
+
+func (h *OrderHandler) CancelOpenBillProductHandler(c *gin.Context) {
+	openBillID := c.Param("id")
+	if openBillID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Order ID is required"})
+		return
+	}
+
+	openBillProductID := c.Param("product_id")
+	if openBillProductID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Product ID is required"})
+		return
+	}
+
+	err := h.orderService.CancelOpenBillProduct(c.Request.Context(), openBillID, openBillProductID)
+	if err != nil {
+		log.Printf("Error cancelling open bill product: %v", err)
+
+		if errors.Is(err, orderError.ErrOrderNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
+			return
+		}
+		if errors.Is(err, openBillError.ErrOpenBillProductNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Product not found in order"})
+			return
+		}
+		if errors.Is(err, openBillError.ErrProductAlreadyCancelled) {
+			c.JSON(http.StatusConflict, gin.H{"error": "Product is already cancelled"})
+			return
+		}
+		if errors.Is(err, openBillError.ErrCannotCancelProduct) {
+			c.JSON(http.StatusConflict, gin.H{"error": "Product cannot be cancelled from current status"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Product cancelled successfully"})
 }

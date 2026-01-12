@@ -202,6 +202,11 @@ func main() {
 	router.DELETE("/api/orders/:id", handler.JWTAuthMiddleware(jwtService), orderHandler.DeleteOrderHandler)
 	router.POST("/api/orders/pay-order", handler.JWTAuthMiddleware(jwtService), orderHandler.PayOrderHandler)
 
+	// Order product status routes
+	router.PATCH("/api/orders/:id/products/:product_id/complete", handler.JWTAuthMiddleware(jwtService), orderHandler.CompleteOpenBillProductHandler)
+	router.PATCH("/api/orders/:id/products/:product_id/in-progress", handler.JWTAuthMiddleware(jwtService), orderHandler.SetOpenBillProductInProgressHandler)
+	router.PATCH("/api/orders/:id/products/:product_id/cancel", handler.JWTAuthMiddleware(jwtService), orderHandler.CancelOpenBillProductHandler)
+
 	// Product routes
 	router.POST("/api/products", handler.JWTAuthMiddleware(jwtService), productHandler.CreateProductHandler)
 	router.GET("/api/products", handler.JWTAuthMiddleware(jwtService), productHandler.ListProductsHandler)

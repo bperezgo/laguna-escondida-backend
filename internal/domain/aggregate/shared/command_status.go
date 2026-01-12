@@ -14,7 +14,7 @@ const (
 func NewInvalidCommandStatusError(status string) *baseError.BaseError {
 	return baseError.NewBaseErrorWithField(
 		baseError.ErrorCode(CodeInvalidCommandStatus),
-		"status must be one of: created, completed, cancelled",
+		"status must be one of: created, completed, cancelled, in_progress",
 		status,
 	)
 }
@@ -26,7 +26,8 @@ type CommandStatus struct {
 func NewCommandStatus(value dto.CommandStatus) (*CommandStatus, error) {
 	if value != dto.CommandStatusCreated &&
 		value != dto.CommandStatusCompleted &&
-		value != dto.CommandStatusCancelled {
+		value != dto.CommandStatusCancelled &&
+		value != dto.CommandStatusInProgress {
 		return nil, NewInvalidCommandStatusError(string(value))
 	}
 

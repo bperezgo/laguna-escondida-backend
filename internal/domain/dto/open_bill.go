@@ -16,6 +16,7 @@ type OpenBill struct {
 	ID                 string          `json:"id"`
 	TemporalIdentifier string          `json:"temporal_identifier"`
 	TotalAmount        decimal.Decimal `json:"total_amount"`
+	Status             CommandStatus   `json:"status"`
 	CreatedByID        string          `json:"created_by_id"`
 	Descriptor         *string         `json:"descriptor,omitempty"`
 	Products           []Product       `json:"products,omitempty"`
@@ -27,6 +28,7 @@ type OpenBillWithCreator struct {
 	ID                 string          `json:"id"`
 	TemporalIdentifier string          `json:"temporal_identifier"`
 	TotalAmount        decimal.Decimal `json:"total_amount"`
+	Status             CommandStatus   `json:"status"`
 	CreatedBy          OpenBillCreator `json:"created_by,omitempty"`
 	Descriptor         *string         `json:"descriptor,omitempty"`
 	CreatedAt          time.Time       `json:"created_at"`
@@ -47,6 +49,7 @@ type OpenBillWithProducts struct {
 	ID                 string                  `json:"id"`
 	TemporalIdentifier string                  `json:"temporal_identifier"`
 	TotalAmount        decimal.Decimal         `json:"total_amount"`
+	Status             CommandStatus           `json:"status"`
 	CreatedBy          OpenBillCreator         `json:"created_by,omitempty"`
 	Descriptor         *string                 `json:"descriptor,omitempty"`
 	Products           []OpenBillProductDetail `json:"products"`

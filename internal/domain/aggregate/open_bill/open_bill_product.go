@@ -119,3 +119,61 @@ func (p *OpenBillProduct) IsCancelled() bool {
 func (p *OpenBillProduct) IsInProgress() bool {
 	return p.status.IsInProgress()
 }
+
+func (p *OpenBillProduct) IsFinalized() bool {
+	return p.status.IsCompleted() || p.status.IsCancelled()
+}
+
+func (p *OpenBillProduct) Complete() error {
+	if p.status.IsCompleted() {
+		return openBillError.ErrProductAlreadyCompleted
+	}
+
+	if p.status.IsCancelled() {
+		return openBillError.ErrCannotCompleteProduct
+	}
+
+	status, err := shared.NewCommandStatus(dto.CommandStatusCompleted)
+	if err != nil {
+		return err
+	}
+
+	p.status = status
+	return nil
+}
+
+func (p *OpenBillProduct) Cancel() error {
+	if p.status.IsCancelled() {
+		return openBillError.ErrProductAlreadyCancelled
+	}
+
+	if p.status.IsCompleted() {
+		return openBillError.ErrCannotCancelProduct
+	}
+
+	status, err := shared.NewCommandStatus(dto.CommandStatusCancelled)
+	if err != nil {
+		return err
+	}
+
+	p.status = status
+	return nil
+}
+
+func (p *OpenBillProduct) SetInProgress() error {
+	if p.status.IsCancelled() {
+		return openBillError.ErrCannotSetInProgressFromCancelled
+	}
+
+	if p.status.IsInProgress() {
+		return nil
+	}
+
+	status, err := shared.NewCommandStatus(dto.CommandStatusInProgress)
+	if err != nil {
+		return err
+	}
+
+	p.status = status
+	return nil
+}

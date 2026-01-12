@@ -342,3 +342,73 @@ func (s *OrderService) DeleteOrder(ctx context.Context, openBillID string) error
 
 	return nil
 }
+
+// CompleteOpenBillProduct marks a product as completed and updates open_bill status if all products are finalized
+func (s *OrderService) CompleteOpenBillProduct(ctx context.Context, openBillID, openBillProductID string) error {
+	aggregate, err := s.openBillRepo.FindAggregateByID(ctx, openBillID)
+	if err != nil {
+		return fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
+	}
+
+	if err := aggregate.CompleteProduct(openBillProductID); err != nil {
+		return err
+	}
+
+	if _, err := aggregate.TryComplete(); err != nil {
+		return err
+	}
+
+	if _, err := aggregate.TryCancel(); err != nil {
+		return err
+	}
+
+	if err := s.openBillRepo.UpdateProductStatus(ctx, aggregate); err != nil {
+		return fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
+	}
+
+	return nil
+}
+
+// SetOpenBillProductInProgress marks a product as in_progress (fails if product is cancelled)
+func (s *OrderService) SetOpenBillProductInProgress(ctx context.Context, openBillID, openBillProductID string) error {
+	aggregate, err := s.openBillRepo.FindAggregateByID(ctx, openBillID)
+	if err != nil {
+		return fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
+	}
+
+	if err := aggregate.SetProductInProgress(openBillProductID); err != nil {
+		return err
+	}
+
+	if err := s.openBillRepo.UpdateProductStatus(ctx, aggregate); err != nil {
+		return fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
+	}
+
+	return nil
+}
+
+// CancelOpenBillProduct marks a product as cancelled and updates open_bill status if all products are cancelled
+func (s *OrderService) CancelOpenBillProduct(ctx context.Context, openBillID, openBillProductID string) error {
+	aggregate, err := s.openBillRepo.FindAggregateByID(ctx, openBillID)
+	if err != nil {
+		return fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
+	}
+
+	if err := aggregate.CancelProduct(openBillProductID); err != nil {
+		return err
+	}
+
+	if _, err := aggregate.TryComplete(); err != nil {
+		return err
+	}
+
+	if _, err := aggregate.TryCancel(); err != nil {
+		return err
+	}
+
+	if err := s.openBillRepo.UpdateProductStatus(ctx, aggregate); err != nil {
+		return fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
+	}
+
+	return nil
+}
