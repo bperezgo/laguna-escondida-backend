@@ -19,6 +19,7 @@ type CommandItem struct {
 	Notes             *string       `json:"notes,omitempty"`
 	Status            CommandStatus `json:"status"`
 	Priority          int           `json:"priority"`
+	CreatedAt         time.Time     `json:"created_at"`
 }
 
 type Command struct {

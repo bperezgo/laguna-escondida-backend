@@ -414,6 +414,7 @@ func (r *CommandRepository) findItemsByCommandID(db *gorm.DB, commandID string) 
 		OpenBillProductID string
 		Priority          int
 		Status            dto.CommandStatus
+		CreatedAt         time.Time
 	}
 
 	var itemResults []itemResult
@@ -426,7 +427,8 @@ func (r *CommandRepository) findItemsByCommandID(db *gorm.DB, commandID string) 
 			command_items.notes,
 			command_items.open_bill_product_id,
 			command_items.priority,
-			command_items.status
+			command_items.status,
+			command_items.created_at
 		`).
 		Joins("INNER JOIN products ON command_items.product_id = products.id").
 		Where("command_items.command_id = ?", commandID).
@@ -447,6 +449,7 @@ func (r *CommandRepository) findItemsByCommandID(db *gorm.DB, commandID string) 
 			OpenBillProductID: ir.OpenBillProductID,
 			Priority:          ir.Priority,
 			Status:            ir.Status,
+			CreatedAt:         ir.CreatedAt,
 		}
 	}
 
@@ -463,6 +466,7 @@ func (r *CommandRepository) findItemAggregatesByCommandID(db *gorm.DB, commandID
 		OpenBillProductID string
 		Priority          int
 		Status            dto.CommandStatus
+		CreatedAt         time.Time
 	}
 
 	var itemResults []itemResult
@@ -496,6 +500,7 @@ func (r *CommandRepository) findItemAggregatesByCommandID(db *gorm.DB, commandID
 			ir.Notes,
 			ir.Status,
 			ir.Priority,
+			ir.CreatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -535,7 +540,7 @@ func (r *CommandRepository) Update(ctx context.Context, cmd *command.Aggregate) 
 				Status:            string(item.Status()),
 				Quantity:          item.Quantity(),
 				Notes:             item.Notes(),
-				CreatedAt:         cmd.CreatedAt(),
+				CreatedAt:         item.CreatedAt(),
 			}
 
 			itemResult := tx.Clauses(clause.OnConflict{

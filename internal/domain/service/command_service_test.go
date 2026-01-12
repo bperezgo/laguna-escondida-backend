@@ -32,6 +32,7 @@ func createTestCommandService(t *testing.T) (*CommandService, *mocks.MockCommand
 }
 
 func createTestCommandAggregate(t *testing.T, id, openBillID, area string) *command.Aggregate {
+	now := time.Now()
 	item, err := command_item.NewCommandItem(
 		"item-1",
 		"open-bill-product-1",
@@ -40,10 +41,10 @@ func createTestCommandAggregate(t *testing.T, id, openBillID, area string) *comm
 		2,
 		nil,
 		0,
+		now,
 	)
 	require.NoError(t, err)
 
-	now := time.Now()
 	cmd, err := command.NewCommand(
 		id,
 		openBillID,
@@ -157,6 +158,7 @@ func TestCompleteCommand_FindByIDError(t *testing.T) {
 // CompleteCommandItem Tests
 
 func createTestCommandAggregateWithMultipleItems(t *testing.T, id, openBillID, area string) *command.Aggregate {
+	now := time.Now()
 	item1, err := command_item.NewCommandItem(
 		"item-1",
 		"open-bill-product-1",
@@ -165,6 +167,7 @@ func createTestCommandAggregateWithMultipleItems(t *testing.T, id, openBillID, a
 		2,
 		nil,
 		0,
+		now,
 	)
 	require.NoError(t, err)
 
@@ -176,10 +179,10 @@ func createTestCommandAggregateWithMultipleItems(t *testing.T, id, openBillID, a
 		1,
 		nil,
 		0,
+		now,
 	)
 	require.NoError(t, err)
 
-	now := time.Now()
 	cmd, err := command.NewCommand(
 		id,
 		openBillID,
@@ -421,10 +424,11 @@ func TestHandleOrderUpdated_ItemRemoved_CancelsCommandItem(t *testing.T) {
 	openBillID := "open-bill-1"
 	temporalIdentifier := "TEMP-001"
 	area := "kitchen"
+	now := time.Now()
 
-	item1, err := command_item.NewCommandItem("item-1", "obp-1", "product-1", "Product 1", 2, nil, 1)
+	item1, err := command_item.NewCommandItem("item-1", "obp-1", "product-1", "Product 1", 2, nil, 1, now)
 	require.NoError(t, err)
-	item2, err := command_item.NewCommandItem("item-2", "obp-2", "product-2", "Product 2", 1, nil, 1)
+	item2, err := command_item.NewCommandItem("item-2", "obp-2", "product-2", "Product 2", 1, nil, 1, now)
 	require.NoError(t, err)
 
 	existingCommand := createTestCommandAggregateWithItems(t, "cmd-1", openBillID, temporalIdentifier, area, []*command_item.Aggregate{item1, item2})
@@ -476,8 +480,9 @@ func TestHandleOrderUpdated_ItemAdded_CreatesCommandItem(t *testing.T) {
 	openBillID := "open-bill-1"
 	temporalIdentifier := "TEMP-001"
 	area := "kitchen"
+	now := time.Now()
 
-	item1, err := command_item.NewCommandItem("item-1", "obp-1", "product-1", "Product 1", 2, nil, 1)
+	item1, err := command_item.NewCommandItem("item-1", "obp-1", "product-1", "Product 1", 2, nil, 1, now)
 	require.NoError(t, err)
 
 	existingCommand := createTestCommandAggregateWithItems(t, "cmd-1", openBillID, temporalIdentifier, area, []*command_item.Aggregate{item1})
@@ -529,10 +534,11 @@ func TestHandleOrderUpdated_ItemAddedAndRemoved(t *testing.T) {
 	openBillID := "open-bill-1"
 	temporalIdentifier := "TEMP-001"
 	area := "kitchen"
+	now := time.Now()
 
-	item1, err := command_item.NewCommandItem("item-1", "obp-1", "product-1", "Product 1", 2, nil, 1)
+	item1, err := command_item.NewCommandItem("item-1", "obp-1", "product-1", "Product 1", 2, nil, 1, now)
 	require.NoError(t, err)
-	item2, err := command_item.NewCommandItem("item-2", "obp-2", "product-2", "Product 2", 1, nil, 1)
+	item2, err := command_item.NewCommandItem("item-2", "obp-2", "product-2", "Product 2", 1, nil, 1, now)
 	require.NoError(t, err)
 
 	existingCommand := createTestCommandAggregateWithItems(t, "cmd-1", openBillID, temporalIdentifier, area, []*command_item.Aggregate{item1, item2})
@@ -601,11 +607,12 @@ func TestHandleOrderUpdated_ItemUpdated_NotesAndQuantityChanged(t *testing.T) {
 	openBillID := "open-bill-1"
 	temporalIdentifier := "TEMP-001"
 	area := "kitchen"
+	now := time.Now()
 
 	originalNotes := "original notes"
-	item1, err := command_item.NewCommandItem("item-1", "obp-1", "product-1", "Product 1", 2, &originalNotes, 1)
+	item1, err := command_item.NewCommandItem("item-1", "obp-1", "product-1", "Product 1", 2, &originalNotes, 1, now)
 	require.NoError(t, err)
-	item2, err := command_item.NewCommandItem("item-2", "obp-2", "product-2", "Product 2", 1, nil, 1)
+	item2, err := command_item.NewCommandItem("item-2", "obp-2", "product-2", "Product 2", 1, nil, 1, now)
 	require.NoError(t, err)
 
 	existingCommand := createTestCommandAggregateWithItems(t, "cmd-1", openBillID, temporalIdentifier, area, []*command_item.Aggregate{item1, item2})
@@ -660,12 +667,13 @@ func TestHandleOrderUpdated_ItemCreatedRemovedAndUpdated(t *testing.T) {
 	openBillID := "open-bill-1"
 	temporalIdentifier := "TEMP-001"
 	area := "kitchen"
+	now := time.Now()
 
-	item1, err := command_item.NewCommandItem("item-1", "obp-1", "product-1", "Product 1", 2, nil, 1)
+	item1, err := command_item.NewCommandItem("item-1", "obp-1", "product-1", "Product 1", 2, nil, 1, now)
 	require.NoError(t, err)
-	item2, err := command_item.NewCommandItem("item-2", "obp-2", "product-2", "Product 2", 1, nil, 1)
+	item2, err := command_item.NewCommandItem("item-2", "obp-2", "product-2", "Product 2", 1, nil, 1, now)
 	require.NoError(t, err)
-	item3, err := command_item.NewCommandItem("item-3", "obp-3", "product-3", "Product 3", 3, nil, 1)
+	item3, err := command_item.NewCommandItem("item-3", "obp-3", "product-3", "Product 3", 3, nil, 1, now)
 	require.NoError(t, err)
 
 	existingCommand := createTestCommandAggregateWithItems(t, "cmd-1", openBillID, temporalIdentifier, area, []*command_item.Aggregate{item1, item2, item3})

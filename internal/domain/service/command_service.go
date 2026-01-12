@@ -50,6 +50,7 @@ func (s *CommandService) HandleOrderCreated(ctx context.Context, event dto.Order
 		return nil
 	}
 
+	now := time.Now()
 	productIDs := make([]string, len(event.Products))
 	for i, p := range event.Products {
 		productIDs[i] = p.ProductID
@@ -97,6 +98,7 @@ func (s *CommandService) HandleOrderCreated(ctx context.Context, event dto.Order
 			p.Quantity,
 			p.Notes,
 			responsibility.Priority,
+			now,
 		)
 		if err != nil {
 			s.logger.Error("failed to create command item", zap.Error(err))
@@ -111,7 +113,6 @@ func (s *CommandService) HandleOrderCreated(ctx context.Context, event dto.Order
 		userName = createdBy.Username
 	}
 
-	now := time.Now()
 	for area, items := range areaItemsMap {
 		cmd, err := command.NewCommand(
 			uuid.New().String(),
@@ -469,6 +470,7 @@ func (s *CommandService) createNewProducts(
 			p.Quantity,
 			p.Notes,
 			responsibility.Priority,
+			now,
 		)
 		if err != nil {
 			s.logger.Error("failed to create command item", zap.Error(err))

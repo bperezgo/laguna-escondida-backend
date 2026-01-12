@@ -4,6 +4,7 @@ import (
 	commandItemError "laguna-escondida/backend/internal/domain/aggregate/command_item/error"
 	"laguna-escondida/backend/internal/domain/aggregate/shared"
 	"laguna-escondida/backend/internal/domain/dto"
+	"time"
 )
 
 type Aggregate struct {
@@ -15,6 +16,7 @@ type Aggregate struct {
 	notes             *string
 	status            *shared.CommandStatus
 	priority          *Priority
+	createdAt         time.Time
 }
 
 func NewCommandItem(
@@ -25,6 +27,7 @@ func NewCommandItem(
 	quantity int,
 	notes *string,
 	priorityValue int,
+	createdAt time.Time,
 ) (*Aggregate, error) {
 	if id == "" {
 		return nil, commandItemError.NewMissingIDError()
@@ -57,6 +60,7 @@ func NewCommandItem(
 		notes:             notes,
 		status:            status,
 		priority:          priority,
+		createdAt:         createdAt,
 	}, nil
 }
 
@@ -92,6 +96,7 @@ func NewCommandItemFromDTO(item *dto.CommandItem) (*Aggregate, error) {
 		notes:             item.Notes,
 		status:            status,
 		priority:          priority,
+		createdAt:         item.CreatedAt,
 	}, nil
 }
 
@@ -104,6 +109,7 @@ func NewCommandItemFromRepository(
 	notes *string,
 	status dto.CommandStatus,
 	priority int,
+	createdAt time.Time,
 ) (*Aggregate, error) {
 	if id == "" {
 		return nil, commandItemError.NewMissingIDError()
@@ -136,6 +142,7 @@ func NewCommandItemFromRepository(
 		notes:             notes,
 		status:            statusVO,
 		priority:          priorityVO,
+		createdAt:         createdAt,
 	}, nil
 }
 
@@ -169,6 +176,10 @@ func (a *Aggregate) Status() dto.CommandStatus {
 
 func (a *Aggregate) Priority() int {
 	return a.priority.Value()
+}
+
+func (a *Aggregate) CreatedAt() time.Time {
+	return a.createdAt
 }
 
 func (a *Aggregate) IsCreated() bool {
