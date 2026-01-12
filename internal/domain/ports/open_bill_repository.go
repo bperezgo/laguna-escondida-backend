@@ -15,4 +15,5 @@ type OpenBillRepository interface {
 	FindByIDWithProducts(ctx context.Context, id string) (*dto.OpenBillWithProducts, error)
 	Update(ctx context.Context, aggregate *openBill.Aggregate) error
 	Delete(ctx context.Context, openBillID string) error
+	GetProductPreparationResponsibilities(ctx context.Context, productIDs []string) ([]dto.ProductPreparationResponsibilityWithProduct, error)
 }

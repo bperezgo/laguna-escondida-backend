@@ -60,6 +60,7 @@ func (s *OrderService) CreateOrder(
 ) (*dto.OpenBill, error) {
 	var products []*dto.Product
 	totalAmount := decimal.Zero
+	var openBillProducts []*openBill.OpenBillProduct
 
 	if len(req.Products) > 0 {
 		var err error
@@ -76,6 +77,16 @@ func (s *OrderService) CreateOrder(
 			return nil, orderError.ErrProductNotFound
 		}
 
+		responsibilities, err := s.openBillRepo.GetProductPreparationResponsibilities(ctx, uniqueProductIDs)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
+		}
+
+		responsibilityMap := make(map[string]*dto.ProductPreparationResponsibilityWithProduct)
+		for i := range responsibilities {
+			responsibilityMap[responsibilities[i].ProductID] = &responsibilities[i]
+		}
+
 		productPriceMap := make(map[string]*dto.Product)
 		for _, product := range products {
 			productPriceMap[product.ID] = product
@@ -85,10 +96,37 @@ func (s *OrderService) CreateOrder(
 			if product, exists := productPriceMap[item.ProductID]; exists {
 				totalAmount = totalAmount.Add(product.TotalPriceWithTaxes.Mul(decimal.NewFromInt(int64(item.Quantity))))
 			}
+
+			var area *string
+			priority := 0
+			if resp, exists := responsibilityMap[item.ProductID]; exists {
+				area = &resp.Area
+				priority = resp.Priority
+			}
+
+			openBillProduct, err := openBill.NewOpenBillProduct(
+				item.OpenBillProductID,
+				item.ProductID,
+				item.Quantity,
+				item.Notes,
+				area,
+				priority,
+			)
+			if err != nil {
+				return nil, fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
+			}
+			openBillProducts = append(openBillProducts, openBillProduct)
 		}
 	}
 
-	openBillAggregate, err := openBill.NewAggregate(req, totalAmount, user.ID)
+	openBillAggregate, err := openBill.NewAggregate(
+		req.OpenBillID,
+		req.TemporalIdentifier,
+		req.Descriptor,
+		totalAmount,
+		openBillProducts,
+		user.ID,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
 	}
@@ -107,14 +145,6 @@ func (s *OrderService) CreateOrder(
 		openBillDTO.Products = productDTOs
 	}
 
-	if len(req.Products) > 0 {
-		createdByID := user.ID
-		event := dto.NewOrderCreatedEvent(openBillDTO.ID, openBillDTO.TemporalIdentifier, createdByID, req.Products)
-		if err := s.eventBus.Publish(ctx, event); err != nil {
-			fmt.Printf("failed to publish order created event: %v\n", err)
-		}
-	}
-
 	return openBillDTO, nil
 }
 
@@ -123,12 +153,10 @@ func (s *OrderService) CreateOrder(
 // If product exists with different quantity, updates the quantity
 // If product is removed, soft deletes it (sets deleted_at)
 func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *dto.UpdateOrderRequest) (*dto.OpenBill, error) {
-	existingBillDTO, err := s.openBillRepo.FindByID(ctx, openBillID)
+	_, err := s.openBillRepo.FindByID(ctx, openBillID)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
 	}
-
-	previousProducts := existingBillDTO.Products
 
 	existingBillAggregate, err := s.openBillRepo.FindAggregateByID(ctx, openBillID)
 	if err != nil {
@@ -137,6 +165,7 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 
 	var products []*dto.Product
 	totalAmount := decimal.Zero
+	var openBillProducts []*openBill.OpenBillProduct
 
 	if len(req.Products) > 0 {
 		uniqueProductIDs := lo.Uniq(lo.Map(req.Products, func(item dto.OrderProductItem, _ int) string {
@@ -152,6 +181,16 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 			return nil, orderError.ErrProductNotFound
 		}
 
+		responsibilities, err := s.openBillRepo.GetProductPreparationResponsibilities(ctx, uniqueProductIDs)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
+		}
+
+		responsibilityMap := make(map[string]*dto.ProductPreparationResponsibilityWithProduct)
+		for i := range responsibilities {
+			responsibilityMap[responsibilities[i].ProductID] = &responsibilities[i]
+		}
+
 		productPriceMap := make(map[string]*dto.Product)
 		for _, p := range products {
 			productPriceMap[p.ID] = p
@@ -161,16 +200,27 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 			if p, exists := productPriceMap[item.ProductID]; exists {
 				totalAmount = totalAmount.Add(p.TotalPriceWithTaxes.Mul(decimal.NewFromInt(int64(item.Quantity))))
 			}
-		}
-	}
 
-	openBillProducts := make([]*openBill.OpenBillProduct, 0, len(req.Products))
-	for _, item := range req.Products {
-		product, err := openBill.NewOpenBillProduct(item.OpenBillProductID, item.ProductID, item.Quantity, item.Notes)
-		if err != nil {
-			return nil, fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
+			var area *string
+			priority := 0
+			if resp, exists := responsibilityMap[item.ProductID]; exists {
+				area = &resp.Area
+				priority = resp.Priority
+			}
+
+			openBillProduct, err := openBill.NewOpenBillProduct(
+				item.OpenBillProductID,
+				item.ProductID,
+				item.Quantity,
+				item.Notes,
+				area,
+				priority,
+			)
+			if err != nil {
+				return nil, fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
+			}
+			openBillProducts = append(openBillProducts, openBillProduct)
 		}
-		openBillProducts = append(openBillProducts, product)
 	}
 
 	existingBillAggregate.UpdateProducts(openBillProducts, totalAmount)
@@ -186,17 +236,6 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 			productDTOs[i] = *p
 		}
 		updatedBill.Products = productDTOs
-	}
-
-	event := dto.NewOrderUpdatedEvent(
-		existingBillDTO.ID,
-		existingBillDTO.TemporalIdentifier,
-		existingBillDTO.CreatedBy.ID,
-		previousProducts,
-		req.Products,
-	)
-	if err := s.eventBus.Publish(ctx, event); err != nil {
-		fmt.Printf("failed to publish order updated event: %v\n", err)
 	}
 
 	return updatedBill, nil
@@ -299,11 +338,6 @@ func (s *OrderService) DeleteOrder(ctx context.Context, openBillID string) error
 
 	if err := s.openBillRepo.Delete(ctx, openBillID); err != nil {
 		return fmt.Errorf("%w: %w", orderError.ErrOrderDeletionFailed, err)
-	}
-
-	event := dto.NewOrderDeletedEvent(openBillID)
-	if err := s.eventBus.Publish(ctx, event); err != nil {
-		fmt.Printf("failed to publish order deleted event: %v\n", err)
 	}
 
 	return nil

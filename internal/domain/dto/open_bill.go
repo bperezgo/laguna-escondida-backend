@@ -34,10 +34,13 @@ type OpenBillWithCreator struct {
 }
 
 type OpenBillProductDetail struct {
-	OpenBillProductID string  `json:"open_bill_product_id"`
-	Product           Product `json:"product"`
-	Quantity          int     `json:"quantity"`
-	Notes             *string `json:"notes,omitempty"`
+	OpenBillProductID string        `json:"open_bill_product_id"`
+	Product           Product       `json:"product"`
+	Quantity          int           `json:"quantity"`
+	Notes             *string       `json:"notes,omitempty"`
+	Status            CommandStatus `json:"status"`
+	Area              *string       `json:"area,omitempty"`
+	Priority          int           `json:"priority"`
 }
 
 type OpenBillWithProducts struct {

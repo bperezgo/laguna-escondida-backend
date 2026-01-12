@@ -353,6 +353,65 @@ func (_c *MockOpenBillRepository_FindByIDWithProducts_Call) RunAndReturn(run fun
 	return _c
 }
 
+// GetProductPreparationResponsibilities provides a mock function with given fields: ctx, productIDs
+func (_m *MockOpenBillRepository) GetProductPreparationResponsibilities(ctx context.Context, productIDs []string) ([]dto.ProductPreparationResponsibilityWithProduct, error) {
+	ret := _m.Called(ctx, productIDs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetProductPreparationResponsibilities")
+	}
+
+	var r0 []dto.ProductPreparationResponsibilityWithProduct
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, []string) ([]dto.ProductPreparationResponsibilityWithProduct, error)); ok {
+		return rf(ctx, productIDs)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, []string) []dto.ProductPreparationResponsibilityWithProduct); ok {
+		r0 = rf(ctx, productIDs)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]dto.ProductPreparationResponsibilityWithProduct)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, []string) error); ok {
+		r1 = rf(ctx, productIDs)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOpenBillRepository_GetProductPreparationResponsibilities_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetProductPreparationResponsibilities'
+type MockOpenBillRepository_GetProductPreparationResponsibilities_Call struct {
+	*mock.Call
+}
+
+// GetProductPreparationResponsibilities is a helper method to define mock.On call
+//   - ctx context.Context
+//   - productIDs []string
+func (_e *MockOpenBillRepository_Expecter) GetProductPreparationResponsibilities(ctx interface{}, productIDs interface{}) *MockOpenBillRepository_GetProductPreparationResponsibilities_Call {
+	return &MockOpenBillRepository_GetProductPreparationResponsibilities_Call{Call: _e.mock.On("GetProductPreparationResponsibilities", ctx, productIDs)}
+}
+
+func (_c *MockOpenBillRepository_GetProductPreparationResponsibilities_Call) Run(run func(ctx context.Context, productIDs []string)) *MockOpenBillRepository_GetProductPreparationResponsibilities_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]string))
+	})
+	return _c
+}
+
+func (_c *MockOpenBillRepository_GetProductPreparationResponsibilities_Call) Return(_a0 []dto.ProductPreparationResponsibilityWithProduct, _a1 error) *MockOpenBillRepository_GetProductPreparationResponsibilities_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOpenBillRepository_GetProductPreparationResponsibilities_Call) RunAndReturn(run func(context.Context, []string) ([]dto.ProductPreparationResponsibilityWithProduct, error)) *MockOpenBillRepository_GetProductPreparationResponsibilities_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Update provides a mock function with given fields: ctx, aggregate
 func (_m *MockOpenBillRepository) Update(ctx context.Context, aggregate *open_bill.Aggregate) error {
 	ret := _m.Called(ctx, aggregate)

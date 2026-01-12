@@ -42,6 +42,9 @@ type openBillProductModel struct {
 	ProductID  string     `gorm:"type:uuid;not null"`
 	Quantity   int        `gorm:"type:integer;not null;default:1"`
 	Notes      *string    `gorm:"type:text"`
+	Status     string     `gorm:"type:varchar(50);not null;default:'created'"`
+	Area       *string    `gorm:"type:varchar(255)"`
+	Priority   int        `gorm:"type:integer;not null;default:0"`
 	CreatedAt  time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
 	UpdatedAt  time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
 	DeletedAt  *time.Time `gorm:"type:timestamp"`
@@ -115,6 +118,9 @@ func (r *OpenBillRepository) Create(ctx context.Context, aggregate *openBill.Agg
 					ProductID:  item.ProductID(),
 					Quantity:   item.Quantity(),
 					Notes:      item.Notes(),
+					Status:     string(item.Status()),
+					Area:       item.Area(),
+					Priority:   item.Priority(),
 					CreatedAt:  time.Now(),
 					UpdatedAt:  time.Now(),
 				}
@@ -181,6 +187,9 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 		ProductID  string
 		Quantity   int
 		Notes      *string
+		Status     string
+		Area       *string
+		Priority   int
 		// Product fields
 		ProductName                string
 		ProductCategory            string
@@ -207,6 +216,9 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 			open_bills_products.product_id,
 			open_bills_products.quantity,
 			open_bills_products.notes,
+			open_bills_products.status,
+			open_bills_products.area,
+			open_bills_products.priority,
 			products.name as product_name,
 			products.category as product_category,
 			products.version as product_version,
@@ -251,6 +263,9 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 			},
 			Quantity: pr.Quantity,
 			Notes:    pr.Notes,
+			Status:   dto.CommandStatus(pr.Status),
+			Area:     pr.Area,
+			Priority: pr.Priority,
 		}
 	}
 
@@ -291,7 +306,15 @@ func (r *OpenBillRepository) FindAggregateByID(ctx context.Context, id string) (
 
 	products := make([]*openBill.OpenBillProduct, 0, len(productModels))
 	for _, pm := range productModels {
-		product, err := openBill.NewOpenBillProduct(pm.ID, pm.ProductID, pm.Quantity, pm.Notes)
+		product, err := openBill.NewOpenBillProductFromRepository(
+			pm.ID,
+			pm.ProductID,
+			pm.Quantity,
+			pm.Notes,
+			dto.CommandStatus(pm.Status),
+			pm.Area,
+			pm.Priority,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -347,6 +370,9 @@ func (r *OpenBillRepository) Update(ctx context.Context, aggregate *openBill.Agg
 					if err := tx.Model(existing).Updates(map[string]any{
 						"quantity":   item.Quantity(),
 						"notes":      item.Notes(),
+						"status":     string(item.Status()),
+						"area":       item.Area(),
+						"priority":   item.Priority(),
 						"updated_at": now,
 						"deleted_at": nil,
 					}).Error; err != nil {
@@ -363,6 +389,18 @@ func (r *OpenBillRepository) Update(ctx context.Context, aggregate *openBill.Agg
 					if notesChanged {
 						updateFields["notes"] = item.Notes()
 					}
+					if existing.Status != string(item.Status()) {
+						updateFields["status"] = string(item.Status())
+					}
+					areaChanged := (existing.Area == nil && item.Area() != nil) ||
+						(existing.Area != nil && item.Area() == nil) ||
+						(existing.Area != nil && item.Area() != nil && *existing.Area != *item.Area())
+					if areaChanged {
+						updateFields["area"] = item.Area()
+					}
+					if existing.Priority != item.Priority() {
+						updateFields["priority"] = item.Priority()
+					}
 					if len(updateFields) > 1 {
 						if err := tx.Model(existing).Updates(updateFields).Error; err != nil {
 							return err
@@ -376,6 +414,9 @@ func (r *OpenBillRepository) Update(ctx context.Context, aggregate *openBill.Agg
 					ProductID:  item.ProductID(),
 					Quantity:   item.Quantity(),
 					Notes:      item.Notes(),
+					Status:     string(item.Status()),
+					Area:       item.Area(),
+					Priority:   item.Priority(),
 					CreatedAt:  now,
 					UpdatedAt:  now,
 				}
@@ -574,6 +615,9 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 		ProductID  string
 		Quantity   int
 		Notes      *string
+		Status     string
+		Area       *string
+		Priority   int
 		// Product fields
 		ProductName                string
 		ProductCategory            string
@@ -600,6 +644,9 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 			open_bills_products.product_id,
 			open_bills_products.quantity,
 			open_bills_products.notes,
+			open_bills_products.status,
+			open_bills_products.area,
+			open_bills_products.priority,
 			products.name as product_name,
 			products.category as product_category,
 			products.version as product_version,
@@ -644,6 +691,9 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 			},
 			Quantity: pr.Quantity,
 			Notes:    pr.Notes,
+			Status:   dto.CommandStatus(pr.Status),
+			Area:     pr.Area,
+			Priority: pr.Priority,
 		}
 	}
 
@@ -663,4 +713,43 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 		CreatedAt:          result.CreatedAt,
 		UpdatedAt:          result.UpdatedAt,
 	}, nil
+}
+
+func (r *OpenBillRepository) GetProductPreparationResponsibilities(ctx context.Context, productIDs []string) ([]dto.ProductPreparationResponsibilityWithProduct, error) {
+	db := postgres.GetTxOrDB(ctx, r.db)
+
+	type result struct {
+		ProductID   string
+		ProductName string
+		Area        string
+		Priority    int
+	}
+
+	var results []result
+	err := db.Table("product_preparation_responsibilities").
+		Select(`
+			product_preparation_responsibilities.product_id,
+			products.name as product_name,
+			product_preparation_responsibilities.area,
+			product_preparation_responsibilities.priority
+		`).
+		Joins("INNER JOIN products ON product_preparation_responsibilities.product_id = products.id").
+		Where("product_preparation_responsibilities.product_id IN ? AND product_preparation_responsibilities.deleted_at IS NULL", productIDs).
+		Scan(&results).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	responsibilities := make([]dto.ProductPreparationResponsibilityWithProduct, len(results))
+	for i, r := range results {
+		responsibilities[i] = dto.ProductPreparationResponsibilityWithProduct{
+			ProductID:   r.ProductID,
+			ProductName: r.ProductName,
+			Area:        r.Area,
+			Priority:    r.Priority,
+		}
+	}
+
+	return responsibilities, nil
 }

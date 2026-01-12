@@ -5,9 +5,10 @@ import "time"
 type CommandStatus string
 
 const (
-	CommandStatusCreated   CommandStatus = "created"
-	CommandStatusCompleted CommandStatus = "completed"
-	CommandStatusCancelled CommandStatus = "cancelled"
+	CommandStatusCreated    CommandStatus = "created"
+	CommandStatusCompleted  CommandStatus = "completed"
+	CommandStatusCancelled  CommandStatus = "cancelled"
+	CommandStatusInProgress CommandStatus = "in_progress"
 )
 
 type CommandItem struct {

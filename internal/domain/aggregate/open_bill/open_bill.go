@@ -21,26 +21,24 @@ type Aggregate struct {
 	updatedAt          time.Time
 }
 
-func NewAggregate(req *dto.CreateOrderRequest, totalAmount decimal.Decimal, createdByID string) (*Aggregate, error) {
-	if _, err := uuid.Parse(req.OpenBillID); err != nil {
+func NewAggregate(
+	openBillID string,
+	temporalIdentifier string,
+	descriptor *string,
+	totalAmount decimal.Decimal,
+	products []*OpenBillProduct,
+	createdByID string,
+) (*Aggregate, error) {
+	if _, err := uuid.Parse(openBillID); err != nil {
 		return nil, openBillError.ErrInvalidOpenBillID
-	}
-
-	products := make([]*OpenBillProduct, 0, len(req.Products))
-	for _, item := range req.Products {
-		product, err := NewOpenBillProduct(item.OpenBillProductID, item.ProductID, item.Quantity, item.Notes)
-		if err != nil {
-			return nil, err
-		}
-		products = append(products, product)
 	}
 
 	now := time.Now()
 	return &Aggregate{
-		id:                 req.OpenBillID,
-		temporalIdentifier: req.TemporalIdentifier,
+		id:                 openBillID,
+		temporalIdentifier: temporalIdentifier,
 		totalAmount:        totalAmount,
-		descriptor:         req.Descriptor,
+		descriptor:         descriptor,
 		products:           products,
 		createdByID:        createdByID,
 		createdAt:          now,
