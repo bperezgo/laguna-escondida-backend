@@ -86,6 +86,21 @@ func (h *Hub) Broadcast(area string, event Event) {
 	}
 }
 
+func (h *Hub) BroadcastAll(event Event) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	for _, clients := range h.clients {
+		for client := range clients {
+			select {
+			case client.Events <- event:
+			default:
+				// Client buffer full, skip this event
+			}
+		}
+	}
+}
+
 func (h *Hub) NotifyArea(ctx context.Context, area string, eventType string, data any) error {
 	event := Event{
 		Type: eventType,

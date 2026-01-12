@@ -14,6 +14,7 @@ import (
 	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/cron"
+	sseeventbus "laguna-escondida/backend/internal/platform/eventbus"
 	"laguna-escondida/backend/internal/platform/handler"
 	"laguna-escondida/backend/internal/platform/httpclient"
 	"laguna-escondida/backend/internal/platform/postgres"
@@ -84,7 +85,19 @@ func main() {
 	sseHub := sse.NewHub()
 	commandItemHub := sse.NewCommandItemHub()
 
-	// Initialize Event Bus
+	// Initialize SSE Event Bus with notifier routing
+	sseEventBus := sseeventbus.NewSSEEventBus()
+	commandNotifier := sse.NewCommandNotifier(sseHub)
+	commandItemNotifier := sse.NewCommandItemNotifier(commandItemHub)
+
+	// Configure SSE routing - events to notifiers mapping
+	sseEventBus.RegisterRoute(dto.OrderCreatedEventName, commandNotifier)
+	sseEventBus.RegisterRoute(dto.OrderCreatedEventName, commandItemNotifier)
+	sseEventBus.RegisterRoute(dto.OrderUpdatedEventName, commandNotifier)
+	sseEventBus.RegisterRoute(dto.OrderUpdatedEventName, commandItemNotifier)
+	sseEventBus.RegisterRoute(dto.OrderDeletedEventName, commandNotifier)
+
+	// Initialize Watermill Event Bus for pub/sub messaging
 	watermillLogger := eventbus.NewZapLoggerAdapter(logger)
 	eventBusImpl := eventbus.NewGoChannelEventBus(watermillLogger)
 	defer func() {

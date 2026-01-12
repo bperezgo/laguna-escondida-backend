@@ -86,6 +86,21 @@ func (h *CommandItemHub) Broadcast(area string, event CommandItemEvent) {
 	}
 }
 
+func (h *CommandItemHub) BroadcastAll(event CommandItemEvent) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	for _, clients := range h.clients {
+		for client := range clients {
+			select {
+			case client.Events <- event:
+			default:
+				// Client buffer full, skip this event
+			}
+		}
+	}
+}
+
 func (h *CommandItemHub) NotifyArea(ctx context.Context, area string, eventType string, data *dto.CommandItemSSE) error {
 	event := CommandItemEvent{
 		Type: eventType,
