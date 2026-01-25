@@ -23,8 +23,6 @@ export interface CreateProductRequest {
   ico: string;
   taxes_format: string;
   description?: string | null;
-  brand?: string | null;
-  model?: string | null;
   sku: string;
   total_price_with_taxes: string;
 }
@@ -36,8 +34,6 @@ export interface UpdateProductRequest {
   ico: string;
   taxes_format: string;
   description?: string | null;
-  brand?: string | null;
-  model?: string | null;
   sku: string;
   total_price_with_taxes: string;
 }

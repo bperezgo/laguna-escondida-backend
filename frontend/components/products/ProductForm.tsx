@@ -28,8 +28,6 @@ export default function ProductForm({
     vat: product?.vat?.toString() || "",
     ico: product?.ico?.toString() || "",
     description: product?.description || "",
-    brand: product?.brand || "",
-    model: product?.model || "",
     sku: product?.sku || "",
     total_price_with_taxes: product?.total_price_with_taxes?.toString() || "",
   });
@@ -44,8 +42,6 @@ export default function ProductForm({
         vat: product.vat?.toString() || "",
         ico: product.ico?.toString() || "",
         description: product.description || "",
-        brand: product.brand || "",
-        model: product.model || "",
         sku: product.sku || "",
         total_price_with_taxes:
           product.total_price_with_taxes?.toString() || "",
@@ -138,12 +134,6 @@ export default function ProductForm({
       if (formData.description.trim()) {
         submitData.description = formData.description.trim();
       }
-      if (formData.brand.trim()) {
-        submitData.brand = formData.brand.trim();
-      }
-      if (formData.model.trim()) {
-        submitData.model = formData.model.trim();
-      }
 
       await onSubmit(submitData);
     } else {
@@ -161,12 +151,6 @@ export default function ProductForm({
       // Add optional fields only if they have values
       if (formData.description.trim()) {
         submitData.description = formData.description.trim();
-      }
-      if (formData.brand.trim()) {
-        submitData.brand = formData.brand.trim();
-      }
-      if (formData.model.trim()) {
-        submitData.model = formData.model.trim();
       }
 
       await onSubmit(submitData);
@@ -513,86 +497,6 @@ export default function ProductForm({
                 }}
               >
                 {errors.description}
-              </p>
-            )}
-          </div>
-
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label
-              style={{
-                display: "block",
-                marginBottom: "0.5rem",
-                fontWeight: "500",
-                color: "var(--color-text-primary)",
-              }}
-            >
-              Marca
-            </label>
-            <input
-              type="text"
-              value={formData.brand}
-              onChange={(e) => handleChange("brand", e.target.value)}
-              style={{
-                width: "100%",
-                padding: "0.75rem",
-                border: `1px solid ${errors.brand ? "var(--color-danger)" : "var(--color-border)"}`,
-                borderRadius: "var(--radius-sm)",
-                fontSize: "1rem",
-                boxSizing: "border-box",
-                backgroundColor: "var(--color-bg)",
-                color: "var(--color-text-primary)",
-              }}
-              placeholder="Ingresa la marca (opcional)"
-            />
-            {errors.brand && (
-              <p
-                style={{
-                  margin: "0.25rem 0 0 0",
-                  color: "var(--color-danger)",
-                  fontSize: "0.875rem",
-                }}
-              >
-                {errors.brand}
-              </p>
-            )}
-          </div>
-
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label
-              style={{
-                display: "block",
-                marginBottom: "0.5rem",
-                fontWeight: "500",
-                color: "var(--color-text-primary)",
-              }}
-            >
-              Modelo
-            </label>
-            <input
-              type="text"
-              value={formData.model}
-              onChange={(e) => handleChange("model", e.target.value)}
-              style={{
-                width: "100%",
-                padding: "0.75rem",
-                border: `1px solid ${errors.model ? "var(--color-danger)" : "var(--color-border)"}`,
-                borderRadius: "var(--radius-sm)",
-                fontSize: "1rem",
-                boxSizing: "border-box",
-                backgroundColor: "var(--color-bg)",
-                color: "var(--color-text-primary)",
-              }}
-              placeholder="Ingresa el modelo (opcional)"
-            />
-            {errors.model && (
-              <p
-                style={{
-                  margin: "0.25rem 0 0 0",
-                  color: "var(--color-danger)",
-                  fontSize: "0.875rem",
-                }}
-              >
-                {errors.model}
               </p>
             )}
           </div>
