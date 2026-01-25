@@ -16,6 +16,13 @@ interface ProductFormProps {
   isLoading?: boolean;
 }
 
+const fractionToPercentage = (value: string | undefined): string => {
+  if (!value) return "";
+  const num = parseFloat(value);
+  if (isNaN(num)) return "";
+  return (num * 100).toString();
+};
+
 export default function ProductForm({
   product,
   onSubmit,
@@ -25,8 +32,8 @@ export default function ProductForm({
   const [formData, setFormData] = useState({
     name: product?.name || "",
     category: product?.category || "",
-    vat: product?.vat?.toString() || "",
-    ico: product?.ico?.toString() || "",
+    vat: product ? fractionToPercentage(product.vat) : "",
+    ico: product ? fractionToPercentage(product.ico) : "",
     description: product?.description || "",
     sku: product?.sku || "",
     total_price_with_taxes: product?.total_price_with_taxes?.toString() || "",
@@ -39,8 +46,8 @@ export default function ProductForm({
       setFormData({
         name: product.name || "",
         category: product.category || "",
-        vat: product.vat?.toString() || "",
-        ico: product.ico?.toString() || "",
+        vat: fractionToPercentage(product.vat),
+        ico: fractionToPercentage(product.ico),
         description: product.description || "",
         sku: product.sku || "",
         total_price_with_taxes:
