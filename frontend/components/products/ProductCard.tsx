@@ -59,7 +59,7 @@ export default function ProductCard({
         <div style={{ flex: 1 }}>
           <h3
             style={{
-              margin: "0 0 0.5rem 0",
+              margin: "0 0 0.25rem 0",
               fontSize: "1.25rem",
               fontWeight: "bold",
               color: "var(--color-text-primary)",
@@ -67,6 +67,20 @@ export default function ProductCard({
           >
             {product.name}
           </h3>
+          <p
+            style={{
+              margin: "0 0 0.75rem 0",
+              fontFamily: "monospace",
+              fontSize: "0.85rem",
+              color: "var(--color-text-muted)",
+              backgroundColor: "var(--color-bg)",
+              padding: "0.25rem 0.5rem",
+              borderRadius: "var(--radius-sm)",
+              display: "inline-block",
+            }}
+          >
+            SKU: {product.sku}
+          </p>
           <p
             style={{
               margin: "0 0 0.5rem 0",
