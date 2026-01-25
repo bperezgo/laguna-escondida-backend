@@ -34,7 +34,7 @@ export default function PaymentModal({
     useState("");
 
   // Payment type
-  const [paymentType, setPaymentType] = useState<PaymentType>("cash");
+  const [paymentType, setPaymentType] = useState<PaymentType>("transfer_debit_bank");
 
   // Group products by product ID (consolidate duplicates)
   const groupedProducts = () => {
