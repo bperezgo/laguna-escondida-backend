@@ -747,12 +747,13 @@ func deriveStatusFromProductDetails(products []dto.OpenBillProductDetail) dto.Co
 	allFinalized := true
 
 	for _, product := range products {
-		if product.Status == dto.CommandStatusCompleted {
+		switch product.Status {
+		case dto.CommandStatusCompleted:
 			hasCompleted = true
 			allCancelled = false
-		} else if product.Status == dto.CommandStatusCancelled {
+		case dto.CommandStatusCancelled:
 			// Product is cancelled, continue
-		} else {
+		default:
 			// Product is still in created or in_progress status
 			allFinalized = false
 			allCancelled = false

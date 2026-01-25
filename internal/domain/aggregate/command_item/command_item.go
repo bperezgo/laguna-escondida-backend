@@ -1,10 +1,11 @@
 package command_item
 
 import (
+	"time"
+
 	commandItemError "laguna-escondida/backend/internal/domain/aggregate/command_item/error"
 	"laguna-escondida/backend/internal/domain/aggregate/shared"
 	"laguna-escondida/backend/internal/domain/dto"
-	"time"
 )
 
 type Aggregate struct {
