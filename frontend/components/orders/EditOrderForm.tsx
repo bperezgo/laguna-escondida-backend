@@ -452,17 +452,37 @@ export default function EditOrderForm({
                             >
                               −
                             </button>
-                            <span
+                            <input
+                              type="number"
+                              value={quantity}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === "") return;
+                                const parsed = parseInt(val, 10);
+                                if (!isNaN(parsed) && parsed >= 0) {
+                                  handleQuantityChange(lineItemId, parsed);
+                                }
+                              }}
+                              onBlur={(e) => {
+                                const val = e.target.value;
+                                if (val === "" || parseInt(val, 10) <= 0) {
+                                  handleQuantityChange(lineItemId, 0);
+                                }
+                              }}
+                              min="1"
                               style={{
-                                minWidth: "40px",
+                                width: "70px",
                                 textAlign: "center",
                                 fontWeight: "bold",
                                 fontSize: "1.1rem",
                                 color: "var(--color-text-primary)",
+                                border: "1px solid var(--color-border)",
+                                borderRadius: "var(--radius-sm)",
+                                padding: "0.25rem",
+                                backgroundColor: "var(--color-bg)",
+                                outline: "none",
                               }}
-                            >
-                              {quantity}
-                            </span>
+                            />
                             <button
                               type="button"
                               onClick={() =>
