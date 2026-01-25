@@ -86,8 +86,7 @@ type BillProduct struct {
 	Quantity    int
 	UnitPrice   decimal.Decimal
 	Description *string
-	Brand       *string
-	Model       *string
+	Category    string
 	Code        string
 	Allowance   []InvoiceAllowance
 	Taxes       []InvoiceTax

@@ -19,8 +19,6 @@ type Aggregate struct {
 	vat                 decimal.Decimal
 	ico                 decimal.Decimal
 	description         string
-	brand               string
-	model               string
 	sku                 *SKU
 	totalPriceWithTaxes decimal.Decimal
 	createdAt           time.Time
@@ -80,14 +78,6 @@ func NewAggregateFromDTO(dto *dto.Product) (*Aggregate, error) {
 	if dto.Description != nil {
 		description = *dto.Description
 	}
-	brand := ""
-	if dto.Brand != nil {
-		brand = *dto.Brand
-	}
-	model := ""
-	if dto.Model != nil {
-		model = *dto.Model
-	}
 	sku, err := NewSKU(dto.SKU)
 	if err != nil {
 		return nil, productError.NewInvalidSKUError(dto.SKU)
@@ -101,8 +91,6 @@ func NewAggregateFromDTO(dto *dto.Product) (*Aggregate, error) {
 		vat:                 dto.VAT,
 		ico:                 dto.ICO,
 		description:         description,
-		brand:               brand,
-		model:               model,
 		sku:                 sku,
 		totalPriceWithTaxes: dto.TotalPriceWithTaxes,
 		createdAt:           dto.CreatedAt,
@@ -166,20 +154,9 @@ func NewAggregateFromCreateProductRequest(req *dto.CreateProductRequest) (*Aggre
 		return nil, err
 	}
 
-	// Handle nullable fields (Description, Brand, Model)
 	description := ""
 	if req.Description != nil {
 		description = *req.Description
-	}
-
-	brand := "unknown"
-	if req.Brand != nil {
-		brand = *req.Brand
-	}
-
-	model := "unknown"
-	if req.Model != nil {
-		model = *req.Model
 	}
 
 	now := time.Now()
@@ -192,8 +169,6 @@ func NewAggregateFromCreateProductRequest(req *dto.CreateProductRequest) (*Aggre
 		vat:                 vatDecimal,
 		ico:                 icoDecimal,
 		description:         description,
-		brand:               brand,
-		model:               model,
 		sku:                 sku,
 		totalPriceWithTaxes: totalPriceWithTaxes,
 		createdAt:           now,
@@ -211,8 +186,6 @@ func (a *Aggregate) ToDTO() *dto.Product {
 		VAT:                 a.vat,
 		ICO:                 a.ico,
 		Description:         &a.description,
-		Brand:               &a.brand,
-		Model:               &a.model,
 		SKU:                 a.sku.Value(),
 		TotalPriceWithTaxes: a.totalPriceWithTaxes,
 		CreatedAt:           a.createdAt,
@@ -221,7 +194,6 @@ func (a *Aggregate) ToDTO() *dto.Product {
 }
 
 func (a *Aggregate) Update(req *dto.UpdateProductRequest) (*Aggregate, error) {
-	// Create and validate SKU value object
 	sku, err := NewSKU(req.SKU)
 	if err != nil {
 		return nil, err
@@ -231,14 +203,7 @@ func (a *Aggregate) Update(req *dto.UpdateProductRequest) (*Aggregate, error) {
 	if req.Description != nil {
 		description = *req.Description
 	}
-	brand := ""
-	if req.Brand != nil {
-		brand = *req.Brand
-	}
-	model := ""
-	if req.Model != nil {
-		model = *req.Model
-	}
+
 	a.name = req.Name
 	a.category = req.Category
 	// We'll let the logic of this version for another moment, the idea behind this is to change the version if the price changes
@@ -259,8 +224,6 @@ func (a *Aggregate) Update(req *dto.UpdateProductRequest) (*Aggregate, error) {
 	a.vat = vatDecimal
 	a.ico = icoDecimal
 	a.description = description
-	a.brand = brand
-	a.model = model
 	a.sku = sku
 	a.unitPrice = unitPrice
 	a.updatedAt = time.Now()

@@ -15,8 +15,6 @@ type Product struct {
 	VAT                 decimal.Decimal `json:"vat"`
 	ICO                 decimal.Decimal `json:"ico"`
 	Description         *string         `json:"description"`
-	Brand               *string         `json:"brand"`
-	Model               *string         `json:"model"`
 	SKU                 string          `json:"sku"`
 	TotalPriceWithTaxes decimal.Decimal `json:"total_price_with_taxes"`
 	CreatedAt           time.Time       `json:"created_at"`
@@ -30,8 +28,6 @@ type CreateProductRequest struct {
 	ICO                 string  `json:"ico" validate:"required,gte=0"`
 	TaxesFormat         string  `json:"taxes_format" validate:"required,oneof=percentage fixed"`
 	Description         *string `json:"description"`
-	Brand               *string `json:"brand"`
-	Model               *string `json:"model"`
 	SKU                 string  `json:"sku" validate:"required,min=1,max=255"`
 	TotalPriceWithTaxes string  `json:"total_price_with_taxes" validate:"required,gt=0"`
 }
@@ -44,8 +40,6 @@ type UpdateProductRequest struct {
 	ICO                 string          `json:"ico" validate:"required,gte=0"`
 	TaxesFormat         string          `json:"taxes_format" validate:"required,oneof=percentage fixed"`
 	Description         *string         `json:"description"`
-	Brand               *string         `json:"brand"`
-	Model               *string         `json:"model"`
 	SKU                 string          `json:"sku" validate:"required,min=1,max=255"`
 	TotalPriceWithTaxes string          `json:"total_price_with_taxes" validate:"required,gt=0"`
 }

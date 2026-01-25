@@ -29,8 +29,6 @@ type productModel struct {
 	VAT                 decimal.Decimal `gorm:"type:numeric(19,4);not null"`
 	ICO                 decimal.Decimal `gorm:"type:numeric(19,4);not null"`
 	Description         *string         `gorm:"type:text"`
-	Brand               *string         `gorm:"type:varchar(255)"`
-	Model               *string         `gorm:"type:varchar(255)"`
 	SKU                 string          `gorm:"type:varchar(255);not null"`
 	TotalPriceWithTaxes decimal.Decimal `gorm:"type:numeric(19,4);not null;column:total_price_with_taxes"`
 	CreatedAt           time.Time       `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
@@ -93,8 +91,6 @@ func (r *ProductRepository) Create(ctx context.Context, product *product.Aggrega
 		VAT:                 productDTO.VAT,
 		ICO:                 productDTO.ICO,
 		Description:         productDTO.Description,
-		Brand:               productDTO.Brand,
-		Model:               productDTO.Model,
 		SKU:                 productDTO.SKU,
 		TotalPriceWithTaxes: productDTO.TotalPriceWithTaxes,
 		CreatedAt:           productDTO.CreatedAt,
@@ -118,8 +114,6 @@ func (r *ProductRepository) Update(ctx context.Context, id string, product *prod
 		"vat":                    productDTO.VAT,
 		"ico":                    productDTO.ICO,
 		"description":            productDTO.Description,
-		"brand":                  productDTO.Brand,
-		"model":                  productDTO.Model,
 		"sku":                    productDTO.SKU,
 		"total_price_with_taxes": productDTO.TotalPriceWithTaxes,
 		"updated_at":             productDTO.UpdatedAt,
@@ -166,8 +160,6 @@ func (r *ProductRepository) toDTO(model *productModel) *dto.Product {
 		VAT:                 model.VAT,
 		ICO:                 model.ICO,
 		Description:         model.Description,
-		Brand:               model.Brand,
-		Model:               model.Model,
 		SKU:                 model.SKU,
 		TotalPriceWithTaxes: model.TotalPriceWithTaxes,
 		CreatedAt:           model.CreatedAt,

@@ -14,8 +14,7 @@ type BillProduct struct {
 	quantity    int
 	unitPrice   decimal.Decimal
 	description *string
-	brand       *string
-	model       *string
+	category    string
 	code        string
 	allowance   []dto.InvoiceAllowance
 	taxes       []dto.InvoiceTax
@@ -29,8 +28,7 @@ func NewBillProduct(
 	unitPrice decimal.Decimal,
 	name string,
 	description *string,
-	brand *string,
-	model *string,
+	category string,
 	code string,
 	allowance []dto.InvoiceAllowance,
 	vat decimal.Decimal,
@@ -63,8 +61,7 @@ func NewBillProduct(
 		unitPrice:   unitPrice,
 		name:        name,
 		description: description,
-		brand:       brand,
-		model:       model,
+		category:    category,
 		code:        code,
 		allowance:   allowance,
 		taxes:       taxes,
@@ -101,12 +98,8 @@ func (bp *BillProduct) Description() *string {
 	return bp.description
 }
 
-func (bp *BillProduct) Brand() *string {
-	return bp.brand
-}
-
-func (bp *BillProduct) Model() *string {
-	return bp.model
+func (bp *BillProduct) Category() string {
+	return bp.category
 }
 
 func (bp *BillProduct) Code() string {

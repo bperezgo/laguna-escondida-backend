@@ -188,8 +188,6 @@ func TestCreateProduct_RepositoryError(t *testing.T) {
 		ICO:                 "0.08",
 		TaxesFormat:         "percentage",
 		Description:         nil,
-		Brand:               nil,
-		Model:               nil,
 		SKU:                 "SKU1",
 	}
 
@@ -281,8 +279,6 @@ func TestUpdateProduct_Success(t *testing.T) {
 		ICO:                 "12.0",
 		TaxesFormat:         "percentage",
 		Description:         nil,
-		Brand:               nil,
-		Model:               nil,
 		SKU:                 "SKU002",
 	}
 

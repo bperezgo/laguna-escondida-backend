@@ -30,8 +30,6 @@ type CreateProductRequest struct {
 	ICO                 string  `json:"ico"`
 	TaxesFormat         string  `json:"taxes_format"`
 	Description         *string `json:"description,omitempty"`
-	Brand               *string `json:"brand,omitempty"`
-	Model               *string `json:"model,omitempty"`
 	SKU                 string  `json:"sku"`
 	TotalPriceWithTaxes string  `json:"total_price_with_taxes"`
 }
@@ -44,8 +42,6 @@ type ProductRecord struct {
 	VAT                 string
 	ICO                 string
 	Description         string
-	Brand               string
-	Model               string
 	SKU                 string
 }
 
@@ -153,7 +149,7 @@ func main() {
 }
 
 func parseRecord(record []string) ProductRecord {
-	// CSV columns: name,category,total_price_with_taxes,unit_price,vat,ico,description,brand,model,sku
+	// CSV columns: name,category,total_price_with_taxes,unit_price,vat,ico,description,sku
 	return ProductRecord{
 		Name:                getField(record, 0),
 		Category:            getField(record, 1),
@@ -162,9 +158,7 @@ func parseRecord(record []string) ProductRecord {
 		VAT:                 getField(record, 4),
 		ICO:                 getField(record, 5),
 		Description:         getField(record, 6),
-		Brand:               getField(record, 7),
-		Model:               getField(record, 8),
-		SKU:                 getField(record, 9),
+		SKU:                 getField(record, 7),
 	}
 }
 
@@ -189,12 +183,6 @@ func createProductRequest(record ProductRecord) *CreateProductRequest {
 	// Handle optional fields
 	if record.Description != "" {
 		req.Description = &record.Description
-	}
-	if record.Brand != "" {
-		req.Brand = &record.Brand
-	}
-	if record.Model != "" {
-		req.Model = &record.Model
 	}
 
 	return req

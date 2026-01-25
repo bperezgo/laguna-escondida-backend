@@ -30,8 +30,6 @@ func createTestClient(server *httptest.Server) *ElectronicInvoiceClient {
 }
 
 func createTestBill() *dto.Bill {
-	brand := "TestBrand"
-	model := "TestModel"
 	description := "Test Description"
 
 	return &dto.Bill{
@@ -53,8 +51,7 @@ func createTestBill() *dto.Bill {
 				Quantity:    2,
 				UnitPrice:   decimal.NewFromFloat(50.00),
 				Description: &description,
-				Brand:       &brand,
-				Model:       &model,
+				Category:    "Test Category",
 				Code:        "SKU-001",
 				Taxes: []dto.InvoiceTax{
 					{TaxCode: dto.TaxCodeVAT, TaxAmount: "19.00", Percent: "19"},
@@ -260,12 +257,13 @@ func TestCreate_InvalidJSONResponse(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to unmarshal response")
 }
 
-func TestCreate_ProductWithoutBrandAndModel(t *testing.T) {
+func TestCreate_ProductWithEmptyCategory(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var reqBody invoiceRequest
 		err := json.NewDecoder(r.Body).Decode(&reqBody)
 		require.NoError(t, err)
 
+		// When category is empty, Brand and Model should be set to "unknown"
 		assert.Equal(t, "unknown", reqBody.Invoice.Items[0].Brand)
 		assert.Equal(t, "unknown", reqBody.Invoice.Items[0].Model)
 
@@ -279,14 +277,45 @@ func TestCreate_ProductWithoutBrandAndModel(t *testing.T) {
 	client := createTestClient(server)
 
 	bill := createTestBill()
-	bill.Products[0].Brand = nil
-	bill.Products[0].Model = nil
+	bill.Products[0].Category = ""
 
 	req := &dto.CreateElectronicInvoiceRequest{
 		Prefix:      "FE",
 		Consecutive: 1001,
 		PaymentCode: dto.ElectronicInvoicePaymentCodeCash,
 		Bill:        bill,
+	}
+
+	resp, err := client.Create(context.Background(), req)
+
+	require.NoError(t, err)
+	assert.NotNil(t, resp)
+}
+
+func TestCreate_ProductCategoryUsedAsBrandAndModel(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var reqBody invoiceRequest
+		err := json.NewDecoder(r.Body).Decode(&reqBody)
+		require.NoError(t, err)
+
+		// Category should be used for both Brand and Model
+		assert.Equal(t, "Test Category", reqBody.Invoice.Items[0].Brand)
+		assert.Equal(t, "Test Category", reqBody.Invoice.Items[0].Model)
+
+		response := createSuccessResponse()
+		w.Header().Set("Content-Type", "application/json")
+		err = json.NewEncoder(w).Encode(response)
+		require.NoError(t, err)
+	}))
+	defer server.Close()
+
+	client := createTestClient(server)
+
+	req := &dto.CreateElectronicInvoiceRequest{
+		Prefix:      "FE",
+		Consecutive: 1001,
+		PaymentCode: dto.ElectronicInvoicePaymentCodeCash,
+		Bill:        createTestBill(),
 	}
 
 	resp, err := client.Create(context.Background(), req)

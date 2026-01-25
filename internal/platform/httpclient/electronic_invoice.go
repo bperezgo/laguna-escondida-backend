@@ -267,14 +267,9 @@ func (c *ElectronicInvoiceClient) Create(
 					name = unknown
 				}
 
-				brand := unknown
-				if billProduct.Brand != nil {
-					brand = *billProduct.Brand
-				}
-
-				model := unknown
-				if billProduct.Model != nil {
-					model = *billProduct.Model
+				category := billProduct.Category
+				if category == "" {
+					category = unknown
 				}
 
 				code := billProduct.Code
@@ -284,8 +279,8 @@ func (c *ElectronicInvoiceClient) Create(
 					UnitPrice:   billProduct.UnitPrice.String(),
 					Total:       total.StringFixed(2),
 					Description: name,
-					Brand:       brand,
-					Model:       model,
+					Brand:       category,
+					Model:       category,
 					Code:        code,
 					Allowance: lo.Map(billProduct.Allowance, func(allowance dto.InvoiceAllowance, index int) invoiceAllowance {
 						return invoiceAllowance{

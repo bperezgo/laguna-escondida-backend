@@ -198,8 +198,6 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 		ProductVAT                 decimal.Decimal
 		ProductICO                 decimal.Decimal
 		ProductDescription         *string
-		ProductBrand               *string
-		ProductModel               *string
 		ProductSKU                 string
 		ProductTotalPriceWithTaxes decimal.Decimal
 		ProductCreatedAt           time.Time
@@ -226,8 +224,6 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 			products.vat as product_vat,
 			products.ico as product_ico,
 			products.description as product_description,
-			products.brand as product_brand,
-			products.model as product_model,
 			products.sku as product_sku,
 			products.total_price_with_taxes as product_total_price_with_taxes,
 			products.created_at as product_created_at,
@@ -254,8 +250,6 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 				VAT:                 pr.ProductVAT,
 				ICO:                 pr.ProductICO,
 				Description:         pr.ProductDescription,
-				Brand:               pr.ProductBrand,
-				Model:               pr.ProductModel,
 				SKU:                 pr.ProductSKU,
 				TotalPriceWithTaxes: pr.ProductTotalPriceWithTaxes,
 				CreatedAt:           pr.ProductCreatedAt,
@@ -657,8 +651,6 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 		ProductVAT                 decimal.Decimal
 		ProductICO                 decimal.Decimal
 		ProductDescription         *string
-		ProductBrand               *string
-		ProductModel               *string
 		ProductSKU                 string
 		ProductTotalPriceWithTaxes decimal.Decimal
 		ProductCreatedAt           time.Time
@@ -685,8 +677,6 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 			products.vat as product_vat,
 			products.ico as product_ico,
 			products.description as product_description,
-			products.brand as product_brand,
-			products.model as product_model,
 			products.sku as product_sku,
 			products.total_price_with_taxes as product_total_price_with_taxes,
 			products.created_at as product_created_at,
@@ -713,8 +703,6 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 				VAT:                 pr.ProductVAT,
 				ICO:                 pr.ProductICO,
 				Description:         pr.ProductDescription,
-				Brand:               pr.ProductBrand,
-				Model:               pr.ProductModel,
 				SKU:                 pr.ProductSKU,
 				TotalPriceWithTaxes: pr.ProductTotalPriceWithTaxes,
 				CreatedAt:           pr.ProductCreatedAt,
