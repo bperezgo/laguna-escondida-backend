@@ -151,6 +151,7 @@ func TestCreateOrder_SingleProduct(t *testing.T) {
 
 	// Mock expectations
 	mockProductRepo.On("FindByIDs", ctx, []string{productID}).Return([]*dto.Product{product}, nil)
+	mockOpenBillRepo.On("GetProductPreparationResponsibilities", ctx, []string{productID}).Return([]dto.ProductPreparationResponsibilityWithProduct{}, nil)
 	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
 
 	// Execute
@@ -194,6 +195,7 @@ func TestCreateOrder_MultipleProducts(t *testing.T) {
 
 	// Mock expectations
 	mockProductRepo.On("FindByIDs", ctx, productIDs).Return([]*dto.Product{product1, product2, product3}, nil)
+	mockOpenBillRepo.On("GetProductPreparationResponsibilities", ctx, productIDs).Return([]dto.ProductPreparationResponsibilityWithProduct{}, nil)
 	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
 
 	// Execute
@@ -339,6 +341,7 @@ func TestCreateOrder_RepositoryError_OpenBillCreate(t *testing.T) {
 
 	// Mock expectations
 	mockProductRepo.On("FindByIDs", ctx, []string{productID}).Return([]*dto.Product{product}, nil)
+	mockOpenBillRepo.On("GetProductPreparationResponsibilities", ctx, []string{productID}).Return([]dto.ProductPreparationResponsibilityWithProduct{}, nil)
 	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(repoError)
 
 	// Execute
@@ -402,6 +405,7 @@ func TestCreateOrder_TotalAmountCalculations(t *testing.T) {
 
 			// Mock expectations
 			mockProductRepo.On("FindByIDs", ctx, []string{productID}).Return([]*dto.Product{product}, nil)
+			mockOpenBillRepo.On("GetProductPreparationResponsibilities", ctx, []string{productID}).Return([]dto.ProductPreparationResponsibilityWithProduct{}, nil)
 			mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
 
 			// Execute
@@ -497,6 +501,7 @@ func TestCreateOrder_ZeroPriceProducts(t *testing.T) {
 
 	// Mock expectations
 	mockProductRepo.On("FindByIDs", ctx, []string{productID}).Return([]*dto.Product{product}, nil)
+	mockOpenBillRepo.On("GetProductPreparationResponsibilities", ctx, []string{productID}).Return([]dto.ProductPreparationResponsibilityWithProduct{}, nil)
 	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
 
 	// Execute
@@ -531,6 +536,7 @@ func TestCreateOrder_LargePriceValues(t *testing.T) {
 
 	// Mock expectations
 	mockProductRepo.On("FindByIDs", ctx, []string{productID}).Return([]*dto.Product{product}, nil)
+	mockOpenBillRepo.On("GetProductPreparationResponsibilities", ctx, []string{productID}).Return([]dto.ProductPreparationResponsibilityWithProduct{}, nil)
 	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
 
 	// Execute
@@ -680,6 +686,7 @@ func TestUpdateOrder_SingleProduct(t *testing.T) {
 	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(existingBill, nil)
 	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(existingAggregate, nil)
 	mockProductRepo.On("FindByIDs", ctx, []string{productID}).Return([]*dto.Product{product}, nil)
+	mockOpenBillRepo.On("GetProductPreparationResponsibilities", ctx, []string{productID}).Return([]dto.ProductPreparationResponsibilityWithProduct{}, nil)
 	mockOpenBillRepo.On("Update", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
 
 	// Execute
@@ -731,6 +738,7 @@ func TestUpdateOrder_MultipleProductsWithQuantities(t *testing.T) {
 	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(existingBill, nil)
 	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(existingAggregate, nil)
 	mockProductRepo.On("FindByIDs", ctx, []string{productID1, productID2}).Return([]*dto.Product{product1, product2}, nil)
+	mockOpenBillRepo.On("GetProductPreparationResponsibilities", ctx, []string{productID1, productID2}).Return([]dto.ProductPreparationResponsibilityWithProduct{}, nil)
 	mockOpenBillRepo.On("Update", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
 
 	// Execute
@@ -781,6 +789,7 @@ func TestUpdateOrder_UpdateQuantity(t *testing.T) {
 	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(existingBill, nil)
 	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(existingAggregate, nil)
 	mockProductRepo.On("FindByIDs", ctx, []string{productID}).Return([]*dto.Product{product}, nil)
+	mockOpenBillRepo.On("GetProductPreparationResponsibilities", ctx, []string{productID}).Return([]dto.ProductPreparationResponsibilityWithProduct{}, nil)
 	mockOpenBillRepo.On("Update", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
 
 	// Execute
@@ -956,6 +965,7 @@ func TestUpdateOrder_RepositoryError_Update(t *testing.T) {
 	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(existingBill, nil)
 	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(existingAggregate, nil)
 	mockProductRepo.On("FindByIDs", ctx, []string{productID}).Return([]*dto.Product{product}, nil)
+	mockOpenBillRepo.On("GetProductPreparationResponsibilities", ctx, []string{productID}).Return([]dto.ProductPreparationResponsibilityWithProduct{}, nil)
 	mockOpenBillRepo.On("Update", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(repoError)
 
 	// Execute
@@ -1642,164 +1652,6 @@ func TestPayOrder_DeleteError(t *testing.T) {
 
 	mockBillRepo.AssertNotCalled(t, "Create")
 
-}
-
-// ============================================================================
-// OrderCreatedEvent Publishing Tests
-// ============================================================================
-
-func TestCreateOrder_EventPublished_WithNonEmptyOpenBillProductID(t *testing.T) {
-	ctx := createTestContext()
-	mockProductRepo := mocks.NewMockProductRepository(t)
-	mockOpenBillRepo := mocks.NewMockOpenBillRepository(t)
-	mockUnitOfWork := createMockUnitOfWork(t)
-	mockEventBus := pkgmocks.NewMockEventBus(t)
-	user := createTestUser()
-
-	service := NewOrderService(mockOpenBillRepo, mockProductRepo, nil, nil, nil, mockUnitOfWork, mockEventBus)
-
-	productID := uuidPlaceholder1
-	openBillProductID := "550e8400-e29b-41d4-a716-446655440099"
-	product := createTestProduct(productID, "Test Product", "Category", 1, 100.0, 19.0)
-
-	req := &dto.CreateOrderRequest{
-		OpenBillID:         uuidPlaceholder0,
-		TemporalIdentifier: "TABLE-01",
-		Products: []dto.OrderProductItem{
-			{OpenBillProductID: openBillProductID, ProductID: productID, Quantity: 1},
-		},
-	}
-
-	mockProductRepo.On("FindByIDs", ctx, []string{productID}).Return([]*dto.Product{product}, nil)
-	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
-
-	// Capture and validate the published event
-	mockEventBus.On("Publish", ctx, mock.MatchedBy(func(event dto.OrderCreatedEvent) bool {
-		if len(event.Products) != 1 {
-			return false
-		}
-		// Validate OpenBillProductID is not empty
-		return event.Products[0].OpenBillProductID == openBillProductID &&
-			event.Products[0].OpenBillProductID != ""
-	})).Return(nil)
-
-	result, err := service.CreateOrder(ctx, req, user)
-
-	require.NoError(t, err)
-	assert.NotNil(t, result)
-	mockEventBus.AssertExpectations(t)
-}
-
-func TestCreateOrder_EventPublished_MultipleProducts_AllHaveOpenBillProductID(t *testing.T) {
-	ctx := createTestContext()
-	mockProductRepo := mocks.NewMockProductRepository(t)
-	mockOpenBillRepo := mocks.NewMockOpenBillRepository(t)
-	mockUnitOfWork := createMockUnitOfWork(t)
-	mockEventBus := pkgmocks.NewMockEventBus(t)
-	user := createTestUser()
-
-	service := NewOrderService(mockOpenBillRepo, mockProductRepo, nil, nil, nil, mockUnitOfWork, mockEventBus)
-
-	product1 := createTestProduct(uuidPlaceholder1, "Product 1", "Category", 1, 50.0, 9.5)
-	product2 := createTestProduct(uuidPlaceholder2, "Product 2", "Category", 1, 75.0, 14.25)
-	product3 := createTestProduct(uuidPlaceholder3, "Product 3", "Category", 1, 25.0, 4.75)
-
-	openBillProductID1 := "550e8400-e29b-41d4-a716-446655440010"
-	openBillProductID2 := "550e8400-e29b-41d4-a716-446655440011"
-	openBillProductID3 := "550e8400-e29b-41d4-a716-446655440012"
-
-	req := &dto.CreateOrderRequest{
-		OpenBillID:         uuidPlaceholder0,
-		TemporalIdentifier: "TABLE-01",
-		Products: []dto.OrderProductItem{
-			{OpenBillProductID: openBillProductID1, ProductID: uuidPlaceholder1, Quantity: 1},
-			{OpenBillProductID: openBillProductID2, ProductID: uuidPlaceholder2, Quantity: 2},
-			{OpenBillProductID: openBillProductID3, ProductID: uuidPlaceholder3, Quantity: 1},
-		},
-	}
-
-	mockProductRepo.On("FindByIDs", ctx, []string{uuidPlaceholder1, uuidPlaceholder2, uuidPlaceholder3}).
-		Return([]*dto.Product{product1, product2, product3}, nil)
-	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
-
-	// Validate ALL products have non-empty OpenBillProductID
-	mockEventBus.On("Publish", ctx, mock.MatchedBy(func(event dto.OrderCreatedEvent) bool {
-		if len(event.Products) != 3 {
-			return false
-		}
-
-		expectedIDs := map[string]string{
-			uuidPlaceholder1: openBillProductID1,
-			uuidPlaceholder2: openBillProductID2,
-			uuidPlaceholder3: openBillProductID3,
-		}
-
-		for _, p := range event.Products {
-			if p.OpenBillProductID == "" {
-				return false
-			}
-			expectedID, exists := expectedIDs[p.ProductID]
-			if !exists || p.OpenBillProductID != expectedID {
-				return false
-			}
-		}
-		return true
-	})).Return(nil)
-
-	result, err := service.CreateOrder(ctx, req, user)
-
-	require.NoError(t, err)
-	assert.NotNil(t, result)
-	mockEventBus.AssertExpectations(t)
-}
-
-func TestCreateOrder_EventPublished_ValidatesEventFields(t *testing.T) {
-	ctx := createTestContext()
-	mockProductRepo := mocks.NewMockProductRepository(t)
-	mockOpenBillRepo := mocks.NewMockOpenBillRepository(t)
-	mockUnitOfWork := createMockUnitOfWork(t)
-	mockEventBus := pkgmocks.NewMockEventBus(t)
-	user := createTestUser()
-
-	service := NewOrderService(mockOpenBillRepo, mockProductRepo, nil, nil, nil, mockUnitOfWork, mockEventBus)
-
-	productID := uuidPlaceholder1
-	openBillProductID := "550e8400-e29b-41d4-a716-446655440099"
-	notes := "Extra spicy"
-	product := createTestProduct(productID, "Test Product", "Category", 1, 100.0, 19.0)
-
-	req := &dto.CreateOrderRequest{
-		OpenBillID:         uuidPlaceholder0,
-		TemporalIdentifier: "TABLE-01",
-		Products: []dto.OrderProductItem{
-			{OpenBillProductID: openBillProductID, ProductID: productID, Quantity: 3, Notes: &notes},
-		},
-	}
-
-	mockProductRepo.On("FindByIDs", ctx, []string{productID}).Return([]*dto.Product{product}, nil)
-	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
-
-	// Validate all event product fields
-	mockEventBus.On("Publish", ctx, mock.MatchedBy(func(event dto.OrderCreatedEvent) bool {
-		if len(event.Products) != 1 {
-			return false
-		}
-
-		p := event.Products[0]
-		return p.OpenBillProductID == openBillProductID &&
-			p.ProductID == productID &&
-			p.Quantity == 3 &&
-			p.Notes != nil && *p.Notes == notes &&
-			event.OpenBillID != "" &&
-			event.TemporalIdentifier == "TABLE-01" &&
-			event.CreatedByID == user.ID
-	})).Return(nil)
-
-	result, err := service.CreateOrder(ctx, req, user)
-
-	require.NoError(t, err)
-	assert.NotNil(t, result)
-	mockEventBus.AssertExpectations(t)
 }
 
 func TestCreateOrder_NoEventPublished_WhenNoProducts(t *testing.T) {

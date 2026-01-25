@@ -15,8 +15,12 @@ run:
 	go run cmd/main.go
 
 test:
-	@echo "Running tests"
-	go test ./... -v -race -coverprofile=coverage.out
+	@echo "Running tests with gotestsum..."
+	gotestsum --format testdox -- ./... -race -coverprofile=coverage.out
+
+test-ci:
+	@echo "Running tests for CI..."
+	gotestsum --format standard-verbose --junitfile test-report.xml -- ./... -race -coverprofile=coverage.out
 
 lint:
 	@echo "Running linter"
