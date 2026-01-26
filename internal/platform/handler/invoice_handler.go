@@ -96,3 +96,35 @@ func (h *InvoiceHandler) UpdateMissingDocumentURLsHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, response)
 }
+
+func (h *InvoiceHandler) ExportInvoicesCSVHandler(c *gin.Context) {
+	var req dto.ExportInvoicesRequest
+
+	if createdAtStartStr := c.Query("created_at_start"); createdAtStartStr != "" {
+		if parsedTime, err := time.Parse(time.RFC3339, createdAtStartStr); err == nil {
+			req.CreatedAtStart = &parsedTime
+		}
+	}
+
+	if createdAtEndStr := c.Query("created_at_end"); createdAtEndStr != "" {
+		if parsedTime, err := time.Parse(time.RFC3339, createdAtEndStr); err == nil {
+			req.CreatedAtEnd = &parsedTime
+		}
+	}
+
+	if nationalID := c.Query("national_identification"); nationalID != "" {
+		req.NationalIdentification = &nationalID
+	}
+
+	csvData, err := h.invoiceService.ExportInvoicesCSV(c.Request.Context(), &req)
+	if err != nil {
+		log.Printf("Error exporting invoices to CSV: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to export invoices"})
+		return
+	}
+
+	filename := fmt.Sprintf("facturas_%s.csv", time.Now().Format("2006-01-02"))
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	c.Data(http.StatusOK, "text/csv; charset=utf-8", csvData)
+}

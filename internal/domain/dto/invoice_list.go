@@ -35,3 +35,9 @@ type ListInvoicesResponse struct {
 	PageSize   int               `json:"page_size"`
 	TotalPages int               `json:"total_pages"`
 }
+
+type ExportInvoicesRequest struct {
+	CreatedAtStart         *time.Time `json:"created_at_start" validate:"omitempty"`
+	CreatedAtEnd           *time.Time `json:"created_at_end" validate:"omitempty"`
+	NationalIdentification *string    `json:"national_identification" validate:"omitempty"`
+}

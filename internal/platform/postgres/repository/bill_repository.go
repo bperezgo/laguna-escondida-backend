@@ -252,6 +252,85 @@ func (r *BillRepository) FindByCriteria(ctx context.Context, criteria *dto.BillC
 	return invoices, totalCount, nil
 }
 
+func (r *BillRepository) FindAllByCriteria(ctx context.Context, criteria *dto.BillCriteria) ([]dto.InvoiceListItem, error) {
+	query := r.db.WithContext(ctx).Model(&billModel{})
+
+	if criteria.CreatedAtStart != nil {
+		query = query.Where("created_at >= ?", criteria.CreatedAtStart)
+	}
+
+	if criteria.CreatedAtEnd != nil {
+		query = query.Where("created_at <= ?", criteria.CreatedAtEnd)
+	}
+
+	if criteria.NationalIdentification != nil && *criteria.NationalIdentification != "" {
+		query = query.Where("bill_owner_id = ?", *criteria.NationalIdentification)
+	}
+
+	var bills []billModel
+	if err := query.Order("created_at DESC").Find(&bills).Error; err != nil {
+		return nil, err
+	}
+
+	billOwnerIDs := make([]string, 0)
+	for _, bill := range bills {
+		if bill.BillOwnerID != nil {
+			billOwnerIDs = append(billOwnerIDs, *bill.BillOwnerID)
+		}
+	}
+
+	billOwnersMap := make(map[string]*billOwnerModel)
+	if len(billOwnerIDs) > 0 {
+		var billOwners []billOwnerModel
+		if err := r.db.WithContext(ctx).
+			Model(&billOwnerModel{}).
+			Where("id IN ?", billOwnerIDs).
+			Find(&billOwners).Error; err != nil {
+			return nil, err
+		}
+
+		for i := range billOwners {
+			billOwnersMap[billOwners[i].ID] = &billOwners[i]
+		}
+	}
+
+	invoices := make([]dto.InvoiceListItem, len(bills))
+	for i, bill := range bills {
+		var customerID *string
+		if bill.BillOwnerID != nil {
+			if _, exists := billOwnersMap[*bill.BillOwnerID]; exists {
+				customerID = bill.BillOwnerID
+			}
+		}
+
+		cufe := ""
+		if bill.CUFE != nil {
+			cufe = *bill.CUFE
+		}
+
+		tascode := ""
+		if bill.Tascode != nil {
+			tascode = *bill.Tascode
+		}
+
+		invoices[i] = dto.InvoiceListItem{
+			ID:             bill.ID,
+			TotalAmount:    bill.TotalAmount,
+			DiscountAmount: bill.DiscountAmount,
+			VAT:            bill.VAT,
+			ICO:            bill.ICO,
+			Tip:            bill.Tip,
+			DocumentURL:    bill.DocumentURL,
+			CUFE:           cufe,
+			Tascode:        tascode,
+			CustomerID:     customerID,
+			CreatedAt:      bill.CreatedAt,
+		}
+	}
+
+	return invoices, nil
+}
+
 func (r *BillRepository) FindByNullDocumentURL(ctx context.Context) ([]*dto.BillWithTascode, error) {
 	var bills []billModel
 	if err := r.db.WithContext(ctx).

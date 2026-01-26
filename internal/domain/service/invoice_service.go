@@ -1,7 +1,10 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"encoding/csv"
+	"fmt"
 
 	"laguna-escondida/backend/internal/domain/aggregate/bill"
 	"laguna-escondida/backend/internal/domain/dto"
@@ -168,4 +171,62 @@ func (s *InvoiceService) UpdateMissingDocumentURLs(ctx context.Context) (*dto.Up
 		UpdatedCount: updatedCount,
 		FailedBills:  failedBills,
 	}, nil
+}
+
+func (s *InvoiceService) ExportInvoicesCSV(ctx context.Context, req *dto.ExportInvoicesRequest) ([]byte, error) {
+	criteria := dto.NewBillCriteria().
+		WithCreatedAtRange(req.CreatedAtStart, req.CreatedAtEnd).
+		WithNationalIdentification(req.NationalIdentification)
+
+	invoices, err := s.billRepo.FindAllByCriteria(ctx, criteria)
+	if err != nil {
+		return nil, err
+	}
+
+	var buf bytes.Buffer
+	writer := csv.NewWriter(&buf)
+
+	headers := []string{
+		"Fecha de Creacion",
+		"CUFE",
+		"Tascode",
+		"Total",
+		"Descuento",
+		"VAT",
+		"ICO",
+		"Propina",
+		"URL Documento",
+	}
+	if err := writer.Write(headers); err != nil {
+		return nil, fmt.Errorf("failed to write CSV headers: %w", err)
+	}
+
+	for _, invoice := range invoices {
+		documentURL := ""
+		if invoice.DocumentURL != nil {
+			documentURL = *invoice.DocumentURL
+		}
+
+		row := []string{
+			invoice.CreatedAt.Format("2006-01-02 15:04:05"),
+			invoice.CUFE,
+			invoice.Tascode,
+			invoice.TotalAmount.String(),
+			invoice.DiscountAmount.String(),
+			invoice.VAT.String(),
+			invoice.ICO.String(),
+			invoice.Tip.String(),
+			documentURL,
+		}
+		if err := writer.Write(row); err != nil {
+			return nil, fmt.Errorf("failed to write CSV row: %w", err)
+		}
+	}
+
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		return nil, fmt.Errorf("failed to flush CSV writer: %w", err)
+	}
+
+	return buf.Bytes(), nil
 }

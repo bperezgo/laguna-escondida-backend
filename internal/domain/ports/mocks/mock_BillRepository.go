@@ -72,6 +72,65 @@ func (_c *MockBillRepository_Create_Call) RunAndReturn(run func(context.Context,
 	return _c
 }
 
+// FindAllByCriteria provides a mock function with given fields: ctx, criteria
+func (_m *MockBillRepository) FindAllByCriteria(ctx context.Context, criteria *dto.BillCriteria) ([]dto.InvoiceListItem, error) {
+	ret := _m.Called(ctx, criteria)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindAllByCriteria")
+	}
+
+	var r0 []dto.InvoiceListItem
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *dto.BillCriteria) ([]dto.InvoiceListItem, error)); ok {
+		return rf(ctx, criteria)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *dto.BillCriteria) []dto.InvoiceListItem); ok {
+		r0 = rf(ctx, criteria)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]dto.InvoiceListItem)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *dto.BillCriteria) error); ok {
+		r1 = rf(ctx, criteria)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockBillRepository_FindAllByCriteria_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindAllByCriteria'
+type MockBillRepository_FindAllByCriteria_Call struct {
+	*mock.Call
+}
+
+// FindAllByCriteria is a helper method to define mock.On call
+//   - ctx context.Context
+//   - criteria *dto.BillCriteria
+func (_e *MockBillRepository_Expecter) FindAllByCriteria(ctx interface{}, criteria interface{}) *MockBillRepository_FindAllByCriteria_Call {
+	return &MockBillRepository_FindAllByCriteria_Call{Call: _e.mock.On("FindAllByCriteria", ctx, criteria)}
+}
+
+func (_c *MockBillRepository_FindAllByCriteria_Call) Run(run func(ctx context.Context, criteria *dto.BillCriteria)) *MockBillRepository_FindAllByCriteria_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*dto.BillCriteria))
+	})
+	return _c
+}
+
+func (_c *MockBillRepository_FindAllByCriteria_Call) Return(_a0 []dto.InvoiceListItem, _a1 error) *MockBillRepository_FindAllByCriteria_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockBillRepository_FindAllByCriteria_Call) RunAndReturn(run func(context.Context, *dto.BillCriteria) ([]dto.InvoiceListItem, error)) *MockBillRepository_FindAllByCriteria_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // FindByCriteria provides a mock function with given fields: ctx, criteria
 func (_m *MockBillRepository) FindByCriteria(ctx context.Context, criteria *dto.BillCriteria) ([]dto.InvoiceListItem, int64, error) {
 	ret := _m.Called(ctx, criteria)

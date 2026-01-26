@@ -233,6 +233,7 @@ func main() {
 	// Invoice routes
 	router.POST("/api/invoices", handler.JWTAuthMiddleware(jwtService), invoiceHandler.CreateElectronicInvoiceHandler)
 	router.GET("/api/invoices", handler.JWTAuthMiddleware(jwtService), invoiceHandler.ListInvoicesHandler)
+	router.GET("/api/invoices/export", handler.JWTAuthMiddleware(jwtService), invoiceHandler.ExportInvoicesCSVHandler)
 
 	// Stock routes
 	router.POST("/api/stock", handler.JWTAuthMiddleware(jwtService), stockHandler.CreateStockHandler)
