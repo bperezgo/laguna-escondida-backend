@@ -5,7 +5,7 @@ import { payOrder } from "@/lib/api/orders";
 import { getBillOwnerById } from "@/lib/api/billOwners";
 import { generateInvoicePrintHTML } from "@/lib/templates/invoicePrint";
 import type { OpenBillWithProducts } from "@/types/order";
-import type { PaymentType } from "@/types/billOwner";
+import type { PaymentType, PayOrderRequest } from "@/types/billOwner";
 
 interface PaymentModalProps {
   openBill: OpenBillWithProducts;
@@ -145,20 +145,18 @@ export default function PaymentModal({
     setIsPaying(true);
     setError(null);
     try {
-      const paymentData: any = {
+      const paymentData: PayOrderRequest = {
         order_id: openBill.id,
         payment_type: paymentType,
       };
 
       // Add customer data if name is provided
       if (customerName.trim()) {
-        paymentData.bill_owner = {
+        paymentData.customer = {
+          id: customerIdentification.trim(),
+          document_type: customerIdentificationType.trim(),
           name: customerName.trim(),
-          email: customerEmail.trim() || null,
-          phone: customerPhone.trim() || null,
-          address: customerAddress.trim() || null,
-          identification: customerIdentification.trim() || null,
-          identification_type: customerIdentificationType.trim() || null,
+          email: customerEmail.trim(),
         };
       }
 

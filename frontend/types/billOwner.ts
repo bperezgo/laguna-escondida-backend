@@ -25,12 +25,10 @@ export type PaymentType =
 export interface PayOrderRequest {
   order_id: string;
   payment_type: PaymentType;
-  bill_owner?: {
+  customer?: {
     name: string;
-    email?: string | null;
-    phone?: string | null;
-    address?: string | null;
-    identification?: string | null;
-    identification_type?: string | null;
+    email: string;
+    document_type: string;
+    id: string;
   } | null;
 }
