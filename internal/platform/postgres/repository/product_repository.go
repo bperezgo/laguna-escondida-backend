@@ -27,7 +27,9 @@ type productModel struct {
 	Version             int             `gorm:"type:integer;not null"`
 	UnitPrice           decimal.Decimal `gorm:"type:numeric(19,4);not null;column:unit_price"`
 	VAT                 decimal.Decimal `gorm:"type:numeric(19,4);not null"`
+	VATAmount           decimal.Decimal `gorm:"type:numeric(19,4);not null;column:vat_amount"`
 	ICO                 decimal.Decimal `gorm:"type:numeric(19,4);not null"`
+	ICOAmount           decimal.Decimal `gorm:"type:numeric(19,4);not null;column:ico_amount"`
 	Description         *string         `gorm:"type:text"`
 	SKU                 string          `gorm:"type:varchar(255);not null"`
 	TotalPriceWithTaxes decimal.Decimal `gorm:"type:numeric(19,4);not null;column:total_price_with_taxes"`
@@ -89,7 +91,9 @@ func (r *ProductRepository) Create(ctx context.Context, product *product.Aggrega
 		Version:             productDTO.Version,
 		UnitPrice:           productDTO.UnitPrice,
 		VAT:                 productDTO.VAT,
+		VATAmount:           productDTO.VATAmount,
 		ICO:                 productDTO.ICO,
+		ICOAmount:           productDTO.ICOAmount,
 		Description:         productDTO.Description,
 		SKU:                 productDTO.SKU,
 		TotalPriceWithTaxes: productDTO.TotalPriceWithTaxes,
@@ -112,7 +116,9 @@ func (r *ProductRepository) Update(ctx context.Context, id string, product *prod
 		"version":                productDTO.Version,
 		"unit_price":             productDTO.UnitPrice,
 		"vat":                    productDTO.VAT,
+		"vat_amount":             productDTO.VATAmount,
 		"ico":                    productDTO.ICO,
+		"ico_amount":             productDTO.ICOAmount,
 		"description":            productDTO.Description,
 		"sku":                    productDTO.SKU,
 		"total_price_with_taxes": productDTO.TotalPriceWithTaxes,
@@ -158,7 +164,9 @@ func (r *ProductRepository) toDTO(model *productModel) *dto.Product {
 		Version:             model.Version,
 		UnitPrice:           model.UnitPrice,
 		VAT:                 model.VAT,
+		VATAmount:           model.VATAmount,
 		ICO:                 model.ICO,
+		ICOAmount:           model.ICOAmount,
 		Description:         model.Description,
 		SKU:                 model.SKU,
 		TotalPriceWithTaxes: model.TotalPriceWithTaxes,

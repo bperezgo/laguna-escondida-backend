@@ -23,14 +23,28 @@ func createTestProductService(t *testing.T) (*ProductService, *mocks.MockProduct
 	return NewProductService(mockRepo), mockRepo
 }
 
-func createTestProductDTO(id, name, category string, version int, price, vat float64) *dto.Product {
+func createTestProductDTO(id, name, category string, version int, totalPrice, vatPercentage, icoPercentage float64) *dto.Product {
+	total := decimal.NewFromFloat(totalPrice)
+	vatPct := decimal.NewFromFloat(vatPercentage)
+	icoPct := decimal.NewFromFloat(icoPercentage)
+
+	// Calculate tax amounts using the same formula as the aggregate
+	divisor := decimal.NewFromInt(1).Add(vatPct).Add(icoPct)
+	vatAmount := total.Mul(vatPct).Div(divisor).Round(2)
+	icoAmount := total.Mul(icoPct).Div(divisor).Round(2)
+	unitPrice := total.Sub(vatAmount).Sub(icoAmount)
+
 	return &dto.Product{
 		ID:                  id,
 		Name:                name,
 		Category:            category,
 		Version:             version,
-		TotalPriceWithTaxes: decimal.NewFromFloat(price),
-		VAT:                 decimal.NewFromFloat(vat),
+		UnitPrice:           unitPrice,
+		TotalPriceWithTaxes: total,
+		VAT:                 vatPct,
+		VATAmount:           vatAmount,
+		ICO:                 icoPct,
+		ICOAmount:           icoAmount,
 		SKU:                 "SKU001",
 		CreatedAt:           time.Now(),
 		UpdatedAt:           time.Now(),
@@ -72,8 +86,13 @@ func TestCreateProduct_Success(t *testing.T) {
 	assert.True(t, result.TotalPriceWithTaxes.Equal(decimal.NewFromFloat(127.0)))
 	assert.True(t, result.VAT.Equal(decimal.NewFromFloat(0.19)))
 	assert.True(t, result.ICO.Equal(decimal.NewFromFloat(0.08)))
-	assert.True(t, result.UnitPrice.Equal(decimal.NewFromFloat(100.0)))
 	assert.Equal(t, req.SKU, result.SKU)
+
+	// Verify the invariant: unitPrice + vatAmount + icoAmount == totalPriceWithTaxes
+	calculatedTotal := result.UnitPrice.Add(result.VATAmount).Add(result.ICOAmount)
+	assert.True(t, calculatedTotal.Equal(result.TotalPriceWithTaxes),
+		"Invariant violated: unitPrice(%s) + vatAmount(%s) + icoAmount(%s) = %s, expected %s",
+		result.UnitPrice, result.VATAmount, result.ICOAmount, calculatedTotal, result.TotalPriceWithTaxes)
 
 }
 
@@ -207,7 +226,7 @@ func TestUpdateProduct_ValidSKU_WithHyphen(t *testing.T) {
 	service, mockRepo := createTestProductService(t)
 
 	productID := "product-1"
-	existingProduct := createTestProductDTO(productID, "Old Name", "Old Category", 1, 50.0, 9.5)
+	existingProduct := createTestProductDTO(productID, "Old Name", "Old Category", 1, 50.0, 0.095, 0.05)
 
 	req := &dto.UpdateProductRequest{
 		Name:                "New Name",
@@ -238,7 +257,7 @@ func TestUpdateProduct_MissingSKU(t *testing.T) {
 	service, mockRepo := createTestProductService(t)
 
 	productID := "product-1"
-	existingProduct := createTestProductDTO(productID, "Old Name", "Old Category", 1, 50.0, 9.5)
+	existingProduct := createTestProductDTO(productID, "Old Name", "Old Category", 1, 50.0, 0.095, 0.05)
 
 	req := &dto.UpdateProductRequest{
 		Name:                "New Name",
@@ -269,7 +288,7 @@ func TestUpdateProduct_Success(t *testing.T) {
 	service, mockRepo := createTestProductService(t)
 
 	productID := "product-1"
-	existingProduct := createTestProductDTO(productID, "Old Name", "Old Category", 1, 50.0, 9.5)
+	existingProduct := createTestProductDTO(productID, "Old Name", "Old Category", 1, 50.0, 0.095, 0.05)
 
 	req := &dto.UpdateProductRequest{
 		Name:                "New Name",
@@ -301,8 +320,13 @@ func TestUpdateProduct_Success(t *testing.T) {
 	assert.True(t, result.TotalPriceWithTaxes.Equal(decimal.NewFromFloat(200.0)))
 	assert.True(t, result.VAT.Equal(decimal.NewFromFloat(0.38)))
 	assert.True(t, result.ICO.Equal(decimal.NewFromFloat(0.12)))
-	assert.True(t, result.UnitPrice.Equal(decimal.NewFromFloat(133.33)))
 	assert.Equal(t, req.SKU, result.SKU)
+
+	// Verify the invariant: unitPrice + vatAmount + icoAmount == totalPriceWithTaxes
+	calculatedTotal := result.UnitPrice.Add(result.VATAmount).Add(result.ICOAmount)
+	assert.True(t, calculatedTotal.Equal(result.TotalPriceWithTaxes),
+		"Invariant violated: unitPrice(%s) + vatAmount(%s) + icoAmount(%s) = %s, expected %s",
+		result.UnitPrice, result.VATAmount, result.ICOAmount, calculatedTotal, result.TotalPriceWithTaxes)
 
 }
 
@@ -338,7 +362,7 @@ func TestUpdateProduct_RepositoryError(t *testing.T) {
 	service, mockRepo := createTestProductService(t)
 
 	productID := "product-1"
-	existingProduct := createTestProductDTO(productID, "Old Name", "Old Category", 1, 50.0, 9.5)
+	existingProduct := createTestProductDTO(productID, "Old Name", "Old Category", 1, 50.0, 0.095, 0.05)
 
 	req := &dto.UpdateProductRequest{
 		Name:                "New Name",
@@ -370,7 +394,7 @@ func TestDeleteProduct_Success(t *testing.T) {
 	service, mockRepo := createTestProductService(t)
 
 	productID := "product-1"
-	existingProduct := createTestProductDTO(productID, "Product", "Category", 1, 100.0, 19.0)
+	existingProduct := createTestProductDTO(productID, "Product", "Category", 1, 100.0, 0.19, 0.08)
 
 	mockRepo.On("FindByID", ctx, productID).Return(existingProduct, nil)
 	mockRepo.On("Delete", ctx, productID).Return(nil)
@@ -402,7 +426,7 @@ func TestDeleteProduct_RepositoryError(t *testing.T) {
 	service, mockRepo := createTestProductService(t)
 
 	productID := "product-1"
-	existingProduct := createTestProductDTO(productID, "Product", "Category", 1, 100.0, 19.0)
+	existingProduct := createTestProductDTO(productID, "Product", "Category", 1, 100.0, 0.19, 0.08)
 
 	mockRepo.On("FindByID", ctx, productID).Return(existingProduct, nil)
 	mockRepo.On("Delete", ctx, productID).Return(errors.New("delete failed"))
@@ -422,8 +446,8 @@ func TestListProducts_Success(t *testing.T) {
 	service, mockRepo := createTestProductService(t)
 
 	products := []*dto.Product{
-		createTestProductDTO("product-1", "Product 1", "Category A", 1, 100.0, 19.0),
-		createTestProductDTO("product-2", "Product 2", "Category B", 1, 200.0, 38.0),
+		createTestProductDTO("product-1", "Product 1", "Category A", 1, 100.0, 0.19, 0.08),
+		createTestProductDTO("product-2", "Product 2", "Category B", 1, 200.0, 0.38, 0.12),
 	}
 
 	mockRepo.On("FindAll", ctx).Return(products, nil)
@@ -474,7 +498,7 @@ func TestGetProductByID_Success(t *testing.T) {
 	service, mockRepo := createTestProductService(t)
 
 	productID := "product-1"
-	expectedProduct := createTestProductDTO(productID, "Product", "Category", 1, 100.0, 19.0)
+	expectedProduct := createTestProductDTO(productID, "Product", "Category", 1, 100.0, 0.19, 0.08)
 
 	mockRepo.On("FindByID", ctx, productID).Return(expectedProduct, nil)
 

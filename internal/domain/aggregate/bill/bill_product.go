@@ -31,27 +31,30 @@ func NewBillProduct(
 	category string,
 	code string,
 	allowance []dto.InvoiceAllowance,
-	vat decimal.Decimal,
-	ico decimal.Decimal,
+	vatPercentage decimal.Decimal,
+	vatAmount decimal.Decimal,
+	icoPercentage decimal.Decimal,
+	icoAmount decimal.Decimal,
 ) *BillProduct {
-	baseAmount := unitPrice.Mul(decimal.NewFromInt(int64(quantity)))
+	quantityDecimal := decimal.NewFromInt(int64(quantity))
 	taxes := []dto.InvoiceTax{}
 
-	if vat.GreaterThan(decimal.Zero) {
-		vatAmount := baseAmount.Mul(vat)
+	// Use pre-calculated absolute tax amounts, multiply by quantity
+	if vatAmount.GreaterThan(decimal.Zero) {
+		totalVatAmount := vatAmount.Mul(quantityDecimal)
 		taxes = append(taxes, dto.InvoiceTax{
 			TaxCode:   dto.TaxCodeVAT,
-			TaxAmount: vatAmount.StringFixed(2),
-			Percent:   vat.Mul(decimal.NewFromInt(100)).StringFixed(2),
+			TaxAmount: totalVatAmount.StringFixed(2),
+			Percent:   vatPercentage.Mul(decimal.NewFromInt(100)).StringFixed(2),
 		})
 	}
 
-	if ico.GreaterThan(decimal.Zero) {
-		icoAmount := baseAmount.Mul(ico)
+	if icoAmount.GreaterThan(decimal.Zero) {
+		totalIcoAmount := icoAmount.Mul(quantityDecimal)
 		taxes = append(taxes, dto.InvoiceTax{
 			TaxCode:   dto.TaxCodeICO,
-			TaxAmount: icoAmount.StringFixed(2),
-			Percent:   ico.Mul(decimal.NewFromInt(100)).StringFixed(2),
+			TaxAmount: totalIcoAmount.StringFixed(2),
+			Percent:   icoPercentage.Mul(decimal.NewFromInt(100)).StringFixed(2),
 		})
 	}
 

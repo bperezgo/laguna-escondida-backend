@@ -66,7 +66,9 @@ func (s *InvoiceService) CreateElectronicInvoice(ctx context.Context, invoice *d
 			product.SKU,
 			item.Allowance,
 			product.VAT,
+			product.VATAmount,
 			product.ICO,
+			product.ICOAmount,
 		)
 	})
 

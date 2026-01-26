@@ -17,7 +17,9 @@ type Aggregate struct {
 	version             int
 	unitPrice           decimal.Decimal
 	vat                 decimal.Decimal
+	vatAmount           decimal.Decimal
 	ico                 decimal.Decimal
+	icoAmount           decimal.Decimal
 	description         string
 	sku                 *SKU
 	totalPriceWithTaxes decimal.Decimal
@@ -25,52 +27,73 @@ type Aggregate struct {
 	updatedAt           time.Time
 }
 
-// calculateTaxesAndUnitPrice parses and validates tax values, then calculates unit price
-// Returns: totalPriceWithTaxes, vat (as decimal percentage), ico (as decimal percentage), unitPrice, error
-func calculateTaxesAndUnitPrice(totalPriceWithTaxesStr, vatStr, icoStr, taxesFormat string) (decimal.Decimal, decimal.Decimal, decimal.Decimal, decimal.Decimal, error) {
+type taxCalculationResult struct {
+	totalPriceWithTaxes decimal.Decimal
+	vatPercentage       decimal.Decimal
+	vatAmount           decimal.Decimal
+	icoPercentage       decimal.Decimal
+	icoAmount           decimal.Decimal
+	unitPrice           decimal.Decimal
+}
+
+// calculateTaxesAndUnitPrice parses and validates tax values, then calculates tax amounts and unit price
+// Uses proportional calculation to ensure: unitPrice + vatAmount + icoAmount = totalPriceWithTaxes (exact)
+func calculateTaxesAndUnitPrice(totalPriceWithTaxesStr, vatStr, icoStr, taxesFormat string) (*taxCalculationResult, error) {
 	totalPriceWithTaxes, err := decimal.NewFromString(totalPriceWithTaxesStr)
 	if err != nil {
-		return decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero, productError.NewInvalidPriceErrorWithField("total_price_with_taxes must be a number", totalPriceWithTaxesStr)
+		return nil, productError.NewInvalidPriceErrorWithField("total_price_with_taxes must be a number", totalPriceWithTaxesStr)
 	}
 	if totalPriceWithTaxes.LessThanOrEqual(decimal.Zero) {
-		return decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero, productError.NewInvalidPriceErrorWithField("total_price_with_taxes must be greater than 0", totalPriceWithTaxesStr)
+		return nil, productError.NewInvalidPriceErrorWithField("total_price_with_taxes must be greater than 0", totalPriceWithTaxesStr)
 	}
 
 	vat, err := decimal.NewFromString(vatStr)
 	if err != nil {
-		return decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero, productError.NewInvalidVATError("vat must be a number", vatStr)
+		return nil, productError.NewInvalidVATError("vat must be a number", vatStr)
 	}
 	if vat.LessThan(decimal.Zero) {
-		return decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero, productError.NewInvalidVATError("vat must be greater than or equal to 0", vatStr)
+		return nil, productError.NewInvalidVATError("vat must be greater than or equal to 0", vatStr)
 	}
 
 	ico, err := decimal.NewFromString(icoStr)
 	if err != nil {
-		return decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero, productError.NewInvalidICOError("ico must be a number", icoStr)
+		return nil, productError.NewInvalidICOError("ico must be a number", icoStr)
 	}
 	if ico.LessThan(decimal.Zero) {
-		return decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero, productError.NewInvalidICOError("ico must be greater than or equal to 0", icoStr)
+		return nil, productError.NewInvalidICOError("ico must be greater than or equal to 0", icoStr)
 	}
 
 	taxSum := vat.Add(ico)
 	if taxSum.IsZero() {
-		return decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero, productError.NewInvalidTaxCalculationErrorWithField("vat and ico cannot both be 0 (would result in division by zero)", map[string]string{"vat": vatStr, "ico": icoStr})
+		return nil, productError.NewInvalidTaxCalculationErrorWithField("vat and ico cannot both be 0 (would result in division by zero)", map[string]string{"vat": vatStr, "ico": icoStr})
 	}
 
 	if taxesFormat != "percentage" {
-		return decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero, productError.NewInvalidTaxCalculationErrorWithField("taxes_format must be 'percentage'", taxesFormat)
+		return nil, productError.NewInvalidTaxCalculationErrorWithField("taxes_format must be 'percentage'", taxesFormat)
 	}
 
 	hundred := decimal.NewFromInt(100)
 	vatPercentage := vat.Div(hundred)
 	icoPercentage := ico.Div(hundred)
 	taxSumPercentage := vatPercentage.Add(icoPercentage)
-	unitPrice := totalPriceWithTaxes.Div(decimal.NewFromInt(1).Add(taxSumPercentage))
+	divisor := decimal.NewFromInt(1).Add(taxSumPercentage)
 
-	// Round unitPrice to 2 decimal places
-	unitPrice = unitPrice.Round(2)
+	// Calculate tax amounts directly from total (proportionally)
+	// This ensures: unitPrice + vatAmount + icoAmount = totalPriceWithTaxes
+	vatAmount := totalPriceWithTaxes.Mul(vatPercentage).Div(divisor).Round(2)
+	icoAmount := totalPriceWithTaxes.Mul(icoPercentage).Div(divisor).Round(2)
 
-	return totalPriceWithTaxes, vatPercentage, icoPercentage, unitPrice, nil
+	// Unit price absorbs any rounding difference to guarantee exact equality
+	unitPrice := totalPriceWithTaxes.Sub(vatAmount).Sub(icoAmount)
+
+	return &taxCalculationResult{
+		totalPriceWithTaxes: totalPriceWithTaxes,
+		vatPercentage:       vatPercentage,
+		vatAmount:           vatAmount,
+		icoPercentage:       icoPercentage,
+		icoAmount:           icoAmount,
+		unitPrice:           unitPrice,
+	}, nil
 }
 
 func NewAggregateFromDTO(dto *dto.Product) (*Aggregate, error) {
@@ -89,7 +112,9 @@ func NewAggregateFromDTO(dto *dto.Product) (*Aggregate, error) {
 		version:             dto.Version,
 		unitPrice:           dto.UnitPrice,
 		vat:                 dto.VAT,
+		vatAmount:           dto.VATAmount,
 		ico:                 dto.ICO,
+		icoAmount:           dto.ICOAmount,
 		description:         description,
 		sku:                 sku,
 		totalPriceWithTaxes: dto.TotalPriceWithTaxes,
@@ -144,7 +169,7 @@ func NewAggregateFromCreateProductRequest(req *dto.CreateProductRequest) (*Aggre
 		return nil, err
 	}
 
-	totalPriceWithTaxes, vatDecimal, icoDecimal, unitPrice, err := calculateTaxesAndUnitPrice(
+	taxResult, err := calculateTaxesAndUnitPrice(
 		req.TotalPriceWithTaxes,
 		req.VAT,
 		req.ICO,
@@ -165,12 +190,14 @@ func NewAggregateFromCreateProductRequest(req *dto.CreateProductRequest) (*Aggre
 		name:                req.Name,
 		category:            req.Category,
 		version:             1,
-		unitPrice:           unitPrice,
-		vat:                 vatDecimal,
-		ico:                 icoDecimal,
+		unitPrice:           taxResult.unitPrice,
+		vat:                 taxResult.vatPercentage,
+		vatAmount:           taxResult.vatAmount,
+		ico:                 taxResult.icoPercentage,
+		icoAmount:           taxResult.icoAmount,
 		description:         description,
 		sku:                 sku,
-		totalPriceWithTaxes: totalPriceWithTaxes,
+		totalPriceWithTaxes: taxResult.totalPriceWithTaxes,
 		createdAt:           now,
 		updatedAt:           now,
 	}, nil
@@ -184,7 +211,9 @@ func (a *Aggregate) ToDTO() *dto.Product {
 		Version:             a.version,
 		UnitPrice:           a.unitPrice,
 		VAT:                 a.vat,
+		VATAmount:           a.vatAmount,
 		ICO:                 a.ico,
+		ICOAmount:           a.icoAmount,
 		Description:         &a.description,
 		SKU:                 a.sku.Value(),
 		TotalPriceWithTaxes: a.totalPriceWithTaxes,
@@ -210,7 +239,7 @@ func (a *Aggregate) Update(req *dto.UpdateProductRequest) (*Aggregate, error) {
 	//  To validate how the system behaves with different prices (Split Tests)
 	a.version = 1
 
-	totalPriceWithTaxes, vatDecimal, icoDecimal, unitPrice, err := calculateTaxesAndUnitPrice(
+	taxResult, err := calculateTaxesAndUnitPrice(
 		req.TotalPriceWithTaxes,
 		req.VAT,
 		req.ICO,
@@ -220,12 +249,14 @@ func (a *Aggregate) Update(req *dto.UpdateProductRequest) (*Aggregate, error) {
 		return nil, err
 	}
 
-	a.totalPriceWithTaxes = totalPriceWithTaxes
-	a.vat = vatDecimal
-	a.ico = icoDecimal
+	a.totalPriceWithTaxes = taxResult.totalPriceWithTaxes
+	a.vat = taxResult.vatPercentage
+	a.vatAmount = taxResult.vatAmount
+	a.ico = taxResult.icoPercentage
+	a.icoAmount = taxResult.icoAmount
 	a.description = description
 	a.sku = sku
-	a.unitPrice = unitPrice
+	a.unitPrice = taxResult.unitPrice
 	a.updatedAt = time.Now()
 
 	return a, nil

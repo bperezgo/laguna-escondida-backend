@@ -13,7 +13,9 @@ type Product struct {
 	Version             int             `json:"version"`
 	UnitPrice           decimal.Decimal `json:"unit_price"`
 	VAT                 decimal.Decimal `json:"vat"`
+	VATAmount           decimal.Decimal `json:"vat_amount"`
 	ICO                 decimal.Decimal `json:"ico"`
+	ICOAmount           decimal.Decimal `json:"ico_amount"`
 	Description         *string         `json:"description"`
 	SKU                 string          `json:"sku"`
 	TotalPriceWithTaxes decimal.Decimal `json:"total_price_with_taxes"`

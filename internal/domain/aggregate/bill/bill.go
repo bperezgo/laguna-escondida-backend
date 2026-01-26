@@ -170,7 +170,9 @@ func NewBillFromOpenBillWithProducts(openBillWithProducts *dto.OpenBillWithProdu
 			productDetail.Product.SKU,
 			[]dto.InvoiceAllowance{},
 			productDetail.Product.VAT,
+			productDetail.Product.VATAmount,
 			productDetail.Product.ICO,
+			productDetail.Product.ICOAmount,
 		))
 	}
 
