@@ -196,7 +196,9 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 		ProductVersion             int
 		ProductUnitPrice           decimal.Decimal
 		ProductVAT                 decimal.Decimal
+		ProductVATAmount           decimal.Decimal
 		ProductICO                 decimal.Decimal
+		ProductICOAmount           decimal.Decimal
 		ProductDescription         *string
 		ProductSKU                 string
 		ProductTotalPriceWithTaxes decimal.Decimal
@@ -222,7 +224,9 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 			products.version as product_version,
 			products.unit_price as product_unit_price,
 			products.vat as product_vat,
+			products.vat_amount as product_vat_amount,
 			products.ico as product_ico,
+			products.ico_amount as product_ico_amount,
 			products.description as product_description,
 			products.sku as product_sku,
 			products.total_price_with_taxes as product_total_price_with_taxes,
@@ -248,7 +252,9 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 				Version:             pr.ProductVersion,
 				UnitPrice:           pr.ProductUnitPrice,
 				VAT:                 pr.ProductVAT,
+				VATAmount:           pr.ProductVATAmount,
 				ICO:                 pr.ProductICO,
+				ICOAmount:           pr.ProductICOAmount,
 				Description:         pr.ProductDescription,
 				SKU:                 pr.ProductSKU,
 				TotalPriceWithTaxes: pr.ProductTotalPriceWithTaxes,
@@ -649,7 +655,9 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 		ProductVersion             int
 		ProductUnitPrice           decimal.Decimal
 		ProductVAT                 decimal.Decimal
+		ProductVATAmount           decimal.Decimal
 		ProductICO                 decimal.Decimal
+		ProductICOAmount           decimal.Decimal
 		ProductDescription         *string
 		ProductSKU                 string
 		ProductTotalPriceWithTaxes decimal.Decimal
@@ -675,7 +683,9 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 			products.version as product_version,
 			products.unit_price as product_unit_price,
 			products.vat as product_vat,
+			products.vat_amount as product_vat_amount,
 			products.ico as product_ico,
+			products.ico_amount as product_ico_amount,
 			products.description as product_description,
 			products.sku as product_sku,
 			products.total_price_with_taxes as product_total_price_with_taxes,
@@ -701,7 +711,9 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 				Version:             pr.ProductVersion,
 				UnitPrice:           pr.ProductUnitPrice,
 				VAT:                 pr.ProductVAT,
+				VATAmount:           pr.ProductVATAmount,
 				ICO:                 pr.ProductICO,
+				ICOAmount:           pr.ProductICOAmount,
 				Description:         pr.ProductDescription,
 				SKU:                 pr.ProductSKU,
 				TotalPriceWithTaxes: pr.ProductTotalPriceWithTaxes,
