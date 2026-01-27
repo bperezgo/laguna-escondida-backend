@@ -61,6 +61,7 @@ Authorization: Bearer <your_jwt_token>
 - [Supplier Catalog](api/supplier-catalog.md) - Link products to suppliers with pricing
 - [Purchase Entries](api/purchase-entries.md) - Record goods received from suppliers
 - [Products](api/products.md) - Manage products and ingredients
+- [Expenses](api/expenses.md) - Track non-product expenses (rent, services, investments, etc.)
 
 ## Data Types
 

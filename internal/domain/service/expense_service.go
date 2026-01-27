@@ -1,0 +1,261 @@
+package service
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"laguna-escondida/backend/internal/domain/aggregate/expense"
+	"laguna-escondida/backend/internal/domain/dto"
+	domainError "laguna-escondida/backend/internal/domain/error"
+	"laguna-escondida/backend/internal/domain/ports"
+
+	"github.com/google/uuid"
+)
+
+type ExpenseService struct {
+	expenseCategoryRepo ports.ExpenseCategoryRepository
+	expenseRepo         ports.ExpenseRepository
+	supplierRepo        ports.SupplierRepository
+	storageClient       ports.StorageClient
+	organizationID      string
+}
+
+func NewExpenseService(
+	expenseCategoryRepo ports.ExpenseCategoryRepository,
+	expenseRepo ports.ExpenseRepository,
+	supplierRepo ports.SupplierRepository,
+	storageClient ports.StorageClient,
+	organizationID string,
+) *ExpenseService {
+	return &ExpenseService{
+		expenseCategoryRepo: expenseCategoryRepo,
+		expenseRepo:         expenseRepo,
+		supplierRepo:        supplierRepo,
+		storageClient:       storageClient,
+		organizationID:      organizationID,
+	}
+}
+
+// Category methods
+
+func (s *ExpenseService) CreateCategory(ctx context.Context, req *dto.CreateExpenseCategoryRequest) (*dto.ExpenseCategory, error) {
+	existing, _ := s.expenseCategoryRepo.FindByCode(ctx, req.Code)
+	if existing != nil {
+		return nil, domainError.ErrExpenseCategoryCodeExists
+	}
+
+	now := time.Now()
+	category := &dto.ExpenseCategory{
+		ID:          uuid.New().String(),
+		Code:        req.Code,
+		Name:        req.Name,
+		Description: req.Description,
+		IsActive:    true,
+		CreatedAt:   now,
+	}
+
+	if err := s.expenseCategoryRepo.Create(ctx, category); err != nil {
+		return nil, fmt.Errorf("%w: %w", domainError.ErrExpenseCategoryCreationFailed, err)
+	}
+
+	return category, nil
+}
+
+func (s *ExpenseService) UpdateCategory(ctx context.Context, id string, req *dto.UpdateExpenseCategoryRequest) (*dto.ExpenseCategory, error) {
+	existing, err := s.expenseCategoryRepo.FindByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", domainError.ErrExpenseCategoryNotFound, err)
+	}
+
+	if req.Code != existing.Code {
+		codeExists, _ := s.expenseCategoryRepo.FindByCode(ctx, req.Code)
+		if codeExists != nil {
+			return nil, domainError.ErrExpenseCategoryCodeExists
+		}
+	}
+
+	updated := &dto.ExpenseCategory{
+		ID:          existing.ID,
+		Code:        req.Code,
+		Name:        req.Name,
+		Description: req.Description,
+		IsActive:    req.IsActive,
+		CreatedAt:   existing.CreatedAt,
+	}
+
+	if err := s.expenseCategoryRepo.Update(ctx, id, updated); err != nil {
+		return nil, fmt.Errorf("%w: %w", domainError.ErrExpenseCategoryUpdateFailed, err)
+	}
+
+	return updated, nil
+}
+
+func (s *ExpenseService) GetCategoryByID(ctx context.Context, id string) (*dto.ExpenseCategory, error) {
+	category, err := s.expenseCategoryRepo.FindByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", domainError.ErrExpenseCategoryNotFound, err)
+	}
+
+	return category, nil
+}
+
+func (s *ExpenseService) ListCategories(ctx context.Context) ([]*dto.ExpenseCategory, error) {
+	categories, err := s.expenseCategoryRepo.FindAll(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list expense categories: %w", err)
+	}
+
+	return categories, nil
+}
+
+func (s *ExpenseService) ListActiveCategories(ctx context.Context) ([]*dto.ExpenseCategory, error) {
+	categories, err := s.expenseCategoryRepo.FindAllActive(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list active expense categories: %w", err)
+	}
+
+	return categories, nil
+}
+
+// Expense methods
+
+func (s *ExpenseService) CreateExpense(ctx context.Context, req *dto.CreateExpenseRequest) (*dto.Expense, error) {
+	if _, err := s.expenseCategoryRepo.FindByID(ctx, req.CategoryID); err != nil {
+		return nil, fmt.Errorf("%w: %w", domainError.ErrExpenseCategoryNotFound, err)
+	}
+
+	if req.SupplierID != nil {
+		if _, err := s.supplierRepo.FindByID(ctx, *req.SupplierID); err != nil {
+			return nil, fmt.Errorf("%w: %w", domainError.ErrSupplierNotFound, err)
+		}
+	}
+
+	expenseAggregate, err := expense.NewAggregateFromCreateRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.expenseRepo.Create(ctx, expenseAggregate); err != nil {
+		return nil, fmt.Errorf("%w: %w", domainError.ErrExpenseCreationFailed, err)
+	}
+
+	return expenseAggregate.ToDTO(), nil
+}
+
+func (s *ExpenseService) UpdateExpense(ctx context.Context, id string, req *dto.UpdateExpenseRequest) (*dto.Expense, error) {
+	existing, err := s.expenseRepo.FindByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", domainError.ErrExpenseNotFound, err)
+	}
+
+	if _, err := s.expenseCategoryRepo.FindByID(ctx, req.CategoryID); err != nil {
+		return nil, fmt.Errorf("%w: %w", domainError.ErrExpenseCategoryNotFound, err)
+	}
+
+	if req.SupplierID != nil {
+		if _, err := s.supplierRepo.FindByID(ctx, *req.SupplierID); err != nil {
+			return nil, fmt.Errorf("%w: %w", domainError.ErrSupplierNotFound, err)
+		}
+	}
+
+	expenseAggregate := expense.NewAggregateFromRepository(
+		existing.ID,
+		existing.CategoryID,
+		existing.SupplierID,
+		existing.Amount,
+		existing.Description,
+		existing.ExpenseDate,
+		existing.Reference,
+		existing.Notes,
+		existing.CreatedAt,
+	)
+
+	if err := expenseAggregate.Update(req); err != nil {
+		return nil, err
+	}
+
+	if err := s.expenseRepo.Update(ctx, id, expenseAggregate); err != nil {
+		return nil, fmt.Errorf("%w: %w", domainError.ErrExpenseUpdateFailed, err)
+	}
+
+	return expenseAggregate.ToDTO(), nil
+}
+
+func (s *ExpenseService) DeleteExpense(ctx context.Context, id string) error {
+	if _, err := s.expenseRepo.FindByID(ctx, id); err != nil {
+		return fmt.Errorf("%w: %w", domainError.ErrExpenseNotFound, err)
+	}
+
+	if err := s.expenseRepo.Delete(ctx, id); err != nil {
+		return fmt.Errorf("%w: %w", domainError.ErrExpenseDeleteFailed, err)
+	}
+
+	return nil
+}
+
+func (s *ExpenseService) GetExpenseByID(ctx context.Context, id string) (*dto.ExpenseWithCategory, error) {
+	expense, err := s.expenseRepo.FindByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", domainError.ErrExpenseNotFound, err)
+	}
+
+	return expense, nil
+}
+
+func (s *ExpenseService) ListExpenses(ctx context.Context) ([]*dto.ExpenseWithCategory, error) {
+	expenses, err := s.expenseRepo.FindAll(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list expenses: %w", err)
+	}
+
+	return expenses, nil
+}
+
+func (s *ExpenseService) ListExpensesByCriteria(ctx context.Context, criteria *dto.ExpenseListCriteria) ([]*dto.ExpenseWithCategory, error) {
+	expenses, err := s.expenseRepo.FindByCriteria(ctx, criteria)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list expenses by criteria: %w", err)
+	}
+
+	return expenses, nil
+}
+
+func (s *ExpenseService) UploadExpenseDocument(ctx context.Context, expenseID string, categoryCode string, fileData []byte, fileType string) (*string, error) {
+	if _, err := s.expenseRepo.FindByID(ctx, expenseID); err != nil {
+		return nil, fmt.Errorf("%w: %w", domainError.ErrExpenseNotFound, err)
+	}
+
+	var contentType string
+	var extension string
+
+	switch fileType {
+	case "pdf":
+		contentType = "application/pdf"
+		extension = "pdf"
+	case "xml":
+		contentType = "application/xml"
+		extension = "xml"
+	default:
+		return nil, fmt.Errorf("unsupported file type: %s", fileType)
+	}
+
+	storageKey := fmt.Sprintf("%s/expenses/%s_%s.%s", s.organizationID, categoryCode, expenseID, extension)
+
+	if err := s.storageClient.Upload(ctx, storageKey, fileData, contentType); err != nil {
+		return nil, fmt.Errorf("failed to upload document: %w", err)
+	}
+
+	var pdfPath, xmlPath *string
+	if fileType == "pdf" {
+		pdfPath = &storageKey
+	} else {
+		xmlPath = &storageKey
+	}
+
+	if err := s.expenseRepo.UpdateStoragePaths(ctx, expenseID, pdfPath, xmlPath); err != nil {
+		return nil, fmt.Errorf("failed to update storage paths: %w", err)
+	}
+
+	return &storageKey, nil
+}

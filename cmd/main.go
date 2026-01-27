@@ -87,6 +87,8 @@ func main() {
 	supplierRepo := repository.NewSupplierRepository(db.DB)
 	supplierCatalogRepo := repository.NewSupplierCatalogRepository(db.DB)
 	purchaseEntryRepo := repository.NewPurchaseEntryRepository(db.DB)
+	expenseCategoryRepo := repository.NewExpenseCategoryRepository(db.DB)
+	expenseRepo := repository.NewExpenseRepository(db.DB)
 	electronicInvoiceClient := httpclient.NewElectronicInvoiceClient(cfg, httpClient)
 	billRepo := repository.NewBillRepository(db.DB, electronicInvoiceClient, cfg)
 	invoiceService := service.NewInvoiceService(electronicInvoiceClient, productRepo, billRepo, spacesClient, cfg.OrganizationID)
@@ -129,6 +131,7 @@ func main() {
 	billOwnerService := service.NewBillOwnerService(billOwnerRepo)
 	supplierService := service.NewSupplierService(supplierRepo, supplierCatalogRepo, productRepo)
 	purchaseEntryService := service.NewPurchaseEntryService(purchaseEntryRepo, supplierRepo, supplierCatalogRepo, productRepo)
+	expenseService := service.NewExpenseService(expenseCategoryRepo, expenseRepo, supplierRepo, spacesClient, cfg.OrganizationID)
 
 	// Initialize Event Subscriber
 	eventSubscriber, err := eventbus.NewGoChannelEventSubscriber(eventBusImpl.PubSub(), watermillLogger)
@@ -197,6 +200,7 @@ func main() {
 	commandHandler := handler.NewCommandHandler(commandService)
 	supplierHandler := handler.NewSupplierHandler(supplierService)
 	purchaseEntryHandler := handler.NewPurchaseEntryHandler(purchaseEntryService)
+	expenseHandler := handler.NewExpenseHandler(expenseService)
 	sseHandler := handler.NewSSEHandler(sseHub, commandItemHub, commandService)
 
 	// Setup routes
@@ -281,6 +285,20 @@ func main() {
 	router.GET("/api/purchase-entries", handler.JWTAuthMiddleware(jwtService), purchaseEntryHandler.ListPurchaseEntriesHandler)
 	router.GET("/api/purchase-entries/:id", handler.JWTAuthMiddleware(jwtService), purchaseEntryHandler.GetPurchaseEntryByIDHandler)
 	router.GET("/api/suppliers/:id/purchase-entries", handler.JWTAuthMiddleware(jwtService), purchaseEntryHandler.GetPurchaseEntriesBySupplierHandler)
+
+	// Expense Category routes
+	router.POST("/api/expense-categories", handler.JWTAuthMiddleware(jwtService), expenseHandler.CreateCategoryHandler)
+	router.GET("/api/expense-categories", handler.JWTAuthMiddleware(jwtService), expenseHandler.ListCategoriesHandler)
+	router.GET("/api/expense-categories/:id", handler.JWTAuthMiddleware(jwtService), expenseHandler.GetCategoryByIDHandler)
+	router.PUT("/api/expense-categories/:id", handler.JWTAuthMiddleware(jwtService), expenseHandler.UpdateCategoryHandler)
+
+	// Expense routes
+	router.POST("/api/expenses", handler.JWTAuthMiddleware(jwtService), expenseHandler.CreateExpenseHandler)
+	router.GET("/api/expenses", handler.JWTAuthMiddleware(jwtService), expenseHandler.ListExpensesHandler)
+	router.GET("/api/expenses/:id", handler.JWTAuthMiddleware(jwtService), expenseHandler.GetExpenseByIDHandler)
+	router.PUT("/api/expenses/:id", handler.JWTAuthMiddleware(jwtService), expenseHandler.UpdateExpenseHandler)
+	router.DELETE("/api/expenses/:id", handler.JWTAuthMiddleware(jwtService), expenseHandler.DeleteExpenseHandler)
+	router.POST("/api/expenses/:id/documents", handler.JWTAuthMiddleware(jwtService), expenseHandler.UploadExpenseDocumentHandler)
 
 	// SSE routes for real-time command notifications
 	router.GET("/api/sse/commands/:area", handler.JWTAuthMiddleware(jwtService), sseHandler.StreamCommandsHandler)
