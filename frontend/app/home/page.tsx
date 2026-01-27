@@ -1,17 +1,12 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-
 export default function HomePage() {
-  const router = useRouter();
-
   const handleSignOut = async () => {
     try {
       await fetch("/api/auth/signout", {
         method: "POST",
       });
-      router.push("/signin");
-      router.refresh();
+      window.location.href = "/signin";
     } catch (error) {
       console.error("Sign out error:", error);
     }
@@ -245,10 +240,86 @@ export default function HomePage() {
                   marginBottom: "0.5rem",
                 }}
               >
-                🍳 Cocina
+                Cocina
               </h2>
               <p style={{ color: "var(--color-text-secondary)", margin: 0 }}>
                 Ver comandas en tiempo real
+              </p>
+            </a>
+
+            <a
+              href="/suppliers"
+              style={{
+                padding: "1.5rem",
+                backgroundColor: "var(--color-surface)",
+                borderRadius: "var(--radius-md)",
+                boxShadow: "var(--shadow-md)",
+                textDecoration: "none",
+                display: "block",
+                transition: "all var(--transition-normal)",
+                border: "1px solid var(--color-border)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.boxShadow = "var(--shadow-lg)";
+                e.currentTarget.style.borderColor = "var(--color-primary)";
+                e.currentTarget.style.transform = "translateY(-2px)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = "var(--shadow-md)";
+                e.currentTarget.style.borderColor = "var(--color-border)";
+                e.currentTarget.style.transform = "translateY(0)";
+              }}
+            >
+              <h2
+                style={{
+                  fontSize: "1.25rem",
+                  fontWeight: "600",
+                  color: "var(--color-text-primary)",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                Proveedores
+              </h2>
+              <p style={{ color: "var(--color-text-secondary)", margin: 0 }}>
+                Administrar proveedores y catálogos
+              </p>
+            </a>
+
+            <a
+              href="/purchase-entries"
+              style={{
+                padding: "1.5rem",
+                backgroundColor: "var(--color-surface)",
+                borderRadius: "var(--radius-md)",
+                boxShadow: "var(--shadow-md)",
+                textDecoration: "none",
+                display: "block",
+                transition: "all var(--transition-normal)",
+                border: "1px solid var(--color-border)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.boxShadow = "var(--shadow-lg)";
+                e.currentTarget.style.borderColor = "var(--color-primary)";
+                e.currentTarget.style.transform = "translateY(-2px)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = "var(--shadow-md)";
+                e.currentTarget.style.borderColor = "var(--color-border)";
+                e.currentTarget.style.transform = "translateY(0)";
+              }}
+            >
+              <h2
+                style={{
+                  fontSize: "1.25rem",
+                  fontWeight: "600",
+                  color: "var(--color-text-primary)",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                Entradas de Compra
+              </h2>
+              <p style={{ color: "var(--color-text-secondary)", margin: 0 }}>
+                Registrar recepción de productos
               </p>
             </a>
           </div>

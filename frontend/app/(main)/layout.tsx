@@ -1,4 +1,4 @@
-import { PageHeader } from "@/components/layout";
+import PageHeader from "@/components/layout/PageHeader";
 
 export default function MainLayout({
   children,

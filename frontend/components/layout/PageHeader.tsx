@@ -13,6 +13,8 @@ export default function PageHeader() {
     if (pathname.startsWith("/stock")) return "Inventario";
     if (pathname.startsWith("/invoices")) return "Facturas";
     if (pathname.startsWith("/kitchen")) return "Cocina";
+    if (pathname.startsWith("/suppliers")) return "Proveedores";
+    if (pathname.startsWith("/purchase-entries")) return "Entradas de Compra";
     return "Laguna Escondida";
   };
 
