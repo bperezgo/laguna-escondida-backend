@@ -12,6 +12,8 @@ export function transformProduct(product: any): Product {
     ico: product.ico,
     version: product.version,
     unit_price: product.unit_price,
+    product_type: product.product_type,
+    unit_of_measure: product.unit_of_measure,
     vat: product.vat,
     created_at: product.created_at,
     updated_at: product.updated_at,
@@ -22,7 +24,7 @@ export function transformProduct(product: any): Product {
 }
 
 export function transformProductListResponse(
-  response: any
+  response: any,
 ): ProductListResponse {
   return {
     products: (response.products || []).map(transformProduct),
