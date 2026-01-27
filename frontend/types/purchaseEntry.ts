@@ -17,6 +17,8 @@ export interface PurchaseEntry {
   entry_date: string;
   notes?: string | null;
   items?: PurchaseEntryItem[];
+  pdf_storage_path?: string | null;
+  xml_storage_path?: string | null;
   created_at: string;
 }
 

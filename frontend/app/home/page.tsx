@@ -322,6 +322,44 @@ export default function HomePage() {
                 Registrar recepción de productos
               </p>
             </a>
+
+            <a
+              href="/expenses"
+              style={{
+                padding: "1.5rem",
+                backgroundColor: "var(--color-surface)",
+                borderRadius: "var(--radius-md)",
+                boxShadow: "var(--shadow-md)",
+                textDecoration: "none",
+                display: "block",
+                transition: "all var(--transition-normal)",
+                border: "1px solid var(--color-border)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.boxShadow = "var(--shadow-lg)";
+                e.currentTarget.style.borderColor = "var(--color-warning)";
+                e.currentTarget.style.transform = "translateY(-2px)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = "var(--shadow-md)";
+                e.currentTarget.style.borderColor = "var(--color-border)";
+                e.currentTarget.style.transform = "translateY(0)";
+              }}
+            >
+              <h2
+                style={{
+                  fontSize: "1.25rem",
+                  fontWeight: "600",
+                  color: "var(--color-text-primary)",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                Gastos
+              </h2>
+              <p style={{ color: "var(--color-text-secondary)", margin: 0 }}>
+                Registrar gastos, inversiones y servicios
+              </p>
+            </a>
           </div>
 
           <div style={{ marginTop: "3rem" }}>

@@ -40,4 +40,39 @@ export const purchaseEntriesApi = {
       body: JSON.stringify(entry),
     });
   },
+
+  /**
+   * Upload a document (PDF or XML) for a purchase entry
+   */
+  async uploadDocument(
+    entryId: string,
+    fileType: 'pdf' | 'xml',
+    file: File
+  ): Promise<{ storage_path: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const url = `/api/purchase-entries/${entryId}/documents?file_type=${fileType}`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (response.status === 401) {
+      window.location.href = '/signin';
+      throw new Error('Unauthorized');
+    }
+
+    if (!response.ok) {
+      const error = await response
+        .json()
+        .catch(() => ({ message: response.statusText }));
+      throw new Error(
+        error.error || error.message || `HTTP error! status: ${response.status}`
+      );
+    }
+
+    return response.json();
+  },
 };

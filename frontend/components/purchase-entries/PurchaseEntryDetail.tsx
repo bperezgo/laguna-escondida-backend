@@ -277,6 +277,60 @@ export default function PurchaseEntryDetail({
               </div>
             )}
 
+            {/* Documents */}
+            {(entry.pdf_storage_path || entry.xml_storage_path) && (
+              <div
+                style={{
+                  marginBottom: "2rem",
+                  padding: "1rem",
+                  backgroundColor: "var(--color-bg)",
+                  borderRadius: "var(--radius-sm)",
+                  border: "1px solid var(--color-border)",
+                }}
+              >
+                <p
+                  style={{
+                    margin: "0 0 0.5rem 0",
+                    color: "var(--color-text-muted)",
+                    fontSize: "0.875rem",
+                    fontWeight: "600",
+                  }}
+                >
+                  Documentos Adjuntos
+                </p>
+                <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                  {entry.pdf_storage_path && (
+                    <span
+                      style={{
+                        padding: "0.5rem 1rem",
+                        backgroundColor: "var(--color-danger-light)",
+                        color: "var(--color-danger)",
+                        borderRadius: "var(--radius-sm)",
+                        fontSize: "0.875rem",
+                        fontWeight: "600",
+                      }}
+                    >
+                      PDF adjunto
+                    </span>
+                  )}
+                  {entry.xml_storage_path && (
+                    <span
+                      style={{
+                        padding: "0.5rem 1rem",
+                        backgroundColor: "var(--color-success-light)",
+                        color: "var(--color-success)",
+                        borderRadius: "var(--radius-sm)",
+                        fontSize: "0.875rem",
+                        fontWeight: "600",
+                      }}
+                    >
+                      XML adjunto
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Items Table */}
             <h3
               style={{

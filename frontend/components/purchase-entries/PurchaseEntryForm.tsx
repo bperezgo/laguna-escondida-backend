@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supplierCatalogApi } from "@/lib/api/supplierCatalog";
 import type { Supplier } from "@/types/supplier";
 import type { SupplierCatalogItem } from "@/types/supplierCatalog";
@@ -11,7 +11,7 @@ import type {
 
 interface PurchaseEntryFormProps {
   suppliers: Supplier[];
-  onSubmit: (data: CreatePurchaseEntryRequest) => Promise<void>;
+  onSubmit: (data: CreatePurchaseEntryRequest, files: { pdf?: File | null; xml?: File | null }) => Promise<void>;
   onCancel: () => void;
   isLoading?: boolean;
 }
@@ -38,6 +38,11 @@ export default function PurchaseEntryForm({
   const [items, setItems] = useState<FormItem[]>([
     { product_id: "", quantity: "", unit_cost: "" },
   ]);
+
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [xmlFile, setXmlFile] = useState<File | null>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+  const xmlInputRef = useRef<HTMLInputElement>(null);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [catalogItems, setCatalogItems] = useState<SupplierCatalogItem[]>([]);
@@ -132,7 +137,53 @@ export default function PurchaseEntryForm({
       submitData.notes = formData.notes.trim();
     }
 
-    await onSubmit(submitData);
+    await onSubmit(submitData, { pdf: pdfFile, xml: xmlFile });
+  };
+
+  const handlePdfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.type !== "application/pdf") {
+        setErrors((prev) => ({ ...prev, pdf: "El archivo debe ser PDF" }));
+        return;
+      }
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors.pdf;
+        return newErrors;
+      });
+      setPdfFile(file);
+    }
+  };
+
+  const handleXmlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.type !== "text/xml" && file.type !== "application/xml" && !file.name.endsWith(".xml")) {
+        setErrors((prev) => ({ ...prev, xml: "El archivo debe ser XML" }));
+        return;
+      }
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors.xml;
+        return newErrors;
+      });
+      setXmlFile(file);
+    }
+  };
+
+  const handleRemovePdf = () => {
+    setPdfFile(null);
+    if (pdfInputRef.current) {
+      pdfInputRef.current.value = "";
+    }
+  };
+
+  const handleRemoveXml = () => {
+    setXmlFile(null);
+    if (xmlInputRef.current) {
+      xmlInputRef.current.value = "";
+    }
   };
 
   const handleAddItem = () => {
@@ -638,6 +689,212 @@ export default function PurchaseEntryForm({
               placeholder="Notas adicionales sobre esta entrada (opcional)"
               maxLength={1000}
             />
+          </div>
+
+          {/* Documents Section */}
+          <div
+            style={{
+              marginBottom: "1.5rem",
+              padding: "1.5rem",
+              backgroundColor: "var(--color-bg)",
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--color-border)",
+            }}
+          >
+            <h3
+              style={{
+                margin: "0 0 1rem 0",
+                fontSize: "1rem",
+                fontWeight: "600",
+                color: "var(--color-text-primary)",
+              }}
+            >
+              Documentos de Soporte (opcional)
+            </h3>
+
+            {/* PDF Upload */}
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ ...labelStyle, fontSize: "0.875rem" }}>
+                Factura PDF
+              </label>
+              {pdfFile ? (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.75rem",
+                    padding: "0.75rem",
+                    backgroundColor: "var(--color-surface)",
+                    borderRadius: "var(--radius-sm)",
+                    border: "1px solid var(--color-border)",
+                  }}
+                >
+                  <span
+                    style={{
+                      padding: "0.25rem 0.5rem",
+                      backgroundColor: "var(--color-danger-light)",
+                      color: "var(--color-danger)",
+                      borderRadius: "var(--radius-sm)",
+                      fontSize: "0.75rem",
+                      fontWeight: "600",
+                    }}
+                  >
+                    PDF
+                  </span>
+                  <span
+                    style={{
+                      flex: 1,
+                      fontSize: "0.875rem",
+                      color: "var(--color-text-primary)",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {pdfFile.name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleRemovePdf}
+                    style={{
+                      padding: "0.25rem 0.5rem",
+                      backgroundColor: "transparent",
+                      color: "var(--color-danger)",
+                      border: "1px solid var(--color-danger)",
+                      borderRadius: "var(--radius-sm)",
+                      cursor: "pointer",
+                      fontSize: "0.75rem",
+                    }}
+                  >
+                    Quitar
+                  </button>
+                </div>
+              ) : (
+                <input
+                  ref={pdfInputRef}
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  onChange={handlePdfChange}
+                  style={{
+                    width: "100%",
+                    padding: "0.5rem",
+                    border: `1px solid ${errors.pdf ? "var(--color-danger)" : "var(--color-border)"}`,
+                    borderRadius: "var(--radius-sm)",
+                    fontSize: "0.875rem",
+                    backgroundColor: "var(--color-surface)",
+                    color: "var(--color-text-primary)",
+                  }}
+                />
+              )}
+              {errors.pdf && (
+                <p
+                  style={{
+                    margin: "0.25rem 0 0 0",
+                    color: "var(--color-danger)",
+                    fontSize: "0.875rem",
+                  }}
+                >
+                  {errors.pdf}
+                </p>
+              )}
+            </div>
+
+            {/* XML Upload */}
+            <div>
+              <label style={{ ...labelStyle, fontSize: "0.875rem" }}>
+                Factura Electrónica XML
+              </label>
+              {xmlFile ? (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.75rem",
+                    padding: "0.75rem",
+                    backgroundColor: "var(--color-surface)",
+                    borderRadius: "var(--radius-sm)",
+                    border: "1px solid var(--color-border)",
+                  }}
+                >
+                  <span
+                    style={{
+                      padding: "0.25rem 0.5rem",
+                      backgroundColor: "var(--color-success-light)",
+                      color: "var(--color-success)",
+                      borderRadius: "var(--radius-sm)",
+                      fontSize: "0.75rem",
+                      fontWeight: "600",
+                    }}
+                  >
+                    XML
+                  </span>
+                  <span
+                    style={{
+                      flex: 1,
+                      fontSize: "0.875rem",
+                      color: "var(--color-text-primary)",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {xmlFile.name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleRemoveXml}
+                    style={{
+                      padding: "0.25rem 0.5rem",
+                      backgroundColor: "transparent",
+                      color: "var(--color-danger)",
+                      border: "1px solid var(--color-danger)",
+                      borderRadius: "var(--radius-sm)",
+                      cursor: "pointer",
+                      fontSize: "0.75rem",
+                    }}
+                  >
+                    Quitar
+                  </button>
+                </div>
+              ) : (
+                <input
+                  ref={xmlInputRef}
+                  type="file"
+                  accept=".xml,text/xml,application/xml"
+                  onChange={handleXmlChange}
+                  style={{
+                    width: "100%",
+                    padding: "0.5rem",
+                    border: `1px solid ${errors.xml ? "var(--color-danger)" : "var(--color-border)"}`,
+                    borderRadius: "var(--radius-sm)",
+                    fontSize: "0.875rem",
+                    backgroundColor: "var(--color-surface)",
+                    color: "var(--color-text-primary)",
+                  }}
+                />
+              )}
+              {errors.xml && (
+                <p
+                  style={{
+                    margin: "0.25rem 0 0 0",
+                    color: "var(--color-danger)",
+                    fontSize: "0.875rem",
+                  }}
+                >
+                  {errors.xml}
+                </p>
+              )}
+            </div>
+
+            <p
+              style={{
+                margin: "0.75rem 0 0 0",
+                fontSize: "0.75rem",
+                color: "var(--color-text-muted)",
+              }}
+            >
+              Los documentos se subirán después de guardar la entrada.
+            </p>
           </div>
 
           {/* Buttons */}

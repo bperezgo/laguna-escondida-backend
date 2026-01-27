@@ -60,13 +60,57 @@ export default function PurchaseEntriesPageClient({
     setDetailEntryId(entry.id);
   };
 
-  const handleFormSubmit = async (data: CreatePurchaseEntryRequest) => {
+  const handleFormSubmit = async (
+    data: CreatePurchaseEntryRequest,
+    files: { pdf?: File | null; xml?: File | null }
+  ) => {
     try {
       setFormLoading(true);
       setError("");
-      await purchaseEntriesApi.create(data);
+      
+      // Create the purchase entry first
+      const savedEntry = await purchaseEntriesApi.create(data);
+
+      // Upload documents if provided
+      const uploadErrors: string[] = [];
+
+      if (files.pdf) {
+        try {
+          await purchaseEntriesApi.uploadDocument(
+            savedEntry.id,
+            "pdf",
+            files.pdf
+          );
+        } catch (err) {
+          uploadErrors.push(
+            `Error al subir PDF: ${err instanceof Error ? err.message : "Error desconocido"}`
+          );
+        }
+      }
+
+      if (files.xml) {
+        try {
+          await purchaseEntriesApi.uploadDocument(
+            savedEntry.id,
+            "xml",
+            files.xml
+          );
+        } catch (err) {
+          uploadErrors.push(
+            `Error al subir XML: ${err instanceof Error ? err.message : "Error desconocido"}`
+          );
+        }
+      }
+
       await loadEntries();
       setShowForm(false);
+
+      // Show upload errors if any (entry was still saved)
+      if (uploadErrors.length > 0) {
+        setError(
+          `La entrada se guardó pero hubo errores al subir documentos: ${uploadErrors.join(". ")}`
+        );
+      }
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Error al guardar entrada";
