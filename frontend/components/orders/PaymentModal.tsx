@@ -34,7 +34,9 @@ export default function PaymentModal({
     useState("");
 
   // Payment type
-  const [paymentType, setPaymentType] = useState<PaymentType>("transfer_debit_bank");
+  const [paymentType, setPaymentType] = useState<PaymentType>(
+    "transfer_debit_bank",
+  );
 
   // Group products by product ID (consolidate duplicates)
   const groupedProducts = () => {
@@ -69,8 +71,8 @@ export default function PaymentModal({
 
     openBill.products.forEach(({ product, quantity }) => {
       const itemSubtotal = parseFloat(product.unit_price) * quantity;
-      const itemVAT = itemSubtotal * parseFloat(product.vat);
-      const itemICO = itemSubtotal * parseFloat(product.ico);
+      const itemVAT = parseFloat(product.vat_amount || "0") * quantity;
+      const itemICO = parseFloat(product.ico_amount || "0") * quantity;
 
       subtotal += itemSubtotal;
       totalVAT += itemVAT;
@@ -96,7 +98,7 @@ export default function PaymentModal({
       generateInvoicePrintHTML({
         title: `Factura - ${openBill.temporal_identifier}`,
         content: printContent.innerHTML,
-      })
+      }),
     );
 
     printWindow.document.close();
@@ -166,7 +168,7 @@ export default function PaymentModal({
     } catch (err) {
       console.error("Error paying order:", err);
       setError(
-        err instanceof Error ? err.message : "Failed to process payment"
+        err instanceof Error ? err.message : "Failed to process payment",
       );
     } finally {
       setIsPaying(false);
