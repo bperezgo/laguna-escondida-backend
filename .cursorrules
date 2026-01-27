@@ -544,4 +544,39 @@ When creating or modifying handlers, verify:
 
 Remember: **Documentation is for the frontend team**. Keep it accurate, complete, and easy to consume.
 
+## Code Quality & Linting (Critical)
+
+**After completing any feature or code change, ALWAYS run `make lint` to validate the code follows linting rules.**
+
+### Common Linting Issues to Avoid
+
+1. **errcheck**: Always handle error return values
+   ```go
+   // BAD - error not checked
+   defer resp.Body.Close()
+   
+   // GOOD - error explicitly ignored or handled
+   defer func() {
+       _ = resp.Body.Close()
+   }()
+   ```
+
+2. **gofmt**: Ensure proper formatting and alignment
+   - Struct fields should be properly aligned
+   - Use `gofmt` or let your editor auto-format
+
+3. **Other common issues**:
+   - Unused variables or imports
+   - Missing error handling
+   - Ineffective assignments
+
+### Validation Checklist
+
+Before considering a feature complete:
+
+- [ ] Run `make lint` and fix all issues
+- [ ] Run `go build ./...` to ensure compilation
+- [ ] Run `make generate-mocks` if port interfaces were modified
+- [ ] Run tests with `go test ./...`
+
 Remember: **Domain is the heart, Platform is the shell**. Keep domain pure and independent.

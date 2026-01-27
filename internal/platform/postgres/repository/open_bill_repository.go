@@ -202,7 +202,7 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 		ProductICO                 decimal.Decimal
 		ProductICOAmount           decimal.Decimal
 		ProductDescription         *string
-		ProductType         string
+		ProductType                string
 		ProductUnitOfMeasure       string
 		ProductSKU                 string
 		ProductTotalPriceWithTaxes decimal.Decimal

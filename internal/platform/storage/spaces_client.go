@@ -67,7 +67,9 @@ func (c *SpacesClient) Download(ctx context.Context, key string) ([]byte, error)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download from Spaces: %w", err)
 	}
-	defer result.Body.Close()
+	defer func() {
+		_ = result.Body.Close()
+	}()
 
 	data, err := io.ReadAll(result.Body)
 	if err != nil {
