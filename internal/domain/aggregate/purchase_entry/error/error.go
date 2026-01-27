@@ -7,11 +7,11 @@ import (
 type PurchaseEntryErrorCode string
 
 const (
-	CodeInvalidRequest   PurchaseEntryErrorCode = "PURCHASE_ENTRY_INVALID_REQUEST"
-	CodeInvalidQuantity  PurchaseEntryErrorCode = "PURCHASE_ENTRY_INVALID_QUANTITY"
-	CodeInvalidUnitCost  PurchaseEntryErrorCode = "PURCHASE_ENTRY_INVALID_UNIT_COST"
-	CodeEmptyItems       PurchaseEntryErrorCode = "PURCHASE_ENTRY_EMPTY_ITEMS"
-	CodeMissingSupplier  PurchaseEntryErrorCode = "PURCHASE_ENTRY_MISSING_SUPPLIER"
+	CodeInvalidRequest  PurchaseEntryErrorCode = "PURCHASE_ENTRY_INVALID_REQUEST"
+	CodeInvalidQuantity PurchaseEntryErrorCode = "PURCHASE_ENTRY_INVALID_QUANTITY"
+	CodeInvalidUnitCost PurchaseEntryErrorCode = "PURCHASE_ENTRY_INVALID_UNIT_COST"
+	CodeEmptyItems      PurchaseEntryErrorCode = "PURCHASE_ENTRY_EMPTY_ITEMS"
+	CodeMissingSupplier PurchaseEntryErrorCode = "PURCHASE_ENTRY_MISSING_SUPPLIER"
 )
 
 func NewInvalidRequestError(message string) *baseError.BaseError {

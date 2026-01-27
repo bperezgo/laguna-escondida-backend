@@ -7,26 +7,26 @@ import (
 )
 
 type PurchaseEntry struct {
-	ID               string                `json:"id"`
-	SupplierID       string                `json:"supplier_id"`
-	TotalAmount      decimal.Decimal       `json:"total_amount"`
-	InvoiceReference *string               `json:"invoice_reference,omitempty"`
-	EntryDate        time.Time             `json:"entry_date"`
-	Notes            *string               `json:"notes,omitempty"`
-	Items            []*PurchaseEntryItem  `json:"items,omitempty"`
-	CreatedAt        time.Time             `json:"created_at"`
+	ID               string               `json:"id"`
+	SupplierID       string               `json:"supplier_id"`
+	TotalAmount      decimal.Decimal      `json:"total_amount"`
+	InvoiceReference *string              `json:"invoice_reference,omitempty"`
+	EntryDate        time.Time            `json:"entry_date"`
+	Notes            *string              `json:"notes,omitempty"`
+	Items            []*PurchaseEntryItem `json:"items,omitempty"`
+	CreatedAt        time.Time            `json:"created_at"`
 }
 
 type PurchaseEntryWithSupplier struct {
-	ID               string                `json:"id"`
-	SupplierID       string                `json:"supplier_id"`
-	SupplierName     string                `json:"supplier_name"`
-	TotalAmount      decimal.Decimal       `json:"total_amount"`
-	InvoiceReference *string               `json:"invoice_reference,omitempty"`
-	EntryDate        time.Time             `json:"entry_date"`
-	Notes            *string               `json:"notes,omitempty"`
-	Items            []*PurchaseEntryItem  `json:"items,omitempty"`
-	CreatedAt        time.Time             `json:"created_at"`
+	ID               string               `json:"id"`
+	SupplierID       string               `json:"supplier_id"`
+	SupplierName     string               `json:"supplier_name"`
+	TotalAmount      decimal.Decimal      `json:"total_amount"`
+	InvoiceReference *string              `json:"invoice_reference,omitempty"`
+	EntryDate        time.Time            `json:"entry_date"`
+	Notes            *string              `json:"notes,omitempty"`
+	Items            []*PurchaseEntryItem `json:"items,omitempty"`
+	CreatedAt        time.Time            `json:"created_at"`
 }
 
 type PurchaseEntryItem struct {
