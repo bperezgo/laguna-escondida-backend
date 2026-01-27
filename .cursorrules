@@ -23,12 +23,14 @@ internal/
 ## Dependency Rules (Critical)
 
 ### Dependency Flow (Dependency Inversion Principle)
+
 - **Domain layer** (`internal/domain/`) MUST NOT depend on platform layer (`internal/platform/`)
 - **Platform layer** (`internal/platform/`) CAN depend on domain layer
 - **Domain** defines interfaces (ports), **Platform** implements them (adapters)
 - Dependencies flow INWARD: Platform → Domain (never Domain → Platform)
 
 ### Import Rules
+
 - ✅ `platform/handler` can import `domain/service`, `domain/dto`, `domain/error`
 - ✅ `platform/postgres/repository` can import `domain/ports`
 - ✅ `platform/dto` can import `domain/dto`
@@ -42,6 +44,7 @@ internal/
 ## Domain Layer Guidelines
 
 ### `domain/ports/` - Interfaces (Ports)
+
 - Define **interfaces only** - no implementations
 - Use descriptive names ending with the entity/service (e.g., `ProductRepository`, `BillService`)
 - Keep interfaces focused and single-purpose (Interface Segregation Principle)
@@ -56,20 +59,22 @@ internal/
   ```
 
 ### `domain/service/` - Use Cases (Business Logic)
+
 - Contains **all business logic** and use case implementations
 - **MUST** depend on interfaces from `domain/ports/`, never concrete implementations
 - Use dependency injection to receive port implementations
 - Example structure:
+
   ```go
   // domain/service/product_service.go
   type ProductService struct {
       repo ports.ProductRepository
   }
-  
+
   func NewProductService(repo ports.ProductRepository) *ProductService {
       return &ProductService{repo: repo}
   }
-  
+
   func (s *ProductService) CreateProduct(ctx context.Context, req *dto.CreateProductRequest) (*dto.Product, error) {
       // Business logic here
       // Validate, transform, orchestrate
@@ -78,12 +83,14 @@ internal/
   ```
 
 ### `domain/dto/` - Data Transfer Objects
+
 - **Plain structs only** - no methods, no business logic
 - Used for data transfer between layers
 - Can include validation tags (e.g., `validate`, `json`)
 - **MUST NOT import** anything from `platform/*` or `platform/dto`
 - **CAN import** standard library packages and other files within the same `dto` folder
 - Example:
+
   ```go
   // domain/dto/product.go
   type Product struct {
@@ -92,7 +99,7 @@ internal/
       Price       float64   `json:"price"`
       CreatedAt   time.Time `json:"created_at"`
   }
-  
+
   type CreateProductRequest struct {
       Name  string  `json:"name" validate:"required,min=1,max=100"`
       Price float64 `json:"price" validate:"required,gt=0"`
@@ -100,6 +107,7 @@ internal/
   ```
 
 ### `domain/error/` - Custom Errors
+
 - Define domain-specific errors
 - Use error wrapping for context
 - Example:
@@ -114,11 +122,13 @@ internal/
 ## Platform Layer Guidelines
 
 ### `platform/handler/` - HTTP Handlers (Primary Adapters)
+
 - Handle HTTP requests/responses only
 - **MUST** call domain services, not repositories directly
 - Transform HTTP requests to DTOs and DTOs to HTTP responses
 - Keep handlers thin - delegate to domain services
 - Example:
+
   ```go
   // platform/handler/product_handler.go
   func CreateProductHandler(service *service.ProductService) http.HandlerFunc {
@@ -128,29 +138,31 @@ internal/
               http.Error(w, err.Error(), http.StatusBadRequest)
               return
           }
-          
+
           product, err := service.CreateProduct(r.Context(), &req)
           if err != nil {
               // Handle error appropriately
               return
           }
-          
+
           json.NewEncoder(w).Encode(product)
       }
   }
   ```
 
 ### `platform/dto/` - Platform-Specific Data Transfer Objects
+
 - **Plain structs only** - no methods, no business logic
 - Used for data transfer within platform adapters (handlers, repositories, http clients)
 - **CAN import** `domain/dto` to reference domain types
 - **MUST NOT import** anything from `platform/*` except standard library packages
 - These DTOs are adapter-specific and should not be used by domain services
 - Example:
+
   ```go
   // platform/dto/electronic_invoice.go
   import "laguna-escondida/backend/internal/domain/dto"
-  
+
   type CreateElectronicInvoiceRequest struct {
       Prefix      string
       Consecutive int
@@ -161,21 +173,23 @@ internal/
   ```
 
 ### `platform/postgres/repository/` - Database Implementations (Secondary Adapters)
+
 - Implement interfaces from `domain/ports/`
 - Handle all database-specific logic (SQL queries, transactions, etc.)
 - Convert between database models and domain DTOs
 - Can use `platform/dto` for adapter-specific data structures
 - Example:
+
   ```go
   // platform/postgres/repository/product_repository.go
   type ProductRepository struct {
       db *sql.DB
   }
-  
+
   func NewProductRepository(db *sql.DB) ports.ProductRepository {
       return &ProductRepository{db: db}
   }
-  
+
   func (r *ProductRepository) Create(ctx context.Context, product *dto.Product) error {
       // SQL implementation
   }
@@ -184,6 +198,7 @@ internal/
 ## General Guidelines
 
 ### Naming Conventions
+
 - **Interfaces**: Use descriptive names without `Interface` suffix (e.g., `ProductRepository`, not `ProductRepositoryInterface`)
 - **Implementations**: Use descriptive names (e.g., `ProductRepository` struct that implements `ports.ProductRepository`)
 - **Services**: End with `Service` (e.g., `ProductService`)
@@ -191,6 +206,7 @@ internal/
 - **DTOs**: Use descriptive names (e.g., `Product`, `CreateProductRequest`, `UpdateProductRequest`)
 
 ### Context Usage
+
 - **Always** pass `context.Context` as the first parameter in:
   - Repository methods
   - Service methods
@@ -198,12 +214,14 @@ internal/
 - Use context for cancellation, timeouts, and request-scoped values
 
 ### Error Handling
+
 - Use domain errors from `domain/error/` for business logic errors
 - Use standard library errors for infrastructure errors
 - Wrap errors with context using `fmt.Errorf` with `%w` verb
 - Return errors to handlers, don't log in domain layer (log in handlers/adapters)
 
 ### Type Safety Rules
+
 - **NEVER use `interface{}` or `any` in function signatures, ports, or interfaces** unless explicitly requested by the user
 - **Always use concrete types** - Type safety should be enforced at compile time, not runtime
 - **Avoid runtime type assertions** - If you need to validate types, use concrete structs instead
@@ -230,11 +248,13 @@ internal/
   ```
 
 ### Dependency Injection
+
 - Use constructor functions (e.g., `NewProductService`, `NewProductRepository`)
 - Wire dependencies in `cmd/main.go` or a separate wiring file
 - Pass interfaces, not concrete types
 
 ### Code Comments
+
 - **Avoid line-by-line comments** - If the code is explicit and self-documenting, comments are not needed for every line
 - **Function-level comments are acceptable** - Add comments for functions when they provide value (explain "why" not "what")
 - **Prefer clear code over comments** - Write code that is self-explanatory through good naming and structure
@@ -284,6 +304,7 @@ internal/
 ### Testing
 
 #### Unit Testing Strategy
+
 - **Every service MUST have comprehensive unit tests** - Create `*_service_test.go` files alongside each service file
 - **Every new use case MUST include tests** - When implementing a new use case, create corresponding test cases
 - **Test coverage target: 90%+** for service methods
@@ -293,12 +314,14 @@ internal/
 - **NEVER test aggregates individually** - Always test aggregates through services. Aggregates should be tested as part of service tests, not in separate test files. Do not create test files in the `domain/aggregate/` folder.
 
 #### Test Structure
+
 - Use table-driven tests for multiple similar scenarios
 - Organize tests by category: Success Cases, Error Cases, Calculation Validation, Edge Cases
 - Create reusable test helpers: `createTestContext()`, `createTestProduct()`, `createTestService()`, etc.
 - Use mock structs implementing port interfaces (e.g., `MockProductRepository`, `MockOpenBillRepository`)
 
 #### Test Modification Protocol
+
 - **ALWAYS ask before modifying existing unit tests** when changing service implementations
 - When adding new functionality to an existing service:
   1. Check if existing tests cover the new behavior
@@ -307,10 +330,12 @@ internal/
 - When fixing bugs, update tests to cover the bug fix
 
 #### Test File Naming
+
 - Test files: `{service_name}_test.go` (e.g., `order_service_test.go`)
 - Test functions: `Test{ServiceName}_{MethodName}_{Scenario}` (e.g., `TestCreateOrder_EmptyOrder`)
 
 #### Example Test Structure
+
 ```go
 // Mock repositories
 type MockProductRepository struct {
@@ -337,6 +362,7 @@ func TestCreateOrder_TaxCalculations(t *testing.T) { ... }
 ```
 
 #### Integration Testing
+
 - Platform layer tests may require integration tests with actual database
 - Use separate test files or build tags for integration tests
 
@@ -359,6 +385,7 @@ func TestCreateOrder_TaxCalculations(t *testing.T) { ... }
 - Use SQL migrations for database schema changes
 
 ### Mock Generation (Critical)
+
 - **NEVER manually edit mock files** in `internal/domain/ports/mocks/`
 - **Always use `make generate-mocks`** to regenerate mocks when port interfaces change
 - When adding, removing, or modifying methods in port interfaces:
@@ -376,8 +403,145 @@ func TestCreateOrder_TaxCalculations(t *testing.T) { ... }
 5. **Implement repository** in `platform/postgres/repository/`
 6. **Create handler** in `platform/handler/`
 7. **Wire dependencies** in `cmd/main.go`
+8. **Update API documentation** in `docs/api/{entity}.md` (MANDATORY for endpoints)
 
 **Note**: When modifying existing services, always ask before updating existing unit tests.
 
-Remember: **Domain is the heart, Platform is the shell**. Keep domain pure and independent.
+## API Documentation (Critical)
 
+The project maintains API documentation in the `docs/` folder for frontend reference. **Documentation must be kept in sync with code changes.**
+
+### Documentation Structure
+
+```
+docs/
+├── README.md              # API overview, authentication, common response codes
+├── api/                   # Endpoint documentation by entity
+│   ├── products.md
+│   ├── suppliers.md
+│   ├── supplier-catalog.md
+│   ├── purchase-entries.md
+│   └── {entity}.md        # One file per major entity
+└── examples/
+    └── curl-examples.md   # Ready-to-use curl commands
+```
+
+### When to Create/Update Documentation
+
+- **CREATE documentation** when:
+
+  - Adding a new entity with HTTP endpoints
+  - Creating a new API resource
+
+- **UPDATE documentation** when:
+  - Adding new endpoints to an existing entity
+  - Modifying request/response schemas (adding/removing/changing fields)
+  - Changing endpoint paths or HTTP methods
+  - Modifying validation rules
+  - Adding new error codes or response types
+
+### Documentation File Format
+
+Each entity documentation file (`docs/api/{entity}.md`) MUST include:
+
+1. **Title and Description** - What the entity represents
+2. **Endpoints Table** - Quick reference of all endpoints
+3. **For each endpoint**:
+   - HTTP method and path
+   - Path parameters (if any)
+   - Request body with field descriptions, types, and requirements
+   - Example request (JSON)
+   - Example response (JSON with realistic data)
+   - Error responses (with example JSON)
+
+### Documentation Template
+
+```markdown
+# Entity Name
+
+Brief description of what this entity represents.
+
+## Endpoints
+
+| Method | Endpoint            | Description         |
+| ------ | ------------------- | ------------------- |
+| POST   | `/api/entities`     | Create a new entity |
+| GET    | `/api/entities`     | List all entities   |
+| GET    | `/api/entities/:id` | Get entity by ID    |
+| PUT    | `/api/entities/:id` | Update an entity    |
+| DELETE | `/api/entities/:id` | Delete an entity    |
+
+---
+
+## Create Entity
+
+`POST /api/entities`
+
+Creates a new entity.
+
+### Request Body
+
+| Field | Type   | Required | Description               |
+| ----- | ------ | -------- | ------------------------- |
+| name  | string | Yes      | Entity name (1-255 chars) |
+
+### Example Request
+
+\`\`\`json
+{
+"name": "Example Name"
+}
+\`\`\`
+
+### Example Response (201 Created)
+
+\`\`\`json
+{
+"id": "550e8400-e29b-41d4-a716-446655440000",
+"name": "Example Name",
+"created_at": "2024-01-26T15:30:00Z"
+}
+\`\`\`
+
+### Error Responses
+
+**400 Bad Request** - Invalid input
+\`\`\`json
+{
+"error": "validation_error",
+"message": "name is required"
+}
+\`\`\`
+```
+
+### Curl Examples
+
+When adding new endpoints, also update `docs/examples/curl-examples.md` with working examples:
+
+- Include the complete curl command
+- Use realistic example data
+- Group examples by entity
+- Add comments explaining what each example does
+
+### Documentation Validation Checklist
+
+When creating or modifying handlers, verify:
+
+- [ ] Does `docs/api/{entity}.md` exist for this entity?
+- [ ] Are all endpoints documented?
+- [ ] Do request/response examples match the actual DTOs?
+- [ ] Are all fields documented with correct types and requirements?
+- [ ] Are error responses documented?
+- [ ] Are curl examples updated in `docs/examples/curl-examples.md`?
+
+### Style Guidelines
+
+- Use consistent table formatting (aligned columns)
+- Use backticks for code references (`field_name`, `ENUM_VALUE`)
+- Use realistic UUIDs and timestamps in examples
+- Keep descriptions concise but informative
+- Document optional fields with `omitempty` behavior
+
+Remember: **Documentation is for the frontend team**. Keep it accurate, complete, and easy to consume.
+
+Remember: **Domain is the heart, Platform is the shell**. Keep domain pure and independent.
