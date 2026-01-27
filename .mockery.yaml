@@ -26,6 +26,9 @@ packages:
       UnitOfWork:
       SSENotifier:
       ElectronicInvoiceClient:
+      SupplierRepository:
+      SupplierCatalogRepository:
+      PurchaseEntryRepository:
   laguna-escondida/backend/pkg/domain/ports:
     config:
       dir: "pkg/domain/ports/mocks"

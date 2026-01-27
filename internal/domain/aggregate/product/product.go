@@ -14,6 +14,8 @@ type Aggregate struct {
 	id                  string
 	name                string
 	category            string
+	productType         ProductType
+	unitOfMeasure       UnitOfMeasure
 	version             int
 	unitPrice           decimal.Decimal
 	vat                 decimal.Decimal
@@ -105,10 +107,23 @@ func NewAggregateFromDTO(dto *dto.Product) (*Aggregate, error) {
 	if err != nil {
 		return nil, productError.NewInvalidSKUError(dto.SKU)
 	}
+
+	productType, err := NewProductType(string(dto.ProductType))
+	if err != nil {
+		return nil, err
+	}
+
+	unitOfMeasure, err := NewUnitOfMeasure(string(dto.UnitOfMeasure))
+	if err != nil {
+		return nil, err
+	}
+
 	return &Aggregate{
 		id:                  dto.ID,
 		name:                dto.Name,
 		category:            dto.Category,
+		productType:         productType,
+		unitOfMeasure:       unitOfMeasure,
 		version:             dto.Version,
 		unitPrice:           dto.UnitPrice,
 		vat:                 dto.VAT,
@@ -155,7 +170,6 @@ func NewAggregateFromCreateProductRequest(req *dto.CreateProductRequest) (*Aggre
 		return nil, productError.NewInvalidRequestError("request cannot be nil")
 	}
 
-	// Validate required fields
 	if req.Name == "" {
 		return nil, productError.NewMissingNameError()
 	}
@@ -163,10 +177,48 @@ func NewAggregateFromCreateProductRequest(req *dto.CreateProductRequest) (*Aggre
 		return nil, productError.NewMissingCategoryError()
 	}
 
-	// Create and validate SKU value object
 	sku, err := NewSKU(req.SKU)
 	if err != nil {
 		return nil, err
+	}
+
+	productType, err := NewProductType(req.ProductType)
+	if err != nil {
+		return nil, err
+	}
+
+	unitOfMeasure, err := NewUnitOfMeasure(req.UnitOfMeasure)
+	if err != nil {
+		return nil, err
+	}
+
+	description := ""
+	if req.Description != nil {
+		description = *req.Description
+	}
+
+	now := time.Now()
+
+	// For INGREDIENT type, price/taxes are optional
+	if !productType.IsSellable() {
+		return &Aggregate{
+			id:                  uuid.New().String(),
+			name:                req.Name,
+			category:            req.Category,
+			productType:         productType,
+			unitOfMeasure:       unitOfMeasure,
+			version:             1,
+			unitPrice:           decimal.Zero,
+			vat:                 decimal.Zero,
+			vatAmount:           decimal.Zero,
+			ico:                 decimal.Zero,
+			icoAmount:           decimal.Zero,
+			description:         description,
+			sku:                 sku,
+			totalPriceWithTaxes: decimal.Zero,
+			createdAt:           now,
+			updatedAt:           now,
+		}, nil
 	}
 
 	taxResult, err := calculateTaxesAndUnitPrice(
@@ -179,16 +231,12 @@ func NewAggregateFromCreateProductRequest(req *dto.CreateProductRequest) (*Aggre
 		return nil, err
 	}
 
-	description := ""
-	if req.Description != nil {
-		description = *req.Description
-	}
-
-	now := time.Now()
 	return &Aggregate{
 		id:                  uuid.New().String(),
 		name:                req.Name,
 		category:            req.Category,
+		productType:         productType,
+		unitOfMeasure:       unitOfMeasure,
 		version:             1,
 		unitPrice:           taxResult.unitPrice,
 		vat:                 taxResult.vatPercentage,
@@ -208,6 +256,8 @@ func (a *Aggregate) ToDTO() *dto.Product {
 		ID:                  a.id,
 		Name:                a.name,
 		Category:            a.category,
+		ProductType:         dto.ProductType(a.productType),
+		UnitOfMeasure:       dto.UnitOfMeasure(a.unitOfMeasure),
 		Version:             a.version,
 		UnitPrice:           a.unitPrice,
 		VAT:                 a.vat,
@@ -228,6 +278,16 @@ func (a *Aggregate) Update(req *dto.UpdateProductRequest) (*Aggregate, error) {
 		return nil, err
 	}
 
+	productType, err := NewProductType(req.ProductType)
+	if err != nil {
+		return nil, err
+	}
+
+	unitOfMeasure, err := NewUnitOfMeasure(req.UnitOfMeasure)
+	if err != nil {
+		return nil, err
+	}
+
 	description := ""
 	if req.Description != nil {
 		description = *req.Description
@@ -235,28 +295,41 @@ func (a *Aggregate) Update(req *dto.UpdateProductRequest) (*Aggregate, error) {
 
 	a.name = req.Name
 	a.category = req.Category
+	a.productType = productType
+	a.unitOfMeasure = unitOfMeasure
 	// We'll let the logic of this version for another moment, the idea behind this is to change the version if the price changes
 	//  To validate how the system behaves with different prices (Split Tests)
 	a.version = 1
 
-	taxResult, err := calculateTaxesAndUnitPrice(
-		req.TotalPriceWithTaxes,
-		req.VAT,
-		req.ICO,
-		req.TaxesFormat,
-	)
-	if err != nil {
-		return nil, err
+	// For INGREDIENT type, price/taxes are optional
+	if !productType.IsSellable() {
+		a.totalPriceWithTaxes = decimal.Zero
+		a.vat = decimal.Zero
+		a.vatAmount = decimal.Zero
+		a.ico = decimal.Zero
+		a.icoAmount = decimal.Zero
+		a.unitPrice = decimal.Zero
+	} else {
+		taxResult, err := calculateTaxesAndUnitPrice(
+			req.TotalPriceWithTaxes,
+			req.VAT,
+			req.ICO,
+			req.TaxesFormat,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		a.totalPriceWithTaxes = taxResult.totalPriceWithTaxes
+		a.vat = taxResult.vatPercentage
+		a.vatAmount = taxResult.vatAmount
+		a.ico = taxResult.icoPercentage
+		a.icoAmount = taxResult.icoAmount
+		a.unitPrice = taxResult.unitPrice
 	}
 
-	a.totalPriceWithTaxes = taxResult.totalPriceWithTaxes
-	a.vat = taxResult.vatPercentage
-	a.vatAmount = taxResult.vatAmount
-	a.ico = taxResult.icoPercentage
-	a.icoAmount = taxResult.icoAmount
 	a.description = description
 	a.sku = sku
-	a.unitPrice = taxResult.unitPrice
 	a.updatedAt = time.Now()
 
 	return a, nil

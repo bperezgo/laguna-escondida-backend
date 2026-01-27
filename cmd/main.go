@@ -77,6 +77,9 @@ func main() {
 	userRoleRepo := repository.NewUserRoleRepository(db.DB)
 	billOwnerRepo := repository.NewBillOwnerRepository(db.DB)
 	commandRepo := repository.NewCommandRepository(db.DB)
+	supplierRepo := repository.NewSupplierRepository(db.DB)
+	supplierCatalogRepo := repository.NewSupplierCatalogRepository(db.DB)
+	purchaseEntryRepo := repository.NewPurchaseEntryRepository(db.DB)
 	electronicInvoiceClient := httpclient.NewElectronicInvoiceClient(cfg, httpClient)
 	billRepo := repository.NewBillRepository(db.DB, electronicInvoiceClient, cfg)
 	invoiceService := service.NewInvoiceService(electronicInvoiceClient, productRepo, billRepo)
@@ -117,6 +120,8 @@ func main() {
 	stockService := service.NewStockService(stockRepo, productRepo)
 	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, jwtService)
 	billOwnerService := service.NewBillOwnerService(billOwnerRepo)
+	supplierService := service.NewSupplierService(supplierRepo, supplierCatalogRepo, productRepo)
+	purchaseEntryService := service.NewPurchaseEntryService(purchaseEntryRepo, supplierRepo, supplierCatalogRepo, productRepo)
 
 	// Initialize Event Subscriber
 	eventSubscriber, err := eventbus.NewGoChannelEventSubscriber(eventBusImpl.PubSub(), watermillLogger)
@@ -183,6 +188,8 @@ func main() {
 	userHandler := handler.NewUserHandler(userService)
 	billOwnerHandler := handler.NewBillOwnerHandler(billOwnerService)
 	commandHandler := handler.NewCommandHandler(commandService)
+	supplierHandler := handler.NewSupplierHandler(supplierService)
+	purchaseEntryHandler := handler.NewPurchaseEntryHandler(purchaseEntryService)
 	sseHandler := handler.NewSSEHandler(sseHub, commandItemHub, commandService)
 
 	// Setup routes
@@ -247,6 +254,26 @@ func main() {
 
 	// Command routes
 	router.PATCH("/api/commands/:id", handler.JWTAuthMiddleware(jwtService), commandHandler.CompleteCommandHandler)
+
+	// Supplier routes
+	router.POST("/api/suppliers", handler.JWTAuthMiddleware(jwtService), supplierHandler.CreateSupplierHandler)
+	router.GET("/api/suppliers", handler.JWTAuthMiddleware(jwtService), supplierHandler.ListSuppliersHandler)
+	router.GET("/api/suppliers/:id", handler.JWTAuthMiddleware(jwtService), supplierHandler.GetSupplierByIDHandler)
+	router.PUT("/api/suppliers/:id", handler.JWTAuthMiddleware(jwtService), supplierHandler.UpdateSupplierHandler)
+	router.DELETE("/api/suppliers/:id", handler.JWTAuthMiddleware(jwtService), supplierHandler.DeleteSupplierHandler)
+
+	// Supplier Catalog routes
+	router.POST("/api/suppliers/:id/products", handler.JWTAuthMiddleware(jwtService), supplierHandler.AddProductToSupplierHandler)
+	router.PUT("/api/suppliers/:id/products/:product_id", handler.JWTAuthMiddleware(jwtService), supplierHandler.UpdateSupplierCatalogHandler)
+	router.DELETE("/api/suppliers/:id/products/:product_id", handler.JWTAuthMiddleware(jwtService), supplierHandler.RemoveProductFromSupplierHandler)
+	router.GET("/api/suppliers/:id/products", handler.JWTAuthMiddleware(jwtService), supplierHandler.GetSupplierProductsHandler)
+	router.GET("/api/products/:id/suppliers", handler.JWTAuthMiddleware(jwtService), supplierHandler.GetProductSuppliersHandler)
+
+	// Purchase Entry routes
+	router.POST("/api/purchase-entries", handler.JWTAuthMiddleware(jwtService), purchaseEntryHandler.CreatePurchaseEntryHandler)
+	router.GET("/api/purchase-entries", handler.JWTAuthMiddleware(jwtService), purchaseEntryHandler.ListPurchaseEntriesHandler)
+	router.GET("/api/purchase-entries/:id", handler.JWTAuthMiddleware(jwtService), purchaseEntryHandler.GetPurchaseEntryByIDHandler)
+	router.GET("/api/suppliers/:id/purchase-entries", handler.JWTAuthMiddleware(jwtService), purchaseEntryHandler.GetPurchaseEntriesBySupplierHandler)
 
 	// SSE routes for real-time command notifications
 	router.GET("/api/sse/commands/:area", handler.JWTAuthMiddleware(jwtService), sseHandler.StreamCommandsHandler)

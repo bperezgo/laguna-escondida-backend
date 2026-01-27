@@ -6,10 +6,31 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+type ProductType string
+
+const (
+	ProductTypeSellable   ProductType = "SELLABLE"
+	ProductTypeIngredient ProductType = "INGREDIENT"
+	ProductTypeComposite  ProductType = "COMPOSITE"
+	ProductTypeBoth       ProductType = "BOTH"
+)
+
+type UnitOfMeasure string
+
+const (
+	UnitOfMeasureUnit       UnitOfMeasure = "unit"
+	UnitOfMeasureKilogram   UnitOfMeasure = "kg"
+	UnitOfMeasureGram       UnitOfMeasure = "g"
+	UnitOfMeasureLiter      UnitOfMeasure = "l"
+	UnitOfMeasureMilliliter UnitOfMeasure = "ml"
+)
+
 type Product struct {
 	ID                  string          `json:"id"`
 	Name                string          `json:"name"`
 	Category            string          `json:"category"`
+	ProductType         ProductType     `json:"product_type"`
+	UnitOfMeasure       UnitOfMeasure   `json:"unit_of_measure"`
 	Version             int             `json:"version"`
 	UnitPrice           decimal.Decimal `json:"unit_price"`
 	VAT                 decimal.Decimal `json:"vat"`
@@ -26,24 +47,28 @@ type Product struct {
 type CreateProductRequest struct {
 	Name                string  `json:"name" validate:"required,min=1,max=255"`
 	Category            string  `json:"category" validate:"required,min=1,max=100"`
+	ProductType         string  `json:"product_type" validate:"required,oneof=SELLABLE INGREDIENT COMPOSITE BOTH"`
+	UnitOfMeasure       string  `json:"unit_of_measure" validate:"required,oneof=unit kg g l ml"`
 	VAT                 string  `json:"vat" validate:"required,gte=0"`
 	ICO                 string  `json:"ico" validate:"required,gte=0"`
 	TaxesFormat         string  `json:"taxes_format" validate:"required,oneof=percentage fixed"`
 	Description         *string `json:"description"`
 	SKU                 string  `json:"sku" validate:"required,min=1,max=255"`
-	TotalPriceWithTaxes string  `json:"total_price_with_taxes" validate:"required,gt=0"`
+	TotalPriceWithTaxes string  `json:"total_price_with_taxes"`
 }
 
 type UpdateProductRequest struct {
 	Name                string          `json:"name" validate:"required,min=1,max=255"`
 	Category            string          `json:"category" validate:"required,min=1,max=100"`
-	Price               decimal.Decimal `json:"price" validate:"required,gt=0"`
+	ProductType         string          `json:"product_type" validate:"required,oneof=SELLABLE INGREDIENT COMPOSITE BOTH"`
+	UnitOfMeasure       string          `json:"unit_of_measure" validate:"required,oneof=unit kg g l ml"`
+	Price               decimal.Decimal `json:"price"`
 	VAT                 string          `json:"vat" validate:"required,gte=0"`
 	ICO                 string          `json:"ico" validate:"required,gte=0"`
 	TaxesFormat         string          `json:"taxes_format" validate:"required,oneof=percentage fixed"`
 	Description         *string         `json:"description"`
 	SKU                 string          `json:"sku" validate:"required,min=1,max=255"`
-	TotalPriceWithTaxes string          `json:"total_price_with_taxes" validate:"required,gt=0"`
+	TotalPriceWithTaxes string          `json:"total_price_with_taxes"`
 }
 
 type ProductListResponse struct {

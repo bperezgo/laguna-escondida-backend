@@ -38,6 +38,8 @@ func createTestProductDTO(id, name, category string, version int, totalPrice, va
 		ID:                  id,
 		Name:                name,
 		Category:            category,
+		ProductType:         dto.ProductTypeSellable,
+		UnitOfMeasure:       dto.UnitOfMeasureUnit,
 		Version:             version,
 		UnitPrice:           unitPrice,
 		TotalPriceWithTaxes: total,
@@ -61,6 +63,8 @@ func TestCreateProduct_Success(t *testing.T) {
 	req := &dto.CreateProductRequest{
 		Name:                "Test Product",
 		Category:            "Category A",
+		ProductType:         "SELLABLE",
+		UnitOfMeasure:       "unit",
 		TotalPriceWithTaxes: "127.0",
 		VAT:                 "19",
 		ICO:                 "8",
@@ -104,6 +108,8 @@ func TestCreateProduct_ValidSKU_WithHyphen(t *testing.T) {
 	req := &dto.CreateProductRequest{
 		Name:                "Test Product",
 		Category:            "Category A",
+		ProductType:         "SELLABLE",
+		UnitOfMeasure:       "unit",
 		TotalPriceWithTaxes: "127.0",
 		VAT:                 "19",
 		ICO:                 "8",
@@ -133,6 +139,8 @@ func TestCreateProduct_InvalidSKU_WithSpace(t *testing.T) {
 	req := &dto.CreateProductRequest{
 		Name:                "Test Product",
 		Category:            "Category A",
+		ProductType:         "SELLABLE",
+		UnitOfMeasure:       "unit",
 		TotalPriceWithTaxes: "127.0",
 		VAT:                 "19",
 		ICO:                 "8",
@@ -156,6 +164,8 @@ func TestCreateProduct_InvalidSKU_WithSpecialChar(t *testing.T) {
 	req := &dto.CreateProductRequest{
 		Name:                "Test Product",
 		Category:            "Category A",
+		ProductType:         "SELLABLE",
+		UnitOfMeasure:       "unit",
 		TotalPriceWithTaxes: "127.0",
 		VAT:                 "19",
 		ICO:                 "8",
@@ -179,6 +189,8 @@ func TestCreateProduct_MissingSKU(t *testing.T) {
 	req := &dto.CreateProductRequest{
 		Name:                "Test Product",
 		Category:            "Category A",
+		ProductType:         "SELLABLE",
+		UnitOfMeasure:       "unit",
 		TotalPriceWithTaxes: "127.0",
 		VAT:                 "19",
 		ICO:                 "8",
@@ -202,9 +214,11 @@ func TestCreateProduct_RepositoryError(t *testing.T) {
 	req := &dto.CreateProductRequest{
 		Name:                "Test Product",
 		Category:            "Category A",
+		ProductType:         "SELLABLE",
+		UnitOfMeasure:       "unit",
 		TotalPriceWithTaxes: "100.0",
-		VAT:                 "0.19",
-		ICO:                 "0.08",
+		VAT:                 "19",
+		ICO:                 "8",
 		TaxesFormat:         "percentage",
 		Description:         nil,
 		SKU:                 "SKU1",
@@ -231,6 +245,8 @@ func TestUpdateProduct_ValidSKU_WithHyphen(t *testing.T) {
 	req := &dto.UpdateProductRequest{
 		Name:                "New Name",
 		Category:            "New Category",
+		ProductType:         "SELLABLE",
+		UnitOfMeasure:       "unit",
 		TotalPriceWithTaxes: "200.0",
 		VAT:                 "38.0",
 		ICO:                 "12.0",
@@ -262,6 +278,8 @@ func TestUpdateProduct_MissingSKU(t *testing.T) {
 	req := &dto.UpdateProductRequest{
 		Name:                "New Name",
 		Category:            "New Category",
+		ProductType:         "SELLABLE",
+		UnitOfMeasure:       "unit",
 		TotalPriceWithTaxes: "200.0",
 		VAT:                 "38.0",
 		ICO:                 "12.0",
@@ -293,6 +311,8 @@ func TestUpdateProduct_Success(t *testing.T) {
 	req := &dto.UpdateProductRequest{
 		Name:                "New Name",
 		Category:            "New Category",
+		ProductType:         "SELLABLE",
+		UnitOfMeasure:       "unit",
 		TotalPriceWithTaxes: "200.0",
 		VAT:                 "38.0",
 		ICO:                 "12.0",
@@ -339,9 +359,11 @@ func TestUpdateProduct_ProductNotFound(t *testing.T) {
 	req := &dto.UpdateProductRequest{
 		Name:                "New Name",
 		Category:            "New Category",
+		ProductType:         "SELLABLE",
+		UnitOfMeasure:       "unit",
 		TotalPriceWithTaxes: "200.0",
-		VAT:                 "0.38",
-		ICO:                 "0.16",
+		VAT:                 "38",
+		ICO:                 "16",
 		TaxesFormat:         "percentage",
 		SKU:                 "SKU003",
 	}
@@ -367,9 +389,11 @@ func TestUpdateProduct_RepositoryError(t *testing.T) {
 	req := &dto.UpdateProductRequest{
 		Name:                "New Name",
 		Category:            "New Category",
+		ProductType:         "SELLABLE",
+		UnitOfMeasure:       "unit",
 		TotalPriceWithTaxes: "200.0",
-		VAT:                 "0.38",
-		ICO:                 "0.16",
+		VAT:                 "38",
+		ICO:                 "16",
 		TaxesFormat:         "percentage",
 		SKU:                 "SKU004",
 	}

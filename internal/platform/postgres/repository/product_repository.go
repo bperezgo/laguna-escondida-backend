@@ -24,6 +24,8 @@ type productModel struct {
 	ID                  string          `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	Name                string          `gorm:"type:varchar(255);not null"`
 	Category            string          `gorm:"type:varchar(100);not null"`
+	ProductType         string          `gorm:"type:varchar(20);not null;default:'SELLABLE';column:product_type"`
+	UnitOfMeasure       string          `gorm:"type:varchar(10);not null;default:'unit';column:unit_of_measure"`
 	Version             int             `gorm:"type:integer;not null"`
 	UnitPrice           decimal.Decimal `gorm:"type:numeric(19,4);not null;column:unit_price"`
 	VAT                 decimal.Decimal `gorm:"type:numeric(19,4);not null"`
@@ -88,6 +90,8 @@ func (r *ProductRepository) Create(ctx context.Context, product *product.Aggrega
 		ID:                  productDTO.ID,
 		Name:                productDTO.Name,
 		Category:            productDTO.Category,
+		ProductType:         string(productDTO.ProductType),
+		UnitOfMeasure:       string(productDTO.UnitOfMeasure),
 		Version:             productDTO.Version,
 		UnitPrice:           productDTO.UnitPrice,
 		VAT:                 productDTO.VAT,
@@ -113,6 +117,8 @@ func (r *ProductRepository) Update(ctx context.Context, id string, product *prod
 	updateData := map[string]interface{}{
 		"name":                   productDTO.Name,
 		"category":               productDTO.Category,
+		"product_type":           string(productDTO.ProductType),
+		"unit_of_measure":        string(productDTO.UnitOfMeasure),
 		"version":                productDTO.Version,
 		"unit_price":             productDTO.UnitPrice,
 		"vat":                    productDTO.VAT,
@@ -161,6 +167,8 @@ func (r *ProductRepository) toDTO(model *productModel) *dto.Product {
 		ID:                  model.ID,
 		Name:                model.Name,
 		Category:            model.Category,
+		ProductType:         dto.ProductType(model.ProductType),
+		UnitOfMeasure:       dto.UnitOfMeasure(model.UnitOfMeasure),
 		Version:             model.Version,
 		UnitPrice:           model.UnitPrice,
 		VAT:                 model.VAT,
