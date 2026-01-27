@@ -13,6 +13,8 @@ type PurchaseEntry struct {
 	InvoiceReference *string              `json:"invoice_reference,omitempty"`
 	EntryDate        time.Time            `json:"entry_date"`
 	Notes            *string              `json:"notes,omitempty"`
+	PDFStoragePath   *string              `json:"pdf_storage_path,omitempty"`
+	XMLStoragePath   *string              `json:"xml_storage_path,omitempty"`
 	Items            []*PurchaseEntryItem `json:"items,omitempty"`
 	CreatedAt        time.Time            `json:"created_at"`
 }
@@ -25,6 +27,8 @@ type PurchaseEntryWithSupplier struct {
 	InvoiceReference *string              `json:"invoice_reference,omitempty"`
 	EntryDate        time.Time            `json:"entry_date"`
 	Notes            *string              `json:"notes,omitempty"`
+	PDFStoragePath   *string              `json:"pdf_storage_path,omitempty"`
+	XMLStoragePath   *string              `json:"xml_storage_path,omitempty"`
 	Items            []*PurchaseEntryItem `json:"items,omitempty"`
 	CreatedAt        time.Time            `json:"created_at"`
 }

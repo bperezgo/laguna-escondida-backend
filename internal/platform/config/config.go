@@ -12,6 +12,12 @@ type Config struct {
 	ElectronicInvoicePrefix   string
 	AdminAPIKey               string
 	JWTSecret                 string
+	SpacesEndpoint            string
+	SpacesRegion              string
+	SpacesKey                 string
+	SpacesSecret              string
+	SpacesBucket              string
+	OrganizationID            string
 }
 
 func NewConfig() (*Config, error) {
@@ -41,6 +47,31 @@ func NewConfig() (*Config, error) {
 		invoicePrefix = "SETP"
 	}
 
+	spacesEndpoint := os.Getenv("SPACES_ENDPOINT")
+	if spacesEndpoint == "" {
+		return nil, errors.New("SPACES_ENDPOINT is not set")
+	}
+	spacesRegion := os.Getenv("SPACES_REGION")
+	if spacesRegion == "" {
+		return nil, errors.New("SPACES_REGION is not set")
+	}
+	spacesKey := os.Getenv("SPACES_KEY")
+	if spacesKey == "" {
+		return nil, errors.New("SPACES_KEY is not set")
+	}
+	spacesSecret := os.Getenv("SPACES_SECRET")
+	if spacesSecret == "" {
+		return nil, errors.New("SPACES_SECRET is not set")
+	}
+	spacesBucket := os.Getenv("SPACES_BUCKET")
+	if spacesBucket == "" {
+		return nil, errors.New("SPACES_BUCKET is not set")
+	}
+	organizationID := os.Getenv("ORGANIZATION_ID")
+	if organizationID == "" {
+		return nil, errors.New("ORGANIZATION_ID is not set")
+	}
+
 	return &Config{
 		ElectronicInvoiceURL:      url,
 		ElectronicInvoiceUser:     user,
@@ -48,5 +79,11 @@ func NewConfig() (*Config, error) {
 		ElectronicInvoicePrefix:   invoicePrefix,
 		AdminAPIKey:               adminAPIKey,
 		JWTSecret:                 jwtSecret,
+		SpacesEndpoint:            spacesEndpoint,
+		SpacesRegion:              spacesRegion,
+		SpacesKey:                 spacesKey,
+		SpacesSecret:              spacesSecret,
+		SpacesBucket:              spacesBucket,
+		OrganizationID:            organizationID,
 	}, nil
 }

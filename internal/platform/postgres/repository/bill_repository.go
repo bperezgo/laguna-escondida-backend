@@ -359,3 +359,23 @@ func (r *BillRepository) UpdateDocumentURL(ctx context.Context, billID string, d
 		Update("document_url", documentURL).
 		Error
 }
+
+func (r *BillRepository) UpdateStoragePaths(ctx context.Context, billID string, pdfPath *string, xmlPath *string) error {
+	updates := make(map[string]any)
+	if pdfPath != nil {
+		updates["pdf_storage_path"] = *pdfPath
+	}
+	if xmlPath != nil {
+		updates["xml_storage_path"] = *xmlPath
+	}
+
+	if len(updates) == 0 {
+		return nil
+	}
+
+	return r.db.WithContext(ctx).
+		Model(&billModel{}).
+		Where("id = ?", billID).
+		Updates(updates).
+		Error
+}

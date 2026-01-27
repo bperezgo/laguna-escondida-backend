@@ -87,6 +87,7 @@ type VerifyInvoiceStatusResponse struct {
 	StatusCode int
 	StatusText string
 	PDF        string
+	XML        string
 }
 
 type UpdateDocumentURLsResponse struct {

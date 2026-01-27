@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
+	"io"
+	"net/http"
 
 	"laguna-escondida/backend/internal/domain/aggregate/bill"
 	"laguna-escondida/backend/internal/domain/dto"
@@ -18,17 +20,23 @@ type InvoiceService struct {
 	electronicInvoiceClient ports.ElectronicInvoiceClient
 	productRepo             ports.ProductRepository
 	billRepo                ports.BillRepository
+	storageClient           ports.StorageClient
+	organizationID          string
 }
 
 func NewInvoiceService(
 	electronicInvoiceClient ports.ElectronicInvoiceClient,
 	productRepo ports.ProductRepository,
 	billRepo ports.BillRepository,
+	storageClient ports.StorageClient,
+	organizationID string,
 ) *InvoiceService {
 	return &InvoiceService{
 		electronicInvoiceClient: electronicInvoiceClient,
 		productRepo:             productRepo,
 		billRepo:                billRepo,
+		storageClient:           storageClient,
+		organizationID:          organizationID,
 	}
 }
 
@@ -164,6 +172,23 @@ func (s *InvoiceService) UpdateMissingDocumentURLs(ctx context.Context) (*dto.Up
 			continue
 		}
 
+		pdfStoragePath, xmlStoragePath, uploadErr := s.uploadInvoiceToStorage(ctx, bill.ID, verifyResp.PDF, verifyResp.XML)
+		if uploadErr != nil {
+			failedBills = append(failedBills, dto.UpdateDocumentURLsFailedBill{
+				BillID: bill.ID,
+				Error:  fmt.Sprintf("storage upload failed: %v", uploadErr),
+			})
+			updatedCount++
+			continue
+		}
+
+		if err := s.billRepo.UpdateStoragePaths(ctx, bill.ID, pdfStoragePath, xmlStoragePath); err != nil {
+			failedBills = append(failedBills, dto.UpdateDocumentURLsFailedBill{
+				BillID: bill.ID,
+				Error:  fmt.Sprintf("failed to update storage paths: %v", err),
+			})
+		}
+
 		updatedCount++
 	}
 
@@ -171,6 +196,62 @@ func (s *InvoiceService) UpdateMissingDocumentURLs(ctx context.Context) (*dto.Up
 		UpdatedCount: updatedCount,
 		FailedBills:  failedBills,
 	}, nil
+}
+
+func (s *InvoiceService) uploadInvoiceToStorage(ctx context.Context, billID, pdfURL, xmlURL string) (*string, *string, error) {
+	var pdfStoragePath, xmlStoragePath *string
+
+	if pdfURL != "" {
+		pdfData, err := s.downloadFile(ctx, pdfURL)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to download PDF: %w", err)
+		}
+
+		pdfKey := fmt.Sprintf("%s/sales_invoices/%s.pdf", s.organizationID, billID)
+		if err := s.storageClient.Upload(ctx, pdfKey, pdfData, "application/pdf"); err != nil {
+			return nil, nil, fmt.Errorf("failed to upload PDF: %w", err)
+		}
+		pdfStoragePath = &pdfKey
+	}
+
+	if xmlURL != "" {
+		xmlData, err := s.downloadFile(ctx, xmlURL)
+		if err != nil {
+			return pdfStoragePath, nil, fmt.Errorf("failed to download XML: %w", err)
+		}
+
+		xmlKey := fmt.Sprintf("%s/sales_invoices/%s.xml", s.organizationID, billID)
+		if err := s.storageClient.Upload(ctx, xmlKey, xmlData, "application/xml"); err != nil {
+			return pdfStoragePath, nil, fmt.Errorf("failed to upload XML: %w", err)
+		}
+		xmlStoragePath = &xmlKey
+	}
+
+	return pdfStoragePath, xmlStoragePath, nil
+}
+
+func (s *InvoiceService) downloadFile(ctx context.Context, url string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to download file: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	return data, nil
 }
 
 func (s *InvoiceService) ExportInvoicesCSV(ctx context.Context, req *dto.ExportInvoicesRequest) ([]byte, error) {

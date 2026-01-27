@@ -14,4 +14,5 @@ type BillRepository interface {
 	FindAllByCriteria(ctx context.Context, criteria *dto.BillCriteria) ([]dto.InvoiceListItem, error)
 	FindByNullDocumentURL(ctx context.Context) ([]*dto.BillWithTascode, error)
 	UpdateDocumentURL(ctx context.Context, billID string, documentURL string) error
+	UpdateStoragePaths(ctx context.Context, billID string, pdfPath *string, xmlPath *string) error
 }

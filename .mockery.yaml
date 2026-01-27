@@ -12,25 +12,9 @@ disable-version-string: true
 issue-845-fix: true
 packages:
   laguna-escondida/backend/internal/domain/ports:
-    interfaces:
-      CommandRepository:
-      CommandItemSSENotifier:
-      ProductRepository:
-      OpenBillRepository:
-      BillRepository:
-      BillOwnerRepository:
-      StockRepository:
-      UserRepository:
-      RoleRepository:
-      UserRoleRepository:
-      UnitOfWork:
-      SSENotifier:
-      ElectronicInvoiceClient:
-      SupplierRepository:
-      SupplierCatalogRepository:
-      PurchaseEntryRepository:
+    config:
+      all: true
   laguna-escondida/backend/pkg/domain/ports:
     config:
       dir: "pkg/domain/ports/mocks"
-    interfaces:
-      EventBus:
+      all: true

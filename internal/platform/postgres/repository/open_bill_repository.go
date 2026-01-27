@@ -63,6 +63,8 @@ type billModel struct {
 	ICO            decimal.Decimal `gorm:"type:numeric(19,4);not null"`
 	Tip            decimal.Decimal `gorm:"type:numeric(19,4);not null"`
 	DocumentURL    *string         `gorm:"type:text"`
+	PDFStoragePath *string         `gorm:"type:text;column:pdf_storage_path"`
+	XMLStoragePath *string         `gorm:"type:text;column:xml_storage_path"`
 	CUFE           *string         `gorm:"type:varchar(255)"`
 	Tascode        *string         `gorm:"type:varchar(255)"`
 	CreatedAt      time.Time       `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
@@ -200,6 +202,8 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 		ProductICO                 decimal.Decimal
 		ProductICOAmount           decimal.Decimal
 		ProductDescription         *string
+		ProductType         string
+		ProductUnitOfMeasure       string
 		ProductSKU                 string
 		ProductTotalPriceWithTaxes decimal.Decimal
 		ProductCreatedAt           time.Time
@@ -228,6 +232,8 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 			products.ico as product_ico,
 			products.ico_amount as product_ico_amount,
 			products.description as product_description,
+			products.product_type as product_type,
+			products.unit_of_measure as product_unit_of_measure,
 			products.sku as product_sku,
 			products.total_price_with_taxes as product_total_price_with_taxes,
 			products.created_at as product_created_at,
@@ -256,6 +262,8 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 				ICO:                 pr.ProductICO,
 				ICOAmount:           pr.ProductICOAmount,
 				Description:         pr.ProductDescription,
+				ProductType:         dto.ProductType(pr.ProductType),
+				UnitOfMeasure:       dto.UnitOfMeasure(pr.ProductUnitOfMeasure),
 				SKU:                 pr.ProductSKU,
 				TotalPriceWithTaxes: pr.ProductTotalPriceWithTaxes,
 				CreatedAt:           pr.ProductCreatedAt,

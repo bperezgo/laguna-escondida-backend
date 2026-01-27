@@ -400,5 +400,6 @@ func (c *ElectronicInvoiceClient) Get(ctx context.Context, invoiceID string) (re
 		StatusCode: verifyResp.InvoiceResult.Status.Code,
 		StatusText: verifyResp.InvoiceResult.Status.Text,
 		PDF:        verifyResp.InvoiceResult.Document.PDF,
+		XML:        verifyResp.InvoiceResult.Document.ATTACHED,
 	}, nil
 }

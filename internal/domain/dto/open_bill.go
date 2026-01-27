@@ -102,6 +102,8 @@ type Bill struct {
 	ICO            decimal.Decimal `json:"ico"`
 	Tip            decimal.Decimal `json:"tip"`
 	DocumentURL    *string         `json:"document_url,omitempty"`
+	PDFStoragePath *string         `json:"pdf_storage_path,omitempty"`
+	XMLStoragePath *string         `json:"xml_storage_path,omitempty"`
 	Customer       *Customer       `json:"customer,omitempty"`
 	Products       []BillProduct   `json:"products,omitempty"`
 	CreatedAt      time.Time       `json:"created_at"`

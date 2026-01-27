@@ -362,6 +362,55 @@ func (_c *MockBillRepository_UpdateDocumentURL_Call) RunAndReturn(run func(conte
 	return _c
 }
 
+// UpdateStoragePaths provides a mock function with given fields: ctx, billID, pdfPath, xmlPath
+func (_m *MockBillRepository) UpdateStoragePaths(ctx context.Context, billID string, pdfPath *string, xmlPath *string) error {
+	ret := _m.Called(ctx, billID, pdfPath, xmlPath)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateStoragePaths")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, *string, *string) error); ok {
+		r0 = rf(ctx, billID, pdfPath, xmlPath)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockBillRepository_UpdateStoragePaths_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateStoragePaths'
+type MockBillRepository_UpdateStoragePaths_Call struct {
+	*mock.Call
+}
+
+// UpdateStoragePaths is a helper method to define mock.On call
+//   - ctx context.Context
+//   - billID string
+//   - pdfPath *string
+//   - xmlPath *string
+func (_e *MockBillRepository_Expecter) UpdateStoragePaths(ctx interface{}, billID interface{}, pdfPath interface{}, xmlPath interface{}) *MockBillRepository_UpdateStoragePaths_Call {
+	return &MockBillRepository_UpdateStoragePaths_Call{Call: _e.mock.On("UpdateStoragePaths", ctx, billID, pdfPath, xmlPath)}
+}
+
+func (_c *MockBillRepository_UpdateStoragePaths_Call) Run(run func(ctx context.Context, billID string, pdfPath *string, xmlPath *string)) *MockBillRepository_UpdateStoragePaths_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(*string), args[3].(*string))
+	})
+	return _c
+}
+
+func (_c *MockBillRepository_UpdateStoragePaths_Call) Return(_a0 error) *MockBillRepository_UpdateStoragePaths_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockBillRepository_UpdateStoragePaths_Call) RunAndReturn(run func(context.Context, string, *string, *string) error) *MockBillRepository_UpdateStoragePaths_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockBillRepository creates a new instance of MockBillRepository. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockBillRepository(t interface {

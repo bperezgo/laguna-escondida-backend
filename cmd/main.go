@@ -20,6 +20,7 @@ import (
 	"laguna-escondida/backend/internal/platform/postgres"
 	"laguna-escondida/backend/internal/platform/postgres/repository"
 	"laguna-escondida/backend/internal/platform/sse"
+	"laguna-escondida/backend/internal/platform/storage"
 	"laguna-escondida/backend/pkg/eventbus"
 
 	"github.com/gin-gonic/gin"
@@ -68,6 +69,12 @@ func main() {
 
 	httpClient := httpclient.NewClient(logger)
 
+	// Initialize storage client
+	spacesClient, err := storage.NewSpacesClient(cfg)
+	if err != nil {
+		log.Fatalf("Failed to create Spaces client: %v", err)
+	}
+
 	// Initialize repositories
 	productRepo := repository.NewProductRepository(db.DB)
 	openBillRepo := repository.NewOpenBillRepository(db.DB)
@@ -82,7 +89,7 @@ func main() {
 	purchaseEntryRepo := repository.NewPurchaseEntryRepository(db.DB)
 	electronicInvoiceClient := httpclient.NewElectronicInvoiceClient(cfg, httpClient)
 	billRepo := repository.NewBillRepository(db.DB, electronicInvoiceClient, cfg)
-	invoiceService := service.NewInvoiceService(electronicInvoiceClient, productRepo, billRepo)
+	invoiceService := service.NewInvoiceService(electronicInvoiceClient, productRepo, billRepo, spacesClient, cfg.OrganizationID)
 
 	// Initialize SSE Hubs
 	sseHub := sse.NewHub()
