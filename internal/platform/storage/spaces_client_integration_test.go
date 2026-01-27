@@ -53,7 +53,7 @@ func TestSpacesClient_Upload_Integration(t *testing.T) {
 		t.Logf("Warning: could not load .env file: %v", err)
 	}
 
-	// skipIfIntegrationTestsDisabled(t)
+	skipIfIntegrationTestsDisabled(t)
 
 	// Load config
 	cfg, err := config.NewConfig()
@@ -106,7 +106,7 @@ func TestSpacesClient_UploadPDF_Integration(t *testing.T) {
 		t.Logf("Warning: could not load .env file: %v", err)
 	}
 
-	// skipIfIntegrationTestsDisabled(t)
+	skipIfIntegrationTestsDisabled(t)
 
 	cfg, err := config.NewConfig()
 	require.NoError(t, err)
