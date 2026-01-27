@@ -130,7 +130,7 @@ func main() {
 	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, jwtService)
 	billOwnerService := service.NewBillOwnerService(billOwnerRepo)
 	supplierService := service.NewSupplierService(supplierRepo, supplierCatalogRepo, productRepo)
-	purchaseEntryService := service.NewPurchaseEntryService(purchaseEntryRepo, supplierRepo, supplierCatalogRepo, productRepo)
+	purchaseEntryService := service.NewPurchaseEntryService(purchaseEntryRepo, supplierRepo, supplierCatalogRepo, productRepo, spacesClient, cfg.OrganizationID)
 	expenseService := service.NewExpenseService(expenseCategoryRepo, expenseRepo, supplierRepo, spacesClient, cfg.OrganizationID)
 
 	// Initialize Event Subscriber
@@ -285,6 +285,7 @@ func main() {
 	router.GET("/api/purchase-entries", handler.JWTAuthMiddleware(jwtService), purchaseEntryHandler.ListPurchaseEntriesHandler)
 	router.GET("/api/purchase-entries/:id", handler.JWTAuthMiddleware(jwtService), purchaseEntryHandler.GetPurchaseEntryByIDHandler)
 	router.GET("/api/suppliers/:id/purchase-entries", handler.JWTAuthMiddleware(jwtService), purchaseEntryHandler.GetPurchaseEntriesBySupplierHandler)
+	router.POST("/api/purchase-entries/:id/documents", handler.JWTAuthMiddleware(jwtService), purchaseEntryHandler.UploadPurchaseEntryDocumentHandler)
 
 	// Expense Category routes
 	router.POST("/api/expense-categories", handler.JWTAuthMiddleware(jwtService), expenseHandler.CreateCategoryHandler)

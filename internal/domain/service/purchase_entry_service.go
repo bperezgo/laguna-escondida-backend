@@ -19,6 +19,8 @@ type PurchaseEntryService struct {
 	supplierRepo        ports.SupplierRepository
 	supplierCatalogRepo ports.SupplierCatalogRepository
 	productRepo         ports.ProductRepository
+	storageClient       ports.StorageClient
+	organizationID      string
 }
 
 func NewPurchaseEntryService(
@@ -26,12 +28,16 @@ func NewPurchaseEntryService(
 	supplierRepo ports.SupplierRepository,
 	supplierCatalogRepo ports.SupplierCatalogRepository,
 	productRepo ports.ProductRepository,
+	storageClient ports.StorageClient,
+	organizationID string,
 ) *PurchaseEntryService {
 	return &PurchaseEntryService{
 		purchaseEntryRepo:   purchaseEntryRepo,
 		supplierRepo:        supplierRepo,
 		supplierCatalogRepo: supplierCatalogRepo,
 		productRepo:         productRepo,
+		storageClient:       storageClient,
+		organizationID:      organizationID,
 	}
 }
 
@@ -129,4 +135,43 @@ func (s *PurchaseEntryService) GetPurchaseEntriesBySupplier(ctx context.Context,
 	}
 
 	return entries, nil
+}
+
+func (s *PurchaseEntryService) UploadPurchaseEntryDocument(ctx context.Context, purchaseEntryID string, fileData []byte, fileType string) (*string, error) {
+	if _, err := s.purchaseEntryRepo.FindByID(ctx, purchaseEntryID); err != nil {
+		return nil, fmt.Errorf("%w: %w", domainError.ErrPurchaseEntryNotFound, err)
+	}
+
+	var contentType string
+	var extension string
+
+	switch fileType {
+	case "pdf":
+		contentType = "application/pdf"
+		extension = "pdf"
+	case "xml":
+		contentType = "application/xml"
+		extension = "xml"
+	default:
+		return nil, fmt.Errorf("unsupported file type: %s", fileType)
+	}
+
+	storageKey := fmt.Sprintf("%s/purchase-entries/%s.%s", s.organizationID, purchaseEntryID, extension)
+
+	if err := s.storageClient.Upload(ctx, storageKey, fileData, contentType); err != nil {
+		return nil, fmt.Errorf("failed to upload document: %w", err)
+	}
+
+	var pdfPath, xmlPath *string
+	if fileType == "pdf" {
+		pdfPath = &storageKey
+	} else {
+		xmlPath = &storageKey
+	}
+
+	if err := s.purchaseEntryRepo.UpdateStoragePaths(ctx, purchaseEntryID, pdfPath, xmlPath); err != nil {
+		return nil, fmt.Errorf("failed to update storage paths: %w", err)
+	}
+
+	return &storageKey, nil
 }

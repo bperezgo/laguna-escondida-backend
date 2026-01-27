@@ -55,6 +55,8 @@ type purchaseEntryWithSupplierModel struct {
 	InvoiceReference *string         `gorm:"column:invoice_reference"`
 	EntryDate        time.Time       `gorm:"column:entry_date"`
 	Notes            *string         `gorm:"column:notes"`
+	PDFStoragePath   *string         `gorm:"column:pdf_storage_path"`
+	XMLStoragePath   *string         `gorm:"column:xml_storage_path"`
 	CreatedAt        time.Time       `gorm:"column:created_at"`
 }
 
@@ -108,7 +110,7 @@ func (r *PurchaseEntryRepository) FindByID(ctx context.Context, id string) (*dto
 
 	err := r.db.WithContext(ctx).
 		Table("purchase_entries pe").
-		Select("pe.id, pe.supplier_id, s.name as supplier_name, pe.total_amount, pe.invoice_reference, pe.entry_date, pe.notes, pe.created_at").
+		Select("pe.id, pe.supplier_id, s.name as supplier_name, pe.total_amount, pe.invoice_reference, pe.entry_date, pe.notes, pe.pdf_storage_path, pe.xml_storage_path, pe.created_at").
 		Joins("JOIN suppliers s ON s.id = pe.supplier_id").
 		Where("pe.id = ?", id).
 		First(&entryModel).Error
@@ -130,6 +132,8 @@ func (r *PurchaseEntryRepository) FindByID(ctx context.Context, id string) (*dto
 		InvoiceReference: entryModel.InvoiceReference,
 		EntryDate:        entryModel.EntryDate,
 		Notes:            entryModel.Notes,
+		PDFStoragePath:   entryModel.PDFStoragePath,
+		XMLStoragePath:   entryModel.XMLStoragePath,
 		Items:            items,
 		CreatedAt:        entryModel.CreatedAt,
 	}, nil
@@ -140,7 +144,7 @@ func (r *PurchaseEntryRepository) FindAll(ctx context.Context) ([]*dto.PurchaseE
 
 	err := r.db.WithContext(ctx).
 		Table("purchase_entries pe").
-		Select("pe.id, pe.supplier_id, s.name as supplier_name, pe.total_amount, pe.invoice_reference, pe.entry_date, pe.notes, pe.created_at").
+		Select("pe.id, pe.supplier_id, s.name as supplier_name, pe.total_amount, pe.invoice_reference, pe.entry_date, pe.notes, pe.pdf_storage_path, pe.xml_storage_path, pe.created_at").
 		Joins("JOIN suppliers s ON s.id = pe.supplier_id AND s.deleted_at IS NULL").
 		Order("pe.entry_date DESC").
 		Find(&models).Error
@@ -159,6 +163,8 @@ func (r *PurchaseEntryRepository) FindAll(ctx context.Context) ([]*dto.PurchaseE
 			InvoiceReference: model.InvoiceReference,
 			EntryDate:        model.EntryDate,
 			Notes:            model.Notes,
+			PDFStoragePath:   model.PDFStoragePath,
+			XMLStoragePath:   model.XMLStoragePath,
 			CreatedAt:        model.CreatedAt,
 		}
 	}
@@ -171,7 +177,7 @@ func (r *PurchaseEntryRepository) FindBySupplierID(ctx context.Context, supplier
 
 	err := r.db.WithContext(ctx).
 		Table("purchase_entries pe").
-		Select("pe.id, pe.supplier_id, s.name as supplier_name, pe.total_amount, pe.invoice_reference, pe.entry_date, pe.notes, pe.created_at").
+		Select("pe.id, pe.supplier_id, s.name as supplier_name, pe.total_amount, pe.invoice_reference, pe.entry_date, pe.notes, pe.pdf_storage_path, pe.xml_storage_path, pe.created_at").
 		Joins("JOIN suppliers s ON s.id = pe.supplier_id AND s.deleted_at IS NULL").
 		Where("pe.supplier_id = ?", supplierID).
 		Order("pe.entry_date DESC").
@@ -191,6 +197,8 @@ func (r *PurchaseEntryRepository) FindBySupplierID(ctx context.Context, supplier
 			InvoiceReference: model.InvoiceReference,
 			EntryDate:        model.EntryDate,
 			Notes:            model.Notes,
+			PDFStoragePath:   model.PDFStoragePath,
+			XMLStoragePath:   model.XMLStoragePath,
 			CreatedAt:        model.CreatedAt,
 		}
 	}
@@ -226,4 +234,25 @@ func (r *PurchaseEntryRepository) findItemsByEntryID(ctx context.Context, entryI
 	}
 
 	return result, nil
+}
+
+func (r *PurchaseEntryRepository) UpdateStoragePaths(ctx context.Context, id string, pdfPath *string, xmlPath *string) error {
+	updates := make(map[string]any)
+
+	if pdfPath != nil {
+		updates["pdf_storage_path"] = *pdfPath
+	}
+
+	if xmlPath != nil {
+		updates["xml_storage_path"] = *xmlPath
+	}
+
+	if len(updates) == 0 {
+		return nil
+	}
+
+	return r.db.WithContext(ctx).
+		Table("purchase_entries").
+		Where("id = ?", id).
+		Updates(updates).Error
 }

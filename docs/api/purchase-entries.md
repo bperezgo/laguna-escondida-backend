@@ -4,12 +4,13 @@ Record goods received from suppliers. Also known as "Ingress" or inventory intak
 
 ## Endpoints
 
-| Method | Endpoint                              | Description                       |
-| ------ | ------------------------------------- | --------------------------------- |
-| POST   | `/api/purchase-entries`               | Create a new purchase entry       |
-| GET    | `/api/purchase-entries`               | List all purchase entries         |
-| GET    | `/api/purchase-entries/:id`           | Get purchase entry by ID          |
-| GET    | `/api/suppliers/:id/purchase-entries` | List purchase entries by supplier |
+| Method | Endpoint                                 | Description                       |
+| ------ | ---------------------------------------- | --------------------------------- |
+| POST   | `/api/purchase-entries`                  | Create a new purchase entry       |
+| GET    | `/api/purchase-entries`                  | List all purchase entries         |
+| GET    | `/api/purchase-entries/:id`              | Get purchase entry by ID          |
+| GET    | `/api/suppliers/:id/purchase-entries`    | List purchase entries by supplier |
+| POST   | `/api/purchase-entries/:id/documents`    | Upload supporting document        |
 
 ---
 
@@ -165,6 +166,8 @@ GET /api/purchase-entries/:id
   "invoice_reference": "INV-2024-001",
   "entry_date": "2024-01-26T10:00:00Z",
   "notes": "Weekly produce delivery",
+  "pdf_storage_path": null,
+  "xml_storage_path": null,
   "items": [
     {
       "id": "990e8400-e29b-41d4-a716-446655440004",
@@ -240,5 +243,86 @@ GET /api/suppliers/:id/purchase-entries
 ```json
 {
   "error": "Supplier not found"
+}
+```
+
+---
+
+## Upload Purchase Entry Document
+
+Uploads a supporting document (PDF or XML) for a purchase entry. This is useful for storing supplier invoices and receipts for accountability.
+
+```
+POST /api/purchase-entries/:id/documents
+```
+
+### Path Parameters
+
+| Parameter | Type | Description       |
+| --------- | ---- | ----------------- |
+| id        | UUID | Purchase entry ID |
+
+### Query Parameters
+
+| Parameter | Type   | Required | Description                |
+| --------- | ------ | -------- | -------------------------- |
+| file_type | string | Yes      | File type: `pdf` or `xml`  |
+
+### Request Body
+
+Multipart form data with:
+
+| Field | Type | Required | Description     |
+| ----- | ---- | -------- | --------------- |
+| file  | file | Yes      | PDF or XML file |
+
+### Example Request
+
+```
+POST /api/purchase-entries/880e8400-e29b-41d4-a716-446655440003/documents?file_type=pdf
+Content-Type: multipart/form-data
+
+file: <binary PDF data>
+```
+
+### Example Response (200 OK)
+
+```json
+{
+  "storage_path": "org123/purchase-entries/880e8400-e29b-41d4-a716-446655440003.pdf"
+}
+```
+
+### Storage Path Format
+
+Documents are stored at:
+
+```
+{organization_id}/purchase-entries/{purchase_entry_id}.{extension}
+```
+
+### Error Responses
+
+**400 Bad Request** - Missing file
+
+```json
+{
+  "error": "File is required"
+}
+```
+
+**400 Bad Request** - Invalid file type
+
+```json
+{
+  "error": "File type must be 'pdf' or 'xml'"
+}
+```
+
+**404 Not Found** - Purchase entry not found
+
+```json
+{
+  "error": "Purchase entry not found"
 }
 ```

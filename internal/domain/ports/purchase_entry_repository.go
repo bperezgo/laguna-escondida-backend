@@ -12,4 +12,5 @@ type PurchaseEntryRepository interface {
 	FindByID(ctx context.Context, id string) (*dto.PurchaseEntryWithSupplier, error)
 	FindAll(ctx context.Context) ([]*dto.PurchaseEntryWithSupplier, error)
 	FindBySupplierID(ctx context.Context, supplierID string) ([]*dto.PurchaseEntryWithSupplier, error)
+	UpdateStoragePaths(ctx context.Context, id string, pdfPath *string, xmlPath *string) error
 }

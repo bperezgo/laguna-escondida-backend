@@ -247,6 +247,55 @@ func (_c *MockPurchaseEntryRepository_FindBySupplierID_Call) RunAndReturn(run fu
 	return _c
 }
 
+// UpdateStoragePaths provides a mock function with given fields: ctx, id, pdfPath, xmlPath
+func (_m *MockPurchaseEntryRepository) UpdateStoragePaths(ctx context.Context, id string, pdfPath *string, xmlPath *string) error {
+	ret := _m.Called(ctx, id, pdfPath, xmlPath)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateStoragePaths")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, *string, *string) error); ok {
+		r0 = rf(ctx, id, pdfPath, xmlPath)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockPurchaseEntryRepository_UpdateStoragePaths_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateStoragePaths'
+type MockPurchaseEntryRepository_UpdateStoragePaths_Call struct {
+	*mock.Call
+}
+
+// UpdateStoragePaths is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+//   - pdfPath *string
+//   - xmlPath *string
+func (_e *MockPurchaseEntryRepository_Expecter) UpdateStoragePaths(ctx interface{}, id interface{}, pdfPath interface{}, xmlPath interface{}) *MockPurchaseEntryRepository_UpdateStoragePaths_Call {
+	return &MockPurchaseEntryRepository_UpdateStoragePaths_Call{Call: _e.mock.On("UpdateStoragePaths", ctx, id, pdfPath, xmlPath)}
+}
+
+func (_c *MockPurchaseEntryRepository_UpdateStoragePaths_Call) Run(run func(ctx context.Context, id string, pdfPath *string, xmlPath *string)) *MockPurchaseEntryRepository_UpdateStoragePaths_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(*string), args[3].(*string))
+	})
+	return _c
+}
+
+func (_c *MockPurchaseEntryRepository_UpdateStoragePaths_Call) Return(_a0 error) *MockPurchaseEntryRepository_UpdateStoragePaths_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockPurchaseEntryRepository_UpdateStoragePaths_Call) RunAndReturn(run func(context.Context, string, *string, *string) error) *MockPurchaseEntryRepository_UpdateStoragePaths_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockPurchaseEntryRepository creates a new instance of MockPurchaseEntryRepository. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockPurchaseEntryRepository(t interface {

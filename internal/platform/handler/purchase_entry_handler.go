@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"io"
 	"log"
 	"net/http"
 
@@ -118,4 +119,49 @@ func (h *PurchaseEntryHandler) GetPurchaseEntriesBySupplierHandler(c *gin.Contex
 	}
 
 	c.JSON(http.StatusOK, response)
+}
+
+func (h *PurchaseEntryHandler) UploadPurchaseEntryDocumentHandler(c *gin.Context) {
+	purchaseEntryID := c.Param("id")
+	if purchaseEntryID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Purchase entry ID is required"})
+		return
+	}
+
+	fileType := c.Query("file_type")
+	if fileType != "pdf" && fileType != "xml" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "File type must be 'pdf' or 'xml'"})
+		return
+	}
+
+	file, _, err := c.Request.FormFile("file")
+	if err != nil {
+		log.Printf("Error getting file from request: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "File is required"})
+		return
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	fileData, err := io.ReadAll(file)
+	if err != nil {
+		log.Printf("Error reading file: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read file"})
+		return
+	}
+
+	storagePath, err := h.purchaseEntryService.UploadPurchaseEntryDocument(c.Request.Context(), purchaseEntryID, fileData, fileType)
+	if err != nil {
+		log.Printf("Error uploading purchase entry document: %v", err)
+
+		if errors.Is(err, domainError.ErrPurchaseEntryNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Purchase entry not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload document"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"storage_path": storagePath})
 }
