@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { CommandItemFromSSE } from "@/types/commandItem";
+import type { OpenBillProductFromSSE } from "@/types/commandItem";
 import { PermissionGate } from "@/components/permissions";
 import { PERMISSIONS } from "@/lib/permissions";
 
 interface CommandItemCardProps {
-  item: CommandItemFromSSE;
+  item: OpenBillProductFromSSE;
   isPinned: boolean;
   onComplete: (openBillProductId: string) => void;
   onTogglePin: (openBillProductId: string) => void;
@@ -228,7 +228,7 @@ export default function CommandItemCard({
             color: "var(--color-text-secondary)",
           }}
         >
-          <span>👤 {item.name}</span>
+          <span>👤 {item.created_by_name}</span>
           <span>🕐 {timeString}</span>
         </div>
       </div>

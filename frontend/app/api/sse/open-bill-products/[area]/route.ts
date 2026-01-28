@@ -22,7 +22,7 @@ export async function GET(
     });
   }
 
-  const backendUrl = `${config.apiUrl}/sse/command-items/${area}`;
+  const backendUrl = `${config.apiUrl}/sse/open-bill-products/${area}`;
 
   try {
     const response = await fetch(backendUrl, {
@@ -77,4 +77,3 @@ export async function GET(
     });
   }
 }
-

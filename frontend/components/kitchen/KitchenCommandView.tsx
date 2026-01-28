@@ -1,17 +1,81 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import CommandCard from "./CommandCard";
-import { completeCommand } from "@/lib/api/commands";
-import type { Command } from "@/types/command";
+import { completeOpenBillProduct } from "@/lib/api/openBillProducts";
+import type { OpenBillProductFromSSE } from "@/types/commandItem";
+
+// Grouped command structure for display (derived from open bill products)
+export interface GroupedCommand {
+  id: string; // temporal_identifier used as group ID
+  temporal_identifier: string;
+  created_by_name: string;
+  area: string;
+  status: "created" | "completed" | "cancelled";
+  items: {
+    id: string;
+    product_name: string;
+    quantity: number;
+    notes?: string | null;
+  }[];
+  created_at: string;
+  productIds: string[]; // Track all product IDs in this group
+}
 
 export default function KitchenCommandView() {
-  const [commands, setCommands] = useState<Command[]>([]);
+  const [products, setProducts] = useState<OpenBillProductFromSSE[]>([]);
   const [isConnecting, setIsConnecting] = useState(true);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [completingIds, setCompletingIds] = useState<Set<string>>(new Set());
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Group products by temporal_identifier to create command-like groups
+  const commands = useMemo((): GroupedCommand[] => {
+    const groupMap = new Map<string, OpenBillProductFromSSE[]>();
+    
+    products.forEach((product) => {
+      const key = product.temporal_identifier;
+      if (!groupMap.has(key)) {
+        groupMap.set(key, []);
+      }
+      groupMap.get(key)!.push(product);
+    });
+
+    const grouped: GroupedCommand[] = [];
+    
+    groupMap.forEach((groupProducts, temporalId) => {
+      // Sort products by created_at within the group
+      groupProducts.sort(
+        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
+
+      const firstProduct = groupProducts[0];
+      
+      grouped.push({
+        id: temporalId,
+        temporal_identifier: temporalId,
+        created_by_name: firstProduct.created_by_name,
+        area: firstProduct.area,
+        status: "created", // Groups are always "created" since we only show pending products
+        items: groupProducts.map((p) => ({
+          id: p.open_bill_product_id,
+          product_name: p.product_name,
+          quantity: p.quantity,
+          notes: p.notes,
+        })),
+        created_at: firstProduct.created_at,
+        productIds: groupProducts.map((p) => p.open_bill_product_id),
+      });
+    });
+
+    // Sort groups by oldest created_at
+    grouped.sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+
+    return grouped;
+  }, [products]);
 
   useEffect(() => {
     let isMounted = true;
@@ -27,67 +91,80 @@ export default function KitchenCommandView() {
       setIsConnecting(true);
       setConnectionError(null);
 
-      const eventSource = new EventSource("/api/sse/commands/kitchen");
+      const eventSource = new EventSource("/api/sse/open-bill-products/kitchen");
       eventSourceRef.current = eventSource;
 
       eventSource.onopen = () => {
-        console.log("EventSource connection opened");
         if (isMounted) {
           setIsConnecting(false);
           setConnectionError(null);
         }
       };
 
-      const handleCreatedCommand = (event: MessageEvent) => {
+      const handleCreatedProduct = (event: MessageEvent) => {
         try {
-          console.log("command.created event:", event.data);
-          const command: Command = JSON.parse(event.data);
+          const product: OpenBillProductFromSSE = JSON.parse(event.data);
 
-          setCommands((prev) => {
+          setProducts((prev) => {
             const existingIndex = prev.findIndex(
-              (cmd) => cmd.id === command.id
+              (p) => p.open_bill_product_id === product.open_bill_product_id
             );
 
-            let updated: Command[];
             if (existingIndex >= 0) {
-              updated = [...prev];
-              updated[existingIndex] = command;
+              const updated = [...prev];
+              updated[existingIndex] = product;
+              return updated;
             } else {
-              updated = [...prev, command];
-              updated.sort(
-                (a, b) =>
-                  new Date(a.created_at).getTime() -
-                  new Date(b.created_at).getTime()
-              );
+              return [...prev, product];
             }
-            return updated;
           });
         } catch (error) {
-          console.error("Error parsing command.created event:", error);
+          console.error("Error parsing open_bill_product.created event:", error);
         }
       };
 
-      const handleCompletedCommand = (event: MessageEvent) => {
+      const handleUpdatedProduct = (event: MessageEvent) => {
         try {
-          const command: Command = JSON.parse(event.data);
-          setCommands((prev) => prev.filter((cmd) => cmd.id !== command.id));
+          const product: OpenBillProductFromSSE = JSON.parse(event.data);
+          
+          // If the product is completed or cancelled, remove it from the list
+          if (product.status === "completed" || product.status === "cancelled") {
+            setProducts((prev) =>
+              prev.filter((p) => p.open_bill_product_id !== product.open_bill_product_id)
+            );
+          } else {
+            // Otherwise, update the product in place
+            setProducts((prev) => {
+              const existingIndex = prev.findIndex(
+                (p) => p.open_bill_product_id === product.open_bill_product_id
+              );
+              if (existingIndex >= 0) {
+                const updated = [...prev];
+                updated[existingIndex] = product;
+                return updated;
+              }
+              return prev;
+            });
+          }
         } catch (error) {
-          console.error("Error parsing command.completed event:", error);
+          console.error("Error parsing open_bill_product.updated event:", error);
         }
       };
 
-      const handleCancelledCommand = (event: MessageEvent) => {
+      const handleCancelledProduct = (event: MessageEvent) => {
         try {
-          const command: Command = JSON.parse(event.data);
-          setCommands((prev) => prev.filter((cmd) => cmd.id !== command.id));
+          const product: OpenBillProductFromSSE = JSON.parse(event.data);
+          setProducts((prev) =>
+            prev.filter((p) => p.open_bill_product_id !== product.open_bill_product_id)
+          );
         } catch (error) {
-          console.error("Error parsing command.cancelled event:", error);
+          console.error("Error parsing open_bill_product.cancelled event:", error);
         }
       };
 
-      eventSource.addEventListener("command.created", handleCreatedCommand);
-      eventSource.addEventListener("command.completed", handleCompletedCommand);
-      eventSource.addEventListener("command.cancelled", handleCancelledCommand);
+      eventSource.addEventListener("open_bill_product.created", handleCreatedProduct);
+      eventSource.addEventListener("open_bill_product.updated", handleUpdatedProduct);
+      eventSource.addEventListener("open_bill_product.cancelled", handleCancelledProduct);
 
       eventSource.onerror = () => {
         eventSource.close();
@@ -106,7 +183,6 @@ export default function KitchenCommandView() {
     connectToSSE();
 
     return () => {
-      console.log("Cleaning up EventSource...");
       isMounted = false;
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
@@ -117,14 +193,25 @@ export default function KitchenCommandView() {
     };
   }, []);
 
-  const handleComplete = async (commandId: string) => {
-    setCompletingIds((prev) => new Set(prev).add(commandId));
+  const handleComplete = async (groupId: string) => {
+    // Find the command group to get all product IDs
+    const command = commands.find((cmd) => cmd.id === groupId);
+    if (!command) return;
+
+    setCompletingIds((prev) => new Set(prev).add(groupId));
 
     try {
-      await completeCommand(commandId);
-      setCommands((prev) => prev.filter((cmd) => cmd.id !== commandId));
+      // Complete all products in the group
+      await Promise.all(
+        command.productIds.map((productId) => completeOpenBillProduct(productId))
+      );
+      
+      // Remove all products in this group from state
+      setProducts((prev) =>
+        prev.filter((p) => !command.productIds.includes(p.open_bill_product_id))
+      );
     } catch (error) {
-      console.error("Error completing command:", error);
+      console.error("Error completing command group:", error);
       setConnectionError(
         error instanceof Error
           ? error.message
@@ -134,7 +221,7 @@ export default function KitchenCommandView() {
     } finally {
       setCompletingIds((prev) => {
         const updated = new Set(prev);
-        updated.delete(commandId);
+        updated.delete(groupId);
         return updated;
       });
     }

@@ -1,11 +1,11 @@
 "use client";
 
-import { Command } from "@/types/command";
+import type { GroupedCommand } from "./KitchenCommandView";
 import { PermissionGate } from "@/components/permissions";
 import { PERMISSIONS } from "@/lib/permissions";
 
 interface CommandCardProps {
-  command: Command;
+  command: GroupedCommand;
   onComplete: (id: string) => void;
   isCompleting?: boolean;
 }
@@ -28,6 +28,7 @@ export default function CommandCard({
 
   const getStatusColor = (status: string) => {
     switch (status) {
+      case "created":
       case "pending":
         return {
           bg: "var(--color-warning-light)",
@@ -94,14 +95,14 @@ export default function CommandCard({
           >
             {command.temporal_identifier}
           </span>
-          {command.created_by && (
+          {command.created_by_name && (
             <span
               style={{
                 fontSize: "0.875rem",
                 color: "var(--color-text-secondary)",
               }}
             >
-              👤 {command.created_by.name}
+              👤 {command.created_by_name}
             </span>
           )}
         </div>

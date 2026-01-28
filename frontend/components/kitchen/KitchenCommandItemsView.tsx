@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import CommandItemCard from "./CommandItemCard";
-import { completeCommandItem } from "@/lib/api/commandItems";
-import type { CommandItemFromSSE } from "@/types/commandItem";
+import { completeOpenBillProduct } from "@/lib/api/openBillProducts";
+import type { OpenBillProductFromSSE } from "@/types/commandItem";
 
 const PINNED_STORAGE_KEY = "pinned-command-items";
 const COUNTDOWN_CONSTANT = 30;
@@ -20,7 +20,7 @@ function calculateRemainingMs(priority: number, createdAt: string): number {
 }
 
 export default function KitchenCommandItemsView() {
-  const [items, setItems] = useState<CommandItemFromSSE[]>([]);
+  const [items, setItems] = useState<OpenBillProductFromSSE[]>([]);
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
   const [isConnecting, setIsConnecting] = useState(true);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -66,7 +66,7 @@ export default function KitchenCommandItemsView() {
       setIsConnecting(true);
       setConnectionError(null);
 
-      const eventSource = new EventSource("/api/sse/command-items/kitchen");
+      const eventSource = new EventSource("/api/sse/open-bill-products/kitchen");
       eventSourceRef.current = eventSource;
 
       eventSource.onopen = () => {
@@ -78,7 +78,7 @@ export default function KitchenCommandItemsView() {
 
       const handleCreatedItem = (event: MessageEvent) => {
         try {
-          const item: CommandItemFromSSE = JSON.parse(event.data);
+          const item: OpenBillProductFromSSE = JSON.parse(event.data);
 
           setItems((prev) => {
             const existingIndex = prev.findIndex(
@@ -94,35 +94,52 @@ export default function KitchenCommandItemsView() {
             }
           });
         } catch (error) {
-          console.error("Error parsing command_item.created event:", error);
+          console.error("Error parsing open_bill_product.created event:", error);
         }
       };
 
-      const handleCompletedItem = (event: MessageEvent) => {
+      const handleUpdatedItem = (event: MessageEvent) => {
         try {
-          const item: CommandItemFromSSE = JSON.parse(event.data);
-          setItems((prev) =>
-            prev.filter(
-              (i) => i.open_bill_product_id !== item.open_bill_product_id
-            )
-          );
-          setPinnedIds((prev) => {
-            if (prev.has(item.open_bill_product_id)) {
-              const updated = new Set(prev);
-              updated.delete(item.open_bill_product_id);
-              savePinnedIds(updated);
-              return updated;
-            }
-            return prev;
-          });
+          const item: OpenBillProductFromSSE = JSON.parse(event.data);
+          
+          // If the item is completed or cancelled, remove it from the list
+          if (item.status === "completed" || item.status === "cancelled") {
+            setItems((prev) =>
+              prev.filter(
+                (i) => i.open_bill_product_id !== item.open_bill_product_id
+              )
+            );
+            setPinnedIds((prev) => {
+              if (prev.has(item.open_bill_product_id)) {
+                const updated = new Set(prev);
+                updated.delete(item.open_bill_product_id);
+                savePinnedIds(updated);
+                return updated;
+              }
+              return prev;
+            });
+          } else {
+            // Otherwise, update the item in place
+            setItems((prev) => {
+              const existingIndex = prev.findIndex(
+                (i) => i.open_bill_product_id === item.open_bill_product_id
+              );
+              if (existingIndex >= 0) {
+                const updated = [...prev];
+                updated[existingIndex] = item;
+                return updated;
+              }
+              return prev;
+            });
+          }
         } catch (error) {
-          console.error("Error parsing command_item.completed event:", error);
+          console.error("Error parsing open_bill_product.updated event:", error);
         }
       };
 
       const handleCancelledItem = (event: MessageEvent) => {
         try {
-          const item: CommandItemFromSSE = JSON.parse(event.data);
+          const item: OpenBillProductFromSSE = JSON.parse(event.data);
           setItems((prev) =>
             prev.filter(
               (i) => i.open_bill_product_id !== item.open_bill_product_id
@@ -138,17 +155,17 @@ export default function KitchenCommandItemsView() {
             return prev;
           });
         } catch (error) {
-          console.error("Error parsing command_item.cancelled event:", error);
+          console.error("Error parsing open_bill_product.cancelled event:", error);
         }
       };
 
-      eventSource.addEventListener("command_item.created", handleCreatedItem);
+      eventSource.addEventListener("open_bill_product.created", handleCreatedItem);
       eventSource.addEventListener(
-        "command_item.completed",
-        handleCompletedItem
+        "open_bill_product.updated",
+        handleUpdatedItem
       );
       eventSource.addEventListener(
-        "command_item.cancelled",
+        "open_bill_product.cancelled",
         handleCancelledItem
       );
 
@@ -183,7 +200,7 @@ export default function KitchenCommandItemsView() {
     setCompletingIds((prev) => new Set(prev).add(openBillProductId));
 
     try {
-      await completeCommandItem(openBillProductId);
+      await completeOpenBillProduct(openBillProductId);
       setItems((prev) =>
         prev.filter((i) => i.open_bill_product_id !== openBillProductId)
       );
@@ -197,7 +214,7 @@ export default function KitchenCommandItemsView() {
         return prev;
       });
     } catch (error) {
-      console.error("Error completing command item:", error);
+      console.error("Error completing open bill product:", error);
       setConnectionError(
         error instanceof Error
           ? error.message
@@ -227,8 +244,8 @@ export default function KitchenCommandItemsView() {
   };
 
   const { pinnedItems, pendingItems } = useMemo(() => {
-    const pinned: CommandItemFromSSE[] = [];
-    const pending: CommandItemFromSSE[] = [];
+    const pinned: OpenBillProductFromSSE[] = [];
+    const pending: OpenBillProductFromSSE[] = [];
 
     items.forEach((item) => {
       if (pinnedIds.has(item.open_bill_product_id)) {
@@ -238,7 +255,7 @@ export default function KitchenCommandItemsView() {
       }
     });
 
-    const sortByCountdown = (a: CommandItemFromSSE, b: CommandItemFromSSE) => {
+    const sortByCountdown = (a: OpenBillProductFromSSE, b: OpenBillProductFromSSE) => {
       const aRemaining = calculateRemainingMs(a.priority, a.created_at);
       const bRemaining = calculateRemainingMs(b.priority, b.created_at);
       return aRemaining - bRemaining;
