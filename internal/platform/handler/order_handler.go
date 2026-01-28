@@ -205,7 +205,7 @@ func (h *OrderHandler) CompleteOpenBillProductHandler(c *gin.Context) {
 		return
 	}
 
-	openBillProductID := c.Param("product_id")
+	openBillProductID := c.Param("open_bill_product_id")
 	if openBillProductID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Product ID is required"})
 		return
@@ -245,7 +245,7 @@ func (h *OrderHandler) SetOpenBillProductInProgressHandler(c *gin.Context) {
 		return
 	}
 
-	openBillProductID := c.Param("product_id")
+	openBillProductID := c.Param("open_bill_product_id")
 	if openBillProductID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Product ID is required"})
 		return
@@ -281,7 +281,7 @@ func (h *OrderHandler) CancelOpenBillProductHandler(c *gin.Context) {
 		return
 	}
 
-	openBillProductID := c.Param("product_id")
+	openBillProductID := c.Param("open_bill_product_id")
 	if openBillProductID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Product ID is required"})
 		return

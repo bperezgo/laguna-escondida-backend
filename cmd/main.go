@@ -302,9 +302,9 @@ func main() {
 	router.POST("/api/orders/pay-order", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersUpdate), orderHandler.PayOrderHandler)
 
 	// Order product status routes
-	router.PATCH("/api/orders/:id/products/:product_id/complete", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersUpdate), orderHandler.CompleteOpenBillProductHandler)
-	router.PATCH("/api/orders/:id/products/:product_id/in-progress", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersUpdate), orderHandler.SetOpenBillProductInProgressHandler)
-	router.PATCH("/api/orders/:id/products/:product_id/cancel", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersUpdate), orderHandler.CancelOpenBillProductHandler)
+	router.PATCH("/api/orders/:id/products/:open_bill_product_id/complete", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersUpdate), orderHandler.CompleteOpenBillProductHandler)
+	router.PATCH("/api/orders/:id/products/:open_bill_product_id/in-progress", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersUpdate), orderHandler.SetOpenBillProductInProgressHandler)
+	router.PATCH("/api/orders/:id/products/:open_bill_product_id/cancel", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersUpdate), orderHandler.CancelOpenBillProductHandler)
 
 	// Product routes
 	router.POST("/api/products", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsCreate), productHandler.CreateProductHandler)
