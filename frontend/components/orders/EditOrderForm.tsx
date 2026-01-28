@@ -5,6 +5,7 @@ import { productsApi } from "@/lib/api/products";
 import { updateOrder } from "@/lib/api/orders";
 import type { Product } from "@/types/product";
 import type { OpenBillWithProducts, OrderProductItem } from "@/types/order";
+import type { OpenBillProductStatus } from "@/types/commandItem";
 
 interface EditOrderFormProps {
   openBill: OpenBillWithProducts;
@@ -18,7 +19,34 @@ interface ProductWithQuantity {
   product: Product;
   quantity: number;
   notes: string;
+  status?: OpenBillProductStatus;
 }
+
+const STATUS_CONFIG: Record<
+  OpenBillProductStatus,
+  { label: string; bgColor: string; textColor: string }
+> = {
+  created: {
+    label: "Creado",
+    bgColor: "var(--color-surface-hover)",
+    textColor: "var(--color-text-muted)",
+  },
+  in_progress: {
+    label: "En Progreso",
+    bgColor: "#dbeafe",
+    textColor: "#1d4ed8",
+  },
+  completed: {
+    label: "Completado",
+    bgColor: "var(--color-success-light)",
+    textColor: "var(--color-success)",
+  },
+  cancelled: {
+    label: "Cancelado",
+    bgColor: "var(--color-danger-light)",
+    textColor: "var(--color-danger)",
+  },
+};
 
 export default function EditOrderForm({
   openBill,
@@ -49,7 +77,7 @@ export default function EditOrderForm({
         let counter = 0;
         openBill.products.forEach((orderProduct) => {
           const product = fetchedProducts.find(
-            (p) => p.id === orderProduct.product.id
+            (p) => p.id === orderProduct.product.id,
           );
           if (product) {
             counter++;
@@ -60,6 +88,7 @@ export default function EditOrderForm({
               product,
               quantity: orderProduct.quantity,
               notes: orderProduct.notes || "",
+              status: orderProduct.status,
             });
           }
         });
@@ -84,7 +113,7 @@ export default function EditOrderForm({
     return products.filter(
       (product) =>
         product.name.toLowerCase().includes(query) ||
-        product.category.toLowerCase().includes(query)
+        product.category.toLowerCase().includes(query),
     );
   }, [products, searchQuery]);
 
@@ -151,7 +180,7 @@ export default function EditOrderForm({
 
     try {
       const orderProducts: OrderProductItem[] = Array.from(
-        selectedProducts.values()
+        selectedProducts.values(),
       ).map(({ openBillProductId, product, quantity, notes }) => ({
         open_bill_product_id: openBillProductId,
         product_id: product.id,
@@ -265,6 +294,37 @@ export default function EditOrderForm({
           >
             ×
           </button>
+        </div>
+
+        {/* Order Total Summary */}
+        <div
+          style={{
+            padding: "1rem 1.5rem",
+            backgroundColor: "var(--color-primary-light)",
+            borderBottom: "1px solid var(--color-border)",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <span
+            style={{
+              fontSize: "1rem",
+              fontWeight: "600",
+              color: "var(--color-text-primary)",
+            }}
+          >
+            Total de la Orden
+          </span>
+          <span
+            style={{
+              fontSize: "1.5rem",
+              fontWeight: "bold",
+              color: "var(--color-primary)",
+            }}
+          >
+            ${openBill.total_amount}
+          </span>
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -390,7 +450,7 @@ export default function EditOrderForm({
                   }}
                 >
                   {selectedProductsArray.map(
-                    ({ lineItemId, product, quantity, notes }) => (
+                    ({ lineItemId, product, quantity, notes, status }) => (
                       <div
                         key={lineItemId}
                         style={{
@@ -409,11 +469,37 @@ export default function EditOrderForm({
                           }}
                         >
                           <div>
-                            <strong
-                              style={{ color: "var(--color-text-primary)" }}
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "0.5rem",
+                                marginBottom: "0.25rem",
+                              }}
                             >
-                              {product.name}
-                            </strong>
+                              <strong
+                                style={{ color: "var(--color-text-primary)" }}
+                              >
+                                {product.name}
+                              </strong>
+                              {status && (
+                                <span
+                                  style={{
+                                    fontSize: "0.7rem",
+                                    fontWeight: "600",
+                                    padding: "0.15rem 0.5rem",
+                                    borderRadius: "var(--radius-sm)",
+                                    backgroundColor:
+                                      STATUS_CONFIG[status].bgColor,
+                                    color: STATUS_CONFIG[status].textColor,
+                                    textTransform: "uppercase",
+                                    letterSpacing: "0.3px",
+                                  }}
+                                >
+                                  {STATUS_CONFIG[status].label}
+                                </span>
+                              )}
+                            </div>
                             <div
                               style={{
                                 fontSize: "0.875rem",
@@ -526,7 +612,7 @@ export default function EditOrderForm({
                           }}
                         />
                       </div>
-                    )
+                    ),
                   )}
                 </div>
               </div>

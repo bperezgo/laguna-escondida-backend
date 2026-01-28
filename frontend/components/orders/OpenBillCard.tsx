@@ -116,6 +116,38 @@ export default function OpenBillCard({
         )}
       </div>
 
+      {/* Total Amount */}
+      <div
+        style={{
+          marginBottom: "1rem",
+          padding: "0.75rem",
+          backgroundColor: "var(--color-primary-light)",
+          borderRadius: "var(--radius-md)",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <span
+          style={{
+            fontSize: "0.85rem",
+            fontWeight: "500",
+            color: "var(--color-text-secondary)",
+          }}
+        >
+          Total
+        </span>
+        <span
+          style={{
+            fontSize: "1.25rem",
+            fontWeight: "bold",
+            color: "var(--color-primary)",
+          }}
+        >
+          ${openBill.total_amount}
+        </span>
+      </div>
+
       {/* Meta Information */}
       <div
         style={{

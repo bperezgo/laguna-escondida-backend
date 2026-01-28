@@ -1,4 +1,5 @@
 import { Product } from "./product";
+import { OpenBillProductStatus } from "./commandItem";
 
 // Table/Customer related types
 export interface Table {
@@ -35,6 +36,7 @@ export interface OpenBill {
   temporal_identifier: string;
   descriptor?: string | null;
   created_by?: OpenBillUser;
+  total_amount: string;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
@@ -45,6 +47,7 @@ export interface OpenBillProduct {
   product: Product;
   quantity: number;
   notes?: string | null;
+  status: OpenBillProductStatus;
 }
 
 export interface OpenBillWithProducts extends OpenBill {
