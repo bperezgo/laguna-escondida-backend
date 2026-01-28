@@ -8,6 +8,8 @@ import type { Supplier } from "@/types/supplier";
 import ExpenseList from "./ExpenseList";
 import ExpenseForm from "./ExpenseForm";
 import ExpenseDetail from "./ExpenseDetail";
+import { PermissionGate } from "@/components/permissions";
+import { PERMISSIONS } from "@/lib/permissions";
 
 interface ExpensesPageClientProps {
   initialExpenses: Expense[];
@@ -239,29 +241,31 @@ export default function ExpensesPageClient({
               Registro de gastos operativos, inversiones y servicios
             </p>
           </div>
-          <button
-            onClick={handleCreate}
-            style={{
-              padding: "0.75rem 1.5rem",
-              backgroundColor: "var(--color-success)",
-              color: "white",
-              border: "none",
-              borderRadius: "var(--radius-sm)",
-              cursor: "pointer",
-              fontSize: "1rem",
-              fontWeight: "500",
-              boxShadow: "var(--shadow-sm)",
-              transition: "background-color var(--transition-normal)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--color-success-hover)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--color-success)";
-            }}
-          >
-            + Nuevo Gasto
-          </button>
+          <PermissionGate permission={PERMISSIONS.EXPENSES_CREATE}>
+            <button
+              onClick={handleCreate}
+              style={{
+                padding: "0.75rem 1.5rem",
+                backgroundColor: "var(--color-success)",
+                color: "white",
+                border: "none",
+                borderRadius: "var(--radius-sm)",
+                cursor: "pointer",
+                fontSize: "1rem",
+                fontWeight: "500",
+                boxShadow: "var(--shadow-sm)",
+                transition: "background-color var(--transition-normal)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--color-success-hover)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--color-success)";
+              }}
+            >
+              + Nuevo Gasto
+            </button>
+          </PermissionGate>
         </div>
 
         {/* Error Message */}

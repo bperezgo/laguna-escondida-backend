@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { CommandItemFromSSE } from "@/types/commandItem";
+import { PermissionGate } from "@/components/permissions";
+import { PERMISSIONS } from "@/lib/permissions";
 
 interface CommandItemCardProps {
   item: CommandItemFromSSE;
@@ -117,24 +119,26 @@ export default function CommandItemCard({
         >
           {formatCountdown(remainingMs)}
         </div>
-        <button
-          onClick={() => onTogglePin(item.open_bill_product_id)}
-          style={{
-            background: isPinned ? "var(--color-primary)" : "transparent",
-            border: isPinned ? "none" : "1px solid var(--color-border)",
-            borderRadius: "var(--radius-sm)",
-            padding: "0.5rem",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: isPinned ? "white" : "var(--color-text-secondary)",
-            transition: "all 0.2s ease",
-          }}
-          title={isPinned ? "Quitar de en progreso" : "Marcar en progreso"}
-        >
-          📌
-        </button>
+        <PermissionGate permission={PERMISSIONS.COMMANDS_UPDATE}>
+          <button
+            onClick={() => onTogglePin(item.open_bill_product_id)}
+            style={{
+              background: isPinned ? "var(--color-primary)" : "transparent",
+              border: isPinned ? "none" : "1px solid var(--color-border)",
+              borderRadius: "var(--radius-sm)",
+              padding: "0.5rem",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: isPinned ? "white" : "var(--color-text-secondary)",
+              transition: "all 0.2s ease",
+            }}
+            title={isPinned ? "Quitar de en progreso" : "Marcar en progreso"}
+          >
+            📌
+          </button>
+        </PermissionGate>
       </div>
 
       {/* Content */}
@@ -230,33 +234,35 @@ export default function CommandItemCard({
       </div>
 
       {/* Complete button */}
-      <div
-        style={{
-          padding: "0.75rem 1rem",
-          borderTop: "1px solid var(--color-border)",
-        }}
-      >
-        <button
-          onClick={() => onComplete(item.open_bill_product_id)}
-          disabled={isCompleting}
+      <PermissionGate permission={PERMISSIONS.COMMANDS_UPDATE}>
+        <div
           style={{
-            width: "100%",
-            padding: "0.75rem",
-            backgroundColor: isCompleting
-              ? "var(--color-text-muted)"
-              : "var(--color-success)",
-            color: "white",
-            border: "none",
-            borderRadius: "var(--radius-md)",
-            fontWeight: "bold",
-            fontSize: "1rem",
-            cursor: isCompleting ? "not-allowed" : "pointer",
-            transition: "background-color 0.2s ease",
+            padding: "0.75rem 1rem",
+            borderTop: "1px solid var(--color-border)",
           }}
         >
-          {isCompleting ? "Completando..." : "✓ Completar"}
-        </button>
-      </div>
+          <button
+            onClick={() => onComplete(item.open_bill_product_id)}
+            disabled={isCompleting}
+            style={{
+              width: "100%",
+              padding: "0.75rem",
+              backgroundColor: isCompleting
+                ? "var(--color-text-muted)"
+                : "var(--color-success)",
+              color: "white",
+              border: "none",
+              borderRadius: "var(--radius-md)",
+              fontWeight: "bold",
+              fontSize: "1rem",
+              cursor: isCompleting ? "not-allowed" : "pointer",
+              transition: "background-color 0.2s ease",
+            }}
+          >
+            {isCompleting ? "Completando..." : "✓ Completar"}
+          </button>
+        </div>
+      </PermissionGate>
     </div>
   );
 }

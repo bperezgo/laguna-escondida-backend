@@ -12,6 +12,8 @@ import {
   removeOpenBill,
 } from "@/lib/api/orders";
 import type { OpenBill, OpenBillWithProducts } from "@/types/order";
+import { PermissionGate } from "@/components/permissions";
+import { PERMISSIONS } from "@/lib/permissions";
 
 export default function OrdersPageClient() {
   const [openBills, setOpenBills] = useState<OpenBill[]>([]);
@@ -146,30 +148,32 @@ export default function OrdersPageClient() {
           >
             Cuentas Abiertas
           </h1>
-          <button
-            onClick={() => setShowCreateForm(true)}
-            style={{
-              padding: "0.875rem 1.75rem",
-              fontSize: "1.05rem",
-              fontWeight: "bold",
-              backgroundColor: "var(--color-primary)",
-              color: "white",
-              border: "none",
-              borderRadius: "var(--radius-md)",
-              cursor: "pointer",
-              transition: "background-color var(--transition-normal)",
-              boxShadow: "var(--shadow-md)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor =
-                "var(--color-primary-hover)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--color-primary)";
-            }}
-          >
-            + Crear Nueva Orden
-          </button>
+          <PermissionGate permission={PERMISSIONS.ORDERS_CREATE}>
+            <button
+              onClick={() => setShowCreateForm(true)}
+              style={{
+                padding: "0.875rem 1.75rem",
+                fontSize: "1.05rem",
+                fontWeight: "bold",
+                backgroundColor: "var(--color-primary)",
+                color: "white",
+                border: "none",
+                borderRadius: "var(--radius-md)",
+                cursor: "pointer",
+                transition: "background-color var(--transition-normal)",
+                boxShadow: "var(--shadow-md)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor =
+                  "var(--color-primary-hover)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--color-primary)";
+              }}
+            >
+              + Crear Nueva Orden
+            </button>
+          </PermissionGate>
         </div>
 
         {/* Search Bar */}

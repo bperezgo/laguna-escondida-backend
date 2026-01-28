@@ -9,6 +9,8 @@ import type {
 } from "@/types/product";
 import ProductList from "@/components/products/ProductList";
 import ProductForm from "@/components/products/ProductForm";
+import { PermissionGate } from "@/components/permissions";
+import { PERMISSIONS } from "@/lib/permissions";
 
 interface ProductsPageClientProps {
   initialProducts: Product[];
@@ -152,29 +154,31 @@ export default function ProductsPageClient({
               Administra los productos de tu restaurante
             </p>
           </div>
-          <button
-            onClick={handleCreate}
-            style={{
-              padding: "0.75rem 1.5rem",
-              backgroundColor: "var(--color-success)",
-              color: "white",
-              border: "none",
-              borderRadius: "var(--radius-sm)",
-              cursor: "pointer",
-              fontSize: "1rem",
-              fontWeight: "500",
-              boxShadow: "var(--shadow-sm)",
-              transition: "background-color var(--transition-normal)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--color-success-hover)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--color-success)";
-            }}
-          >
-            + Crear Producto
-          </button>
+          <PermissionGate permission={PERMISSIONS.PRODUCTS_CREATE}>
+            <button
+              onClick={handleCreate}
+              style={{
+                padding: "0.75rem 1.5rem",
+                backgroundColor: "var(--color-success)",
+                color: "white",
+                border: "none",
+                borderRadius: "var(--radius-sm)",
+                cursor: "pointer",
+                fontSize: "1rem",
+                fontWeight: "500",
+                boxShadow: "var(--shadow-sm)",
+                transition: "background-color var(--transition-normal)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--color-success-hover)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--color-success)";
+              }}
+            >
+              + Crear Producto
+            </button>
+          </PermissionGate>
         </div>
 
         {/* Error Message */}

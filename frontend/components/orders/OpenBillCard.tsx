@@ -1,6 +1,8 @@
 "use client";
 
 import { OpenBill } from "@/types/order";
+import { PermissionGate } from "@/components/permissions";
+import { PERMISSIONS } from "@/lib/permissions";
 
 interface OpenBillCardProps {
   openBill: OpenBill;
@@ -187,63 +189,67 @@ export default function OpenBillCard({
           }}
         >
           {onRemoveClick && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onRemoveClick();
-              }}
-              style={{
-                flex: onPayClick ? "0 0 auto" : "1",
-                padding: "0.75rem",
-                fontSize: "1rem",
-                fontWeight: "bold",
-                backgroundColor: "var(--color-danger)",
-                color: "white",
-                border: "none",
-                borderRadius: "var(--radius-md)",
-                cursor: "pointer",
-                transition: "background-color var(--transition-normal)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor =
-                  "var(--color-danger-hover)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--color-danger)";
-              }}
-              title="Eliminar cuenta"
-            >
-              Eliminar
-            </button>
+            <PermissionGate permission={PERMISSIONS.ORDERS_DELETE}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemoveClick();
+                }}
+                style={{
+                  flex: onPayClick ? "0 0 auto" : "1",
+                  padding: "0.75rem",
+                  fontSize: "1rem",
+                  fontWeight: "bold",
+                  backgroundColor: "var(--color-danger)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "var(--radius-md)",
+                  cursor: "pointer",
+                  transition: "background-color var(--transition-normal)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor =
+                    "var(--color-danger-hover)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "var(--color-danger)";
+                }}
+                title="Eliminar cuenta"
+              >
+                Eliminar
+              </button>
+            </PermissionGate>
           )}
           {onPayClick && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onPayClick();
-              }}
-              style={{
-                flex: "1",
-                padding: "0.75rem",
-                fontSize: "1rem",
-                fontWeight: "bold",
-                backgroundColor: "var(--color-success)",
-                color: "white",
-                border: "none",
-                borderRadius: "var(--radius-md)",
-                cursor: "pointer",
-                transition: "background-color var(--transition-normal)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor =
-                  "var(--color-success-hover)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--color-success)";
-              }}
-            >
-              Pagar Cuenta
-            </button>
+            <PermissionGate permission={PERMISSIONS.ORDERS_UPDATE}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPayClick();
+                }}
+                style={{
+                  flex: "1",
+                  padding: "0.75rem",
+                  fontSize: "1rem",
+                  fontWeight: "bold",
+                  backgroundColor: "var(--color-success)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "var(--radius-md)",
+                  cursor: "pointer",
+                  transition: "background-color var(--transition-normal)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor =
+                    "var(--color-success-hover)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "var(--color-success)";
+                }}
+              >
+                Pagar Cuenta
+              </button>
+            </PermissionGate>
           )}
         </div>
       )}

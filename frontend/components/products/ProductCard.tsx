@@ -2,6 +2,8 @@
 
 import type { Product } from "@/types/product";
 import { PRODUCT_TYPES, UNITS_OF_MEASURE, requiresPricing } from "@/types/product";
+import { PermissionGate } from "@/components/permissions";
+import { PERMISSIONS } from "@/lib/permissions";
 
 interface ProductCardProps {
   product: Product;
@@ -156,52 +158,56 @@ export default function ProductCard({
           </div>
         </div>
         <div style={{ display: "flex", gap: "0.5rem" }}>
-          <button
-            onClick={() => onEdit(product)}
-            style={{
-              padding: "0.5rem 1rem",
-              backgroundColor: "var(--color-primary)",
-              color: "white",
-              border: "none",
-              borderRadius: "var(--radius-sm)",
-              cursor: "pointer",
-              fontSize: "0.875rem",
-              fontWeight: "500",
-              transition: "background-color var(--transition-normal)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor =
-                "var(--color-primary-hover)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--color-primary)";
-            }}
-          >
-            Editar
-          </button>
-          <button
-            onClick={() => onDelete(product.id)}
-            style={{
-              padding: "0.5rem 1rem",
-              backgroundColor: "var(--color-danger)",
-              color: "white",
-              border: "none",
-              borderRadius: "var(--radius-sm)",
-              cursor: "pointer",
-              fontSize: "0.875rem",
-              fontWeight: "500",
-              transition: "background-color var(--transition-normal)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor =
-                "var(--color-danger-hover)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--color-danger)";
-            }}
-          >
-            Eliminar
-          </button>
+          <PermissionGate permission={PERMISSIONS.PRODUCTS_UPDATE}>
+            <button
+              onClick={() => onEdit(product)}
+              style={{
+                padding: "0.5rem 1rem",
+                backgroundColor: "var(--color-primary)",
+                color: "white",
+                border: "none",
+                borderRadius: "var(--radius-sm)",
+                cursor: "pointer",
+                fontSize: "0.875rem",
+                fontWeight: "500",
+                transition: "background-color var(--transition-normal)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor =
+                  "var(--color-primary-hover)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--color-primary)";
+              }}
+            >
+              Editar
+            </button>
+          </PermissionGate>
+          <PermissionGate permission={PERMISSIONS.PRODUCTS_DELETE}>
+            <button
+              onClick={() => onDelete(product.id)}
+              style={{
+                padding: "0.5rem 1rem",
+                backgroundColor: "var(--color-danger)",
+                color: "white",
+                border: "none",
+                borderRadius: "var(--radius-sm)",
+                cursor: "pointer",
+                fontSize: "0.875rem",
+                fontWeight: "500",
+                transition: "background-color var(--transition-normal)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor =
+                  "var(--color-danger-hover)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--color-danger)";
+              }}
+            >
+              Eliminar
+            </button>
+          </PermissionGate>
         </div>
       </div>
 

@@ -1,6 +1,71 @@
 "use client";
 
+import { usePermissions, PERMISSIONS } from "@/lib/permissions";
+import { PermissionGate } from "@/components/permissions";
+
+// Navigation items with their required permissions
+const navItems = [
+  {
+    href: "/orders",
+    title: "Órdenes",
+    description: "Administra las órdenes de los clientes",
+    permission: PERMISSIONS.ORDERS_READ,
+    hoverColor: "var(--color-primary)",
+  },
+  {
+    href: "/products",
+    title: "Productos",
+    description: "Ver y editar productos",
+    permission: PERMISSIONS.PRODUCTS_READ,
+    hoverColor: "var(--color-primary)",
+  },
+  {
+    href: "/stock",
+    title: "Inventario",
+    description: "Administrar inventario",
+    permission: PERMISSIONS.STOCK_READ,
+    hoverColor: "var(--color-primary)",
+  },
+  {
+    href: "/invoices",
+    title: "Facturas",
+    description: "Ver facturas",
+    permission: PERMISSIONS.INVOICES_READ,
+    hoverColor: "var(--color-primary)",
+  },
+  {
+    href: "/kitchen",
+    title: "Cocina",
+    description: "Ver comandas en tiempo real",
+    permission: PERMISSIONS.COMMANDS_READ,
+    hoverColor: "var(--color-secondary)",
+  },
+  {
+    href: "/suppliers",
+    title: "Proveedores",
+    description: "Administrar proveedores y catálogos",
+    permission: PERMISSIONS.SUPPLIERS_READ,
+    hoverColor: "var(--color-primary)",
+  },
+  {
+    href: "/purchase-entries",
+    title: "Entradas de Compra",
+    description: "Registrar recepción de productos",
+    permission: PERMISSIONS.PURCHASE_ENTRIES_READ,
+    hoverColor: "var(--color-primary)",
+  },
+  {
+    href: "/expenses",
+    title: "Gastos",
+    description: "Registrar gastos, inversiones y servicios",
+    permission: PERMISSIONS.EXPENSES_READ,
+    hoverColor: "var(--color-warning)",
+  },
+];
+
 export default function HomePage() {
+  const { user, isLoading } = usePermissions();
+
   const handleSignOut = async () => {
     try {
       await fetch("/api/auth/signout", {
@@ -45,322 +110,74 @@ export default function HomePage() {
             }}
           >
             Bienvenido al Sistema de Gestión de Laguna Escondida
+            {user && ` - ${user.username}`}
           </p>
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-              gap: "1rem",
-              marginTop: "3rem",
-              maxWidth: "1200px",
-              margin: "3rem auto 0",
-            }}
-          >
-            <a
-              href="/orders"
+          {isLoading ? (
+            <div
               style={{
-                padding: "1.5rem",
-                backgroundColor: "var(--color-surface)",
-                borderRadius: "var(--radius-md)",
-                boxShadow: "var(--shadow-md)",
-                textDecoration: "none",
-                display: "block",
-                transition: "all var(--transition-normal)",
-                border: "1px solid var(--color-border)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow = "var(--shadow-lg)";
-                e.currentTarget.style.borderColor = "var(--color-primary)";
-                e.currentTarget.style.transform = "translateY(-2px)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow = "var(--shadow-md)";
-                e.currentTarget.style.borderColor = "var(--color-border)";
-                e.currentTarget.style.transform = "translateY(0)";
+                padding: "2rem",
+                color: "var(--color-text-secondary)",
               }}
             >
-              <h2
-                style={{
-                  fontSize: "1.25rem",
-                  fontWeight: "600",
-                  color: "var(--color-text-primary)",
-                  marginBottom: "0.5rem",
-                }}
-              >
-                Órdenes
-              </h2>
-              <p style={{ color: "var(--color-text-secondary)", margin: 0 }}>
-                Administra las órdenes de los clientes
-              </p>
-            </a>
-
-            <a
-              href="/products"
+              Cargando...
+            </div>
+          ) : (
+            <div
               style={{
-                padding: "1.5rem",
-                backgroundColor: "var(--color-surface)",
-                borderRadius: "var(--radius-md)",
-                boxShadow: "var(--shadow-md)",
-                textDecoration: "none",
-                display: "block",
-                transition: "all var(--transition-normal)",
-                border: "1px solid var(--color-border)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow = "var(--shadow-lg)";
-                e.currentTarget.style.borderColor = "var(--color-primary)";
-                e.currentTarget.style.transform = "translateY(-2px)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow = "var(--shadow-md)";
-                e.currentTarget.style.borderColor = "var(--color-border)";
-                e.currentTarget.style.transform = "translateY(0)";
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+                gap: "1rem",
+                marginTop: "3rem",
+                maxWidth: "1200px",
+                margin: "3rem auto 0",
               }}
             >
-              <h2
-                style={{
-                  fontSize: "1.25rem",
-                  fontWeight: "600",
-                  color: "var(--color-text-primary)",
-                  marginBottom: "0.5rem",
-                }}
-              >
-                Productos
-              </h2>
-              <p style={{ color: "var(--color-text-secondary)", margin: 0 }}>
-                Ver y editar productos
-              </p>
-            </a>
-
-            <a
-              href="/stock"
-              style={{
-                padding: "1.5rem",
-                backgroundColor: "var(--color-surface)",
-                borderRadius: "var(--radius-md)",
-                boxShadow: "var(--shadow-md)",
-                textDecoration: "none",
-                display: "block",
-                transition: "all var(--transition-normal)",
-                border: "1px solid var(--color-border)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow = "var(--shadow-lg)";
-                e.currentTarget.style.borderColor = "var(--color-primary)";
-                e.currentTarget.style.transform = "translateY(-2px)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow = "var(--shadow-md)";
-                e.currentTarget.style.borderColor = "var(--color-border)";
-                e.currentTarget.style.transform = "translateY(0)";
-              }}
-            >
-              <h2
-                style={{
-                  fontSize: "1.25rem",
-                  fontWeight: "600",
-                  color: "var(--color-text-primary)",
-                  marginBottom: "0.5rem",
-                }}
-              >
-                Inventario
-              </h2>
-              <p style={{ color: "var(--color-text-secondary)", margin: 0 }}>
-                Administrar inventario
-              </p>
-            </a>
-
-            <a
-              href="/invoices"
-              style={{
-                padding: "1.5rem",
-                backgroundColor: "var(--color-surface)",
-                borderRadius: "var(--radius-md)",
-                boxShadow: "var(--shadow-md)",
-                textDecoration: "none",
-                display: "block",
-                transition: "all var(--transition-normal)",
-                border: "1px solid var(--color-border)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow = "var(--shadow-lg)";
-                e.currentTarget.style.borderColor = "var(--color-primary)";
-                e.currentTarget.style.transform = "translateY(-2px)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow = "var(--shadow-md)";
-                e.currentTarget.style.borderColor = "var(--color-border)";
-                e.currentTarget.style.transform = "translateY(0)";
-              }}
-            >
-              <h2
-                style={{
-                  fontSize: "1.25rem",
-                  fontWeight: "600",
-                  color: "var(--color-text-primary)",
-                  marginBottom: "0.5rem",
-                }}
-              >
-                Facturas
-              </h2>
-              <p style={{ color: "var(--color-text-secondary)", margin: 0 }}>
-                Ver facturas
-              </p>
-            </a>
-
-            <a
-              href="/kitchen"
-              style={{
-                padding: "1.5rem",
-                backgroundColor: "var(--color-surface)",
-                borderRadius: "var(--radius-md)",
-                boxShadow: "var(--shadow-md)",
-                textDecoration: "none",
-                display: "block",
-                transition: "all var(--transition-normal)",
-                border: "1px solid var(--color-border)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow = "var(--shadow-lg)";
-                e.currentTarget.style.borderColor = "var(--color-secondary)";
-                e.currentTarget.style.transform = "translateY(-2px)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow = "var(--shadow-md)";
-                e.currentTarget.style.borderColor = "var(--color-border)";
-                e.currentTarget.style.transform = "translateY(0)";
-              }}
-            >
-              <h2
-                style={{
-                  fontSize: "1.25rem",
-                  fontWeight: "600",
-                  color: "var(--color-text-primary)",
-                  marginBottom: "0.5rem",
-                }}
-              >
-                Cocina
-              </h2>
-              <p style={{ color: "var(--color-text-secondary)", margin: 0 }}>
-                Ver comandas en tiempo real
-              </p>
-            </a>
-
-            <a
-              href="/suppliers"
-              style={{
-                padding: "1.5rem",
-                backgroundColor: "var(--color-surface)",
-                borderRadius: "var(--radius-md)",
-                boxShadow: "var(--shadow-md)",
-                textDecoration: "none",
-                display: "block",
-                transition: "all var(--transition-normal)",
-                border: "1px solid var(--color-border)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow = "var(--shadow-lg)";
-                e.currentTarget.style.borderColor = "var(--color-primary)";
-                e.currentTarget.style.transform = "translateY(-2px)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow = "var(--shadow-md)";
-                e.currentTarget.style.borderColor = "var(--color-border)";
-                e.currentTarget.style.transform = "translateY(0)";
-              }}
-            >
-              <h2
-                style={{
-                  fontSize: "1.25rem",
-                  fontWeight: "600",
-                  color: "var(--color-text-primary)",
-                  marginBottom: "0.5rem",
-                }}
-              >
-                Proveedores
-              </h2>
-              <p style={{ color: "var(--color-text-secondary)", margin: 0 }}>
-                Administrar proveedores y catálogos
-              </p>
-            </a>
-
-            <a
-              href="/purchase-entries"
-              style={{
-                padding: "1.5rem",
-                backgroundColor: "var(--color-surface)",
-                borderRadius: "var(--radius-md)",
-                boxShadow: "var(--shadow-md)",
-                textDecoration: "none",
-                display: "block",
-                transition: "all var(--transition-normal)",
-                border: "1px solid var(--color-border)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow = "var(--shadow-lg)";
-                e.currentTarget.style.borderColor = "var(--color-primary)";
-                e.currentTarget.style.transform = "translateY(-2px)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow = "var(--shadow-md)";
-                e.currentTarget.style.borderColor = "var(--color-border)";
-                e.currentTarget.style.transform = "translateY(0)";
-              }}
-            >
-              <h2
-                style={{
-                  fontSize: "1.25rem",
-                  fontWeight: "600",
-                  color: "var(--color-text-primary)",
-                  marginBottom: "0.5rem",
-                }}
-              >
-                Entradas de Compra
-              </h2>
-              <p style={{ color: "var(--color-text-secondary)", margin: 0 }}>
-                Registrar recepción de productos
-              </p>
-            </a>
-
-            <a
-              href="/expenses"
-              style={{
-                padding: "1.5rem",
-                backgroundColor: "var(--color-surface)",
-                borderRadius: "var(--radius-md)",
-                boxShadow: "var(--shadow-md)",
-                textDecoration: "none",
-                display: "block",
-                transition: "all var(--transition-normal)",
-                border: "1px solid var(--color-border)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow = "var(--shadow-lg)";
-                e.currentTarget.style.borderColor = "var(--color-warning)";
-                e.currentTarget.style.transform = "translateY(-2px)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow = "var(--shadow-md)";
-                e.currentTarget.style.borderColor = "var(--color-border)";
-                e.currentTarget.style.transform = "translateY(0)";
-              }}
-            >
-              <h2
-                style={{
-                  fontSize: "1.25rem",
-                  fontWeight: "600",
-                  color: "var(--color-text-primary)",
-                  marginBottom: "0.5rem",
-                }}
-              >
-                Gastos
-              </h2>
-              <p style={{ color: "var(--color-text-secondary)", margin: 0 }}>
-                Registrar gastos, inversiones y servicios
-              </p>
-            </a>
-          </div>
+              {navItems.map((item) => (
+                <PermissionGate key={item.href} permission={item.permission}>
+                  <a
+                    href={item.href}
+                    style={{
+                      padding: "1.5rem",
+                      backgroundColor: "var(--color-surface)",
+                      borderRadius: "var(--radius-md)",
+                      boxShadow: "var(--shadow-md)",
+                      textDecoration: "none",
+                      display: "block",
+                      transition: "all var(--transition-normal)",
+                      border: "1px solid var(--color-border)",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.boxShadow = "var(--shadow-lg)";
+                      e.currentTarget.style.borderColor = item.hoverColor;
+                      e.currentTarget.style.transform = "translateY(-2px)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.boxShadow = "var(--shadow-md)";
+                      e.currentTarget.style.borderColor = "var(--color-border)";
+                      e.currentTarget.style.transform = "translateY(0)";
+                    }}
+                  >
+                    <h2
+                      style={{
+                        fontSize: "1.25rem",
+                        fontWeight: "600",
+                        color: "var(--color-text-primary)",
+                        marginBottom: "0.5rem",
+                      }}
+                    >
+                      {item.title}
+                    </h2>
+                    <p
+                      style={{ color: "var(--color-text-secondary)", margin: 0 }}
+                    >
+                      {item.description}
+                    </p>
+                  </a>
+                </PermissionGate>
+              ))}
+            </div>
+          )}
 
           <div style={{ marginTop: "3rem" }}>
             <button

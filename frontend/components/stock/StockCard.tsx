@@ -1,6 +1,8 @@
 "use client";
 
 import type { Stock } from "@/types/stock";
+import { PermissionGate } from "@/components/permissions";
+import { PERMISSIONS } from "@/lib/permissions";
 
 interface StockCardProps {
   stock: Stock;
@@ -77,50 +79,54 @@ export default function StockCard({
           </p>
         </div>
         <div style={{ display: "flex", gap: "0.5rem" }}>
-          <button
-            onClick={() => onAdjust(stock)}
-            style={{
-              padding: "0.5rem 1rem",
-              backgroundColor: "var(--color-primary)",
-              color: "white",
-              border: "none",
-              borderRadius: "var(--radius-sm)",
-              cursor: "pointer",
-              fontSize: "0.875rem",
-              fontWeight: "500",
-              transition: "background-color var(--transition-normal)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--color-primary-hover)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--color-primary)";
-            }}
-          >
-            Ajustar
-          </button>
-          <button
-            onClick={() => onDelete(stock.product_id)}
-            style={{
-              padding: "0.5rem 1rem",
-              backgroundColor: "var(--color-danger)",
-              color: "white",
-              border: "none",
-              borderRadius: "var(--radius-sm)",
-              cursor: "pointer",
-              fontSize: "0.875rem",
-              fontWeight: "500",
-              transition: "background-color var(--transition-normal)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--color-danger-hover)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--color-danger)";
-            }}
-          >
-            Eliminar
-          </button>
+          <PermissionGate permission={PERMISSIONS.STOCK_UPDATE}>
+            <button
+              onClick={() => onAdjust(stock)}
+              style={{
+                padding: "0.5rem 1rem",
+                backgroundColor: "var(--color-primary)",
+                color: "white",
+                border: "none",
+                borderRadius: "var(--radius-sm)",
+                cursor: "pointer",
+                fontSize: "0.875rem",
+                fontWeight: "500",
+                transition: "background-color var(--transition-normal)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--color-primary-hover)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--color-primary)";
+              }}
+            >
+              Ajustar
+            </button>
+          </PermissionGate>
+          <PermissionGate permission={PERMISSIONS.STOCK_DELETE}>
+            <button
+              onClick={() => onDelete(stock.product_id)}
+              style={{
+                padding: "0.5rem 1rem",
+                backgroundColor: "var(--color-danger)",
+                color: "white",
+                border: "none",
+                borderRadius: "var(--radius-sm)",
+                cursor: "pointer",
+                fontSize: "0.875rem",
+                fontWeight: "500",
+                transition: "background-color var(--transition-normal)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--color-danger-hover)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--color-danger)";
+              }}
+            >
+              Eliminar
+            </button>
+          </PermissionGate>
         </div>
       </div>
 

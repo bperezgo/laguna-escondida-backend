@@ -1,6 +1,8 @@
 "use client";
 
 import type { Expense } from "@/types/expense";
+import { PermissionGate } from "@/components/permissions";
+import { PERMISSIONS } from "@/lib/permissions";
 
 interface ExpenseCardProps {
   expense: Expense;
@@ -233,54 +235,58 @@ export default function ExpenseCard({
           >
             Ver
           </button>
-          <button
-            onClick={() => onEdit(expense)}
-            style={{
-              padding: "0.5rem 1rem",
-              backgroundColor: "transparent",
-              color: "var(--color-warning)",
-              border: "1px solid var(--color-warning)",
-              borderRadius: "var(--radius-sm)",
-              cursor: "pointer",
-              fontSize: "0.875rem",
-              fontWeight: "500",
-              transition: "all var(--transition-normal)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--color-warning)";
-              e.currentTarget.style.color = "white";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
-              e.currentTarget.style.color = "var(--color-warning)";
-            }}
-          >
-            Editar
-          </button>
-          <button
-            onClick={() => onDelete(expense)}
-            style={{
-              padding: "0.5rem 1rem",
-              backgroundColor: "transparent",
-              color: "var(--color-danger)",
-              border: "1px solid var(--color-danger)",
-              borderRadius: "var(--radius-sm)",
-              cursor: "pointer",
-              fontSize: "0.875rem",
-              fontWeight: "500",
-              transition: "all var(--transition-normal)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--color-danger)";
-              e.currentTarget.style.color = "white";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
-              e.currentTarget.style.color = "var(--color-danger)";
-            }}
-          >
-            Eliminar
-          </button>
+          <PermissionGate permission={PERMISSIONS.EXPENSES_UPDATE}>
+            <button
+              onClick={() => onEdit(expense)}
+              style={{
+                padding: "0.5rem 1rem",
+                backgroundColor: "transparent",
+                color: "var(--color-warning)",
+                border: "1px solid var(--color-warning)",
+                borderRadius: "var(--radius-sm)",
+                cursor: "pointer",
+                fontSize: "0.875rem",
+                fontWeight: "500",
+                transition: "all var(--transition-normal)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--color-warning)";
+                e.currentTarget.style.color = "white";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.color = "var(--color-warning)";
+              }}
+            >
+              Editar
+            </button>
+          </PermissionGate>
+          <PermissionGate permission={PERMISSIONS.EXPENSES_DELETE}>
+            <button
+              onClick={() => onDelete(expense)}
+              style={{
+                padding: "0.5rem 1rem",
+                backgroundColor: "transparent",
+                color: "var(--color-danger)",
+                border: "1px solid var(--color-danger)",
+                borderRadius: "var(--radius-sm)",
+                cursor: "pointer",
+                fontSize: "0.875rem",
+                fontWeight: "500",
+                transition: "all var(--transition-normal)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--color-danger)";
+                e.currentTarget.style.color = "white";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.color = "var(--color-danger)";
+              }}
+            >
+              Eliminar
+            </button>
+          </PermissionGate>
         </div>
       </div>
     </div>

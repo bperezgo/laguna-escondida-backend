@@ -8,6 +8,8 @@ import type {
   InvoiceFilters,
 } from "@/types/invoice";
 import InvoiceForm from "@/components/invoices/InvoiceForm";
+import { PermissionGate } from "@/components/permissions";
+import { PERMISSIONS } from "@/lib/permissions";
 
 export default function InvoicesPageClient() {
   const [showForm, setShowForm] = useState<boolean>(false);
@@ -226,78 +228,82 @@ export default function InvoicesPageClient() {
             </p>
           </div>
           <div style={{ display: "flex", gap: "0.75rem" }}>
-            <button
-              onClick={handleExportCSV}
-              disabled={exportLoading}
-              style={{
-                padding: "0.75rem 1.5rem",
-                backgroundColor: exportLoading
-                  ? "var(--color-border)"
-                  : "var(--color-primary)",
-                color: exportLoading ? "var(--color-text-muted)" : "white",
-                border: "none",
-                borderRadius: "var(--radius-sm)",
-                cursor: exportLoading ? "not-allowed" : "pointer",
-                fontSize: "1rem",
-                fontWeight: "500",
-                boxShadow: "var(--shadow-sm)",
-                transition: "background-color var(--transition-normal)",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-              }}
-              onMouseEnter={(e) => {
-                if (!exportLoading) {
-                  e.currentTarget.style.backgroundColor =
-                    "var(--color-primary-hover)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!exportLoading) {
-                  e.currentTarget.style.backgroundColor = "var(--color-primary)";
-                }
-              }}
-            >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+            <PermissionGate permission={PERMISSIONS.INVOICES_EXPORT}>
+              <button
+                onClick={handleExportCSV}
+                disabled={exportLoading}
+                style={{
+                  padding: "0.75rem 1.5rem",
+                  backgroundColor: exportLoading
+                    ? "var(--color-border)"
+                    : "var(--color-primary)",
+                  color: exportLoading ? "var(--color-text-muted)" : "white",
+                  border: "none",
+                  borderRadius: "var(--radius-sm)",
+                  cursor: exportLoading ? "not-allowed" : "pointer",
+                  fontSize: "1rem",
+                  fontWeight: "500",
+                  boxShadow: "var(--shadow-sm)",
+                  transition: "background-color var(--transition-normal)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                }}
+                onMouseEnter={(e) => {
+                  if (!exportLoading) {
+                    e.currentTarget.style.backgroundColor =
+                      "var(--color-primary-hover)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!exportLoading) {
+                    e.currentTarget.style.backgroundColor = "var(--color-primary)";
+                  }
+                }}
               >
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-              {exportLoading ? "Exportando..." : "Descargar CSV"}
-            </button>
-            <button
-              onClick={handleCreate}
-              style={{
-                padding: "0.75rem 1.5rem",
-                backgroundColor: "var(--color-success)",
-                color: "white",
-                border: "none",
-                borderRadius: "var(--radius-sm)",
-                cursor: "pointer",
-                fontSize: "1rem",
-                fontWeight: "500",
-                boxShadow: "var(--shadow-sm)",
-                transition: "background-color var(--transition-normal)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor =
-                  "var(--color-success-hover)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--color-success)";
-              }}
-            >
-              + Crear Factura
-            </button>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                {exportLoading ? "Exportando..." : "Descargar CSV"}
+              </button>
+            </PermissionGate>
+            <PermissionGate permission={PERMISSIONS.INVOICES_CREATE}>
+              <button
+                onClick={handleCreate}
+                style={{
+                  padding: "0.75rem 1.5rem",
+                  backgroundColor: "var(--color-success)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "var(--radius-sm)",
+                  cursor: "pointer",
+                  fontSize: "1rem",
+                  fontWeight: "500",
+                  boxShadow: "var(--shadow-sm)",
+                  transition: "background-color var(--transition-normal)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor =
+                    "var(--color-success-hover)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "var(--color-success)";
+                }}
+              >
+                + Crear Factura
+              </button>
+            </PermissionGate>
           </div>
         </div>
 

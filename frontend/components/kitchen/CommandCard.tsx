@@ -1,6 +1,8 @@
 "use client";
 
 import { Command } from "@/types/command";
+import { PermissionGate } from "@/components/permissions";
+import { PERMISSIONS } from "@/lib/permissions";
 
 interface CommandCardProps {
   command: Command;
@@ -214,59 +216,61 @@ export default function CommandCard({
 
       {/* Complete button - only show for pending commands */}
       {command.status === "created" && (
-        <button
-          onClick={() => onComplete(command.id)}
-          disabled={isCompleting}
-          style={{
-            width: "100%",
-            padding: "1rem",
-            fontSize: "1.1rem",
-            fontWeight: "bold",
-            backgroundColor: isCompleting
-              ? "var(--color-surface-active)"
-              : "var(--color-success)",
-            color: isCompleting ? "var(--color-text-muted)" : "white",
-            border: "none",
-            borderRadius: "var(--radius-md)",
-            cursor: isCompleting ? "not-allowed" : "pointer",
-            transition: "all var(--transition-normal)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "0.5rem",
-          }}
-          onMouseEnter={(e) => {
-            if (!isCompleting) {
-              e.currentTarget.style.backgroundColor =
-                "var(--color-success-hover)";
-              e.currentTarget.style.transform = "scale(1.02)";
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (!isCompleting) {
-              e.currentTarget.style.backgroundColor = "var(--color-success)";
-              e.currentTarget.style.transform = "scale(1)";
-            }
-          }}
-        >
-          {isCompleting ? (
-            <>
-              <div
-                style={{
-                  width: "20px",
-                  height: "20px",
-                  border: "3px solid var(--color-text-muted)",
-                  borderTop: "3px solid var(--color-text-secondary)",
-                  borderRadius: "50%",
-                  animation: "spin 1s linear infinite",
-                }}
-              />
-              Marcando...
-            </>
-          ) : (
-            <>✓ Marcar como Completado</>
-          )}
-        </button>
+        <PermissionGate permission={PERMISSIONS.COMMANDS_UPDATE}>
+          <button
+            onClick={() => onComplete(command.id)}
+            disabled={isCompleting}
+            style={{
+              width: "100%",
+              padding: "1rem",
+              fontSize: "1.1rem",
+              fontWeight: "bold",
+              backgroundColor: isCompleting
+                ? "var(--color-surface-active)"
+                : "var(--color-success)",
+              color: isCompleting ? "var(--color-text-muted)" : "white",
+              border: "none",
+              borderRadius: "var(--radius-md)",
+              cursor: isCompleting ? "not-allowed" : "pointer",
+              transition: "all var(--transition-normal)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "0.5rem",
+            }}
+            onMouseEnter={(e) => {
+              if (!isCompleting) {
+                e.currentTarget.style.backgroundColor =
+                  "var(--color-success-hover)";
+                e.currentTarget.style.transform = "scale(1.02)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isCompleting) {
+                e.currentTarget.style.backgroundColor = "var(--color-success)";
+                e.currentTarget.style.transform = "scale(1)";
+              }
+            }}
+          >
+            {isCompleting ? (
+              <>
+                <div
+                  style={{
+                    width: "20px",
+                    height: "20px",
+                    border: "3px solid var(--color-text-muted)",
+                    borderTop: "3px solid var(--color-text-secondary)",
+                    borderRadius: "50%",
+                    animation: "spin 1s linear infinite",
+                  }}
+                />
+                Marcando...
+              </>
+            ) : (
+              <>✓ Marcar como Completado</>
+            )}
+          </button>
+        </PermissionGate>
       )}
     </div>
   );
