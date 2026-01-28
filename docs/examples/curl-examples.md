@@ -192,6 +192,80 @@ curl -X GET "$BASE_URL/suppliers/SUPPLIER_ID/purchase-entries" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
+### Upload Single Document (PDF)
+
+```bash
+curl -X POST "$BASE_URL/purchase-entries/ENTRY_ID/documents?file_type=pdf" \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@/path/to/invoice.pdf"
+```
+
+### Upload Single Document (XML)
+
+```bash
+curl -X POST "$BASE_URL/purchase-entries/ENTRY_ID/documents?file_type=xml" \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@/path/to/invoice.xml"
+```
+
+### Upload ZIP File (Contains PDF + XML)
+
+```bash
+curl -X POST "$BASE_URL/purchase-entries/ENTRY_ID/documents" \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@/path/to/electronic_invoice.zip"
+```
+
+---
+
+## Expenses
+
+### Create Expense
+
+```bash
+curl -X POST "$BASE_URL/expenses" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "category_id": "CATEGORY_ID",
+    "supplier_id": "SUPPLIER_ID",
+    "amount": "500000.00",
+    "description": "Monthly building rent - January 2024",
+    "reference": "RENT-2024-01"
+  }'
+```
+
+### List Expenses
+
+```bash
+curl -X GET "$BASE_URL/expenses" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Upload Expense Document (PDF)
+
+```bash
+curl -X POST "$BASE_URL/expenses/EXPENSE_ID/documents?category_code=rent&file_type=pdf" \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@/path/to/receipt.pdf"
+```
+
+### Upload Expense Document (XML)
+
+```bash
+curl -X POST "$BASE_URL/expenses/EXPENSE_ID/documents?category_code=rent&file_type=xml" \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@/path/to/receipt.xml"
+```
+
+### Upload Expense ZIP File (Contains PDF + XML)
+
+```bash
+curl -X POST "$BASE_URL/expenses/EXPENSE_ID/documents?category_code=rent" \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@/path/to/electronic_invoice.zip"
+```
+
 ---
 
 ## Products

@@ -10,6 +10,7 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/service"
+	"laguna-escondida/backend/internal/platform/fileutil"
 
 	"github.com/gin-gonic/gin"
 )
@@ -319,12 +320,6 @@ func (h *ExpenseHandler) UploadExpenseDocumentHandler(c *gin.Context) {
 		return
 	}
 
-	fileType := c.Query("file_type")
-	if fileType != "pdf" && fileType != "xml" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "File type must be 'pdf' or 'xml'"})
-		return
-	}
-
 	file, _, err := c.Request.FormFile("file")
 	if err != nil {
 		log.Printf("Error getting file from request: %v", err)
@@ -342,7 +337,41 @@ func (h *ExpenseHandler) UploadExpenseDocumentHandler(c *gin.Context) {
 		return
 	}
 
-	storagePath, err := h.expenseService.UploadExpenseDocument(c.Request.Context(), expenseID, categoryCode, fileData, fileType)
+	detectedType := fileutil.DetectFileType(fileData)
+
+	// If ZIP file is detected, extract and upload both PDF and XML
+	if detectedType == "zip" {
+		extractedFiles, err := fileutil.ValidateAndExtractZip(fileData)
+		if err != nil {
+			log.Printf("Error extracting ZIP file: %v", err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		result, err := h.expenseService.UploadExpenseDocuments(c.Request.Context(), expenseID, categoryCode, extractedFiles.PDFData, extractedFiles.XMLData)
+		if err != nil {
+			log.Printf("Error uploading expense documents from ZIP: %v", err)
+
+			if errors.Is(err, domainError.ErrExpenseNotFound) {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Expense not found"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload documents"})
+			return
+		}
+
+		c.JSON(http.StatusOK, result)
+		return
+	}
+
+	// For single PDF or XML files, require the file_type query parameter
+	fileType := c.Query("file_type")
+	if fileType != "pdf" && fileType != "xml" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "File type must be 'pdf' or 'xml' for single file uploads"})
+		return
+	}
+
+	result, err := h.expenseService.UploadExpenseDocument(c.Request.Context(), expenseID, categoryCode, fileData, fileType)
 	if err != nil {
 		log.Printf("Error uploading expense document: %v", err)
 
@@ -354,5 +383,5 @@ func (h *ExpenseHandler) UploadExpenseDocumentHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"storage_path": storagePath})
+	c.JSON(http.StatusOK, result)
 }

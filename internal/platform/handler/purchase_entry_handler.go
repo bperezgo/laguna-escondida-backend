@@ -9,6 +9,7 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/service"
+	"laguna-escondida/backend/internal/platform/fileutil"
 
 	"github.com/gin-gonic/gin"
 )
@@ -128,12 +129,6 @@ func (h *PurchaseEntryHandler) UploadPurchaseEntryDocumentHandler(c *gin.Context
 		return
 	}
 
-	fileType := c.Query("file_type")
-	if fileType != "pdf" && fileType != "xml" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "File type must be 'pdf' or 'xml'"})
-		return
-	}
-
 	file, _, err := c.Request.FormFile("file")
 	if err != nil {
 		log.Printf("Error getting file from request: %v", err)
@@ -151,7 +146,41 @@ func (h *PurchaseEntryHandler) UploadPurchaseEntryDocumentHandler(c *gin.Context
 		return
 	}
 
-	storagePath, err := h.purchaseEntryService.UploadPurchaseEntryDocument(c.Request.Context(), purchaseEntryID, fileData, fileType)
+	detectedType := fileutil.DetectFileType(fileData)
+
+	// If ZIP file is detected, extract and upload both PDF and XML
+	if detectedType == "zip" {
+		extractedFiles, err := fileutil.ValidateAndExtractZip(fileData)
+		if err != nil {
+			log.Printf("Error extracting ZIP file: %v", err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		result, err := h.purchaseEntryService.UploadPurchaseEntryDocuments(c.Request.Context(), purchaseEntryID, extractedFiles.PDFData, extractedFiles.XMLData)
+		if err != nil {
+			log.Printf("Error uploading purchase entry documents from ZIP: %v", err)
+
+			if errors.Is(err, domainError.ErrPurchaseEntryNotFound) {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Purchase entry not found"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload documents"})
+			return
+		}
+
+		c.JSON(http.StatusOK, result)
+		return
+	}
+
+	// For single PDF or XML files, require the file_type query parameter
+	fileType := c.Query("file_type")
+	if fileType != "pdf" && fileType != "xml" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "File type must be 'pdf' or 'xml' for single file uploads"})
+		return
+	}
+
+	result, err := h.purchaseEntryService.UploadPurchaseEntryDocument(c.Request.Context(), purchaseEntryID, fileData, fileType)
 	if err != nil {
 		log.Printf("Error uploading purchase entry document: %v", err)
 
@@ -163,5 +192,5 @@ func (h *PurchaseEntryHandler) UploadPurchaseEntryDocumentHandler(c *gin.Context
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"storage_path": storagePath})
+	c.JSON(http.StatusOK, result)
 }

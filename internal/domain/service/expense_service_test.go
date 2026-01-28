@@ -631,7 +631,9 @@ func TestUploadExpenseDocument_PDF_Success(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, "org-123/expenses/rent_exp-1.pdf", *result)
+	assert.NotNil(t, result.PDFStoragePath)
+	assert.Equal(t, "org-123/expenses/rent_exp-1.pdf", *result.PDFStoragePath)
+	assert.Nil(t, result.XMLStoragePath)
 }
 
 func TestUploadExpenseDocument_XML_Success(t *testing.T) {
@@ -653,7 +655,9 @@ func TestUploadExpenseDocument_XML_Success(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, "org-123/expenses/service_exp-1.xml", *result)
+	assert.Nil(t, result.PDFStoragePath)
+	assert.NotNil(t, result.XMLStoragePath)
+	assert.Equal(t, "org-123/expenses/service_exp-1.xml", *result.XMLStoragePath)
 }
 
 func TestUploadExpenseDocument_ExpenseNotFound(t *testing.T) {
@@ -702,4 +706,88 @@ func TestUploadExpenseDocument_StorageError(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "failed to upload document")
+}
+
+// UploadExpenseDocuments Tests (Both PDF and XML)
+
+func TestUploadExpenseDocuments_Success(t *testing.T) {
+	ctx := context.Background()
+	service, _, mockExpenseRepo, _, mockStorageClient := createTestExpenseService(t)
+
+	expenseID := "exp-1"
+	categoryCode := "rent"
+	existingExpense := createTestExpenseWithCategoryDTO(expenseID, "cat-1", categoryCode, "Rent", 1000.00)
+	pdfData := []byte("pdf content")
+	xmlData := []byte("xml content")
+
+	mockExpenseRepo.On("FindByID", ctx, expenseID).Return(existingExpense, nil)
+	mockStorageClient.On("Upload", ctx, "org-123/expenses/rent_exp-1.pdf", pdfData, "application/pdf").Return(nil)
+	mockStorageClient.On("Upload", ctx, "org-123/expenses/rent_exp-1.xml", xmlData, "application/xml").Return(nil)
+	mockExpenseRepo.On("UpdateStoragePaths", ctx, expenseID, mock.MatchedBy(func(p *string) bool {
+		return p != nil && *p == "org-123/expenses/rent_exp-1.pdf"
+	}), mock.MatchedBy(func(p *string) bool {
+		return p != nil && *p == "org-123/expenses/rent_exp-1.xml"
+	})).Return(nil)
+
+	result, err := service.UploadExpenseDocuments(ctx, expenseID, categoryCode, pdfData, xmlData)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.NotNil(t, result.PDFStoragePath)
+	assert.NotNil(t, result.XMLStoragePath)
+	assert.Equal(t, "org-123/expenses/rent_exp-1.pdf", *result.PDFStoragePath)
+	assert.Equal(t, "org-123/expenses/rent_exp-1.xml", *result.XMLStoragePath)
+}
+
+func TestUploadExpenseDocuments_ExpenseNotFound(t *testing.T) {
+	ctx := context.Background()
+	service, _, mockExpenseRepo, _, _ := createTestExpenseService(t)
+
+	expenseID := "exp-nonexistent"
+	mockExpenseRepo.On("FindByID", ctx, expenseID).Return(nil, errors.New("not found"))
+
+	result, err := service.UploadExpenseDocuments(ctx, expenseID, "rent", []byte("pdf"), []byte("xml"))
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, domainError.ErrExpenseNotFound)
+}
+
+func TestUploadExpenseDocuments_PDFUploadError(t *testing.T) {
+	ctx := context.Background()
+	service, _, mockExpenseRepo, _, mockStorageClient := createTestExpenseService(t)
+
+	expenseID := "exp-1"
+	existingExpense := createTestExpenseWithCategoryDTO(expenseID, "cat-1", "rent", "Rent", 1000.00)
+	pdfData := []byte("pdf content")
+	xmlData := []byte("xml content")
+
+	mockExpenseRepo.On("FindByID", ctx, expenseID).Return(existingExpense, nil)
+	mockStorageClient.On("Upload", ctx, mock.Anything, pdfData, "application/pdf").Return(errors.New("storage error"))
+
+	result, err := service.UploadExpenseDocuments(ctx, expenseID, "rent", pdfData, xmlData)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "failed to upload PDF document")
+}
+
+func TestUploadExpenseDocuments_XMLUploadError(t *testing.T) {
+	ctx := context.Background()
+	service, _, mockExpenseRepo, _, mockStorageClient := createTestExpenseService(t)
+
+	expenseID := "exp-1"
+	existingExpense := createTestExpenseWithCategoryDTO(expenseID, "cat-1", "rent", "Rent", 1000.00)
+	pdfData := []byte("pdf content")
+	xmlData := []byte("xml content")
+
+	mockExpenseRepo.On("FindByID", ctx, expenseID).Return(existingExpense, nil)
+	mockStorageClient.On("Upload", ctx, mock.Anything, pdfData, "application/pdf").Return(nil)
+	mockStorageClient.On("Upload", ctx, mock.Anything, xmlData, "application/xml").Return(errors.New("storage error"))
+
+	result, err := service.UploadExpenseDocuments(ctx, expenseID, "rent", pdfData, xmlData)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "failed to upload XML document")
 }

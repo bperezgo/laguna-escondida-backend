@@ -221,7 +221,7 @@ func (s *ExpenseService) ListExpensesByCriteria(ctx context.Context, criteria *d
 	return expenses, nil
 }
 
-func (s *ExpenseService) UploadExpenseDocument(ctx context.Context, expenseID string, categoryCode string, fileData []byte, fileType string) (*string, error) {
+func (s *ExpenseService) UploadExpenseDocument(ctx context.Context, expenseID string, categoryCode string, fileData []byte, fileType string) (*dto.DocumentUploadResult, error) {
 	if _, err := s.expenseRepo.FindByID(ctx, expenseID); err != nil {
 		return nil, fmt.Errorf("%w: %w", domainError.ErrExpenseNotFound, err)
 	}
@@ -257,5 +257,36 @@ func (s *ExpenseService) UploadExpenseDocument(ctx context.Context, expenseID st
 		return nil, fmt.Errorf("failed to update storage paths: %w", err)
 	}
 
-	return &storageKey, nil
+	return &dto.DocumentUploadResult{
+		PDFStoragePath: pdfPath,
+		XMLStoragePath: xmlPath,
+	}, nil
+}
+
+// UploadExpenseDocuments uploads both PDF and XML files for an expense
+// This is typically used when processing a ZIP file containing both documents
+func (s *ExpenseService) UploadExpenseDocuments(ctx context.Context, expenseID string, categoryCode string, pdfData []byte, xmlData []byte) (*dto.DocumentUploadResult, error) {
+	if _, err := s.expenseRepo.FindByID(ctx, expenseID); err != nil {
+		return nil, fmt.Errorf("%w: %w", domainError.ErrExpenseNotFound, err)
+	}
+
+	pdfStorageKey := fmt.Sprintf("%s/expenses/%s_%s.pdf", s.organizationID, categoryCode, expenseID)
+	xmlStorageKey := fmt.Sprintf("%s/expenses/%s_%s.xml", s.organizationID, categoryCode, expenseID)
+
+	if err := s.storageClient.Upload(ctx, pdfStorageKey, pdfData, "application/pdf"); err != nil {
+		return nil, fmt.Errorf("failed to upload PDF document: %w", err)
+	}
+
+	if err := s.storageClient.Upload(ctx, xmlStorageKey, xmlData, "application/xml"); err != nil {
+		return nil, fmt.Errorf("failed to upload XML document: %w", err)
+	}
+
+	if err := s.expenseRepo.UpdateStoragePaths(ctx, expenseID, &pdfStorageKey, &xmlStorageKey); err != nil {
+		return nil, fmt.Errorf("failed to update storage paths: %w", err)
+	}
+
+	return &dto.DocumentUploadResult{
+		PDFStoragePath: &pdfStorageKey,
+		XMLStoragePath: &xmlStorageKey,
+	}, nil
 }

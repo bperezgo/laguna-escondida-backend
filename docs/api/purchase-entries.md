@@ -250,7 +250,7 @@ GET /api/suppliers/:id/purchase-entries
 
 ## Upload Purchase Entry Document
 
-Uploads a supporting document (PDF or XML) for a purchase entry. This is useful for storing supplier invoices and receipts for accountability.
+Uploads supporting documents (PDF, XML, or ZIP containing both) for a purchase entry. This is useful for storing supplier electronic invoices and receipts for accountability.
 
 ```
 POST /api/purchase-entries/:id/documents
@@ -264,19 +264,33 @@ POST /api/purchase-entries/:id/documents
 
 ### Query Parameters
 
-| Parameter | Type   | Required | Description                |
-| --------- | ------ | -------- | -------------------------- |
-| file_type | string | Yes      | File type: `pdf` or `xml`  |
+| Parameter | Type   | Required | Description                                              |
+| --------- | ------ | -------- | -------------------------------------------------------- |
+| file_type | string | Conditional | Required for single PDF/XML uploads. Not needed for ZIP |
 
 ### Request Body
 
 Multipart form data with:
 
-| Field | Type | Required | Description     |
-| ----- | ---- | -------- | --------------- |
-| file  | file | Yes      | PDF or XML file |
+| Field | Type | Required | Description                                          |
+| ----- | ---- | -------- | ---------------------------------------------------- |
+| file  | file | Yes      | PDF, XML, or ZIP file containing both PDF and XML    |
 
-### Example Request
+### ZIP File Support
+
+When uploading a ZIP file, the system will:
+
+1. Automatically detect the ZIP format (no `file_type` query parameter needed)
+2. Extract the contents and validate exactly one PDF and one XML file exist
+3. Upload both files to storage
+4. Update the database with both storage paths
+
+**ZIP Requirements:**
+- Must contain exactly 1 PDF file
+- Must contain exactly 1 XML file
+- Files can be at any level within the ZIP (nested folders are supported)
+
+### Example Request (Single File)
 
 ```
 POST /api/purchase-entries/880e8400-e29b-41d4-a716-446655440003/documents?file_type=pdf
@@ -285,11 +299,29 @@ Content-Type: multipart/form-data
 file: <binary PDF data>
 ```
 
-### Example Response (200 OK)
+### Example Response (Single File - 200 OK)
 
 ```json
 {
-  "storage_path": "org123/purchase-entries/880e8400-e29b-41d4-a716-446655440003.pdf"
+  "pdf_storage_path": "org123/purchase-entries/880e8400-e29b-41d4-a716-446655440003.pdf"
+}
+```
+
+### Example Request (ZIP File)
+
+```
+POST /api/purchase-entries/880e8400-e29b-41d4-a716-446655440003/documents
+Content-Type: multipart/form-data
+
+file: <binary ZIP data containing invoice.pdf and invoice.xml>
+```
+
+### Example Response (ZIP File - 200 OK)
+
+```json
+{
+  "pdf_storage_path": "org123/purchase-entries/880e8400-e29b-41d4-a716-446655440003.pdf",
+  "xml_storage_path": "org123/purchase-entries/880e8400-e29b-41d4-a716-446655440003.xml"
 }
 ```
 
@@ -311,11 +343,51 @@ Documents are stored at:
 }
 ```
 
-**400 Bad Request** - Invalid file type
+**400 Bad Request** - Invalid file type (for single file uploads)
 
 ```json
 {
-  "error": "File type must be 'pdf' or 'xml'"
+  "error": "File type must be 'pdf' or 'xml' for single file uploads"
+}
+```
+
+**400 Bad Request** - ZIP missing PDF
+
+```json
+{
+  "error": "ZIP file must contain exactly one PDF file"
+}
+```
+
+**400 Bad Request** - ZIP missing XML
+
+```json
+{
+  "error": "ZIP file must contain exactly one XML file"
+}
+```
+
+**400 Bad Request** - ZIP contains multiple PDFs
+
+```json
+{
+  "error": "ZIP file contains multiple PDF files, expected exactly one"
+}
+```
+
+**400 Bad Request** - ZIP contains multiple XMLs
+
+```json
+{
+  "error": "ZIP file contains multiple XML files, expected exactly one"
+}
+```
+
+**400 Bad Request** - Invalid/corrupt ZIP
+
+```json
+{
+  "error": "invalid or corrupt ZIP file"
 }
 ```
 

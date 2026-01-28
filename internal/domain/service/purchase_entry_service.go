@@ -156,7 +156,7 @@ func (s *PurchaseEntryService) GetPurchaseEntriesBySupplier(ctx context.Context,
 	return entries, nil
 }
 
-func (s *PurchaseEntryService) UploadPurchaseEntryDocument(ctx context.Context, purchaseEntryID string, fileData []byte, fileType string) (*string, error) {
+func (s *PurchaseEntryService) UploadPurchaseEntryDocument(ctx context.Context, purchaseEntryID string, fileData []byte, fileType string) (*dto.DocumentUploadResult, error) {
 	if _, err := s.purchaseEntryRepo.FindByID(ctx, purchaseEntryID); err != nil {
 		return nil, fmt.Errorf("%w: %w", domainError.ErrPurchaseEntryNotFound, err)
 	}
@@ -192,5 +192,36 @@ func (s *PurchaseEntryService) UploadPurchaseEntryDocument(ctx context.Context, 
 		return nil, fmt.Errorf("failed to update storage paths: %w", err)
 	}
 
-	return &storageKey, nil
+	return &dto.DocumentUploadResult{
+		PDFStoragePath: pdfPath,
+		XMLStoragePath: xmlPath,
+	}, nil
+}
+
+// UploadPurchaseEntryDocuments uploads both PDF and XML files for a purchase entry
+// This is typically used when processing a ZIP file containing both documents
+func (s *PurchaseEntryService) UploadPurchaseEntryDocuments(ctx context.Context, purchaseEntryID string, pdfData []byte, xmlData []byte) (*dto.DocumentUploadResult, error) {
+	if _, err := s.purchaseEntryRepo.FindByID(ctx, purchaseEntryID); err != nil {
+		return nil, fmt.Errorf("%w: %w", domainError.ErrPurchaseEntryNotFound, err)
+	}
+
+	pdfStorageKey := fmt.Sprintf("%s/purchase-entries/%s.pdf", s.organizationID, purchaseEntryID)
+	xmlStorageKey := fmt.Sprintf("%s/purchase-entries/%s.xml", s.organizationID, purchaseEntryID)
+
+	if err := s.storageClient.Upload(ctx, pdfStorageKey, pdfData, "application/pdf"); err != nil {
+		return nil, fmt.Errorf("failed to upload PDF document: %w", err)
+	}
+
+	if err := s.storageClient.Upload(ctx, xmlStorageKey, xmlData, "application/xml"); err != nil {
+		return nil, fmt.Errorf("failed to upload XML document: %w", err)
+	}
+
+	if err := s.purchaseEntryRepo.UpdateStoragePaths(ctx, purchaseEntryID, &pdfStorageKey, &xmlStorageKey); err != nil {
+		return nil, fmt.Errorf("failed to update storage paths: %w", err)
+	}
+
+	return &dto.DocumentUploadResult{
+		PDFStoragePath: &pdfStorageKey,
+		XMLStoragePath: &xmlStorageKey,
+	}, nil
 }
