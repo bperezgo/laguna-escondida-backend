@@ -43,8 +43,8 @@ func (s *ProductIngredientService) AddIngredient(ctx context.Context, compositeP
 		return nil, domainError.ErrIngredientCannotBeSelf
 	}
 
-	if _, err := s.productRepo.FindByID(ctx, req.IngredientProductID); err != nil {
-		return nil, fmt.Errorf("%w: ingredient product not found: %w", domainError.ErrProductNotFound, err)
+	if _, findErr := s.productRepo.FindByID(ctx, req.IngredientProductID); findErr != nil {
+		return nil, fmt.Errorf("%w: ingredient product not found: %w", domainError.ErrProductNotFound, findErr)
 	}
 
 	existingIngredients, err := s.productIngredientRepo.FindByCompositeProductID(ctx, compositeProductID)
