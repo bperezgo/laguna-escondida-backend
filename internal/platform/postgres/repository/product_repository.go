@@ -192,6 +192,20 @@ func (r *ProductRepository) FindByName(ctx context.Context, name string) (*dto.P
 	return r.toDTO(&model), nil
 }
 
+func (r *ProductRepository) FindAllCategories(ctx context.Context) ([]string, error) {
+	var categories []string
+	if err := r.db.WithContext(ctx).
+		Model(&productModel{}).
+		Where("deleted_at IS NULL").
+		Distinct("category").
+		Order("category").
+		Pluck("category", &categories).Error; err != nil {
+		return nil, err
+	}
+
+	return categories, nil
+}
+
 func (r *ProductRepository) CreatePreparationResponsibility(ctx context.Context, productID, area string) (*dto.ProductPreparationResponsibility, error) {
 	now := time.Now()
 	model := &productResponsibilityModel{

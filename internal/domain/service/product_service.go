@@ -106,3 +106,13 @@ func (s *ProductService) CreateProductResponsibility(ctx context.Context, req *d
 
 	return responsibility, nil
 }
+
+// ListCategories returns all unique product categories
+func (s *ProductService) ListCategories(ctx context.Context) ([]string, error) {
+	categories, err := s.productRepo.FindAllCategories(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list categories: %w", err)
+	}
+
+	return categories, nil
+}

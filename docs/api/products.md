@@ -23,16 +23,17 @@ Manage products, including sellable items and ingredients.
 
 ## Endpoints
 
-| Method | Endpoint                                     | Description                             |
-| ------ | -------------------------------------------- | --------------------------------------- |
-| POST   | `/api/products`                              | Create a new product                    |
-| GET    | `/api/products`                              | List all products                       |
-| GET    | `/api/products/:id`                          | Get product by ID                       |
-| PUT    | `/api/products/:id`                          | Update a product                        |
-| DELETE | `/api/products/:id`                          | Delete a product                        |
-| GET    | `/api/products/:id/suppliers`                | List suppliers for a product            |
-| POST   | `/api/products/:id/ingredients`              | Add ingredient to composite product     |
-| GET    | `/api/products/:id/ingredients`              | List ingredients of a composite product |
+| Method | Endpoint                                      | Description                             |
+| ------ | --------------------------------------------- | --------------------------------------- |
+| POST   | `/api/products`                               | Create a new product                    |
+| GET    | `/api/products`                               | List all products                       |
+| GET    | `/api/products/categories`                    | List all product categories             |
+| GET    | `/api/products/:id`                           | Get product by ID                       |
+| PUT    | `/api/products/:id`                           | Update a product                        |
+| DELETE | `/api/products/:id`                           | Delete a product                        |
+| GET    | `/api/products/:id/suppliers`                 | List suppliers for a product            |
+| POST   | `/api/products/:id/ingredients`               | Add ingredient to composite product     |
+| GET    | `/api/products/:id/ingredients`               | List ingredients of a composite product |
 | PUT    | `/api/products/:id/ingredients/:ingredientId` | Update ingredient quantity              |
 | DELETE | `/api/products/:id/ingredients/:ingredientId` | Remove ingredient from product          |
 
@@ -169,6 +170,32 @@ GET /api/products
     }
   ],
   "total": 2
+}
+```
+
+---
+
+## List Categories
+
+Returns all unique product categories.
+
+```
+GET /api/products/categories
+```
+
+### Example Response (200 OK)
+
+```json
+["Beverages", "Desserts", "Main Courses", "Sides", "Vegetables"]
+```
+
+### Error Responses
+
+**500 Internal Server Error** - Failed to retrieve categories
+
+```json
+{
+  "error": "Failed to list categories"
 }
 ```
 

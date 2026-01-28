@@ -143,6 +143,17 @@ func (h *ProductHandler) GetProductByIDHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, product)
 }
 
+func (h *ProductHandler) ListCategoriesHandler(c *gin.Context) {
+	categories, err := h.productService.ListCategories(c.Request.Context())
+	if err != nil {
+		log.Printf("Error listing categories: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list categories"})
+		return
+	}
+
+	c.JSON(http.StatusOK, categories)
+}
+
 func (h *ProductHandler) CreateProductResponsibilityHandler(c *gin.Context) {
 	var req dto.CreateProductResponsibilityRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

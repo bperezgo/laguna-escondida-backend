@@ -25,6 +25,7 @@ type openBillModel struct {
 	ID                 string          `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	TemporalIdentifier string          `gorm:"type:varchar(255);not null"`
 	TotalAmount        decimal.Decimal `gorm:"type:numeric(19,4);not null"`
+	Status             string          `gorm:"type:varchar(50);not null;default:'created'"`
 	CreatedBy          string          `gorm:"type:uuid;not null;column:created_by"`
 	Descriptor         *string         `gorm:"type:text"`
 	CreatedAt          time.Time       `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
@@ -101,6 +102,7 @@ func (r *OpenBillRepository) Create(ctx context.Context, aggregate *openBill.Agg
 			ID:                 aggregate.ID(),
 			TemporalIdentifier: aggregate.TemporalIdentifier(),
 			TotalAmount:        aggregate.TotalAmount(),
+			Status:             string(aggregate.Status()),
 			CreatedBy:          aggregate.CreatedByID(),
 			Descriptor:         aggregate.Descriptor(),
 			CreatedAt:          aggregate.CreatedAt(),
@@ -142,6 +144,7 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 		ID                 string
 		TemporalIdentifier string
 		TotalAmount        decimal.Decimal
+		Status             string
 		CreatedBy          *string
 		Descriptor         *string
 		CreatedAt          time.Time
@@ -159,6 +162,7 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 			open_bills.id,
 			open_bills.temporal_identifier,
 			open_bills.total_amount,
+			open_bills.status,
 			open_bills.created_by,
 			open_bills.descriptor,
 			open_bills.created_at,
@@ -277,13 +281,11 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 		}
 	}
 
-	derivedStatus := deriveStatusFromProductDetails(productDetails)
-
 	return &dto.OpenBillWithProducts{
 		ID:                 res.ID,
 		TemporalIdentifier: res.TemporalIdentifier,
 		TotalAmount:        res.TotalAmount,
-		Status:             derivedStatus,
+		Status:             dto.CommandStatus(res.Status),
 		CreatedBy:          createdBy,
 		Descriptor:         res.Descriptor,
 		Products:           productDetails,
@@ -348,6 +350,7 @@ func (r *OpenBillRepository) Update(ctx context.Context, aggregate *openBill.Agg
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		updateData := map[string]any{
 			"total_amount": aggregate.TotalAmount(),
+			"status":       string(aggregate.Status()),
 			"updated_at":   aggregate.UpdatedAt(),
 		}
 		if aggregate.Descriptor() != nil {
@@ -527,6 +530,7 @@ func (r *OpenBillRepository) FindAll(ctx context.Context) ([]*dto.OpenBillWithCr
 		ID                 string
 		TemporalIdentifier string
 		TotalAmount        decimal.Decimal
+		Status             string
 		CreatedBy          *string
 		Descriptor         *string
 		CreatedAt          time.Time
@@ -535,8 +539,6 @@ func (r *OpenBillRepository) FindAll(ctx context.Context) ([]*dto.OpenBillWithCr
 		UserID       string
 		UserUsername string
 		UserName     string
-		// Derived status
-		DerivedStatus string
 	}
 
 	var results []result
@@ -546,38 +548,14 @@ func (r *OpenBillRepository) FindAll(ctx context.Context) ([]*dto.OpenBillWithCr
 			open_bills.id,
 			open_bills.temporal_identifier,
 			open_bills.total_amount,
+			open_bills.status,
 			open_bills.created_by,
 			open_bills.descriptor,
 			open_bills.created_at,
 			open_bills.updated_at,
 			users.id as user_id,
 			users.username as user_username,
-			users.name as user_name,
-			CASE
-				WHEN NOT EXISTS (
-					SELECT 1 FROM open_bills_products 
-					WHERE open_bills_products.open_bill_id = open_bills.id 
-					AND open_bills_products.deleted_at IS NULL
-				) THEN 'created'
-				WHEN NOT EXISTS (
-					SELECT 1 FROM open_bills_products 
-					WHERE open_bills_products.open_bill_id = open_bills.id 
-					AND open_bills_products.deleted_at IS NULL
-					AND open_bills_products.status NOT IN ('completed', 'cancelled')
-				) AND EXISTS (
-					SELECT 1 FROM open_bills_products 
-					WHERE open_bills_products.open_bill_id = open_bills.id 
-					AND open_bills_products.deleted_at IS NULL
-					AND open_bills_products.status = 'completed'
-				) THEN 'completed'
-				WHEN NOT EXISTS (
-					SELECT 1 FROM open_bills_products 
-					WHERE open_bills_products.open_bill_id = open_bills.id 
-					AND open_bills_products.deleted_at IS NULL
-					AND open_bills_products.status != 'cancelled'
-				) THEN 'cancelled'
-				ELSE 'created'
-			END as derived_status
+			users.name as user_name
 		`).
 		Joins("INNER JOIN users ON open_bills.created_by = users.id AND users.deleted_at IS NULL").
 		Where("open_bills.deleted_at IS NULL").
@@ -593,7 +571,7 @@ func (r *OpenBillRepository) FindAll(ctx context.Context) ([]*dto.OpenBillWithCr
 			ID:                 r.ID,
 			TemporalIdentifier: r.TemporalIdentifier,
 			TotalAmount:        r.TotalAmount,
-			Status:             dto.CommandStatus(r.DerivedStatus),
+			Status:             dto.CommandStatus(r.Status),
 			CreatedBy: dto.OpenBillCreator{
 				ID:       r.UserID,
 				Username: r.UserUsername,
@@ -614,6 +592,7 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 		ID                 string
 		TemporalIdentifier string
 		TotalAmount        decimal.Decimal
+		Status             string
 		CreatedBy          *string
 		Descriptor         *string
 		CreatedAt          time.Time
@@ -631,6 +610,7 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 			open_bills.id,
 			open_bills.temporal_identifier,
 			open_bills.total_amount,
+			open_bills.status,
 			open_bills.created_by,
 			open_bills.descriptor,
 			open_bills.created_at,
@@ -742,53 +722,17 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 		Name:     result.UserName,
 	}
 
-	derivedStatus := deriveStatusFromProductDetails(productDetails)
-
 	return &dto.OpenBillWithProducts{
 		ID:                 result.ID,
 		TemporalIdentifier: result.TemporalIdentifier,
 		TotalAmount:        result.TotalAmount,
-		Status:             derivedStatus,
+		Status:             dto.CommandStatus(result.Status),
 		CreatedBy:          createdBy,
 		Descriptor:         result.Descriptor,
 		Products:           productDetails,
 		CreatedAt:          result.CreatedAt,
 		UpdatedAt:          result.UpdatedAt,
 	}, nil
-}
-
-func deriveStatusFromProductDetails(products []dto.OpenBillProductDetail) dto.CommandStatus {
-	if len(products) == 0 {
-		return dto.CommandStatusCreated
-	}
-
-	hasCompleted := false
-	allCancelled := true
-	allFinalized := true
-
-	for _, product := range products {
-		switch product.Status {
-		case dto.CommandStatusCompleted:
-			hasCompleted = true
-			allCancelled = false
-		case dto.CommandStatusCancelled:
-			// Product is cancelled, continue
-		default:
-			// Product is still in created or in_progress status
-			allFinalized = false
-			allCancelled = false
-		}
-	}
-
-	if allFinalized && hasCompleted {
-		return dto.CommandStatusCompleted
-	}
-
-	if allCancelled {
-		return dto.CommandStatusCancelled
-	}
-
-	return dto.CommandStatusCreated
 }
 
 func (r *OpenBillRepository) GetProductPreparationResponsibilities(ctx context.Context, productIDs []string) ([]dto.ProductPreparationResponsibilityWithProduct, error) {
@@ -836,7 +780,10 @@ func (r *OpenBillRepository) UpdateProductStatus(ctx context.Context, aggregate 
 	return db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&openBillModel{}).
 			Where("id = ? AND deleted_at IS NULL", aggregate.ID()).
-			Update("updated_at", aggregate.UpdatedAt()).Error; err != nil {
+			Updates(map[string]any{
+				"status":     string(aggregate.Status()),
+				"updated_at": aggregate.UpdatedAt(),
+			}).Error; err != nil {
 			return err
 		}
 
