@@ -29,7 +29,6 @@ export async function GET() {
       return NextResponse.json({ error: "Session expired" }, { status: 401 });
     }
 
-    console.log("response", response);
     if (!response.ok) {
       const error = await response.json().catch(() => ({
         message: "Failed to fetch user info",
@@ -41,7 +40,6 @@ export async function GET() {
     }
 
     const data: AuthUser = await response.json();
-    console.log("data", data);
     return NextResponse.json(data);
   } catch (error) {
     console.error("Error fetching user info:", error);

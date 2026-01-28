@@ -42,7 +42,6 @@ export function PermissionsProvider({ children }: PermissionsProviderProps) {
       }
 
       const data: AuthUser = await response.json();
-      console.log("data", data);
       setUser(data);
       setPermissions(data.permissions || []);
     } catch (err) {
