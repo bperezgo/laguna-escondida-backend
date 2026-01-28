@@ -10,14 +10,16 @@ import (
 )
 
 type Aggregate struct {
-	id          string
-	name        *Name
-	contactName *string
-	phone       *Phone
-	email       *Email
-	notes       *string
-	createdAt   time.Time
-	updatedAt   time.Time
+	id                   string
+	name                 *Name
+	identificationType   *string
+	identificationNumber *string
+	contactName          *string
+	phone                *Phone
+	email                *Email
+	notes                *string
+	createdAt            time.Time
+	updatedAt            time.Time
 }
 
 func NewAggregateFromCreateRequest(req *dto.CreateSupplierRequest) (*Aggregate, error) {
@@ -42,20 +44,24 @@ func NewAggregateFromCreateRequest(req *dto.CreateSupplierRequest) (*Aggregate, 
 
 	now := time.Now()
 	return &Aggregate{
-		id:          uuid.New().String(),
-		name:        name,
-		contactName: req.ContactName,
-		phone:       phone,
-		email:       email,
-		notes:       req.Notes,
-		createdAt:   now,
-		updatedAt:   now,
+		id:                   uuid.New().String(),
+		name:                 name,
+		identificationType:   req.IdentificationType,
+		identificationNumber: req.IdentificationNumber,
+		contactName:          req.ContactName,
+		phone:                phone,
+		email:                email,
+		notes:                req.Notes,
+		createdAt:            now,
+		updatedAt:            now,
 	}, nil
 }
 
 func NewAggregateFromRepository(
 	id string,
 	name string,
+	identificationType *string,
+	identificationNumber *string,
 	contactName *string,
 	phone *string,
 	email *string,
@@ -79,14 +85,16 @@ func NewAggregateFromRepository(
 	}
 
 	return &Aggregate{
-		id:          id,
-		name:        nameVO,
-		contactName: contactName,
-		phone:       phoneVO,
-		email:       emailVO,
-		notes:       notes,
-		createdAt:   createdAt,
-		updatedAt:   updatedAt,
+		id:                   id,
+		name:                 nameVO,
+		identificationType:   identificationType,
+		identificationNumber: identificationNumber,
+		contactName:          contactName,
+		phone:                phoneVO,
+		email:                emailVO,
+		notes:                notes,
+		createdAt:            createdAt,
+		updatedAt:            updatedAt,
 	}, nil
 }
 
@@ -111,6 +119,8 @@ func (a *Aggregate) Update(req *dto.UpdateSupplierRequest) error {
 	}
 
 	a.name = name
+	a.identificationType = req.IdentificationType
+	a.identificationNumber = req.IdentificationNumber
 	a.contactName = req.ContactName
 	a.phone = phone
 	a.email = email
@@ -148,6 +158,14 @@ func (a *Aggregate) Email() *string {
 	return &value
 }
 
+func (a *Aggregate) IdentificationType() *string {
+	return a.identificationType
+}
+
+func (a *Aggregate) IdentificationNumber() *string {
+	return a.identificationNumber
+}
+
 func (a *Aggregate) Notes() *string {
 	return a.notes
 }
@@ -162,14 +180,16 @@ func (a *Aggregate) UpdatedAt() time.Time {
 
 func (a *Aggregate) ToDTO() *dto.Supplier {
 	return &dto.Supplier{
-		ID:          a.id,
-		Name:        a.name.Value(),
-		ContactName: a.contactName,
-		Phone:       a.Phone(),
-		Email:       a.Email(),
-		Notes:       a.notes,
-		CreatedAt:   a.createdAt,
-		UpdatedAt:   a.updatedAt,
+		ID:                   a.id,
+		Name:                 a.name.Value(),
+		IdentificationType:   a.identificationType,
+		IdentificationNumber: a.identificationNumber,
+		ContactName:          a.contactName,
+		Phone:                a.Phone(),
+		Email:                a.Email(),
+		Notes:                a.notes,
+		CreatedAt:            a.createdAt,
+		UpdatedAt:            a.updatedAt,
 	}
 }
 

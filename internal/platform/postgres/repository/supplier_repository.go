@@ -20,15 +20,17 @@ func NewSupplierRepository(db *gorm.DB) ports.SupplierRepository {
 }
 
 type supplierModel struct {
-	ID          string     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	Name        string     `gorm:"type:varchar(255);not null"`
-	ContactName *string    `gorm:"type:varchar(255)"`
-	Phone       *string    `gorm:"type:varchar(50)"`
-	Email       *string    `gorm:"type:varchar(255)"`
-	Notes       *string    `gorm:"type:text"`
-	CreatedAt   time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
-	UpdatedAt   time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
-	DeletedAt   *time.Time `gorm:"type:timestamp"`
+	ID                   string     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	Name                 string     `gorm:"type:varchar(255);not null"`
+	IdentificationType   *string    `gorm:"type:varchar(50);column:identification_type"`
+	IdentificationNumber *string    `gorm:"type:varchar(50);column:identification_number"`
+	ContactName          *string    `gorm:"type:varchar(255)"`
+	Phone                *string    `gorm:"type:varchar(50)"`
+	Email                *string    `gorm:"type:varchar(255)"`
+	Notes                *string    `gorm:"type:text"`
+	CreatedAt            time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	UpdatedAt            time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	DeletedAt            *time.Time `gorm:"type:timestamp"`
 }
 
 func (supplierModel) TableName() string {
@@ -38,14 +40,16 @@ func (supplierModel) TableName() string {
 func (r *SupplierRepository) Create(ctx context.Context, s *supplier.Aggregate) error {
 	supplierDTO := s.ToDTO()
 	model := &supplierModel{
-		ID:          supplierDTO.ID,
-		Name:        supplierDTO.Name,
-		ContactName: supplierDTO.ContactName,
-		Phone:       supplierDTO.Phone,
-		Email:       supplierDTO.Email,
-		Notes:       supplierDTO.Notes,
-		CreatedAt:   supplierDTO.CreatedAt,
-		UpdatedAt:   supplierDTO.UpdatedAt,
+		ID:                   supplierDTO.ID,
+		Name:                 supplierDTO.Name,
+		IdentificationType:   supplierDTO.IdentificationType,
+		IdentificationNumber: supplierDTO.IdentificationNumber,
+		ContactName:          supplierDTO.ContactName,
+		Phone:                supplierDTO.Phone,
+		Email:                supplierDTO.Email,
+		Notes:                supplierDTO.Notes,
+		CreatedAt:            supplierDTO.CreatedAt,
+		UpdatedAt:            supplierDTO.UpdatedAt,
 	}
 
 	return r.db.WithContext(ctx).Create(model).Error
@@ -54,12 +58,14 @@ func (r *SupplierRepository) Create(ctx context.Context, s *supplier.Aggregate) 
 func (r *SupplierRepository) Update(ctx context.Context, id string, s *supplier.Aggregate) error {
 	supplierDTO := s.ToDTO()
 	updateData := map[string]interface{}{
-		"name":         supplierDTO.Name,
-		"contact_name": supplierDTO.ContactName,
-		"phone":        supplierDTO.Phone,
-		"email":        supplierDTO.Email,
-		"notes":        supplierDTO.Notes,
-		"updated_at":   supplierDTO.UpdatedAt,
+		"name":                  supplierDTO.Name,
+		"identification_type":   supplierDTO.IdentificationType,
+		"identification_number": supplierDTO.IdentificationNumber,
+		"contact_name":          supplierDTO.ContactName,
+		"phone":                 supplierDTO.Phone,
+		"email":                 supplierDTO.Email,
+		"notes":                 supplierDTO.Notes,
+		"updated_at":            supplierDTO.UpdatedAt,
 	}
 
 	return r.db.WithContext(ctx).
@@ -113,13 +119,15 @@ func (r *SupplierRepository) FindByName(ctx context.Context, name string) (*dto.
 
 func (r *SupplierRepository) toDTO(model *supplierModel) *dto.Supplier {
 	return &dto.Supplier{
-		ID:          model.ID,
-		Name:        model.Name,
-		ContactName: model.ContactName,
-		Phone:       model.Phone,
-		Email:       model.Email,
-		Notes:       model.Notes,
-		CreatedAt:   model.CreatedAt,
-		UpdatedAt:   model.UpdatedAt,
+		ID:                   model.ID,
+		Name:                 model.Name,
+		IdentificationType:   model.IdentificationType,
+		IdentificationNumber: model.IdentificationNumber,
+		ContactName:          model.ContactName,
+		Phone:                model.Phone,
+		Email:                model.Email,
+		Notes:                model.Notes,
+		CreatedAt:            model.CreatedAt,
+		UpdatedAt:            model.UpdatedAt,
 	}
 }

@@ -24,19 +24,23 @@ POST /api/suppliers
 
 ### Request Body
 
-| Field        | Type   | Required | Description                         |
-| ------------ | ------ | -------- | ----------------------------------- |
-| name         | string | Yes      | Supplier name (1-255 chars)         |
-| contact_name | string | No       | Contact person name (max 255 chars) |
-| phone        | string | No       | Phone number (max 50 chars)         |
-| email        | string | No       | Email address (valid email format)  |
-| notes        | string | No       | Additional notes (max 1000 chars)   |
+| Field                 | Type   | Required | Description                                           |
+| --------------------- | ------ | -------- | ----------------------------------------------------- |
+| name                  | string | Yes      | Supplier name (1-255 chars)                           |
+| identification_type   | string | No       | Identification type (e.g., NIT, CC, CE) (max 50 chars)|
+| identification_number | string | No       | Identification number (max 50 chars)                  |
+| contact_name          | string | No       | Contact person name (max 255 chars)                   |
+| phone                 | string | No       | Phone number (max 50 chars)                           |
+| email                 | string | No       | Email address (valid email format)                    |
+| notes                 | string | No       | Additional notes (max 1000 chars)                     |
 
 ### Example Request
 
 ```json
 {
   "name": "Fresh Produce Co.",
+  "identification_type": "NIT",
+  "identification_number": "900123456-1",
   "contact_name": "Juan Garcia",
   "phone": "+57 300 123 4567",
   "email": "juan@freshproduce.com",
@@ -50,6 +54,8 @@ POST /api/suppliers
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
   "name": "Fresh Produce Co.",
+  "identification_type": "NIT",
+  "identification_number": "900123456-1",
   "contact_name": "Juan Garcia",
   "phone": "+57 300 123 4567",
   "email": "juan@freshproduce.com",
@@ -77,6 +83,8 @@ GET /api/suppliers
     {
       "id": "550e8400-e29b-41d4-a716-446655440000",
       "name": "Fresh Produce Co.",
+      "identification_type": "NIT",
+      "identification_number": "900123456-1",
       "contact_name": "Juan Garcia",
       "phone": "+57 300 123 4567",
       "email": "juan@freshproduce.com",
@@ -111,6 +119,8 @@ GET /api/suppliers/:id
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
   "name": "Fresh Produce Co.",
+  "identification_type": "NIT",
+  "identification_number": "900123456-1",
   "contact_name": "Juan Garcia",
   "phone": "+57 300 123 4567",
   "email": "juan@freshproduce.com",
@@ -146,19 +156,23 @@ PUT /api/suppliers/:id
 
 ### Request Body
 
-| Field        | Type   | Required | Description                         |
-| ------------ | ------ | -------- | ----------------------------------- |
-| name         | string | Yes      | Supplier name (1-255 chars)         |
-| contact_name | string | No       | Contact person name (max 255 chars) |
-| phone        | string | No       | Phone number (max 50 chars)         |
-| email        | string | No       | Email address (valid email format)  |
-| notes        | string | No       | Additional notes (max 1000 chars)   |
+| Field                 | Type   | Required | Description                                           |
+| --------------------- | ------ | -------- | ----------------------------------------------------- |
+| name                  | string | Yes      | Supplier name (1-255 chars)                           |
+| identification_type   | string | No       | Identification type (e.g., NIT, CC, CE) (max 50 chars)|
+| identification_number | string | No       | Identification number (max 50 chars)                  |
+| contact_name          | string | No       | Contact person name (max 255 chars)                   |
+| phone                 | string | No       | Phone number (max 50 chars)                           |
+| email                 | string | No       | Email address (valid email format)                    |
+| notes                 | string | No       | Additional notes (max 1000 chars)                     |
 
 ### Example Request
 
 ```json
 {
   "name": "Fresh Produce Co. Updated",
+  "identification_type": "NIT",
+  "identification_number": "900123456-1",
   "contact_name": "Maria Garcia",
   "phone": "+57 300 987 6543",
   "email": "maria@freshproduce.com",
@@ -172,6 +186,8 @@ PUT /api/suppliers/:id
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
   "name": "Fresh Produce Co. Updated",
+  "identification_type": "NIT",
+  "identification_number": "900123456-1",
   "contact_name": "Maria Garcia",
   "phone": "+57 300 987 6543",
   "email": "maria@freshproduce.com",

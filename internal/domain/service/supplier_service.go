@@ -55,6 +55,8 @@ func (s *SupplierService) UpdateSupplier(ctx context.Context, id string, req *dt
 	supplierAggregate, err := supplier.NewAggregateFromRepository(
 		existing.ID,
 		existing.Name,
+		existing.IdentificationType,
+		existing.IdentificationNumber,
 		existing.ContactName,
 		existing.Phone,
 		existing.Email,
