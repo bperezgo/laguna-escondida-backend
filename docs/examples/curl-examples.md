@@ -255,6 +255,67 @@ curl -X DELETE "$BASE_URL/products/PRODUCT_ID" \
 
 ---
 
+## Product Ingredients (Composite Products)
+
+### Create Composite Product
+
+```bash
+curl -X POST "$BASE_URL/products" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Fish Plate",
+    "category": "Main Dishes",
+    "product_type": "COMPOSITE",
+    "unit_of_measure": "unit",
+    "sku": "DISH-FISH-001",
+    "description": "Grilled fish with rice and vegetables",
+    "total_price_with_taxes": "35000",
+    "vat": "19",
+    "ico": "8",
+    "taxes_format": "percentage"
+  }'
+```
+
+### Add Ingredient to Composite Product
+
+```bash
+curl -X POST "$BASE_URL/products/COMPOSITE_PRODUCT_ID/ingredients" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ingredient_product_id": "INGREDIENT_PRODUCT_ID",
+    "quantity": "0.5"
+  }'
+```
+
+### List Ingredients of Composite Product
+
+```bash
+curl -X GET "$BASE_URL/products/COMPOSITE_PRODUCT_ID/ingredients" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Update Ingredient Quantity
+
+```bash
+curl -X PUT "$BASE_URL/products/COMPOSITE_PRODUCT_ID/ingredients/INGREDIENT_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "quantity": "0.75"
+  }'
+```
+
+### Remove Ingredient from Composite Product
+
+```bash
+curl -X DELETE "$BASE_URL/products/COMPOSITE_PRODUCT_ID/ingredients/INGREDIENT_ID" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
 ## Tips
 
 ### Pretty Print JSON

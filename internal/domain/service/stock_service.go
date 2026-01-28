@@ -35,11 +35,12 @@ func (s *StockService) CreateStock(ctx context.Context, req *dto.CreateStockRequ
 
 	now := time.Now()
 	stock := &dto.Stock{
-		ProductID: req.ProductID,
-		Version:   product.Version,
-		Amount:    req.Amount,
-		CreatedAt: now,
-		UpdatedAt: now,
+		ProductID:     req.ProductID,
+		Version:       product.Version,
+		Amount:        req.Amount,
+		UnitOfMeasure: product.UnitOfMeasure,
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}
 
 	if err := s.stockRepo.Create(ctx, stock); err != nil {
@@ -47,9 +48,10 @@ func (s *StockService) CreateStock(ctx context.Context, req *dto.CreateStockRequ
 	}
 
 	historicStock := &dto.HistoricStock{
-		ProductID: req.ProductID,
-		CreatedAt: now,
-		Change:    req.Amount,
+		ProductID:     req.ProductID,
+		UnitOfMeasure: product.UnitOfMeasure,
+		CreatedAt:     now,
+		Change:        req.Amount,
 	}
 
 	if err := s.stockRepo.CreateHistoricRecord(ctx, historicStock); err != nil {
@@ -81,9 +83,10 @@ func (s *StockService) AddOrDecreaseStock(ctx context.Context, req *dto.AddOrDec
 	}
 
 	historicStock := &dto.HistoricStock{
-		ProductID: req.ProductID,
-		CreatedAt: time.Now(),
-		Change:    req.Change,
+		ProductID:     req.ProductID,
+		UnitOfMeasure: product.UnitOfMeasure,
+		CreatedAt:     time.Now(),
+		Change:        req.Change,
 	}
 
 	if err := s.stockRepo.CreateHistoricRecord(ctx, historicStock); err != nil {
@@ -160,18 +163,20 @@ func (s *StockService) BulkStockCreationOrUpdating(ctx context.Context, req *dto
 		existingStock, exists := existingStockMap[item.ProductID]
 		if !exists {
 			stock := &dto.Stock{
-				ProductID: item.ProductID,
-				Version:   product.Version,
-				Amount:    item.Amount,
-				CreatedAt: now,
-				UpdatedAt: now,
+				ProductID:     item.ProductID,
+				Version:       product.Version,
+				Amount:        item.Amount,
+				UnitOfMeasure: product.UnitOfMeasure,
+				CreatedAt:     now,
+				UpdatedAt:     now,
 			}
 			stocksToCreateOrUpdate = append(stocksToCreateOrUpdate, stock)
 
 			historicStock := &dto.HistoricStock{
-				ProductID: item.ProductID,
-				CreatedAt: now,
-				Change:    item.Amount,
+				ProductID:     item.ProductID,
+				UnitOfMeasure: product.UnitOfMeasure,
+				CreatedAt:     now,
+				Change:        item.Amount,
 			}
 			historicRecords = append(historicRecords, historicStock)
 		} else {
@@ -182,19 +187,21 @@ func (s *StockService) BulkStockCreationOrUpdating(ctx context.Context, req *dto
 			change := item.Amount - existingStock.Amount
 
 			stock := &dto.Stock{
-				ProductID: item.ProductID,
-				Version:   product.Version,
-				Amount:    item.Amount,
-				CreatedAt: existingStock.CreatedAt,
-				UpdatedAt: now,
+				ProductID:     item.ProductID,
+				Version:       product.Version,
+				Amount:        item.Amount,
+				UnitOfMeasure: product.UnitOfMeasure,
+				CreatedAt:     existingStock.CreatedAt,
+				UpdatedAt:     now,
 			}
 			stocksToCreateOrUpdate = append(stocksToCreateOrUpdate, stock)
 
 			if change != 0 {
 				historicStock := &dto.HistoricStock{
-					ProductID: item.ProductID,
-					CreatedAt: now,
-					Change:    change,
+					ProductID:     item.ProductID,
+					UnitOfMeasure: product.UnitOfMeasure,
+					CreatedAt:     now,
+					Change:        change,
 				}
 				historicRecords = append(historicRecords, historicStock)
 			}

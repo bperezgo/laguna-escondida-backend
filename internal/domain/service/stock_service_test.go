@@ -24,11 +24,12 @@ func createTestStockService(t *testing.T) (*StockService, *mocks.MockStockReposi
 func createTestStock(productID string, version int, amount int) *dto.Stock {
 	now := time.Now()
 	return &dto.Stock{
-		ProductID: productID,
-		Version:   version,
-		Amount:    amount,
-		CreatedAt: now,
-		UpdatedAt: now,
+		ProductID:     productID,
+		Version:       version,
+		Amount:        amount,
+		UnitOfMeasure: dto.UnitOfMeasureUnit,
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}
 }
 

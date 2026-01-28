@@ -3,12 +3,14 @@ package service
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"laguna-escondida/backend/internal/domain/aggregate/purchase_entry"
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
+	pkgPorts "laguna-escondida/backend/pkg/domain/ports"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -20,6 +22,8 @@ type PurchaseEntryService struct {
 	supplierCatalogRepo ports.SupplierCatalogRepository
 	productRepo         ports.ProductRepository
 	storageClient       ports.StorageClient
+	eventBus            pkgPorts.EventBus
+	logger              *slog.Logger
 	organizationID      string
 }
 
@@ -29,6 +33,8 @@ func NewPurchaseEntryService(
 	supplierCatalogRepo ports.SupplierCatalogRepository,
 	productRepo ports.ProductRepository,
 	storageClient ports.StorageClient,
+	eventBus pkgPorts.EventBus,
+	logger *slog.Logger,
 	organizationID string,
 ) *PurchaseEntryService {
 	return &PurchaseEntryService{
@@ -37,6 +43,8 @@ func NewPurchaseEntryService(
 		supplierCatalogRepo: supplierCatalogRepo,
 		productRepo:         productRepo,
 		storageClient:       storageClient,
+		eventBus:            eventBus,
+		logger:              logger,
 		organizationID:      organizationID,
 	}
 }
@@ -74,7 +82,18 @@ func (s *PurchaseEntryService) CreatePurchaseEntry(ctx context.Context, req *dto
 		s.updateSupplierCatalog(ctx, req.SupplierID, item)
 	}
 
-	return entry.ToDTO(), nil
+	purchaseEntryDTO := entry.ToDTO()
+
+	// Publish event for stock update
+	event := dto.NewPurchaseEntryCreatedEvent(purchaseEntryDTO.ID, purchaseEntryDTO.SupplierID, purchaseEntryDTO.Items)
+	if err := s.eventBus.Publish(ctx, event); err != nil {
+		s.logger.Error("failed to publish purchase entry created event",
+			slog.String("purchase_entry_id", purchaseEntryDTO.ID),
+			slog.String("error", err.Error()),
+		)
+	}
+
+	return purchaseEntryDTO, nil
 }
 
 func (s *PurchaseEntryService) updateSupplierCatalog(ctx context.Context, supplierID string, item dto.CreatePurchaseEntryItemRequest) {

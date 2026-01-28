@@ -19,12 +19,13 @@ func NewStockRepository(db *gorm.DB) ports.StockRepository {
 }
 
 type stockModel struct {
-	ProductID string     `gorm:"type:uuid;primaryKey"`
-	Version   int        `gorm:"type:integer;primaryKey"`
-	Amount    int        `gorm:"type:integer;not null"`
-	CreatedAt time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
-	UpdatedAt time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
-	DeletedAt *time.Time `gorm:"type:timestamp"`
+	ProductID     string     `gorm:"type:uuid;primaryKey"`
+	Version       int        `gorm:"type:integer;primaryKey"`
+	Amount        int        `gorm:"type:integer;not null"`
+	UnitOfMeasure string     `gorm:"type:varchar(10);not null;default:'unit'"`
+	CreatedAt     time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	UpdatedAt     time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	DeletedAt     *time.Time `gorm:"type:timestamp"`
 }
 
 func (stockModel) TableName() string {
@@ -32,10 +33,11 @@ func (stockModel) TableName() string {
 }
 
 type historicStockModel struct {
-	ID        int       `gorm:"type:serial;primaryKey"`
-	ProductID string    `gorm:"type:uuid;not null"`
-	CreatedAt time.Time `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
-	Change    int       `gorm:"type:integer;not null"`
+	ID            int       `gorm:"type:serial;primaryKey"`
+	ProductID     string    `gorm:"type:uuid;not null"`
+	UnitOfMeasure string    `gorm:"type:varchar(10);not null;default:'unit'"`
+	CreatedAt     time.Time `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	Change        int       `gorm:"type:integer;not null"`
 }
 
 func (historicStockModel) TableName() string {
@@ -44,11 +46,12 @@ func (historicStockModel) TableName() string {
 
 func (r *StockRepository) Create(ctx context.Context, stock *dto.Stock) error {
 	model := &stockModel{
-		ProductID: stock.ProductID,
-		Version:   stock.Version,
-		Amount:    stock.Amount,
-		CreatedAt: stock.CreatedAt,
-		UpdatedAt: stock.UpdatedAt,
+		ProductID:     stock.ProductID,
+		Version:       stock.Version,
+		Amount:        stock.Amount,
+		UnitOfMeasure: string(stock.UnitOfMeasure),
+		CreatedAt:     stock.CreatedAt,
+		UpdatedAt:     stock.UpdatedAt,
 	}
 
 	return r.db.WithContext(ctx).Create(model).Error
@@ -111,11 +114,12 @@ func (r *StockRepository) BulkCreateOrUpdate(ctx context.Context, stocks []*dto.
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for _, stock := range stocks {
 			model := &stockModel{
-				ProductID: stock.ProductID,
-				Version:   stock.Version,
-				Amount:    stock.Amount,
-				CreatedAt: stock.CreatedAt,
-				UpdatedAt: stock.UpdatedAt,
+				ProductID:     stock.ProductID,
+				Version:       stock.Version,
+				Amount:        stock.Amount,
+				UnitOfMeasure: string(stock.UnitOfMeasure),
+				CreatedAt:     stock.CreatedAt,
+				UpdatedAt:     stock.UpdatedAt,
 			}
 
 			var existing stockModel
@@ -143,9 +147,10 @@ func (r *StockRepository) BulkCreateOrUpdate(ctx context.Context, stocks []*dto.
 
 func (r *StockRepository) CreateHistoricRecord(ctx context.Context, historicStock *dto.HistoricStock) error {
 	model := &historicStockModel{
-		ProductID: historicStock.ProductID,
-		CreatedAt: historicStock.CreatedAt,
-		Change:    historicStock.Change,
+		ProductID:     historicStock.ProductID,
+		UnitOfMeasure: string(historicStock.UnitOfMeasure),
+		CreatedAt:     historicStock.CreatedAt,
+		Change:        historicStock.Change,
 	}
 
 	return r.db.WithContext(ctx).Create(model).Error
@@ -170,19 +175,21 @@ func (r *StockRepository) FindHistoricByProductID(ctx context.Context, productID
 
 func (r *StockRepository) toDTO(model *stockModel) *dto.Stock {
 	return &dto.Stock{
-		ProductID: model.ProductID,
-		Version:   model.Version,
-		Amount:    model.Amount,
-		CreatedAt: model.CreatedAt,
-		UpdatedAt: model.UpdatedAt,
+		ProductID:     model.ProductID,
+		Version:       model.Version,
+		Amount:        model.Amount,
+		UnitOfMeasure: dto.UnitOfMeasure(model.UnitOfMeasure),
+		CreatedAt:     model.CreatedAt,
+		UpdatedAt:     model.UpdatedAt,
 	}
 }
 
 func (r *StockRepository) historicToDTO(model *historicStockModel) *dto.HistoricStock {
 	return &dto.HistoricStock{
-		ID:        model.ID,
-		ProductID: model.ProductID,
-		CreatedAt: model.CreatedAt,
-		Change:    model.Change,
+		ID:            model.ID,
+		ProductID:     model.ProductID,
+		UnitOfMeasure: dto.UnitOfMeasure(model.UnitOfMeasure),
+		CreatedAt:     model.CreatedAt,
+		Change:        model.Change,
 	}
 }

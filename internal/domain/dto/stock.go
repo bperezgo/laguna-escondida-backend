@@ -3,11 +3,12 @@ package dto
 import "time"
 
 type Stock struct {
-	ProductID string    `json:"product_id"`
-	Version   int       `json:"version"`
-	Amount    int       `json:"amount"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ProductID     string        `json:"product_id"`
+	Version       int           `json:"version"`
+	Amount        int           `json:"amount"`
+	UnitOfMeasure UnitOfMeasure `json:"unit_of_measure"`
+	CreatedAt     time.Time     `json:"created_at"`
+	UpdatedAt     time.Time     `json:"updated_at"`
 }
 
 type CreateStockRequest struct {
@@ -30,8 +31,9 @@ type BulkStockCreationOrUpdatingRequest struct {
 }
 
 type HistoricStock struct {
-	ID        int       `json:"id"`
-	ProductID string    `json:"product_id"`
-	CreatedAt time.Time `json:"created_at"`
-	Change    int       `json:"change"`
+	ID            int           `json:"id"`
+	ProductID     string        `json:"product_id"`
+	UnitOfMeasure UnitOfMeasure `json:"unit_of_measure"`
+	CreatedAt     time.Time     `json:"created_at"`
+	Change        int           `json:"change"`
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -88,6 +89,7 @@ func main() {
 	purchaseEntryRepo := repository.NewPurchaseEntryRepository(db.DB)
 	expenseCategoryRepo := repository.NewExpenseCategoryRepository(db.DB)
 	expenseRepo := repository.NewExpenseRepository(db.DB)
+	productIngredientRepo := repository.NewProductIngredientRepository(db.DB)
 	electronicInvoiceClient := httpclient.NewElectronicInvoiceClient(cfg, httpClient)
 	billRepo := repository.NewBillRepository(db.DB, electronicInvoiceClient, cfg)
 	invoiceService := service.NewInvoiceService(electronicInvoiceClient, productRepo, billRepo, spacesClient, cfg.OrganizationID)
@@ -108,6 +110,9 @@ func main() {
 	// Initialize JWT service
 	jwtService := service.NewJWTService(cfg.JWTSecret)
 
+	// Initialize slog logger for services
+	slogLogger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
 	// Initialize services
 	unitOfWork := postgres.NewUnitOfWork(db.DB)
 	orderService := service.NewOrderServiceWithSSE(
@@ -127,8 +132,9 @@ func main() {
 	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, jwtService)
 	billOwnerService := service.NewBillOwnerService(billOwnerRepo)
 	supplierService := service.NewSupplierService(supplierRepo, supplierCatalogRepo, productRepo)
-	purchaseEntryService := service.NewPurchaseEntryService(purchaseEntryRepo, supplierRepo, supplierCatalogRepo, productRepo, spacesClient, cfg.OrganizationID)
+	purchaseEntryService := service.NewPurchaseEntryService(purchaseEntryRepo, supplierRepo, supplierCatalogRepo, productRepo, spacesClient, eventBusImpl, slogLogger, cfg.OrganizationID)
 	expenseService := service.NewExpenseService(expenseCategoryRepo, expenseRepo, supplierRepo, spacesClient, cfg.OrganizationID)
+	productIngredientService := service.NewProductIngredientService(productIngredientRepo, productRepo)
 
 	// Initialize Event Subscriber
 	eventSubscriber, err := eventbus.NewGoChannelEventSubscriber(eventBusImpl.PubSub(), watermillLogger)
@@ -173,6 +179,68 @@ func main() {
 		}
 	}()
 
+	// Initialize Stock Event Handler with Product Lock Manager
+	productLockManager := eventbus.NewProductLockManager()
+	stockEventHandler := service.NewStockEventHandler(
+		stockRepo,
+		productRepo,
+		productIngredientRepo,
+		productLockManager,
+		slogLogger,
+	)
+
+	// Create separate subscriber for stock handlers
+	stockSubscriber, err := eventbus.NewGoChannelEventSubscriber(eventBusImpl.PubSub(), watermillLogger)
+	if err != nil {
+		log.Fatalf("Failed to create stock subscriber: %v", err)
+	}
+	defer func() {
+		if errStockSubscriber := stockSubscriber.Close(); errStockSubscriber != nil {
+			log.Printf("Failed to close stock subscriber: %v", errStockSubscriber)
+		}
+	}()
+
+	// Register stock handlers for order events
+	stockOrderCreatedHandler := eventbus.NewTypedEventHandler(
+		dto.OrderCreatedEventName,
+		stockEventHandler.HandleOrderCreated,
+	)
+	if err = stockSubscriber.Subscribe(stockOrderCreatedHandler); err != nil {
+		log.Fatalf("Failed to subscribe stock handler to order created events: %v", err)
+	}
+
+	stockOrderUpdatedHandler := eventbus.NewTypedEventHandler(
+		dto.OrderUpdatedEventName,
+		stockEventHandler.HandleOrderUpdated,
+	)
+	if err = stockSubscriber.Subscribe(stockOrderUpdatedHandler); err != nil {
+		log.Fatalf("Failed to subscribe stock handler to order updated events: %v", err)
+	}
+
+	stockOrderDeletedHandler := eventbus.NewTypedEventHandler(
+		dto.OrderDeletedEventName,
+		stockEventHandler.HandleOrderDeleted,
+	)
+	if err = stockSubscriber.Subscribe(stockOrderDeletedHandler); err != nil {
+		log.Fatalf("Failed to subscribe stock handler to order deleted events: %v", err)
+	}
+
+	// Register handler for purchase entry events
+	purchaseEntryCreatedHandler := eventbus.NewTypedEventHandler(
+		dto.PurchaseEntryCreatedEventName,
+		stockEventHandler.HandlePurchaseEntryCreated,
+	)
+	if err = stockSubscriber.Subscribe(purchaseEntryCreatedHandler); err != nil {
+		log.Fatalf("Failed to subscribe to purchase entry created events: %v", err)
+	}
+
+	// Start stock subscriber in background
+	go func() {
+		if errStockSubscriber := stockSubscriber.Start(context.Background()); errStockSubscriber != nil {
+			log.Printf("Stock subscriber stopped: %v", errStockSubscriber)
+		}
+	}()
+
 	// Initialize and start cron scheduler
 	cronScheduler, err := cron.NewScheduler(invoiceService, logger)
 	if err != nil {
@@ -197,6 +265,7 @@ func main() {
 	supplierHandler := handler.NewSupplierHandler(supplierService)
 	purchaseEntryHandler := handler.NewPurchaseEntryHandler(purchaseEntryService)
 	expenseHandler := handler.NewExpenseHandler(expenseService)
+	productIngredientHandler := handler.NewProductIngredientHandler(productIngredientService)
 	sseHandler := handler.NewSSEHandler(sseHub, openBillProductHub, orderService)
 
 	// Setup routes
@@ -246,6 +315,12 @@ func main() {
 
 	// Product responsibility routes
 	router.POST("/api/product-responsibilities", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), productHandler.CreateProductResponsibilityHandler)
+
+	// Product ingredient routes
+	router.POST("/api/products/:id/ingredients", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), productIngredientHandler.AddIngredientHandler)
+	router.GET("/api/products/:id/ingredients", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsRead), productIngredientHandler.GetIngredientsHandler)
+	router.PUT("/api/products/:id/ingredients/:ingredient_id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), productIngredientHandler.UpdateIngredientHandler)
+	router.DELETE("/api/products/:id/ingredients/:ingredient_id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), productIngredientHandler.RemoveIngredientHandler)
 
 	// Invoice routes
 	router.POST("/api/invoices", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.InvoicesCreate), invoiceHandler.CreateElectronicInvoiceHandler)

@@ -23,14 +23,18 @@ Manage products, including sellable items and ingredients.
 
 ## Endpoints
 
-| Method | Endpoint                      | Description                  |
-| ------ | ----------------------------- | ---------------------------- |
-| POST   | `/api/products`               | Create a new product         |
-| GET    | `/api/products`               | List all products            |
-| GET    | `/api/products/:id`           | Get product by ID            |
-| PUT    | `/api/products/:id`           | Update a product             |
-| DELETE | `/api/products/:id`           | Delete a product             |
-| GET    | `/api/products/:id/suppliers` | List suppliers for a product |
+| Method | Endpoint                                     | Description                             |
+| ------ | -------------------------------------------- | --------------------------------------- |
+| POST   | `/api/products`                              | Create a new product                    |
+| GET    | `/api/products`                              | List all products                       |
+| GET    | `/api/products/:id`                          | Get product by ID                       |
+| PUT    | `/api/products/:id`                          | Update a product                        |
+| DELETE | `/api/products/:id`                          | Delete a product                        |
+| GET    | `/api/products/:id/suppliers`                | List suppliers for a product            |
+| POST   | `/api/products/:id/ingredients`              | Add ingredient to composite product     |
+| GET    | `/api/products/:id/ingredients`              | List ingredients of a composite product |
+| PUT    | `/api/products/:id/ingredients/:ingredientId` | Update ingredient quantity              |
+| DELETE | `/api/products/:id/ingredients/:ingredientId` | Remove ingredient from product          |
 
 ---
 
@@ -235,3 +239,248 @@ GET /api/products/:id/suppliers
 ```
 
 See [Supplier Catalog API](supplier-catalog.md#list-suppliers-for-product) for response format.
+
+---
+
+# Product Ingredients API
+
+Manage ingredients for COMPOSITE products. When a COMPOSITE product is sold, stock is automatically decreased for its ingredients rather than the composite itself.
+
+---
+
+## Add Ingredient to Product
+
+Adds an ingredient to a composite product.
+
+```
+POST /api/products/:id/ingredients
+```
+
+### Path Parameters
+
+| Parameter | Type | Description                     |
+| --------- | ---- | ------------------------------- |
+| id        | UUID | Composite product ID            |
+
+### Request Body
+
+| Field               | Type   | Required | Description                                      |
+| ------------------- | ------ | -------- | ------------------------------------------------ |
+| ingredient_product_id | string | Yes      | UUID of the ingredient product                   |
+| quantity            | string | Yes      | Quantity of ingredient needed per composite unit |
+
+### Example Request
+
+```json
+{
+  "ingredient_product_id": "770e8400-e29b-41d4-a716-446655440002",
+  "quantity": "2.5"
+}
+```
+
+### Example Response (201 Created)
+
+```json
+{
+  "id": "880e8400-e29b-41d4-a716-446655440003",
+  "composite_product_id": "660e8400-e29b-41d4-a716-446655440001",
+  "ingredient_product_id": "770e8400-e29b-41d4-a716-446655440002",
+  "quantity": "2.5",
+  "created_at": "2024-01-26T16:00:00Z",
+  "updated_at": "2024-01-26T16:00:00Z"
+}
+```
+
+### Error Responses
+
+**400 Bad Request** - Product is not a composite product
+
+```json
+{
+  "error": "Product is not a composite product"
+}
+```
+
+**400 Bad Request** - A product cannot be an ingredient of itself
+
+```json
+{
+  "error": "A product cannot be an ingredient of itself"
+}
+```
+
+**404 Not Found** - Product not found
+
+```json
+{
+  "error": "Product not found"
+}
+```
+
+**409 Conflict** - Ingredient already exists
+
+```json
+{
+  "error": "Ingredient already exists for this product"
+}
+```
+
+---
+
+## List Ingredients
+
+Returns all ingredients for a composite product with full product details.
+
+```
+GET /api/products/:id/ingredients
+```
+
+### Path Parameters
+
+| Parameter | Type | Description          |
+| --------- | ---- | -------------------- |
+| id        | UUID | Composite product ID |
+
+### Example Response (200 OK)
+
+```json
+{
+  "ingredients": [
+    {
+      "id": "880e8400-e29b-41d4-a716-446655440003",
+      "composite_product_id": "660e8400-e29b-41d4-a716-446655440001",
+      "ingredient_product_id": "770e8400-e29b-41d4-a716-446655440002",
+      "quantity": "2.5",
+      "created_at": "2024-01-26T16:00:00Z",
+      "updated_at": "2024-01-26T16:00:00Z",
+      "ingredient_product": {
+        "id": "770e8400-e29b-41d4-a716-446655440002",
+        "name": "Tomato",
+        "category": "Vegetables",
+        "product_type": "INGREDIENT",
+        "unit_of_measure": "kg",
+        "version": 1,
+        "unit_price": "0",
+        "vat": "0",
+        "vat_amount": "0",
+        "ico": "0",
+        "ico_amount": "0",
+        "description": "Fresh tomatoes for cooking",
+        "sku": "VEG-TOM-001",
+        "total_price_with_taxes": "0",
+        "created_at": "2024-01-26T15:30:00Z",
+        "updated_at": "2024-01-26T15:30:00Z"
+      }
+    }
+  ]
+}
+```
+
+---
+
+## Update Ingredient Quantity
+
+Updates the quantity of an ingredient in a composite product.
+
+```
+PUT /api/products/:id/ingredients/:ingredientId
+```
+
+### Path Parameters
+
+| Parameter    | Type | Description          |
+| ------------ | ---- | -------------------- |
+| id           | UUID | Composite product ID |
+| ingredientId | UUID | Ingredient ID        |
+
+### Request Body
+
+| Field    | Type   | Required | Description      |
+| -------- | ------ | -------- | ---------------- |
+| quantity | string | Yes      | New quantity     |
+
+### Example Request
+
+```json
+{
+  "quantity": "3.0"
+}
+```
+
+### Example Response (200 OK)
+
+```json
+{
+  "id": "880e8400-e29b-41d4-a716-446655440003",
+  "composite_product_id": "660e8400-e29b-41d4-a716-446655440001",
+  "ingredient_product_id": "770e8400-e29b-41d4-a716-446655440002",
+  "quantity": "3.0",
+  "created_at": "2024-01-26T16:00:00Z",
+  "updated_at": "2024-01-26T16:30:00Z"
+}
+```
+
+### Error Responses
+
+**404 Not Found** - Ingredient not found
+
+```json
+{
+  "error": "Ingredient not found"
+}
+```
+
+---
+
+## Remove Ingredient
+
+Removes an ingredient from a composite product.
+
+```
+DELETE /api/products/:id/ingredients/:ingredientId
+```
+
+### Path Parameters
+
+| Parameter    | Type | Description          |
+| ------------ | ---- | -------------------- |
+| id           | UUID | Composite product ID |
+| ingredientId | UUID | Ingredient ID        |
+
+### Response (204 No Content)
+
+No response body on success.
+
+### Error Responses
+
+**404 Not Found** - Ingredient not found
+
+```json
+{
+  "error": "Ingredient not found"
+}
+```
+
+---
+
+## Stock Behavior with Composite Products
+
+When a COMPOSITE product is ordered:
+
+1. The stock of the **composite product itself is NOT decreased**
+2. Instead, the stock of each **ingredient** is decreased
+3. The quantity decreased is: `ingredient.quantity * order_quantity`
+
+### Example
+
+If a "Fish Plate" (COMPOSITE) has ingredients:
+- Rice: 0.5 kg per plate
+- Fish: 0.3 kg per plate
+- Lemon: 1 unit per plate
+
+When 3 Fish Plates are ordered:
+- Rice stock decreases by: 0.5 * 3 = 1.5 kg
+- Fish stock decreases by: 0.3 * 3 = 0.9 kg
+- Lemon stock decreases by: 1 * 3 = 3 units
+
+This happens automatically via the event-driven stock management system.
