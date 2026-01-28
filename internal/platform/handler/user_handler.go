@@ -87,7 +87,13 @@ func (h *UserHandler) GetCurrentUserHandler(c *gin.Context) {
 		return
 	}
 
-	currentUser, err := h.userService.GetCurrentUser(c.Request.Context(), userID.(string))
+	userIDStr, ok := userID.(string)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	currentUser, err := h.userService.GetCurrentUser(c.Request.Context(), userIDStr)
 	if err != nil {
 		log.Printf("Error getting current user: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user information"})

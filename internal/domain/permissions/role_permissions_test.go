@@ -8,33 +8,33 @@ import (
 
 func TestGetPermissionsForRoles_SingleRole(t *testing.T) {
 	tests := []struct {
-		name             string
-		roleID           int
-		expectedContains []Permission
+		name               string
+		roleID             int
+		expectedContains   []Permission
 		expectedNotContain []Permission
 	}{
 		{
-			name:             "Waitress permissions",
-			roleID:           RoleWaitress,
-			expectedContains: []Permission{OrdersRead, OrdersCreate, ProductsRead, CommandsRead},
+			name:               "Waitress permissions",
+			roleID:             RoleWaitress,
+			expectedContains:   []Permission{OrdersRead, OrdersCreate, ProductsRead, CommandsRead},
 			expectedNotContain: []Permission{ExpensesRead, SuppliersCreate, StockCreate},
 		},
 		{
-			name:             "Cooker permissions",
-			roleID:           RoleCooker,
-			expectedContains: []Permission{OrdersRead, ProductsRead, CommandsRead, CommandsUpdate},
+			name:               "Cooker permissions",
+			roleID:             RoleCooker,
+			expectedContains:   []Permission{OrdersRead, ProductsRead, CommandsRead, CommandsUpdate},
 			expectedNotContain: []Permission{OrdersCreate, ExpensesRead, SuppliersCreate},
 		},
 		{
-			name:             "Accountant permissions",
-			roleID:           RoleAccountant,
-			expectedContains: []Permission{ExpensesRead, ExpensesCreate, PurchaseEntriesRead, InvoicesRead},
+			name:               "Accountant permissions",
+			roleID:             RoleAccountant,
+			expectedContains:   []Permission{ExpensesRead, ExpensesCreate, PurchaseEntriesRead, InvoicesRead},
 			expectedNotContain: []Permission{OrdersCreate, ProductsCreate, SuppliersCreate},
 		},
 		{
-			name:             "Manager permissions",
-			roleID:           RoleManager,
-			expectedContains: []Permission{OrdersRead, OrdersCreate, ProductsCreate, ExpensesRead, SuppliersRead},
+			name:               "Manager permissions",
+			roleID:             RoleManager,
+			expectedContains:   []Permission{OrdersRead, OrdersCreate, ProductsCreate, ExpensesRead, SuppliersRead},
 			expectedNotContain: []Permission{UsersCreate},
 		},
 	}
