@@ -24,6 +24,8 @@ export default function SupplierForm({
 }: SupplierFormProps) {
   const [formData, setFormData] = useState({
     name: supplier?.name || "",
+    identification_type: supplier?.identification_type || "",
+    identification_number: supplier?.identification_number || "",
     contact_name: supplier?.contact_name || "",
     phone: supplier?.phone || "",
     email: supplier?.email || "",
@@ -36,6 +38,8 @@ export default function SupplierForm({
     if (supplier) {
       setFormData({
         name: supplier.name || "",
+        identification_type: supplier.identification_type || "",
+        identification_number: supplier.identification_number || "",
         contact_name: supplier.contact_name || "",
         phone: supplier.phone || "",
         email: supplier.email || "",
@@ -53,6 +57,18 @@ export default function SupplierForm({
     } else if (formData.name.length > 255) {
       newErrors.name =
         "El nombre del proveedor debe tener 255 caracteres o menos";
+    }
+
+    // Identification type: max=50
+    if (formData.identification_type && formData.identification_type.length > 50) {
+      newErrors.identification_type =
+        "El tipo de identificación debe tener 50 caracteres o menos";
+    }
+
+    // Identification number: max=50
+    if (formData.identification_number && formData.identification_number.length > 50) {
+      newErrors.identification_number =
+        "El número de identificación debe tener 50 caracteres o menos";
     }
 
     // Contact name: max=255
@@ -94,6 +110,12 @@ export default function SupplierForm({
       name: formData.name.trim(),
     };
 
+    if (formData.identification_type.trim()) {
+      submitData.identification_type = formData.identification_type.trim();
+    }
+    if (formData.identification_number.trim()) {
+      submitData.identification_number = formData.identification_number.trim();
+    }
     if (formData.contact_name.trim()) {
       submitData.contact_name = formData.contact_name.trim();
     }
@@ -199,6 +221,50 @@ export default function SupplierForm({
               maxLength={255}
             />
             {errors.name && <p style={errorStyle}>{errors.name}</p>}
+          </div>
+
+          {/* Identification Type and Number - Side by Side */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "1rem",
+              marginBottom: "1.5rem",
+            }}
+          >
+            <div>
+              <label style={labelStyle}>Tipo de Identificación</label>
+              <select
+                value={formData.identification_type}
+                onChange={(e) => handleChange("identification_type", e.target.value)}
+                style={inputStyle(!!errors.identification_type)}
+              >
+                <option value="">Seleccionar...</option>
+                <option value="NIT">NIT</option>
+                <option value="CC">CC (Cédula de Ciudadanía)</option>
+                <option value="CE">CE (Cédula de Extranjería)</option>
+                <option value="PAS">Pasaporte</option>
+                <option value="Otro">Otro</option>
+              </select>
+              {errors.identification_type && (
+                <p style={errorStyle}>{errors.identification_type}</p>
+              )}
+            </div>
+
+            <div>
+              <label style={labelStyle}>Número de Identificación</label>
+              <input
+                type="text"
+                value={formData.identification_number}
+                onChange={(e) => handleChange("identification_number", e.target.value)}
+                style={inputStyle(!!errors.identification_number)}
+                placeholder="Ej: 900123456-1"
+                maxLength={50}
+              />
+              {errors.identification_number && (
+                <p style={errorStyle}>{errors.identification_number}</p>
+              )}
+            </div>
           </div>
 
           {/* Contact Name */}

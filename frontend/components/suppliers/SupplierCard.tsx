@@ -63,6 +63,21 @@ export default function SupplierCard({
             {supplier.name}
           </h3>
           
+          {(supplier.identification_type || supplier.identification_number) && (
+            <p
+              style={{
+                margin: "0 0 0.25rem 0",
+                color: "var(--color-text-secondary)",
+                fontSize: "0.9rem",
+              }}
+            >
+              <strong>Identificación:</strong>{" "}
+              {supplier.identification_type && <span>{supplier.identification_type}</span>}
+              {supplier.identification_type && supplier.identification_number && " - "}
+              {supplier.identification_number && <span>{supplier.identification_number}</span>}
+            </p>
+          )}
+
           {supplier.contact_name && (
             <p
               style={{

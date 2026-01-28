@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { Supplier } from "@/types/supplier";
 import type { SupplierCatalogItem, AddProductToSupplierRequest } from "@/types/supplierCatalog";
 import type { Product } from "@/types/product";
@@ -27,10 +27,29 @@ export default function SupplierCatalogModal({
     supplier_sku: "",
   });
   const [addFormLoading, setAddFormLoading] = useState(false);
+  const [productSearchQuery, setProductSearchQuery] = useState("");
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [selectedProductName, setSelectedProductName] = useState("");
+  const productSearchRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadData();
   }, [supplier.id]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        productSearchRef.current &&
+        !productSearchRef.current.contains(event.target as Node)
+      ) {
+        setShowProductDropdown(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const loadData = async () => {
     try {
@@ -67,6 +86,9 @@ export default function SupplierCatalogModal({
       await loadData();
       setShowAddForm(false);
       setAddFormData({ product_id: "", unit_cost: "", supplier_sku: "" });
+      setProductSearchQuery("");
+      setSelectedProductName("");
+      setShowProductDropdown(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al agregar producto");
     } finally {
@@ -99,6 +121,28 @@ export default function SupplierCatalogModal({
   const availableProducts = products.filter(
     (p) => !catalogItems.some((c) => c.product_id === p.id)
   );
+
+  // Filter available products based on search query
+  const filteredProducts = availableProducts.filter((p) => {
+    const query = productSearchQuery.toLowerCase();
+    return (
+      p.name.toLowerCase().includes(query) ||
+      (p.sku && p.sku.toLowerCase().includes(query))
+    );
+  });
+
+  const handleProductSelect = (product: Product) => {
+    setAddFormData((prev) => ({ ...prev, product_id: product.id }));
+    setSelectedProductName(`${product.name} (${product.sku})`);
+    setProductSearchQuery("");
+    setShowProductDropdown(false);
+  };
+
+  const clearProductSelection = () => {
+    setAddFormData((prev) => ({ ...prev, product_id: "" }));
+    setSelectedProductName("");
+    setProductSearchQuery("");
+  };
 
   const inputStyle = {
     width: "100%",
@@ -260,7 +304,7 @@ export default function SupplierCatalogModal({
                 marginBottom: "1rem",
               }}
             >
-              <div>
+              <div ref={productSearchRef} style={{ position: "relative" }}>
                 <label
                   style={{
                     display: "block",
@@ -271,24 +315,147 @@ export default function SupplierCatalogModal({
                 >
                   Producto *
                 </label>
-                <select
+                {addFormData.product_id ? (
+                  <div
+                    style={{
+                      ...inputStyle,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      backgroundColor: "var(--color-success-light, #e8f5e9)",
+                      border: "1px solid var(--color-success)",
+                    }}
+                  >
+                    <span
+                      style={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        flex: 1,
+                      }}
+                    >
+                      {selectedProductName}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={clearProductSelection}
+                      style={{
+                        marginLeft: "0.5rem",
+                        padding: "0.25rem 0.5rem",
+                        backgroundColor: "transparent",
+                        border: "none",
+                        cursor: "pointer",
+                        color: "var(--color-text-secondary)",
+                        fontSize: "1.25rem",
+                        lineHeight: 1,
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <input
+                      type="text"
+                      value={productSearchQuery}
+                      onChange={(e) => {
+                        setProductSearchQuery(e.target.value);
+                        setShowProductDropdown(true);
+                      }}
+                      onFocus={() => setShowProductDropdown(true)}
+                      style={inputStyle}
+                      placeholder="Buscar por nombre o SKU..."
+                    />
+                    {showProductDropdown && productSearchQuery && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: "100%",
+                          left: 0,
+                          right: 0,
+                          maxHeight: "200px",
+                          overflowY: "auto",
+                          backgroundColor: "var(--color-surface)",
+                          border: "1px solid var(--color-border)",
+                          borderRadius: "var(--radius-sm)",
+                          boxShadow: "var(--shadow-md)",
+                          zIndex: 100,
+                        }}
+                      >
+                        {filteredProducts.length === 0 ? (
+                          <div
+                            style={{
+                              padding: "0.75rem",
+                              color: "var(--color-text-secondary)",
+                              fontSize: "0.875rem",
+                              textAlign: "center",
+                            }}
+                          >
+                            No se encontraron productos
+                          </div>
+                        ) : (
+                          filteredProducts.slice(0, 10).map((product) => (
+                            <div
+                              key={product.id}
+                              onClick={() => handleProductSelect(product)}
+                              style={{
+                                padding: "0.75rem",
+                                cursor: "pointer",
+                                borderBottom: "1px solid var(--color-border)",
+                                transition: "background-color 0.15s",
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor =
+                                  "var(--color-surface-hover)";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor =
+                                  "transparent";
+                              }}
+                            >
+                              <div
+                                style={{
+                                  fontWeight: "500",
+                                  color: "var(--color-text-primary)",
+                                }}
+                              >
+                                {product.name}
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: "0.75rem",
+                                  color: "var(--color-text-secondary)",
+                                  fontFamily: "monospace",
+                                }}
+                              >
+                                SKU: {product.sku}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                        {filteredProducts.length > 10 && (
+                          <div
+                            style={{
+                              padding: "0.5rem",
+                              color: "var(--color-text-muted)",
+                              fontSize: "0.75rem",
+                              textAlign: "center",
+                              borderTop: "1px solid var(--color-border)",
+                            }}
+                          >
+                            +{filteredProducts.length - 10} más resultados...
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+                {/* Hidden required input for form validation */}
+                <input
+                  type="hidden"
                   value={addFormData.product_id}
-                  onChange={(e) =>
-                    setAddFormData((prev) => ({
-                      ...prev,
-                      product_id: e.target.value,
-                    }))
-                  }
-                  style={inputStyle}
                   required
-                >
-                  <option value="">Seleccionar producto</option>
-                  {availableProducts.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.sku})
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
               <div>
                 <label
@@ -363,6 +530,9 @@ export default function SupplierCatalogModal({
                 onClick={() => {
                   setShowAddForm(false);
                   setAddFormData({ product_id: "", unit_cost: "", supplier_sku: "" });
+                  setProductSearchQuery("");
+                  setSelectedProductName("");
+                  setShowProductDropdown(false);
                 }}
                 style={{
                   padding: "0.5rem 1rem",
