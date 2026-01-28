@@ -156,11 +156,11 @@ func TestValidateAndExtractZip_IgnoresOtherFiles(t *testing.T) {
 	xmlContent := []byte("<?xml version=\"1.0\"?><invoice>test</invoice>")
 
 	zipData := createTestZip(t, map[string][]byte{
-		"invoice.pdf":  pdfContent,
-		"invoice.xml":  xmlContent,
-		"readme.txt":   []byte("readme content"),
-		"image.png":    []byte("fake image data"),
-		"data.json":    []byte("{}"),
+		"invoice.pdf": pdfContent,
+		"invoice.xml": xmlContent,
+		"readme.txt":  []byte("readme content"),
+		"image.png":   []byte("fake image data"),
+		"data.json":   []byte("{}"),
 	})
 
 	result, err := ValidateAndExtractZip(zipData)

@@ -341,18 +341,18 @@ func (h *ExpenseHandler) UploadExpenseDocumentHandler(c *gin.Context) {
 
 	// If ZIP file is detected, extract and upload both PDF and XML
 	if detectedType == "zip" {
-		extractedFiles, err := fileutil.ValidateAndExtractZip(fileData)
-		if err != nil {
-			log.Printf("Error extracting ZIP file: %v", err)
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		extractedFiles, extractErr := fileutil.ValidateAndExtractZip(fileData)
+		if extractErr != nil {
+			log.Printf("Error extracting ZIP file: %v", extractErr)
+			c.JSON(http.StatusBadRequest, gin.H{"error": extractErr.Error()})
 			return
 		}
 
-		result, err := h.expenseService.UploadExpenseDocuments(c.Request.Context(), expenseID, categoryCode, extractedFiles.PDFData, extractedFiles.XMLData)
-		if err != nil {
-			log.Printf("Error uploading expense documents from ZIP: %v", err)
+		result, uploadErr := h.expenseService.UploadExpenseDocuments(c.Request.Context(), expenseID, categoryCode, extractedFiles.PDFData, extractedFiles.XMLData)
+		if uploadErr != nil {
+			log.Printf("Error uploading expense documents from ZIP: %v", uploadErr)
 
-			if errors.Is(err, domainError.ErrExpenseNotFound) {
+			if errors.Is(uploadErr, domainError.ErrExpenseNotFound) {
 				c.JSON(http.StatusNotFound, gin.H{"error": "Expense not found"})
 				return
 			}

@@ -10,14 +10,14 @@ import (
 )
 
 var (
-	ErrInvalidZipFile     = errors.New("invalid or corrupt ZIP file")
-	ErrNoPDFInZip         = errors.New("ZIP file must contain exactly one PDF file")
-	ErrNoXMLInZip         = errors.New("ZIP file must contain exactly one XML file")
-	ErrMultiplePDFInZip   = errors.New("ZIP file contains multiple PDF files, expected exactly one")
-	ErrMultipleXMLInZip   = errors.New("ZIP file contains multiple XML files, expected exactly one")
-	ErrEmptyZipFile       = errors.New("ZIP file is empty")
-	ErrFailedToReadPDF    = errors.New("failed to read PDF file from ZIP")
-	ErrFailedToReadXML    = errors.New("failed to read XML file from ZIP")
+	ErrInvalidZipFile   = errors.New("invalid or corrupt ZIP file")
+	ErrNoPDFInZip       = errors.New("ZIP file must contain exactly one PDF file")
+	ErrNoXMLInZip       = errors.New("ZIP file must contain exactly one XML file")
+	ErrMultiplePDFInZip = errors.New("ZIP file contains multiple PDF files, expected exactly one")
+	ErrMultipleXMLInZip = errors.New("ZIP file contains multiple XML files, expected exactly one")
+	ErrEmptyZipFile     = errors.New("ZIP file is empty")
+	ErrFailedToReadPDF  = errors.New("failed to read PDF file from ZIP")
+	ErrFailedToReadXML  = errors.New("failed to read XML file from ZIP")
 )
 
 // ExtractedFiles contains the PDF and XML data extracted from a ZIP file
