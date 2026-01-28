@@ -137,4 +137,39 @@ export const expensesApi = {
 
     return response.json();
   },
+
+  /**
+   * Upload a ZIP file containing both PDF and XML for an expense
+   */
+  async uploadZipDocument(
+    expenseId: string,
+    categoryCode: string,
+    file: File
+  ): Promise<{ pdf_storage_path: string; xml_storage_path: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const url = `/api/expenses/${expenseId}/documents?category_code=${encodeURIComponent(categoryCode)}`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (response.status === 401) {
+      window.location.href = '/signin';
+      throw new Error('Unauthorized');
+    }
+
+    if (!response.ok) {
+      const error = await response
+        .json()
+        .catch(() => ({ message: response.statusText }));
+      throw new Error(
+        error.error || error.message || `HTTP error! status: ${response.status}`
+      );
+    }
+
+    return response.json();
+  },
 };

@@ -20,13 +20,6 @@ export async function POST(
       );
     }
 
-    if (!fileType || !["pdf", "xml"].includes(fileType)) {
-      return NextResponse.json(
-        { error: "file_type must be 'pdf' or 'xml'" },
-        { status: 400 }
-      );
-    }
-
     // Get the form data from the request
     const formData = await request.formData();
     const file = formData.get("file");
@@ -38,6 +31,19 @@ export async function POST(
       );
     }
 
+    // Check if it's a ZIP file (no file_type required for ZIP)
+    const isZipFile = file.type === "application/zip" || 
+                      file.type === "application/x-zip-compressed" || 
+                      file.name.toLowerCase().endsWith(".zip");
+
+    // For non-ZIP files, file_type is required
+    if (!isZipFile && (!fileType || !["pdf", "xml"].includes(fileType))) {
+      return NextResponse.json(
+        { error: "file_type must be 'pdf' or 'xml' for non-ZIP files" },
+        { status: 400 }
+      );
+    }
+
     // Get the JWT token
     const token = await getAccessToken();
 
@@ -45,7 +51,11 @@ export async function POST(
     const backendFormData = new FormData();
     backendFormData.append("file", file);
 
-    const backendUrl = `${config.apiUrl}/expenses/${id}/documents?category_code=${encodeURIComponent(categoryCode)}&file_type=${fileType}`;
+    // Build the backend URL - include file_type only for non-ZIP files
+    let backendUrl = `${config.apiUrl}/expenses/${id}/documents?category_code=${encodeURIComponent(categoryCode)}`;
+    if (!isZipFile && fileType) {
+      backendUrl += `&file_type=${fileType}`;
+    }
 
     const response = await fetch(backendUrl, {
       method: "POST",

@@ -11,7 +11,7 @@ import type {
 
 interface PurchaseEntryFormProps {
   suppliers: Supplier[];
-  onSubmit: (data: CreatePurchaseEntryRequest, files: { pdf?: File | null; xml?: File | null }) => Promise<void>;
+  onSubmit: (data: CreatePurchaseEntryRequest, files: { pdf?: File | null; xml?: File | null; zip?: File | null }) => Promise<void>;
   onCancel: () => void;
   isLoading?: boolean;
 }
@@ -41,8 +41,10 @@ export default function PurchaseEntryForm({
 
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [xmlFile, setXmlFile] = useState<File | null>(null);
+  const [zipFile, setZipFile] = useState<File | null>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const xmlInputRef = useRef<HTMLInputElement>(null);
+  const zipInputRef = useRef<HTMLInputElement>(null);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [catalogItems, setCatalogItems] = useState<SupplierCatalogItem[]>([]);
@@ -137,7 +139,7 @@ export default function PurchaseEntryForm({
       submitData.notes = formData.notes.trim();
     }
 
-    await onSubmit(submitData, { pdf: pdfFile, xml: xmlFile });
+    await onSubmit(submitData, { pdf: pdfFile, xml: xmlFile, zip: zipFile });
   };
 
   const handlePdfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -183,6 +185,34 @@ export default function PurchaseEntryForm({
     setXmlFile(null);
     if (xmlInputRef.current) {
       xmlInputRef.current.value = "";
+    }
+  };
+
+  const handleZipChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.type !== "application/zip" && file.type !== "application/x-zip-compressed" && !file.name.toLowerCase().endsWith(".zip")) {
+        setErrors((prev) => ({ ...prev, zip: "El archivo debe ser ZIP" }));
+        return;
+      }
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors.zip;
+        return newErrors;
+      });
+      setZipFile(file);
+      // Clear individual PDF and XML files when ZIP is selected
+      setPdfFile(null);
+      setXmlFile(null);
+      if (pdfInputRef.current) pdfInputRef.current.value = "";
+      if (xmlInputRef.current) xmlInputRef.current.value = "";
+    }
+  };
+
+  const handleRemoveZip = () => {
+    setZipFile(null);
+    if (zipInputRef.current) {
+      zipInputRef.current.value = "";
     }
   };
 
@@ -775,6 +805,7 @@ export default function PurchaseEntryForm({
                   type="file"
                   accept=".pdf,application/pdf"
                   onChange={handlePdfChange}
+                  disabled={!!zipFile}
                   style={{
                     width: "100%",
                     padding: "0.5rem",
@@ -783,6 +814,7 @@ export default function PurchaseEntryForm({
                     fontSize: "0.875rem",
                     backgroundColor: "var(--color-surface)",
                     color: "var(--color-text-primary)",
+                    opacity: zipFile ? 0.5 : 1,
                   }}
                 />
               )}
@@ -862,6 +894,7 @@ export default function PurchaseEntryForm({
                   type="file"
                   accept=".xml,text/xml,application/xml"
                   onChange={handleXmlChange}
+                  disabled={!!zipFile}
                   style={{
                     width: "100%",
                     padding: "0.5rem",
@@ -870,6 +903,7 @@ export default function PurchaseEntryForm({
                     fontSize: "0.875rem",
                     backgroundColor: "var(--color-surface)",
                     color: "var(--color-text-primary)",
+                    opacity: zipFile ? 0.5 : 1,
                   }}
                 />
               )}
@@ -884,6 +918,138 @@ export default function PurchaseEntryForm({
                   {errors.xml}
                 </p>
               )}
+            </div>
+
+            {/* Separator */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "1rem",
+                margin: "1rem 0",
+              }}
+            >
+              <div
+                style={{
+                  flex: 1,
+                  height: "1px",
+                  backgroundColor: "var(--color-border)",
+                }}
+              />
+              <span
+                style={{
+                  fontSize: "0.75rem",
+                  color: "var(--color-text-muted)",
+                  fontWeight: "500",
+                }}
+              >
+                O
+              </span>
+              <div
+                style={{
+                  flex: 1,
+                  height: "1px",
+                  backgroundColor: "var(--color-border)",
+                }}
+              />
+            </div>
+
+            {/* ZIP Upload */}
+            <div>
+              <label style={{ ...labelStyle, fontSize: "0.875rem" }}>
+                Archivo ZIP (contiene PDF y XML)
+              </label>
+              {zipFile ? (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.75rem",
+                    padding: "0.75rem",
+                    backgroundColor: "var(--color-surface)",
+                    borderRadius: "var(--radius-sm)",
+                    border: "1px solid var(--color-primary)",
+                  }}
+                >
+                  <span
+                    style={{
+                      padding: "0.25rem 0.5rem",
+                      backgroundColor: "var(--color-primary-light)",
+                      color: "var(--color-primary)",
+                      borderRadius: "var(--radius-sm)",
+                      fontSize: "0.75rem",
+                      fontWeight: "600",
+                    }}
+                  >
+                    ZIP
+                  </span>
+                  <span
+                    style={{
+                      flex: 1,
+                      fontSize: "0.875rem",
+                      color: "var(--color-text-primary)",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {zipFile.name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleRemoveZip}
+                    style={{
+                      padding: "0.25rem 0.5rem",
+                      backgroundColor: "transparent",
+                      color: "var(--color-danger)",
+                      border: "1px solid var(--color-danger)",
+                      borderRadius: "var(--radius-sm)",
+                      cursor: "pointer",
+                      fontSize: "0.75rem",
+                    }}
+                  >
+                    Quitar
+                  </button>
+                </div>
+              ) : (
+                <input
+                  ref={zipInputRef}
+                  type="file"
+                  accept=".zip,application/zip,application/x-zip-compressed"
+                  onChange={handleZipChange}
+                  disabled={!!(pdfFile || xmlFile)}
+                  style={{
+                    width: "100%",
+                    padding: "0.5rem",
+                    border: `1px solid ${errors.zip ? "var(--color-danger)" : "var(--color-border)"}`,
+                    borderRadius: "var(--radius-sm)",
+                    fontSize: "0.875rem",
+                    backgroundColor: "var(--color-surface)",
+                    color: "var(--color-text-primary)",
+                    opacity: (pdfFile || xmlFile) ? 0.5 : 1,
+                  }}
+                />
+              )}
+              {errors.zip && (
+                <p
+                  style={{
+                    margin: "0.25rem 0 0 0",
+                    color: "var(--color-danger)",
+                    fontSize: "0.875rem",
+                  }}
+                >
+                  {errors.zip}
+                </p>
+              )}
+              <p
+                style={{
+                  margin: "0.25rem 0 0 0",
+                  fontSize: "0.75rem",
+                  color: "var(--color-text-muted)",
+                }}
+              >
+                El ZIP debe contener exactamente 1 PDF y 1 XML.
+              </p>
             </div>
 
             <p

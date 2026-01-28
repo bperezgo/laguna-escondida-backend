@@ -75,4 +75,38 @@ export const purchaseEntriesApi = {
 
     return response.json();
   },
+
+  /**
+   * Upload a ZIP file containing both PDF and XML for a purchase entry
+   */
+  async uploadZipDocument(
+    entryId: string,
+    file: File
+  ): Promise<{ pdf_storage_path: string; xml_storage_path: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const url = `/api/purchase-entries/${entryId}/documents`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (response.status === 401) {
+      window.location.href = '/signin';
+      throw new Error('Unauthorized');
+    }
+
+    if (!response.ok) {
+      const error = await response
+        .json()
+        .catch(() => ({ message: response.statusText }));
+      throw new Error(
+        error.error || error.message || `HTTP error! status: ${response.status}`
+      );
+    }
+
+    return response.json();
+  },
 };

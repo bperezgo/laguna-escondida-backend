@@ -85,7 +85,7 @@ export default function ExpensesPageClient({
 
   const handleFormSubmit = async (
     data: CreateExpenseRequest,
-    files: { pdf?: File | null; xml?: File | null }
+    files: { pdf?: File | null; xml?: File | null; zip?: File | null }
   ) => {
     try {
       setFormLoading(true);
@@ -106,33 +106,49 @@ export default function ExpensesPageClient({
       // Upload documents if provided
       const uploadErrors: string[] = [];
 
-      if (files.pdf) {
+      // If ZIP file is provided, upload it (contains both PDF and XML)
+      if (files.zip) {
         try {
-          await expensesApi.uploadDocument(
+          await expensesApi.uploadZipDocument(
             savedExpense.id,
             categoryCode,
-            "pdf",
-            files.pdf
+            files.zip
           );
         } catch (err) {
           uploadErrors.push(
-            `Error al subir PDF: ${err instanceof Error ? err.message : "Error desconocido"}`
+            `Error al subir ZIP: ${err instanceof Error ? err.message : "Error desconocido"}`
           );
         }
-      }
+      } else {
+        // Upload individual files
+        if (files.pdf) {
+          try {
+            await expensesApi.uploadDocument(
+              savedExpense.id,
+              categoryCode,
+              "pdf",
+              files.pdf
+            );
+          } catch (err) {
+            uploadErrors.push(
+              `Error al subir PDF: ${err instanceof Error ? err.message : "Error desconocido"}`
+            );
+          }
+        }
 
-      if (files.xml) {
-        try {
-          await expensesApi.uploadDocument(
-            savedExpense.id,
-            categoryCode,
-            "xml",
-            files.xml
-          );
-        } catch (err) {
-          uploadErrors.push(
-            `Error al subir XML: ${err instanceof Error ? err.message : "Error desconocido"}`
-          );
+        if (files.xml) {
+          try {
+            await expensesApi.uploadDocument(
+              savedExpense.id,
+              categoryCode,
+              "xml",
+              files.xml
+            );
+          } catch (err) {
+            uploadErrors.push(
+              `Error al subir XML: ${err instanceof Error ? err.message : "Error desconocido"}`
+            );
+          }
         }
       }
 
