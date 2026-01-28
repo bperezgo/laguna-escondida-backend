@@ -45,5 +45,12 @@ export const productsApi = {
       method: 'DELETE',
     });
   },
+
+  /**
+   * Get all unique product categories
+   */
+  async getCategories(): Promise<string[]> {
+    return apiRequest<string[]>('/products/categories');
+  },
 };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type {
   Product,
   CreateProductRequest,
@@ -9,6 +9,7 @@ import type {
   UnitOfMeasure,
 } from "@/types/product";
 import { PRODUCT_TYPES, UNITS_OF_MEASURE, requiresPricing } from "@/types/product";
+import { productsApi } from "@/lib/api/products";
 
 interface ProductFormProps {
   product?: Product | null;
@@ -45,6 +46,10 @@ export default function ProductForm({
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [categories, setCategories] = useState<string[]>([]);
+  const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
+  const categoryInputRef = useRef<HTMLInputElement>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
 
   const needsPricing = requiresPricing(formData.product_type);
 
@@ -64,6 +69,48 @@ export default function ProductForm({
       });
     }
   }, [product]);
+
+  // Fetch categories on mount
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const fetchedCategories = await productsApi.getCategories();
+        setCategories(fetchedCategories);
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+      }
+    };
+    fetchCategories();
+  }, []);
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        categoryInputRef.current &&
+        !categoryInputRef.current.contains(event.target as Node) &&
+        suggestionsRef.current &&
+        !suggestionsRef.current.contains(event.target as Node)
+      ) {
+        setShowCategorySuggestions(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  // Filter categories based on input
+  const filteredCategories = categories.filter((category) =>
+    category.toLowerCase().includes(formData.category.toLowerCase())
+  );
+
+  const handleCategorySelect = (category: string) => {
+    handleChange("category", category);
+    setShowCategorySuggestions(false);
+  };
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -263,17 +310,74 @@ export default function ProductForm({
             {errors.name && <p style={errorStyle}>{errors.name}</p>}
           </div>
 
-          {/* Category */}
-          <div style={{ marginBottom: "1.5rem" }}>
+          {/* Category with Autocomplete */}
+          <div style={{ marginBottom: "1.5rem", position: "relative" }}>
             <label style={labelStyle}>Categoría *</label>
             <input
+              ref={categoryInputRef}
               type="text"
               value={formData.category}
-              onChange={(e) => handleChange("category", e.target.value)}
+              onChange={(e) => {
+                handleChange("category", e.target.value);
+                setShowCategorySuggestions(true);
+              }}
+              onFocus={() => setShowCategorySuggestions(true)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setShowCategorySuggestions(false);
+                }
+              }}
               style={inputStyle(!!errors.category)}
               placeholder="Ingresa la categoría"
               maxLength={100}
+              autoComplete="off"
             />
+            {/* Category Suggestions Dropdown */}
+            {showCategorySuggestions && filteredCategories.length > 0 && formData.category && (
+              <div
+                ref={suggestionsRef}
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  right: 0,
+                  backgroundColor: "var(--color-surface)",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "var(--radius-sm)",
+                  boxShadow: "var(--shadow-md)",
+                  maxHeight: "200px",
+                  overflowY: "auto",
+                  zIndex: 10,
+                  marginTop: "0.25rem",
+                }}
+              >
+                {filteredCategories.map((category, index) => (
+                  <div
+                    key={index}
+                    onClick={() => handleCategorySelect(category)}
+                    style={{
+                      padding: "0.75rem",
+                      cursor: "pointer",
+                      borderBottom:
+                        index < filteredCategories.length - 1
+                          ? "1px solid var(--color-border)"
+                          : "none",
+                      backgroundColor: "var(--color-surface)",
+                      color: "var(--color-text-primary)",
+                      transition: "background-color var(--transition-fast)",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "var(--color-surface-hover)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "var(--color-surface)";
+                    }}
+                  >
+                    {category}
+                  </div>
+                ))}
+              </div>
+            )}
             {errors.category && <p style={errorStyle}>{errors.category}</p>}
           </div>
 
