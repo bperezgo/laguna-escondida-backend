@@ -17,17 +17,25 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
 )
 
+const OpenBillProductCreatedEventType = "open_bill_product.created"
+const OpenBillProductCancelledEventType = "open_bill_product.cancelled"
+const OpenBillProductUpdatedEventType = "open_bill_product.updated"
+
 type OrderService struct {
-	openBillRepo   ports.OpenBillRepository
-	productRepo    ports.ProductRepository
-	billRepo       ports.BillRepository
-	billOwnerRepo  ports.BillOwnerRepository
-	invoiceService *InvoiceService
-	unitOfWork     ports.UnitOfWork
-	eventBus       pkgports.EventBus
-	taxConfig      dto.TaxConfig
+	logger                     *zap.Logger
+	openBillRepo               ports.OpenBillRepository
+	productRepo                ports.ProductRepository
+	billRepo                   ports.BillRepository
+	billOwnerRepo              ports.BillOwnerRepository
+	invoiceService             *InvoiceService
+	unitOfWork                 ports.UnitOfWork
+	eventBus                   pkgports.EventBus
+	userRepo                   ports.UserRepository
+	openBillProductSSENotifier ports.OpenBillProductSSENotifier
+	taxConfig                  dto.TaxConfig
 }
 
 func NewOrderService(
@@ -48,6 +56,33 @@ func NewOrderService(
 		invoiceService: invoiceService,
 		unitOfWork:     unitOfWork,
 		eventBus:       eventBus,
+	}
+}
+
+func NewOrderServiceWithSSE(
+	logger *zap.Logger,
+	openBillRepo ports.OpenBillRepository,
+	productRepo ports.ProductRepository,
+	billRepo ports.BillRepository,
+	billOwnerRepo ports.BillOwnerRepository,
+	invoiceService *InvoiceService,
+	unitOfWork ports.UnitOfWork,
+	eventBus pkgports.EventBus,
+	userRepo ports.UserRepository,
+	openBillProductSSENotifier ports.OpenBillProductSSENotifier,
+) *OrderService {
+	return &OrderService{
+		logger:                     logger,
+		openBillRepo:               openBillRepo,
+		productRepo:                productRepo,
+		taxConfig:                  dto.GetDefaultTaxConfig(),
+		billRepo:                   billRepo,
+		billOwnerRepo:              billOwnerRepo,
+		invoiceService:             invoiceService,
+		unitOfWork:                 unitOfWork,
+		eventBus:                   eventBus,
+		userRepo:                   userRepo,
+		openBillProductSSENotifier: openBillProductSSENotifier,
 	}
 }
 
@@ -145,6 +180,19 @@ func (s *OrderService) CreateOrder(
 		openBillDTO.Products = productDTOs
 	}
 
+	// Publish event for SSE notifications
+	if len(req.Products) > 0 {
+		event := dto.NewOrderCreatedEvent(
+			req.OpenBillID,
+			req.TemporalIdentifier,
+			user.ID,
+			req.Products,
+		)
+		if err := s.eventBus.Publish(ctx, event); err != nil {
+			s.logger.Error("failed to publish order created event", zap.Error(err))
+		}
+	}
+
 	return openBillDTO, nil
 }
 
@@ -153,7 +201,7 @@ func (s *OrderService) CreateOrder(
 // If product exists with different quantity, updates the quantity
 // If product is removed, soft deletes it (sets deleted_at)
 func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *dto.UpdateOrderRequest) (*dto.OpenBill, error) {
-	_, err := s.openBillRepo.FindByID(ctx, openBillID)
+	existingOpenBill, err := s.openBillRepo.FindByIDWithProducts(ctx, openBillID)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
 	}
@@ -236,6 +284,17 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 			productDTOs[i] = *p
 		}
 		updatedBill.Products = productDTOs
+	}
+
+	event := dto.NewOrderUpdatedEvent(
+		openBillID,
+		existingOpenBill.TemporalIdentifier,
+		existingOpenBill.CreatedBy.ID,
+		existingOpenBill.Products,
+		req.Products,
+	)
+	if err := s.eventBus.Publish(ctx, event); err != nil {
+		s.logger.Error("failed to publish order updated event", zap.Error(err))
 	}
 
 	return updatedBill, nil
@@ -340,6 +399,12 @@ func (s *OrderService) DeleteOrder(ctx context.Context, openBillID string) error
 		return fmt.Errorf("%w: %w", orderError.ErrOrderDeletionFailed, err)
 	}
 
+	// Publish event for SSE notifications
+	event := dto.NewOrderDeletedEvent(openBillID)
+	if err := s.eventBus.Publish(ctx, event); err != nil {
+		s.logger.Error("failed to publish order deleted event", zap.Error(err))
+	}
+
 	return nil
 }
 
@@ -411,4 +476,239 @@ func (s *OrderService) CancelOpenBillProduct(ctx context.Context, openBillID, op
 	}
 
 	return nil
+}
+
+// HandleOrderCreatedSSE notifies frontend via SSE when products with preparation areas are created
+func (s *OrderService) HandleOrderCreatedSSE(ctx context.Context, event dto.OrderCreatedEvent) error {
+	if len(event.Products) == 0 {
+		return nil
+	}
+
+	productIDs := make([]string, len(event.Products))
+	for i, p := range event.Products {
+		productIDs[i] = p.ProductID
+	}
+
+	responsibilities, err := s.openBillRepo.GetProductPreparationResponsibilities(ctx, productIDs)
+	if err != nil {
+		return fmt.Errorf("failed to get product preparation responsibilities: %w", err)
+	}
+
+	if len(responsibilities) == 0 {
+		return nil
+	}
+
+	var createdByName string
+	if event.CreatedByID != "" {
+		user, err := s.userRepo.FindByID(ctx, event.CreatedByID)
+		if err != nil {
+			s.logger.Error("failed to get user", zap.Error(err))
+		} else {
+			createdByName = user.Name
+		}
+	}
+
+	responsibilityMap := make(map[string]*dto.ProductPreparationResponsibilityWithProduct)
+	for i := range responsibilities {
+		responsibilityMap[responsibilities[i].ProductID] = &responsibilities[i]
+	}
+
+	for _, p := range event.Products {
+		responsibility, exists := responsibilityMap[p.ProductID]
+		if !exists {
+			continue
+		}
+
+		sseData := &dto.OpenBillProductSSE{
+			OpenBillProductID:  p.OpenBillProductID,
+			OpenBillID:         event.OpenBillID,
+			ProductName:        responsibility.ProductName,
+			Quantity:           p.Quantity,
+			Notes:              p.Notes,
+			Area:               responsibility.Area,
+			Status:             string(dto.CommandStatusCreated),
+			TemporalIdentifier: event.TemporalIdentifier,
+			Priority:           responsibility.Priority,
+			CreatedByName:      createdByName,
+		}
+
+		if err := s.openBillProductSSENotifier.NotifyArea(ctx, responsibility.Area, OpenBillProductCreatedEventType, sseData); err != nil {
+			s.logger.Error("failed to notify open bill product created", zap.Error(err))
+		}
+
+	}
+
+	return nil
+}
+
+// HandleOrderUpdatedSSE notifies frontend via SSE when order products are updated
+func (s *OrderService) HandleOrderUpdatedSSE(ctx context.Context, event dto.OrderUpdatedEvent) error {
+	var createdByName string
+	if event.CreatedByID != "" {
+		user, err := s.userRepo.FindByID(ctx, event.CreatedByID)
+		if err != nil {
+			s.logger.Error("failed to get user", zap.Error(err))
+		} else {
+			createdByName = user.Name
+		}
+	}
+
+	previousMap := make(map[string]dto.OrderCreatedEventProduct)
+	for _, p := range event.PreviousProducts {
+		previousMap[p.OpenBillProductID] = p
+	}
+
+	currentMap := make(map[string]dto.OrderCreatedEventProduct)
+	for _, p := range event.CurrentProducts {
+		currentMap[p.OpenBillProductID] = p
+	}
+
+	// Get responsibilities for all products
+	allProductIDs := make([]string, 0)
+	for _, p := range event.PreviousProducts {
+		allProductIDs = append(allProductIDs, p.ProductID)
+	}
+	for _, p := range event.CurrentProducts {
+		allProductIDs = append(allProductIDs, p.ProductID)
+	}
+	allProductIDs = lo.Uniq(allProductIDs)
+
+	var responsibilityMap map[string]*dto.ProductPreparationResponsibilityWithProduct
+	if len(allProductIDs) > 0 {
+		responsibilities, err := s.openBillRepo.GetProductPreparationResponsibilities(ctx, allProductIDs)
+		if err != nil {
+			s.logger.Error("failed to get product preparation responsibilities", zap.Error(err))
+		} else {
+			responsibilityMap = make(map[string]*dto.ProductPreparationResponsibilityWithProduct)
+			for i := range responsibilities {
+				responsibilityMap[responsibilities[i].ProductID] = &responsibilities[i]
+			}
+		}
+	}
+
+	// Cancel removed products
+	for openBillProductID, product := range previousMap {
+		if _, exists := currentMap[openBillProductID]; !exists {
+			responsibility, hasArea := responsibilityMap[product.ProductID]
+			if !hasArea {
+				continue
+			}
+
+			sseData := &dto.OpenBillProductSSE{
+				OpenBillProductID:  openBillProductID,
+				OpenBillID:         event.OpenBillID,
+				ProductName:        responsibility.ProductName,
+				Quantity:           product.Quantity,
+				Notes:              product.Notes,
+				Area:               responsibility.Area,
+				Status:             string(dto.CommandStatusCancelled),
+				TemporalIdentifier: event.TemporalIdentifier,
+				Priority:           responsibility.Priority,
+				CreatedByName:      createdByName,
+			}
+
+			if err := s.openBillProductSSENotifier.NotifyArea(ctx, responsibility.Area, OpenBillProductCancelledEventType, sseData); err != nil {
+				s.logger.Error("failed to notify open bill product cancelled", zap.Error(err))
+			}
+
+		}
+	}
+
+	// Create new products and update modified products
+	for openBillProductID, currentProduct := range currentMap {
+		responsibility, hasArea := responsibilityMap[currentProduct.ProductID]
+		if !hasArea {
+			continue
+		}
+
+		previousProduct, existed := previousMap[openBillProductID]
+		if !existed {
+			// New product
+			sseData := &dto.OpenBillProductSSE{
+				OpenBillProductID:  openBillProductID,
+				OpenBillID:         event.OpenBillID,
+				ProductName:        responsibility.ProductName,
+				Quantity:           currentProduct.Quantity,
+				Notes:              currentProduct.Notes,
+				Area:               responsibility.Area,
+				Status:             string(dto.CommandStatusCreated),
+				TemporalIdentifier: event.TemporalIdentifier,
+				Priority:           responsibility.Priority,
+				CreatedByName:      createdByName,
+			}
+
+			if err := s.openBillProductSSENotifier.NotifyArea(ctx, responsibility.Area, OpenBillProductCreatedEventType, sseData); err != nil {
+				s.logger.Error("failed to notify open bill product created", zap.Error(err))
+			}
+		} else {
+			// Check if modified
+			quantityChanged := previousProduct.Quantity != currentProduct.Quantity
+			notesChanged := (previousProduct.Notes == nil && currentProduct.Notes != nil) ||
+				(previousProduct.Notes != nil && currentProduct.Notes == nil) ||
+				(previousProduct.Notes != nil && currentProduct.Notes != nil && *previousProduct.Notes != *currentProduct.Notes)
+
+			if quantityChanged || notesChanged {
+				sseData := &dto.OpenBillProductSSE{
+					OpenBillProductID:  openBillProductID,
+					OpenBillID:         event.OpenBillID,
+					ProductName:        responsibility.ProductName,
+					Quantity:           currentProduct.Quantity,
+					Notes:              currentProduct.Notes,
+					Area:               responsibility.Area,
+					Status:             string(dto.CommandStatusCreated),
+					TemporalIdentifier: event.TemporalIdentifier,
+					Priority:           responsibility.Priority,
+					CreatedByName:      createdByName,
+				}
+
+				if err := s.openBillProductSSENotifier.NotifyArea(ctx, responsibility.Area, OpenBillProductUpdatedEventType, sseData); err != nil {
+					s.logger.Error("failed to notify open bill product updated", zap.Error(err))
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// HandleOrderDeletedSSE notifies frontend via SSE when an order is deleted
+func (s *OrderService) HandleOrderDeletedSSE(ctx context.Context, event dto.OrderDeletedEvent) error {
+	openBill, err := s.openBillRepo.FindByIDWithProducts(ctx, event.OpenBillID)
+	if err != nil {
+		s.logger.Error("failed to find open bill for deletion event", zap.String("open_bill_id", event.OpenBillID), zap.Error(err))
+		return nil
+	}
+
+	for _, product := range openBill.Products {
+		if product.Area == nil || *product.Area == "" {
+			continue
+		}
+
+		sseData := &dto.OpenBillProductSSE{
+			OpenBillProductID:  product.OpenBillProductID,
+			OpenBillID:         event.OpenBillID,
+			ProductName:        product.Product.Name,
+			Quantity:           product.Quantity,
+			Notes:              product.Notes,
+			Area:               *product.Area,
+			Status:             string(dto.CommandStatusCancelled),
+			TemporalIdentifier: openBill.TemporalIdentifier,
+			Priority:           product.Priority,
+			CreatedByName:      openBill.CreatedBy.Name,
+		}
+
+		if err := s.openBillProductSSENotifier.NotifyArea(ctx, *product.Area, OpenBillProductCancelledEventType, sseData); err != nil {
+			s.logger.Error("failed to notify open bill product cancelled",
+				zap.String("area", *product.Area),
+				zap.Error(err),
+			)
+		}
+	}
+
+	return nil
+}
+
+// GetPendingOpenBillProductsByArea returns all pending open bill products for a specific area (for initial SSE connection)
+func (s *OrderService) GetPendingOpenBillProductsByArea(ctx context.Context, area string) ([]*dto.OpenBillProductSSE, error) {
+	return s.openBillRepo.FindPendingByArea(ctx, area)
 }

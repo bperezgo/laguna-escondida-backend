@@ -854,3 +854,66 @@ func (r *OpenBillRepository) UpdateProductStatus(ctx context.Context, aggregate 
 		return nil
 	})
 }
+
+func (r *OpenBillRepository) FindPendingByArea(ctx context.Context, area string) ([]*dto.OpenBillProductSSE, error) {
+	db := postgres.GetTxOrDB(ctx, r.db)
+
+	type result struct {
+		OpenBillProductID  string
+		OpenBillID         string
+		ProductName        string
+		Quantity           int
+		Notes              *string
+		Area               string
+		Status             string
+		TemporalIdentifier string
+		Priority           int
+		CreatedAt          time.Time
+		CreatedByName      string
+	}
+
+	var results []result
+	err := db.Table("open_bills_products").
+		Select(`
+			open_bills_products.id as open_bill_product_id,
+			open_bills_products.open_bill_id,
+			products.name as product_name,
+			open_bills_products.quantity,
+			open_bills_products.notes,
+			open_bills_products.area,
+			open_bills_products.status,
+			open_bills.temporal_identifier,
+			open_bills_products.priority,
+			open_bills_products.created_at,
+			users.name as created_by_name
+		`).
+		Joins("INNER JOIN open_bills ON open_bills_products.open_bill_id = open_bills.id AND open_bills.deleted_at IS NULL").
+		Joins("INNER JOIN products ON open_bills_products.product_id = products.id AND products.deleted_at IS NULL").
+		Joins("INNER JOIN users ON open_bills.created_by = users.id AND users.deleted_at IS NULL").
+		Where("open_bills_products.area = ? AND open_bills_products.status = ? AND open_bills_products.deleted_at IS NULL", area, "created").
+		Order("open_bills_products.priority DESC, open_bills_products.created_at ASC").
+		Scan(&results).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	sseProducts := make([]*dto.OpenBillProductSSE, len(results))
+	for i, r := range results {
+		sseProducts[i] = &dto.OpenBillProductSSE{
+			OpenBillProductID:  r.OpenBillProductID,
+			OpenBillID:         r.OpenBillID,
+			ProductName:        r.ProductName,
+			Quantity:           r.Quantity,
+			Notes:              r.Notes,
+			Area:               r.Area,
+			Status:             r.Status,
+			TemporalIdentifier: r.TemporalIdentifier,
+			Priority:           r.Priority,
+			CreatedAt:          r.CreatedAt,
+			CreatedByName:      r.CreatedByName,
+		}
+	}
+
+	return sseProducts, nil
+}

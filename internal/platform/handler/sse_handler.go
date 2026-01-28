@@ -13,16 +13,16 @@ import (
 )
 
 type SSEHandler struct {
-	hub            *sse.Hub
-	commandItemHub *sse.CommandItemHub
-	commandService *service.CommandService
+	hub                *sse.Hub
+	openBillProductHub *sse.OpenBillProductHub
+	orderService       *service.OrderService
 }
 
-func NewSSEHandler(hub *sse.Hub, commandItemHub *sse.CommandItemHub, commandService *service.CommandService) *SSEHandler {
+func NewSSEHandler(hub *sse.Hub, openBillProductHub *sse.OpenBillProductHub, orderService *service.OrderService) *SSEHandler {
 	return &SSEHandler{
-		hub:            hub,
-		commandItemHub: commandItemHub,
-		commandService: commandService,
+		hub:                hub,
+		openBillProductHub: openBillProductHub,
+		orderService:       orderService,
 	}
 }
 
@@ -45,21 +45,6 @@ func (h *SSEHandler) StreamCommandsHandler(c *gin.Context) {
 
 	ctx := c.Request.Context()
 
-	pendingCommands, err := h.commandService.GetPendingCommandsByArea(ctx, area)
-	if err == nil && len(pendingCommands) > 0 {
-		for _, cmd := range pendingCommands {
-			data, err := json.Marshal(cmd)
-			if err != nil {
-				continue
-			}
-			_, err = fmt.Fprintf(c.Writer, "event: command.created\ndata: %s\n\n", data)
-			if err != nil {
-				continue
-			}
-			c.Writer.Flush()
-		}
-	}
-
 	c.Stream(func(w io.Writer) bool {
 		select {
 		case event, ok := <-client.Events:
@@ -81,7 +66,7 @@ func (h *SSEHandler) StreamCommandsHandler(c *gin.Context) {
 	})
 }
 
-func (h *SSEHandler) GetPendingCommandsHandler(c *gin.Context) {
+func (h *SSEHandler) GetPendingOpenBillProductsHandler(c *gin.Context) {
 	area := c.Param("area")
 	if area == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Area is required"})
@@ -89,16 +74,16 @@ func (h *SSEHandler) GetPendingCommandsHandler(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	commands, err := h.commandService.GetPendingCommandsByArea(ctx, area)
+	products, err := h.orderService.GetPendingOpenBillProductsByArea(ctx, area)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get pending commands"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get pending open bill products"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"commands": commands})
+	c.JSON(http.StatusOK, gin.H{"products": products})
 }
 
-func (h *SSEHandler) StreamCommandItemsHandler(c *gin.Context) {
+func (h *SSEHandler) StreamOpenBillProductsHandler(c *gin.Context) {
 	area := c.Param("area")
 	if area == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Area is required"})
@@ -111,20 +96,20 @@ func (h *SSEHandler) StreamCommandItemsHandler(c *gin.Context) {
 	c.Header("Access-Control-Allow-Origin", "*")
 	c.Header("X-Accel-Buffering", "no")
 
-	client := sse.NewCommandItemClient(area)
-	h.commandItemHub.Register(client)
-	defer h.commandItemHub.Unregister(client)
+	client := sse.NewOpenBillProductClient(area)
+	h.openBillProductHub.Register(client)
+	defer h.openBillProductHub.Unregister(client)
 
 	ctx := c.Request.Context()
 
-	pendingItems, err := h.commandService.GetPendingCommandItemsByArea(ctx, area)
-	if err == nil && len(pendingItems) > 0 {
-		for _, item := range pendingItems {
-			data, err := json.Marshal(item)
+	pendingProducts, err := h.orderService.GetPendingOpenBillProductsByArea(ctx, area)
+	if err == nil && len(pendingProducts) > 0 {
+		for _, product := range pendingProducts {
+			data, err := json.Marshal(product)
 			if err != nil {
 				continue
 			}
-			_, err = fmt.Fprintf(c.Writer, "event: command_item.created\ndata: %s\n\n", data)
+			_, err = fmt.Fprintf(c.Writer, "event: open_bill_product.created\ndata: %s\n\n", data)
 			if err != nil {
 				continue
 			}

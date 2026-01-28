@@ -8,45 +8,45 @@ import (
 	"laguna-escondida/backend/internal/domain/ports"
 )
 
-type CommandItemEvent struct {
-	Type string              `json:"type"`
-	Data *dto.CommandItemSSE `json:"data"`
+type OpenBillProductEvent struct {
+	Type string                  `json:"type"`
+	Data *dto.OpenBillProductSSE `json:"data"`
 }
 
-type CommandItemClient struct {
+type OpenBillProductClient struct {
 	Area      string
-	Events    chan CommandItemEvent
+	Events    chan OpenBillProductEvent
 	closeOnce sync.Once
 }
 
-func (c *CommandItemClient) Close() {
+func (c *OpenBillProductClient) Close() {
 	c.closeOnce.Do(func() {
 		close(c.Events)
 	})
 }
 
-type CommandItemHub struct {
+type OpenBillProductHub struct {
 	mu      sync.RWMutex
-	clients map[string]map[*CommandItemClient]struct{}
+	clients map[string]map[*OpenBillProductClient]struct{}
 }
 
-func NewCommandItemHub() *CommandItemHub {
-	return &CommandItemHub{
-		clients: make(map[string]map[*CommandItemClient]struct{}),
+func NewOpenBillProductHub() *OpenBillProductHub {
+	return &OpenBillProductHub{
+		clients: make(map[string]map[*OpenBillProductClient]struct{}),
 	}
 }
 
-func (h *CommandItemHub) Register(client *CommandItemClient) {
+func (h *OpenBillProductHub) Register(client *OpenBillProductClient) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	if h.clients[client.Area] == nil {
-		h.clients[client.Area] = make(map[*CommandItemClient]struct{})
+		h.clients[client.Area] = make(map[*OpenBillProductClient]struct{})
 	}
 	h.clients[client.Area][client] = struct{}{}
 }
 
-func (h *CommandItemHub) Unregister(client *CommandItemClient) {
+func (h *OpenBillProductHub) Unregister(client *OpenBillProductClient) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -59,7 +59,7 @@ func (h *CommandItemHub) Unregister(client *CommandItemClient) {
 	client.Close()
 }
 
-func (h *CommandItemHub) Close() {
+func (h *OpenBillProductHub) Close() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -71,7 +71,7 @@ func (h *CommandItemHub) Close() {
 	}
 }
 
-func (h *CommandItemHub) Broadcast(area string, event CommandItemEvent) {
+func (h *OpenBillProductHub) Broadcast(area string, event OpenBillProductEvent) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -86,7 +86,7 @@ func (h *CommandItemHub) Broadcast(area string, event CommandItemEvent) {
 	}
 }
 
-func (h *CommandItemHub) BroadcastAll(event CommandItemEvent) {
+func (h *OpenBillProductHub) BroadcastAll(event OpenBillProductEvent) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -101,8 +101,8 @@ func (h *CommandItemHub) BroadcastAll(event CommandItemEvent) {
 	}
 }
 
-func (h *CommandItemHub) NotifyArea(ctx context.Context, area string, eventType string, data *dto.CommandItemSSE) error {
-	event := CommandItemEvent{
+func (h *OpenBillProductHub) NotifyArea(ctx context.Context, area string, eventType string, data *dto.OpenBillProductSSE) error {
+	event := OpenBillProductEvent{
 		Type: eventType,
 		Data: data,
 	}
@@ -110,11 +110,11 @@ func (h *CommandItemHub) NotifyArea(ctx context.Context, area string, eventType 
 	return nil
 }
 
-func NewCommandItemClient(area string) *CommandItemClient {
-	return &CommandItemClient{
+func NewOpenBillProductClient(area string) *OpenBillProductClient {
+	return &OpenBillProductClient{
 		Area:   area,
-		Events: make(chan CommandItemEvent, 10),
+		Events: make(chan OpenBillProductEvent, 10),
 	}
 }
 
-var _ ports.CommandItemSSENotifier = (*CommandItemHub)(nil)
+var _ ports.OpenBillProductSSENotifier = (*OpenBillProductHub)(nil)

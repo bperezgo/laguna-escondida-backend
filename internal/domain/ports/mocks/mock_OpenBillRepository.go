@@ -353,6 +353,65 @@ func (_c *MockOpenBillRepository_FindByIDWithProducts_Call) RunAndReturn(run fun
 	return _c
 }
 
+// FindPendingByArea provides a mock function with given fields: ctx, area
+func (_m *MockOpenBillRepository) FindPendingByArea(ctx context.Context, area string) ([]*dto.OpenBillProductSSE, error) {
+	ret := _m.Called(ctx, area)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindPendingByArea")
+	}
+
+	var r0 []*dto.OpenBillProductSSE
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]*dto.OpenBillProductSSE, error)); ok {
+		return rf(ctx, area)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []*dto.OpenBillProductSSE); ok {
+		r0 = rf(ctx, area)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*dto.OpenBillProductSSE)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, area)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOpenBillRepository_FindPendingByArea_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindPendingByArea'
+type MockOpenBillRepository_FindPendingByArea_Call struct {
+	*mock.Call
+}
+
+// FindPendingByArea is a helper method to define mock.On call
+//   - ctx context.Context
+//   - area string
+func (_e *MockOpenBillRepository_Expecter) FindPendingByArea(ctx interface{}, area interface{}) *MockOpenBillRepository_FindPendingByArea_Call {
+	return &MockOpenBillRepository_FindPendingByArea_Call{Call: _e.mock.On("FindPendingByArea", ctx, area)}
+}
+
+func (_c *MockOpenBillRepository_FindPendingByArea_Call) Run(run func(ctx context.Context, area string)) *MockOpenBillRepository_FindPendingByArea_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockOpenBillRepository_FindPendingByArea_Call) Return(_a0 []*dto.OpenBillProductSSE, _a1 error) *MockOpenBillRepository_FindPendingByArea_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOpenBillRepository_FindPendingByArea_Call) RunAndReturn(run func(context.Context, string) ([]*dto.OpenBillProductSSE, error)) *MockOpenBillRepository_FindPendingByArea_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetProductPreparationResponsibilities provides a mock function with given fields: ctx, productIDs
 func (_m *MockOpenBillRepository) GetProductPreparationResponsibilities(ctx context.Context, productIDs []string) ([]dto.ProductPreparationResponsibilityWithProduct, error) {
 	ret := _m.Called(ctx, productIDs)

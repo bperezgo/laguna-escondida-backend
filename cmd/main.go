@@ -15,7 +15,6 @@ import (
 	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/cron"
-	sseeventbus "laguna-escondida/backend/internal/platform/eventbus"
 	"laguna-escondida/backend/internal/platform/handler"
 	"laguna-escondida/backend/internal/platform/httpclient"
 	"laguna-escondida/backend/internal/platform/postgres"
@@ -84,7 +83,6 @@ func main() {
 	roleRepo := repository.NewRoleRepository(db.DB)
 	userRoleRepo := repository.NewUserRoleRepository(db.DB)
 	billOwnerRepo := repository.NewBillOwnerRepository(db.DB)
-	commandRepo := repository.NewCommandRepository(db.DB)
 	supplierRepo := repository.NewSupplierRepository(db.DB)
 	supplierCatalogRepo := repository.NewSupplierCatalogRepository(db.DB)
 	purchaseEntryRepo := repository.NewPurchaseEntryRepository(db.DB)
@@ -96,19 +94,7 @@ func main() {
 
 	// Initialize SSE Hubs
 	sseHub := sse.NewHub()
-	commandItemHub := sse.NewCommandItemHub()
-
-	// Initialize SSE Event Bus with notifier routing
-	sseEventBus := sseeventbus.NewSSEEventBus()
-	commandNotifier := sse.NewCommandNotifier(sseHub)
-	commandItemNotifier := sse.NewCommandItemNotifier(commandItemHub)
-
-	// Configure SSE routing - events to notifiers mapping
-	sseEventBus.RegisterRoute(dto.OrderCreatedEventName, commandNotifier)
-	sseEventBus.RegisterRoute(dto.OrderCreatedEventName, commandItemNotifier)
-	sseEventBus.RegisterRoute(dto.OrderUpdatedEventName, commandNotifier)
-	sseEventBus.RegisterRoute(dto.OrderUpdatedEventName, commandItemNotifier)
-	sseEventBus.RegisterRoute(dto.OrderDeletedEventName, commandNotifier)
+	openBillProductHub := sse.NewOpenBillProductHub()
 
 	// Initialize Watermill Event Bus for pub/sub messaging
 	watermillLogger := eventbus.NewZapLoggerAdapter(logger)
@@ -124,8 +110,18 @@ func main() {
 
 	// Initialize services
 	unitOfWork := postgres.NewUnitOfWork(db.DB)
-	commandService := service.NewCommandService(logger, commandRepo, userRepo, sseHub, commandItemHub)
-	orderService := service.NewOrderService(openBillRepo, productRepo, billRepo, billOwnerRepo, invoiceService, unitOfWork, eventBusImpl)
+	orderService := service.NewOrderServiceWithSSE(
+		logger,
+		openBillRepo,
+		productRepo,
+		billRepo,
+		billOwnerRepo,
+		invoiceService,
+		unitOfWork,
+		eventBusImpl,
+		userRepo,
+		openBillProductHub,
+	)
 	productService := service.NewProductService(productRepo)
 	stockService := service.NewStockService(stockRepo, productRepo)
 	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, jwtService)
@@ -145,10 +141,10 @@ func main() {
 		}
 	}()
 
-	// Register event handlers
+	// Register event handlers for SSE notifications
 	orderCreatedHandler := eventbus.NewTypedEventHandler(
 		dto.OrderCreatedEventName,
-		commandService.HandleOrderCreated,
+		orderService.HandleOrderCreatedSSE,
 	)
 	if err = eventSubscriber.Subscribe(orderCreatedHandler); err != nil {
 		log.Fatalf("Failed to subscribe to order created events: %v", err)
@@ -156,7 +152,7 @@ func main() {
 
 	orderDeletedHandler := eventbus.NewTypedEventHandler(
 		dto.OrderDeletedEventName,
-		commandService.HandleOrderDeleted,
+		orderService.HandleOrderDeletedSSE,
 	)
 	if err = eventSubscriber.Subscribe(orderDeletedHandler); err != nil {
 		log.Fatalf("Failed to subscribe to order deleted events: %v", err)
@@ -164,7 +160,7 @@ func main() {
 
 	orderUpdatedHandler := eventbus.NewTypedEventHandler(
 		dto.OrderUpdatedEventName,
-		commandService.HandleOrderUpdated,
+		orderService.HandleOrderUpdatedSSE,
 	)
 	if err = eventSubscriber.Subscribe(orderUpdatedHandler); err != nil {
 		log.Fatalf("Failed to subscribe to order updated events: %v", err)
@@ -198,11 +194,10 @@ func main() {
 	invoiceHandler := handler.NewInvoiceHandler(invoiceService)
 	userHandler := handler.NewUserHandler(userService)
 	billOwnerHandler := handler.NewBillOwnerHandler(billOwnerService)
-	commandHandler := handler.NewCommandHandler(commandService)
 	supplierHandler := handler.NewSupplierHandler(supplierService)
 	purchaseEntryHandler := handler.NewPurchaseEntryHandler(purchaseEntryService)
 	expenseHandler := handler.NewExpenseHandler(expenseService)
-	sseHandler := handler.NewSSEHandler(sseHub, commandItemHub, commandService)
+	sseHandler := handler.NewSSEHandler(sseHub, openBillProductHub, orderService)
 
 	// Setup routes
 	router := gin.Default()
@@ -267,9 +262,6 @@ func main() {
 	// Bill Owner routes
 	router.GET("/api/bill-owners/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.BillOwnersRead), billOwnerHandler.GetByIDHandler)
 
-	// Command routes
-	router.PATCH("/api/commands/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.CommandsUpdate), commandHandler.CompleteCommandHandler)
-
 	// Supplier routes
 	router.POST("/api/suppliers", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SuppliersCreate), supplierHandler.CreateSupplierHandler)
 	router.GET("/api/suppliers", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SuppliersRead), supplierHandler.ListSuppliersHandler)
@@ -305,10 +297,10 @@ func main() {
 	router.DELETE("/api/expenses/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpensesDelete), expenseHandler.DeleteExpenseHandler)
 	router.POST("/api/expenses/:id/documents", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpensesUpload), expenseHandler.UploadExpenseDocumentHandler)
 
-	// SSE routes for real-time command notifications
+	// SSE routes for real-time open bill product notifications
 	router.GET("/api/sse/commands/:area", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SSECommandsRead), sseHandler.StreamCommandsHandler)
-	router.GET("/api/sse/command-items/:area", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SSECommandItemsRead), sseHandler.StreamCommandItemsHandler)
-	router.GET("/api/commands/:area/pending", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.CommandsRead), sseHandler.GetPendingCommandsHandler)
+	router.GET("/api/sse/open-bill-products/:area", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SSECommandItemsRead), sseHandler.StreamOpenBillProductsHandler)
+	router.GET("/api/open-bill-products/:area/pending", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersRead), sseHandler.GetPendingOpenBillProductsHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -342,7 +334,7 @@ func main() {
 	// Close SSE hubs to disconnect all SSE clients
 	log.Println("Closing SSE connections...")
 	sseHub.Close()
-	commandItemHub.Close()
+	openBillProductHub.Close()
 
 	// The context is used to inform the server it has 5 seconds to finish
 	// the request it is currently handling
