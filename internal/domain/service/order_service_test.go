@@ -637,7 +637,7 @@ func TestUpdateOrder_EmptyOrder(t *testing.T) {
 	}
 
 	// Mock expectations
-	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(existingBill, nil)
+	mockOpenBillRepo.On("FindByIDWithProducts", ctx, openBillID).Return(existingBill, nil)
 	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(existingAggregate, nil)
 	mockOpenBillRepo.On("Update", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
 
@@ -685,7 +685,7 @@ func TestUpdateOrder_SingleProduct(t *testing.T) {
 	}
 
 	// Mock expectations
-	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(existingBill, nil)
+	mockOpenBillRepo.On("FindByIDWithProducts", ctx, openBillID).Return(existingBill, nil)
 	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(existingAggregate, nil)
 	mockProductRepo.On("FindByIDs", ctx, []string{productID}).Return([]*dto.Product{product}, nil)
 	mockOpenBillRepo.On("GetProductPreparationResponsibilities", ctx, []string{productID}).Return([]dto.ProductPreparationResponsibilityWithProduct{}, nil)
@@ -737,7 +737,7 @@ func TestUpdateOrder_MultipleProductsWithQuantities(t *testing.T) {
 	expectedTotal := 50.0*2 + 75.0*3 // 100 + 225 = 325
 
 	// Mock expectations
-	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(existingBill, nil)
+	mockOpenBillRepo.On("FindByIDWithProducts", ctx, openBillID).Return(existingBill, nil)
 	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(existingAggregate, nil)
 	mockProductRepo.On("FindByIDs", ctx, []string{productID1, productID2}).Return([]*dto.Product{product1, product2}, nil)
 	mockOpenBillRepo.On("GetProductPreparationResponsibilities", ctx, []string{productID1, productID2}).Return([]dto.ProductPreparationResponsibilityWithProduct{}, nil)
@@ -788,7 +788,7 @@ func TestUpdateOrder_UpdateQuantity(t *testing.T) {
 	expectedTotal := productPrice * 5 // 250
 
 	// Mock expectations
-	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(existingBill, nil)
+	mockOpenBillRepo.On("FindByIDWithProducts", ctx, openBillID).Return(existingBill, nil)
 	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(existingAggregate, nil)
 	mockProductRepo.On("FindByIDs", ctx, []string{productID}).Return([]*dto.Product{product}, nil)
 	mockOpenBillRepo.On("GetProductPreparationResponsibilities", ctx, []string{productID}).Return([]dto.ProductPreparationResponsibilityWithProduct{}, nil)
@@ -822,7 +822,7 @@ func TestUpdateOrder_OrderNotFound(t *testing.T) {
 	}
 
 	// Mock expectations - order not found
-	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(nil, errors.New("not found"))
+	mockOpenBillRepo.On("FindByIDWithProducts", ctx, openBillID).Return(nil, errors.New("not found"))
 
 	// Execute
 	result, err := service.UpdateOrder(ctx, openBillID, req)
@@ -868,7 +868,7 @@ func TestUpdateOrder_ProductNotFound(t *testing.T) {
 	}
 
 	// Mock expectations - only one product found
-	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(existingBill, nil)
+	mockOpenBillRepo.On("FindByIDWithProducts", ctx, openBillID).Return(existingBill, nil)
 	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(existingAggregate, nil)
 	mockProductRepo.On("FindByIDs", ctx, []string{productID1, productID2}).Return([]*dto.Product{product1}, nil)
 
@@ -914,7 +914,7 @@ func TestUpdateOrder_RepositoryError_ProductFetch(t *testing.T) {
 	repoError := errors.New("database connection failed")
 
 	// Mock expectations
-	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(existingBill, nil)
+	mockOpenBillRepo.On("FindByIDWithProducts", ctx, openBillID).Return(existingBill, nil)
 	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(existingAggregate, nil)
 	mockProductRepo.On("FindByIDs", ctx, []string{productID1}).Return(nil, repoError)
 
@@ -964,7 +964,7 @@ func TestUpdateOrder_RepositoryError_Update(t *testing.T) {
 	repoError := errors.New("update failed")
 
 	// Mock expectations
-	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(existingBill, nil)
+	mockOpenBillRepo.On("FindByIDWithProducts", ctx, openBillID).Return(existingBill, nil)
 	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(existingAggregate, nil)
 	mockProductRepo.On("FindByIDs", ctx, []string{productID}).Return([]*dto.Product{product}, nil)
 	mockOpenBillRepo.On("GetProductPreparationResponsibilities", ctx, []string{productID}).Return([]dto.ProductPreparationResponsibilityWithProduct{}, nil)
