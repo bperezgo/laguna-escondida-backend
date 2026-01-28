@@ -36,16 +36,17 @@ Authorization: Bearer <your_jwt_token>
 
 ## Common Response Codes
 
-| Code | Description                             |
-| ---- | --------------------------------------- |
-| 200  | Success                                 |
-| 201  | Created                                 |
-| 204  | No Content (successful deletion)        |
-| 400  | Bad Request - Invalid input             |
-| 401  | Unauthorized - Missing or invalid token |
-| 404  | Not Found                               |
-| 409  | Conflict - Resource already exists      |
-| 500  | Internal Server Error                   |
+| Code | Description                              |
+| ---- | ---------------------------------------- |
+| 200  | Success                                  |
+| 201  | Created                                  |
+| 204  | No Content (successful deletion)         |
+| 400  | Bad Request - Invalid input              |
+| 401  | Unauthorized - Missing or invalid token  |
+| 403  | Forbidden - Insufficient permissions     |
+| 404  | Not Found                                |
+| 409  | Conflict - Resource already exists       |
+| 500  | Internal Server Error                    |
 
 ## Error Response Format
 
@@ -57,6 +58,7 @@ Authorization: Bearer <your_jwt_token>
 
 ## API Sections
 
+- [Authentication](api/auth.md) - User authentication, permissions, and current user info
 - [Suppliers](api/suppliers.md) - Manage supplier/vendor information
 - [Supplier Catalog](api/supplier-catalog.md) - Link products to suppliers with pricing
 - [Purchase Entries](api/purchase-entries.md) - Record goods received from suppliers

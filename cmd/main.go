@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"laguna-escondida/backend/internal/domain/dto"
+	"laguna-escondida/backend/internal/domain/permissions"
 	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/cron"
@@ -218,93 +219,96 @@ func main() {
 	// Auth routes (no authentication required)
 	router.POST("/api/auth/signin", userHandler.SignInHandler)
 
+	// Auth routes (protected with JWT)
+	router.GET("/api/auth/me", handler.JWTAuthMiddleware(jwtService), userHandler.GetCurrentUserHandler)
+
 	// User routes (protected with admin API key)
 	router.POST("/api/users", handler.AdminAPIKeyMiddleware(cfg), userHandler.CreateUserHandler)
 
 	// Admin routes (protected with admin API key)
 	router.POST("/api/invoices/update-missing-document-urls", handler.AdminAPIKeyMiddleware(cfg), invoiceHandler.UpdateMissingDocumentURLsHandler)
 
-	// Protected routes (require JWT authentication)
+	// Protected routes (require JWT authentication + permissions)
 	// Order routes
-	router.POST("/api/orders", handler.JWTAuthMiddleware(jwtService), orderHandler.CreateOrderHandler)
-	router.GET("/api/orders", handler.JWTAuthMiddleware(jwtService), orderHandler.GetAllActiveOpenBillsHandler)
-	router.GET("/api/orders/:id", handler.JWTAuthMiddleware(jwtService), orderHandler.GetOpenBillWithProductsHandler)
-	router.PUT("/api/orders/:id", handler.JWTAuthMiddleware(jwtService), orderHandler.UpdateOrderHandler)
-	router.DELETE("/api/orders/:id", handler.JWTAuthMiddleware(jwtService), orderHandler.DeleteOrderHandler)
-	router.POST("/api/orders/pay-order", handler.JWTAuthMiddleware(jwtService), orderHandler.PayOrderHandler)
+	router.POST("/api/orders", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersCreate), orderHandler.CreateOrderHandler)
+	router.GET("/api/orders", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersRead), orderHandler.GetAllActiveOpenBillsHandler)
+	router.GET("/api/orders/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersRead), orderHandler.GetOpenBillWithProductsHandler)
+	router.PUT("/api/orders/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersUpdate), orderHandler.UpdateOrderHandler)
+	router.DELETE("/api/orders/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersDelete), orderHandler.DeleteOrderHandler)
+	router.POST("/api/orders/pay-order", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersUpdate), orderHandler.PayOrderHandler)
 
 	// Order product status routes
-	router.PATCH("/api/orders/:id/products/:product_id/complete", handler.JWTAuthMiddleware(jwtService), orderHandler.CompleteOpenBillProductHandler)
-	router.PATCH("/api/orders/:id/products/:product_id/in-progress", handler.JWTAuthMiddleware(jwtService), orderHandler.SetOpenBillProductInProgressHandler)
-	router.PATCH("/api/orders/:id/products/:product_id/cancel", handler.JWTAuthMiddleware(jwtService), orderHandler.CancelOpenBillProductHandler)
+	router.PATCH("/api/orders/:id/products/:product_id/complete", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersUpdate), orderHandler.CompleteOpenBillProductHandler)
+	router.PATCH("/api/orders/:id/products/:product_id/in-progress", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersUpdate), orderHandler.SetOpenBillProductInProgressHandler)
+	router.PATCH("/api/orders/:id/products/:product_id/cancel", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersUpdate), orderHandler.CancelOpenBillProductHandler)
 
 	// Product routes
-	router.POST("/api/products", handler.JWTAuthMiddleware(jwtService), productHandler.CreateProductHandler)
-	router.GET("/api/products", handler.JWTAuthMiddleware(jwtService), productHandler.ListProductsHandler)
-	router.GET("/api/products/:id", handler.JWTAuthMiddleware(jwtService), productHandler.GetProductByIDHandler)
-	router.PUT("/api/products/:id", handler.JWTAuthMiddleware(jwtService), productHandler.UpdateProductHandler)
-	router.DELETE("/api/products/:id", handler.JWTAuthMiddleware(jwtService), productHandler.DeleteProductHandler)
+	router.POST("/api/products", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsCreate), productHandler.CreateProductHandler)
+	router.GET("/api/products", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsRead), productHandler.ListProductsHandler)
+	router.GET("/api/products/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsRead), productHandler.GetProductByIDHandler)
+	router.PUT("/api/products/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), productHandler.UpdateProductHandler)
+	router.DELETE("/api/products/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsDelete), productHandler.DeleteProductHandler)
 
 	// Product responsibility routes
-	router.POST("/api/product-responsibilities", handler.JWTAuthMiddleware(jwtService), productHandler.CreateProductResponsibilityHandler)
+	router.POST("/api/product-responsibilities", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), productHandler.CreateProductResponsibilityHandler)
 
 	// Invoice routes
-	router.POST("/api/invoices", handler.JWTAuthMiddleware(jwtService), invoiceHandler.CreateElectronicInvoiceHandler)
-	router.GET("/api/invoices", handler.JWTAuthMiddleware(jwtService), invoiceHandler.ListInvoicesHandler)
-	router.GET("/api/invoices/export", handler.JWTAuthMiddleware(jwtService), invoiceHandler.ExportInvoicesCSVHandler)
+	router.POST("/api/invoices", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.InvoicesCreate), invoiceHandler.CreateElectronicInvoiceHandler)
+	router.GET("/api/invoices", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.InvoicesRead), invoiceHandler.ListInvoicesHandler)
+	router.GET("/api/invoices/export", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.InvoicesExport), invoiceHandler.ExportInvoicesCSVHandler)
 
 	// Stock routes
-	router.POST("/api/stock", handler.JWTAuthMiddleware(jwtService), stockHandler.CreateStockHandler)
-	router.PUT("/api/stock/:product_id/add-or-decrease", handler.JWTAuthMiddleware(jwtService), stockHandler.AddOrDecreaseStockHandler)
-	router.DELETE("/api/stock/:product_id", handler.JWTAuthMiddleware(jwtService), stockHandler.DeleteStockHandler)
-	router.GET("/api/stock", handler.JWTAuthMiddleware(jwtService), stockHandler.GetAllStocksHandler)
-	router.POST("/api/stock/bulk", handler.JWTAuthMiddleware(jwtService), stockHandler.BulkStockCreationOrUpdatingHandler)
+	router.POST("/api/stock", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.StockCreate), stockHandler.CreateStockHandler)
+	router.PUT("/api/stock/:product_id/add-or-decrease", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.StockUpdate), stockHandler.AddOrDecreaseStockHandler)
+	router.DELETE("/api/stock/:product_id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.StockDelete), stockHandler.DeleteStockHandler)
+	router.GET("/api/stock", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.StockRead), stockHandler.GetAllStocksHandler)
+	router.POST("/api/stock/bulk", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.StockCreate), stockHandler.BulkStockCreationOrUpdatingHandler)
 
 	// Bill Owner routes
-	router.GET("/api/bill-owners/:id", handler.JWTAuthMiddleware(jwtService), billOwnerHandler.GetByIDHandler)
+	router.GET("/api/bill-owners/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.BillOwnersRead), billOwnerHandler.GetByIDHandler)
 
 	// Command routes
-	router.PATCH("/api/commands/:id", handler.JWTAuthMiddleware(jwtService), commandHandler.CompleteCommandHandler)
+	router.PATCH("/api/commands/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.CommandsUpdate), commandHandler.CompleteCommandHandler)
 
 	// Supplier routes
-	router.POST("/api/suppliers", handler.JWTAuthMiddleware(jwtService), supplierHandler.CreateSupplierHandler)
-	router.GET("/api/suppliers", handler.JWTAuthMiddleware(jwtService), supplierHandler.ListSuppliersHandler)
-	router.GET("/api/suppliers/:id", handler.JWTAuthMiddleware(jwtService), supplierHandler.GetSupplierByIDHandler)
-	router.PUT("/api/suppliers/:id", handler.JWTAuthMiddleware(jwtService), supplierHandler.UpdateSupplierHandler)
-	router.DELETE("/api/suppliers/:id", handler.JWTAuthMiddleware(jwtService), supplierHandler.DeleteSupplierHandler)
+	router.POST("/api/suppliers", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SuppliersCreate), supplierHandler.CreateSupplierHandler)
+	router.GET("/api/suppliers", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SuppliersRead), supplierHandler.ListSuppliersHandler)
+	router.GET("/api/suppliers/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SuppliersRead), supplierHandler.GetSupplierByIDHandler)
+	router.PUT("/api/suppliers/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SuppliersUpdate), supplierHandler.UpdateSupplierHandler)
+	router.DELETE("/api/suppliers/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SuppliersDelete), supplierHandler.DeleteSupplierHandler)
 
 	// Supplier Catalog routes
-	router.POST("/api/suppliers/:id/products", handler.JWTAuthMiddleware(jwtService), supplierHandler.AddProductToSupplierHandler)
-	router.PUT("/api/suppliers/:id/products/:product_id", handler.JWTAuthMiddleware(jwtService), supplierHandler.UpdateSupplierCatalogHandler)
-	router.DELETE("/api/suppliers/:id/products/:product_id", handler.JWTAuthMiddleware(jwtService), supplierHandler.RemoveProductFromSupplierHandler)
-	router.GET("/api/suppliers/:id/products", handler.JWTAuthMiddleware(jwtService), supplierHandler.GetSupplierProductsHandler)
-	router.GET("/api/products/:id/suppliers", handler.JWTAuthMiddleware(jwtService), supplierHandler.GetProductSuppliersHandler)
+	router.POST("/api/suppliers/:id/products", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SupplierCatalogCreate), supplierHandler.AddProductToSupplierHandler)
+	router.PUT("/api/suppliers/:id/products/:product_id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SupplierCatalogUpdate), supplierHandler.UpdateSupplierCatalogHandler)
+	router.DELETE("/api/suppliers/:id/products/:product_id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SupplierCatalogDelete), supplierHandler.RemoveProductFromSupplierHandler)
+	router.GET("/api/suppliers/:id/products", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SupplierCatalogRead), supplierHandler.GetSupplierProductsHandler)
+	router.GET("/api/products/:id/suppliers", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SupplierCatalogRead), supplierHandler.GetProductSuppliersHandler)
 
 	// Purchase Entry routes
-	router.POST("/api/purchase-entries", handler.JWTAuthMiddleware(jwtService), purchaseEntryHandler.CreatePurchaseEntryHandler)
-	router.GET("/api/purchase-entries", handler.JWTAuthMiddleware(jwtService), purchaseEntryHandler.ListPurchaseEntriesHandler)
-	router.GET("/api/purchase-entries/:id", handler.JWTAuthMiddleware(jwtService), purchaseEntryHandler.GetPurchaseEntryByIDHandler)
-	router.GET("/api/suppliers/:id/purchase-entries", handler.JWTAuthMiddleware(jwtService), purchaseEntryHandler.GetPurchaseEntriesBySupplierHandler)
-	router.POST("/api/purchase-entries/:id/documents", handler.JWTAuthMiddleware(jwtService), purchaseEntryHandler.UploadPurchaseEntryDocumentHandler)
+	router.POST("/api/purchase-entries", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.PurchaseEntriesCreate), purchaseEntryHandler.CreatePurchaseEntryHandler)
+	router.GET("/api/purchase-entries", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.PurchaseEntriesRead), purchaseEntryHandler.ListPurchaseEntriesHandler)
+	router.GET("/api/purchase-entries/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.PurchaseEntriesRead), purchaseEntryHandler.GetPurchaseEntryByIDHandler)
+	router.GET("/api/suppliers/:id/purchase-entries", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.PurchaseEntriesRead), purchaseEntryHandler.GetPurchaseEntriesBySupplierHandler)
+	router.POST("/api/purchase-entries/:id/documents", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.PurchaseEntriesUpload), purchaseEntryHandler.UploadPurchaseEntryDocumentHandler)
 
 	// Expense Category routes
-	router.POST("/api/expense-categories", handler.JWTAuthMiddleware(jwtService), expenseHandler.CreateCategoryHandler)
-	router.GET("/api/expense-categories", handler.JWTAuthMiddleware(jwtService), expenseHandler.ListCategoriesHandler)
-	router.GET("/api/expense-categories/:id", handler.JWTAuthMiddleware(jwtService), expenseHandler.GetCategoryByIDHandler)
-	router.PUT("/api/expense-categories/:id", handler.JWTAuthMiddleware(jwtService), expenseHandler.UpdateCategoryHandler)
+	router.POST("/api/expense-categories", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpenseCategoriesCreate), expenseHandler.CreateCategoryHandler)
+	router.GET("/api/expense-categories", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpenseCategoriesRead), expenseHandler.ListCategoriesHandler)
+	router.GET("/api/expense-categories/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpenseCategoriesRead), expenseHandler.GetCategoryByIDHandler)
+	router.PUT("/api/expense-categories/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpenseCategoriesUpdate), expenseHandler.UpdateCategoryHandler)
 
 	// Expense routes
-	router.POST("/api/expenses", handler.JWTAuthMiddleware(jwtService), expenseHandler.CreateExpenseHandler)
-	router.GET("/api/expenses", handler.JWTAuthMiddleware(jwtService), expenseHandler.ListExpensesHandler)
-	router.GET("/api/expenses/:id", handler.JWTAuthMiddleware(jwtService), expenseHandler.GetExpenseByIDHandler)
-	router.PUT("/api/expenses/:id", handler.JWTAuthMiddleware(jwtService), expenseHandler.UpdateExpenseHandler)
-	router.DELETE("/api/expenses/:id", handler.JWTAuthMiddleware(jwtService), expenseHandler.DeleteExpenseHandler)
-	router.POST("/api/expenses/:id/documents", handler.JWTAuthMiddleware(jwtService), expenseHandler.UploadExpenseDocumentHandler)
+	router.POST("/api/expenses", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpensesCreate), expenseHandler.CreateExpenseHandler)
+	router.GET("/api/expenses", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpensesRead), expenseHandler.ListExpensesHandler)
+	router.GET("/api/expenses/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpensesRead), expenseHandler.GetExpenseByIDHandler)
+	router.PUT("/api/expenses/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpensesUpdate), expenseHandler.UpdateExpenseHandler)
+	router.DELETE("/api/expenses/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpensesDelete), expenseHandler.DeleteExpenseHandler)
+	router.POST("/api/expenses/:id/documents", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpensesUpload), expenseHandler.UploadExpenseDocumentHandler)
 
 	// SSE routes for real-time command notifications
-	router.GET("/api/sse/commands/:area", handler.JWTAuthMiddleware(jwtService), sseHandler.StreamCommandsHandler)
-	router.GET("/api/sse/command-items/:area", handler.JWTAuthMiddleware(jwtService), sseHandler.StreamCommandItemsHandler)
-	router.GET("/api/commands/:area/pending", handler.JWTAuthMiddleware(jwtService), sseHandler.GetPendingCommandsHandler)
+	router.GET("/api/sse/commands/:area", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SSECommandsRead), sseHandler.StreamCommandsHandler)
+	router.GET("/api/sse/command-items/:area", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SSECommandItemsRead), sseHandler.StreamCommandItemsHandler)
+	router.GET("/api/commands/:area/pending", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.CommandsRead), sseHandler.GetPendingCommandsHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {

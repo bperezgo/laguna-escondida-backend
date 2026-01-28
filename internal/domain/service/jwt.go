@@ -4,6 +4,8 @@ import (
 	"errors"
 	"time"
 
+	"laguna-escondida/backend/internal/domain/permissions"
+
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -13,9 +15,10 @@ var (
 )
 
 type JWTClaims struct {
-	UserID   string `json:"user_id"`
-	Username string `json:"username"`
-	RoleIDs  []int  `json:"role_ids"`
+	UserID      string   `json:"user_id"`
+	Username    string   `json:"username"`
+	RoleIDs     []int    `json:"role_ids"`
+	Permissions []string `json:"permissions"`
 	jwt.RegisteredClaims
 }
 
@@ -30,10 +33,14 @@ func NewJWTService(secret string) *JWTService {
 }
 
 func (s *JWTService) GenerateToken(userID string, username string, roleIDs []int) (string, error) {
+	perms := permissions.GetPermissionsForRoles(roleIDs)
+	permStrings := permissions.PermissionStrings(perms)
+
 	claims := JWTClaims{
-		UserID:   userID,
-		Username: username,
-		RoleIDs:  roleIDs,
+		UserID:      userID,
+		Username:    username,
+		RoleIDs:     roleIDs,
+		Permissions: permStrings,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

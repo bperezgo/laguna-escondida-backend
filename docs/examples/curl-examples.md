@@ -4,11 +4,38 @@ Quick copy-paste examples for testing the API.
 
 ## Setup
 
-Set your JWT token as an environment variable:
+Set your base URL:
 
 ```bash
-export TOKEN="your_jwt_token_here"
 export BASE_URL="http://localhost:8080/api"
+```
+
+---
+
+## Authentication
+
+### Sign In
+
+```bash
+curl -X POST "$BASE_URL/auth/signin" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "your_username",
+    "password": "your_password"
+  }'
+```
+
+Save the token from the response:
+
+```bash
+export TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+### Get Current User
+
+```bash
+curl -X GET "$BASE_URL/auth/me" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ---

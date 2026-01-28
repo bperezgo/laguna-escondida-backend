@@ -45,7 +45,16 @@ type SignInRequest struct {
 }
 
 type SignInResponse struct {
-	Token    string  `json:"token"`
-	Username string  `json:"username"`
-	Roles    []*Role `json:"roles"`
+	Token       string   `json:"token"`
+	Username    string   `json:"username"`
+	Roles       []*Role  `json:"roles"`
+	Permissions []string `json:"permissions"`
+}
+
+type CurrentUserResponse struct {
+	ID          string   `json:"id"`
+	Username    string   `json:"username"`
+	Name        string   `json:"name"`
+	Roles       []*Role  `json:"roles"`
+	Permissions []string `json:"permissions"`
 }

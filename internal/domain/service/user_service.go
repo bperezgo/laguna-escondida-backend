@@ -8,6 +8,7 @@ import (
 	"laguna-escondida/backend/internal/domain/aggregate/user"
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
+	"laguna-escondida/backend/internal/domain/permissions"
 	"laguna-escondida/backend/internal/domain/ports"
 )
 
@@ -96,9 +97,41 @@ func (s *UserService) SignIn(ctx context.Context, req *dto.SignInRequest) (*dto.
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
 
+	perms := permissions.GetPermissionsForRoles(roleIDs)
+	permStrings := permissions.PermissionStrings(perms)
+
 	return &dto.SignInResponse{
-		Token:    token,
-		Username: userDTO.Username,
-		Roles:    roles,
+		Token:       token,
+		Username:    userDTO.Username,
+		Roles:       roles,
+		Permissions: permStrings,
+	}, nil
+}
+
+func (s *UserService) GetCurrentUser(ctx context.Context, userID string) (*dto.CurrentUserResponse, error) {
+	userDTO, err := s.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	roles, err := s.userRoleRepo.FindRolesByUserID(ctx, userDTO.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user roles: %w", err)
+	}
+
+	roleIDs := make([]int, len(roles))
+	for i, role := range roles {
+		roleIDs[i] = role.ID
+	}
+
+	perms := permissions.GetPermissionsForRoles(roleIDs)
+	permStrings := permissions.PermissionStrings(perms)
+
+	return &dto.CurrentUserResponse{
+		ID:          userDTO.ID,
+		Username:    userDTO.Username,
+		Name:        userDTO.Name,
+		Roles:       roles,
+		Permissions: permStrings,
 	}, nil
 }

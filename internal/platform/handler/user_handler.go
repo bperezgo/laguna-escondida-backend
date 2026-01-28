@@ -79,3 +79,20 @@ func (h *UserHandler) SignInHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, signInResponse)
 }
+
+func (h *UserHandler) GetCurrentUserHandler(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	currentUser, err := h.userService.GetCurrentUser(c.Request.Context(), userID.(string))
+	if err != nil {
+		log.Printf("Error getting current user: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user information"})
+		return
+	}
+
+	c.JSON(http.StatusOK, currentUser)
+}
