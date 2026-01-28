@@ -2,6 +2,7 @@
 
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { usePermissions } from "@/lib/permissions";
 
 export default function SignInForm() {
   const [username, setUsername] = useState("");
@@ -9,6 +10,7 @@ export default function SignInForm() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const { fetchPermissions } = usePermissions();
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -30,9 +32,11 @@ export default function SignInForm() {
         throw new Error(data.error || "Failed to sign in");
       }
 
+      // Fetch user permissions with the new cookie before navigating
+      await fetchPermissions();
+
       // Redirect to home on success
       router.push("/home");
-      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
