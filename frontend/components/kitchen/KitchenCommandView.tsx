@@ -14,12 +14,12 @@ export interface GroupedCommand {
   status: "created" | "completed" | "cancelled";
   items: {
     id: string;
+    open_bill_id: string;
     product_name: string;
     quantity: number;
     notes?: string | null;
   }[];
   created_at: string;
-  productIds: string[]; // Track all product IDs in this group
 }
 
 export default function KitchenCommandView() {
@@ -60,12 +60,12 @@ export default function KitchenCommandView() {
         status: "created", // Groups are always "created" since we only show pending products
         items: groupProducts.map((p) => ({
           id: p.open_bill_product_id,
+          open_bill_id: p.open_bill_id,
           product_name: p.product_name,
           quantity: p.quantity,
           notes: p.notes,
         })),
         created_at: firstProduct.created_at,
-        productIds: groupProducts.map((p) => p.open_bill_product_id),
       });
     });
 
@@ -200,15 +200,17 @@ export default function KitchenCommandView() {
 
     setCompletingIds((prev) => new Set(prev).add(groupId));
 
+    const productIds = command.items.map((item) => item.id);
+
     try {
       // Complete all products in the group
       await Promise.all(
-        command.productIds.map((productId) => completeOpenBillProduct(productId))
+        command.items.map((item) => completeOpenBillProduct(item.open_bill_id, item.id))
       );
       
       // Remove all products in this group from state
       setProducts((prev) =>
-        prev.filter((p) => !command.productIds.includes(p.open_bill_product_id))
+        prev.filter((p) => !productIds.includes(p.open_bill_product_id))
       );
     } catch (error) {
       console.error("Error completing command group:", error);

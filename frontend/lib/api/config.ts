@@ -4,7 +4,7 @@
  */
 export async function apiRequest<T>(
   endpoint: string,
-  options?: RequestInit
+  options?: RequestInit,
 ): Promise<T> {
   const url = `/api${endpoint}`;
 
@@ -27,7 +27,7 @@ export async function apiRequest<T>(
       .json()
       .catch(() => ({ message: response.statusText }));
     throw new Error(
-      error.error || error.message || `HTTP error! status: ${response.status}`
+      error.error || error.message || `HTTP error! status: ${response.status}`,
     );
   }
 

@@ -197,10 +197,14 @@ export default function KitchenCommandItemsView() {
   }, [savePinnedIds]);
 
   const handleComplete = async (openBillProductId: string) => {
+    // Find the item to get the open_bill_id (order ID)
+    const item = items.find((i) => i.open_bill_product_id === openBillProductId);
+    if (!item) return;
+
     setCompletingIds((prev) => new Set(prev).add(openBillProductId));
 
     try {
-      await completeOpenBillProduct(openBillProductId);
+      await completeOpenBillProduct(item.open_bill_id, openBillProductId);
       setItems((prev) =>
         prev.filter((i) => i.open_bill_product_id !== openBillProductId)
       );
