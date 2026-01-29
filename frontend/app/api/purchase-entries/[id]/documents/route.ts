@@ -43,9 +43,11 @@ export async function POST(
     const backendFormData = new FormData();
     backendFormData.append("file", file);
 
-    // Build the backend URL - include file_type only for non-ZIP files
+    // Build the backend URL - include file_type for all files
     let backendUrl = `${config.apiUrl}/purchase-entries/${id}/documents`;
-    if (!isZipFile && fileType) {
+    if (isZipFile) {
+      backendUrl += `?file_type=zip`;
+    } else if (fileType) {
       backendUrl += `?file_type=${fileType}`;
     }
 

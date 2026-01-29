@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { PurchaseEntry } from "@/types/purchaseEntry";
 import { purchaseEntriesApi } from "@/lib/api/purchaseEntries";
+import { PermissionGate } from "@/components/permissions";
+import { PERMISSIONS } from "@/lib/permissions";
 
 interface PurchaseEntryDetailProps {
   entryId: string;
@@ -16,6 +18,13 @@ export default function PurchaseEntryDetail({
   const [entry, setEntry] = useState<PurchaseEntry | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [uploadError, setUploadError] = useState("");
+  const [uploadSuccess, setUploadSuccess] = useState("");
+  const [uploading, setUploading] = useState(false);
+  
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+  const xmlInputRef = useRef<HTMLInputElement>(null);
+  const zipInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadEntry();
@@ -31,6 +40,86 @@ export default function PurchaseEntryDetail({
       setError(err instanceof Error ? err.message : "Error al cargar la entrada");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUploadPdf = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== "application/pdf") {
+      setUploadError("El archivo debe ser PDF");
+      return;
+    }
+
+    try {
+      setUploading(true);
+      setUploadError("");
+      setUploadSuccess("");
+      await purchaseEntriesApi.uploadDocument(entryId, "pdf", file);
+      setUploadSuccess("PDF subido correctamente");
+      await loadEntry();
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Error al subir PDF");
+    } finally {
+      setUploading(false);
+      if (pdfInputRef.current) pdfInputRef.current.value = "";
+    }
+  };
+
+  const handleUploadXml = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (
+      file.type !== "text/xml" &&
+      file.type !== "application/xml" &&
+      !file.name.endsWith(".xml")
+    ) {
+      setUploadError("El archivo debe ser XML");
+      return;
+    }
+
+    try {
+      setUploading(true);
+      setUploadError("");
+      setUploadSuccess("");
+      await purchaseEntriesApi.uploadDocument(entryId, "xml", file);
+      setUploadSuccess("XML subido correctamente");
+      await loadEntry();
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Error al subir XML");
+    } finally {
+      setUploading(false);
+      if (xmlInputRef.current) xmlInputRef.current.value = "";
+    }
+  };
+
+  const handleUploadZip = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (
+      file.type !== "application/zip" &&
+      file.type !== "application/x-zip-compressed" &&
+      !file.name.toLowerCase().endsWith(".zip")
+    ) {
+      setUploadError("El archivo debe ser ZIP");
+      return;
+    }
+
+    try {
+      setUploading(true);
+      setUploadError("");
+      setUploadSuccess("");
+      await purchaseEntriesApi.uploadZipDocument(entryId, file);
+      setUploadSuccess("ZIP subido correctamente (PDF y XML extraídos)");
+      await loadEntry();
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Error al subir ZIP");
+    } finally {
+      setUploading(false);
+      if (zipInputRef.current) zipInputRef.current.value = "";
     }
   };
 
@@ -277,28 +366,30 @@ export default function PurchaseEntryDetail({
               </div>
             )}
 
-            {/* Documents */}
-            {(entry.pdf_storage_path || entry.xml_storage_path) && (
-              <div
+            {/* Documents Section */}
+            <div
+              style={{
+                marginBottom: "2rem",
+                padding: "1rem",
+                backgroundColor: "var(--color-bg)",
+                borderRadius: "var(--radius-sm)",
+                border: "1px solid var(--color-border)",
+              }}
+            >
+              <p
                 style={{
-                  marginBottom: "2rem",
-                  padding: "1rem",
-                  backgroundColor: "var(--color-bg)",
-                  borderRadius: "var(--radius-sm)",
-                  border: "1px solid var(--color-border)",
+                  margin: "0 0 1rem 0",
+                  color: "var(--color-text-muted)",
+                  fontSize: "0.875rem",
+                  fontWeight: "600",
                 }}
               >
-                <p
-                  style={{
-                    margin: "0 0 0.5rem 0",
-                    color: "var(--color-text-muted)",
-                    fontSize: "0.875rem",
-                    fontWeight: "600",
-                  }}
-                >
-                  Documentos Adjuntos
-                </p>
-                <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                Documentos Adjuntos
+              </p>
+
+              {/* Current Documents */}
+              {(entry.pdf_storage_path || entry.xml_storage_path) && (
+                <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1rem" }}>
                   {entry.pdf_storage_path && (
                     <span
                       style={{
@@ -328,8 +419,175 @@ export default function PurchaseEntryDetail({
                     </span>
                   )}
                 </div>
-              </div>
-            )}
+              )}
+
+              {/* Upload Messages */}
+              {uploadError && (
+                <div
+                  style={{
+                    padding: "0.75rem",
+                    backgroundColor: "var(--color-danger-light)",
+                    color: "var(--color-danger)",
+                    border: "1px solid var(--color-danger)",
+                    borderRadius: "var(--radius-sm)",
+                    marginBottom: "1rem",
+                    fontSize: "0.875rem",
+                  }}
+                >
+                  {uploadError}
+                </div>
+              )}
+              {uploadSuccess && (
+                <div
+                  style={{
+                    padding: "0.75rem",
+                    backgroundColor: "var(--color-success-light)",
+                    color: "var(--color-success)",
+                    border: "1px solid var(--color-success)",
+                    borderRadius: "var(--radius-sm)",
+                    marginBottom: "1rem",
+                    fontSize: "0.875rem",
+                  }}
+                >
+                  {uploadSuccess}
+                </div>
+              )}
+
+              {/* Upload Section */}
+              <PermissionGate permission={PERMISSIONS.PURCHASE_ENTRIES_UPLOAD}>
+                <div
+                  style={{
+                    borderTop: entry.pdf_storage_path || entry.xml_storage_path ? "1px solid var(--color-border)" : "none",
+                    paddingTop: entry.pdf_storage_path || entry.xml_storage_path ? "1rem" : "0",
+                  }}
+                >
+                  <p
+                    style={{
+                      margin: "0 0 0.75rem 0",
+                      color: "var(--color-text-secondary)",
+                      fontSize: "0.875rem",
+                    }}
+                  >
+                    {entry.pdf_storage_path && entry.xml_storage_path
+                      ? "Reemplazar documentos:"
+                      : "Subir documentos:"}
+                  </p>
+
+                  <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                    {/* PDF Upload */}
+                    <label
+                      style={{
+                        padding: "0.5rem 1rem",
+                        backgroundColor: entry.pdf_storage_path ? "var(--color-surface-hover)" : "var(--color-danger)",
+                        color: entry.pdf_storage_path ? "var(--color-text-primary)" : "white",
+                        border: entry.pdf_storage_path ? "1px solid var(--color-border)" : "none",
+                        borderRadius: "var(--radius-sm)",
+                        cursor: uploading ? "not-allowed" : "pointer",
+                        fontSize: "0.875rem",
+                        fontWeight: "500",
+                        opacity: uploading ? 0.6 : 1,
+                      }}
+                    >
+                      {entry.pdf_storage_path ? "Reemplazar PDF" : "Subir PDF"}
+                      <input
+                        ref={pdfInputRef}
+                        type="file"
+                        accept=".pdf,application/pdf"
+                        onChange={handleUploadPdf}
+                        disabled={uploading}
+                        style={{ display: "none" }}
+                      />
+                    </label>
+
+                    {/* XML Upload */}
+                    <label
+                      style={{
+                        padding: "0.5rem 1rem",
+                        backgroundColor: entry.xml_storage_path ? "var(--color-surface-hover)" : "var(--color-success)",
+                        color: entry.xml_storage_path ? "var(--color-text-primary)" : "white",
+                        border: entry.xml_storage_path ? "1px solid var(--color-border)" : "none",
+                        borderRadius: "var(--radius-sm)",
+                        cursor: uploading ? "not-allowed" : "pointer",
+                        fontSize: "0.875rem",
+                        fontWeight: "500",
+                        opacity: uploading ? 0.6 : 1,
+                      }}
+                    >
+                      {entry.xml_storage_path ? "Reemplazar XML" : "Subir XML"}
+                      <input
+                        ref={xmlInputRef}
+                        type="file"
+                        accept=".xml,text/xml,application/xml"
+                        onChange={handleUploadXml}
+                        disabled={uploading}
+                        style={{ display: "none" }}
+                      />
+                    </label>
+
+                    {/* ZIP Upload */}
+                    <label
+                      style={{
+                        padding: "0.5rem 1rem",
+                        backgroundColor: "var(--color-primary)",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "var(--radius-sm)",
+                        cursor: uploading ? "not-allowed" : "pointer",
+                        fontSize: "0.875rem",
+                        fontWeight: "500",
+                        opacity: uploading ? 0.6 : 1,
+                      }}
+                    >
+                      Subir ZIP
+                      <input
+                        ref={zipInputRef}
+                        type="file"
+                        accept=".zip,application/zip,application/x-zip-compressed"
+                        onChange={handleUploadZip}
+                        disabled={uploading}
+                        style={{ display: "none" }}
+                      />
+                    </label>
+                  </div>
+
+                  {uploading && (
+                    <p
+                      style={{
+                        margin: "0.75rem 0 0 0",
+                        color: "var(--color-text-secondary)",
+                        fontSize: "0.875rem",
+                      }}
+                    >
+                      Subiendo documento...
+                    </p>
+                  )}
+
+                  <p
+                    style={{
+                      margin: "0.75rem 0 0 0",
+                      color: "var(--color-text-muted)",
+                      fontSize: "0.75rem",
+                    }}
+                  >
+                    El ZIP debe contener exactamente 1 PDF y 1 XML.
+                  </p>
+                </div>
+              </PermissionGate>
+
+              {/* No documents message */}
+              {!entry.pdf_storage_path && !entry.xml_storage_path && (
+                <p
+                  style={{
+                    margin: "0 0 1rem 0",
+                    color: "var(--color-text-muted)",
+                    fontSize: "0.875rem",
+                    fontStyle: "italic",
+                  }}
+                >
+                  No hay documentos adjuntos.
+                </p>
+              )}
+            </div>
 
             {/* Items Table */}
             <h3
