@@ -38,8 +38,9 @@ export async function serverApiRequest<T>(
     cookieStore.delete("access_token");
   }
 
+  // 204 No Content cannot have a body, return empty response
   if (response.status === 204) {
-    return NextResponse.json({} as T, { status: 204 });
+    return new NextResponse(null, { status: 204 }) as NextResponse<T>;
   }
 
   return NextResponse.json(await response.json(), {
