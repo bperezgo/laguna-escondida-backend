@@ -2,7 +2,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import type { Supplier } from "@/types/supplier";
-import type { SupplierCatalogItem, AddProductToSupplierRequest } from "@/types/supplierCatalog";
+import type {
+  SupplierCatalogItem,
+  AddProductToSupplierRequest,
+} from "@/types/supplierCatalog";
 import type { Product } from "@/types/product";
 import { supplierCatalogApi } from "@/lib/api/supplierCatalog";
 import { productsApi } from "@/lib/api/products";
@@ -23,7 +26,6 @@ export default function SupplierCatalogModal({
   const [showAddForm, setShowAddForm] = useState(false);
   const [addFormData, setAddFormData] = useState({
     product_id: "",
-    unit_cost: "",
     supplier_sku: "",
   });
   const [addFormLoading, setAddFormLoading] = useState(false);
@@ -70,14 +72,13 @@ export default function SupplierCatalogModal({
 
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!addFormData.product_id || !addFormData.unit_cost) return;
+    if (!addFormData.product_id) return;
 
     try {
       setAddFormLoading(true);
       setError("");
       const data: AddProductToSupplierRequest = {
         product_id: addFormData.product_id,
-        unit_cost: addFormData.unit_cost,
       };
       if (addFormData.supplier_sku.trim()) {
         data.supplier_sku = addFormData.supplier_sku.trim();
@@ -85,41 +86,40 @@ export default function SupplierCatalogModal({
       await supplierCatalogApi.addProductToSupplier(supplier.id, data);
       await loadData();
       setShowAddForm(false);
-      setAddFormData({ product_id: "", unit_cost: "", supplier_sku: "" });
+      setAddFormData({ product_id: "", supplier_sku: "" });
       setProductSearchQuery("");
       setSelectedProductName("");
       setShowProductDropdown(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al agregar producto");
+      setError(
+        err instanceof Error ? err.message : "Error al agregar producto",
+      );
     } finally {
       setAddFormLoading(false);
     }
   };
 
   const handleRemoveProduct = async (productId: string) => {
-    if (!confirm("¿Estás seguro de eliminar este producto del catálogo?")) return;
+    if (!confirm("¿Estás seguro de eliminar este producto del catálogo?"))
+      return;
 
     try {
       setError("");
-      await supplierCatalogApi.removeProductFromSupplier(supplier.id, productId);
+      await supplierCatalogApi.removeProductFromSupplier(
+        supplier.id,
+        productId,
+      );
       await loadData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al eliminar producto");
+      setError(
+        err instanceof Error ? err.message : "Error al eliminar producto",
+      );
     }
-  };
-
-  const formatCurrency = (amount: string) => {
-    return new Intl.NumberFormat("es-CO", {
-      style: "currency",
-      currency: "COP",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(parseFloat(amount));
   };
 
   // Get products not already in catalog
   const availableProducts = products.filter(
-    (p) => !catalogItems.some((c) => c.product_id === p.id)
+    (p) => !catalogItems.some((c) => c.product_id === p.id),
   );
 
   // Filter available products based on search query
@@ -299,12 +299,15 @@ export default function SupplierCatalogModal({
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "2fr 1fr 1fr",
+                gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr)",
                 gap: "1rem",
                 marginBottom: "1rem",
               }}
             >
-              <div ref={productSearchRef} style={{ position: "relative" }}>
+              <div
+                ref={productSearchRef}
+                style={{ position: "relative", minWidth: 0 }}
+              >
                 <label
                   style={{
                     display: "block",
@@ -451,38 +454,7 @@ export default function SupplierCatalogModal({
                   </>
                 )}
                 {/* Hidden required input for form validation */}
-                <input
-                  type="hidden"
-                  value={addFormData.product_id}
-                  required
-                />
-              </div>
-              <div>
-                <label
-                  style={{
-                    display: "block",
-                    marginBottom: "0.5rem",
-                    fontSize: "0.875rem",
-                    color: "var(--color-text-primary)",
-                  }}
-                >
-                  Costo Unitario *
-                </label>
-                <input
-                  type="number"
-                  value={addFormData.unit_cost}
-                  onChange={(e) =>
-                    setAddFormData((prev) => ({
-                      ...prev,
-                      unit_cost: e.target.value,
-                    }))
-                  }
-                  style={inputStyle}
-                  placeholder="0"
-                  min="0"
-                  step="0.01"
-                  required
-                />
+                <input type="hidden" value={addFormData.product_id} required />
               </div>
               <div>
                 <label
@@ -529,7 +501,10 @@ export default function SupplierCatalogModal({
                 type="button"
                 onClick={() => {
                   setShowAddForm(false);
-                  setAddFormData({ product_id: "", unit_cost: "", supplier_sku: "" });
+                  setAddFormData({
+                    product_id: "",
+                    supplier_sku: "",
+                  });
                   setProductSearchQuery("");
                   setSelectedProductName("");
                   setShowProductDropdown(false);
@@ -601,17 +576,6 @@ export default function SupplierCatalogModal({
                   </th>
                   <th
                     style={{
-                      textAlign: "right",
-                      padding: "0.75rem",
-                      color: "var(--color-text-secondary)",
-                      fontSize: "0.875rem",
-                      fontWeight: "600",
-                    }}
-                  >
-                    Costo Unitario
-                  </th>
-                  <th
-                    style={{
                       textAlign: "center",
                       padding: "0.75rem",
                       color: "var(--color-text-secondary)",
@@ -648,16 +612,6 @@ export default function SupplierCatalogModal({
                       }}
                     >
                       {item.supplier_sku || "-"}
-                    </td>
-                    <td
-                      style={{
-                        padding: "0.75rem",
-                        color: "var(--color-text-primary)",
-                        textAlign: "right",
-                        fontWeight: "600",
-                      }}
-                    >
-                      {formatCurrency(item.unit_cost)}
                     </td>
                     <td
                       style={{

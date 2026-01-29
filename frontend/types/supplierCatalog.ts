@@ -12,7 +12,6 @@ export interface SupplierCatalogItem {
 
 export interface AddProductToSupplierRequest {
   product_id: string;
-  unit_cost: string;
   supplier_sku?: string | null;
 }
 
