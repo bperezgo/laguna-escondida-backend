@@ -57,6 +57,28 @@ type supplierCatalogWithSupplierModel struct {
 }
 
 func (r *SupplierCatalogRepository) Create(ctx context.Context, catalog *dto.SupplierCatalog) error {
+	var existingModel supplierCatalogModel
+	err := r.db.WithContext(ctx).
+		Unscoped().
+		Where("supplier_id = ? AND product_id = ? AND deleted_at IS NOT NULL", catalog.SupplierID, catalog.ProductID).
+		First(&existingModel).Error
+
+	if err == nil {
+		return r.db.WithContext(ctx).
+			Model(&supplierCatalogModel{}).
+			Where("id = ?", existingModel.ID).
+			Updates(map[string]any{
+				"unit_cost":    catalog.UnitCost,
+				"supplier_sku": catalog.SupplierSKU,
+				"updated_at":   catalog.UpdatedAt,
+				"deleted_at":   nil,
+			}).Error
+	}
+
+	if err != gorm.ErrRecordNotFound {
+		return err
+	}
+
 	model := &supplierCatalogModel{
 		ID:          catalog.ID,
 		SupplierID:  catalog.SupplierID,
