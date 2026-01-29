@@ -11,7 +11,10 @@ import type {
 
 interface PurchaseEntryFormProps {
   suppliers: Supplier[];
-  onSubmit: (data: CreatePurchaseEntryRequest, files: { pdf?: File | null; xml?: File | null; zip?: File | null }) => Promise<void>;
+  onSubmit: (
+    data: CreatePurchaseEntryRequest,
+    files: { pdf?: File | null; xml?: File | null; zip?: File | null },
+  ) => Promise<void>;
   onCancel: () => void;
   isLoading?: boolean;
 }
@@ -20,6 +23,8 @@ interface FormItem {
   product_id: string;
   quantity: string;
   unit_cost: string;
+  total_cost: string;
+  lastEdited: "unit_cost" | "total_cost";
 }
 
 export default function PurchaseEntryForm({
@@ -36,7 +41,7 @@ export default function PurchaseEntryForm({
   });
 
   const [items, setItems] = useState<FormItem[]>([
-    { product_id: "", quantity: "", unit_cost: "" },
+    { product_id: "", quantity: "", unit_cost: "", total_cost: "", lastEdited: "unit_cost" },
   ]);
 
   const [pdfFile, setPdfFile] = useState<File | null>(null);
@@ -56,16 +61,18 @@ export default function PurchaseEntryForm({
       if (!formData.supplier_id) {
         setCatalogItems([]);
         // Reset items when supplier changes
-        setItems([{ product_id: "", quantity: "", unit_cost: "" }]);
+        setItems([{ product_id: "", quantity: "", unit_cost: "", total_cost: "", lastEdited: "unit_cost" }]);
         return;
       }
 
       try {
         setLoadingCatalog(true);
-        const catalog = await supplierCatalogApi.getProductsFromSupplier(formData.supplier_id);
+        const catalog = await supplierCatalogApi.getProductsFromSupplier(
+          formData.supplier_id,
+        );
         setCatalogItems(catalog);
         // Reset items when supplier changes
-        setItems([{ product_id: "", quantity: "", unit_cost: "" }]);
+        setItems([{ product_id: "", quantity: "", unit_cost: "", total_cost: "", lastEdited: "unit_cost" }]);
       } catch (err) {
         console.error("Error fetching supplier catalog:", err);
         setCatalogItems([]);
@@ -84,13 +91,13 @@ export default function PurchaseEntryForm({
       newErrors.supplier_id = "El proveedor es requerido";
     }
 
-    // Validate items
+    // Validate items - check that unit_cost exists (either entered directly or calculated from total)
     const validItems = items.filter(
-      (item) => item.product_id && item.quantity && item.unit_cost
+      (item) => item.product_id && item.quantity && item.unit_cost && parseFloat(item.unit_cost) > 0,
     );
 
     if (validItems.length === 0) {
-      newErrors.items = "Debe agregar al menos un producto";
+      newErrors.items = "Debe agregar al menos un producto con cantidad y costo válidos";
     }
 
     // Check for invalid quantities or costs
@@ -99,8 +106,10 @@ export default function PurchaseEntryForm({
         if (!item.quantity || parseFloat(item.quantity) <= 0) {
           newErrors[`item_${index}_quantity`] = "Cantidad inválida";
         }
-        if (!item.unit_cost || parseFloat(item.unit_cost) < 0) {
-          newErrors[`item_${index}_unit_cost`] = "Costo inválido";
+        // Unit cost must be positive (either entered directly or calculated from total)
+        const unitCost = parseFloat(item.unit_cost) || 0;
+        if (unitCost <= 0) {
+          newErrors[`item_${index}_unit_cost`] = "Ingrese costo unitario o total";
         }
       }
     });
@@ -161,7 +170,11 @@ export default function PurchaseEntryForm({
   const handleXmlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.type !== "text/xml" && file.type !== "application/xml" && !file.name.endsWith(".xml")) {
+      if (
+        file.type !== "text/xml" &&
+        file.type !== "application/xml" &&
+        !file.name.endsWith(".xml")
+      ) {
         setErrors((prev) => ({ ...prev, xml: "El archivo debe ser XML" }));
         return;
       }
@@ -191,7 +204,11 @@ export default function PurchaseEntryForm({
   const handleZipChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.type !== "application/zip" && file.type !== "application/x-zip-compressed" && !file.name.toLowerCase().endsWith(".zip")) {
+      if (
+        file.type !== "application/zip" &&
+        file.type !== "application/x-zip-compressed" &&
+        !file.name.toLowerCase().endsWith(".zip")
+      ) {
         setErrors((prev) => ({ ...prev, zip: "El archivo debe ser ZIP" }));
         return;
       }
@@ -217,7 +234,7 @@ export default function PurchaseEntryForm({
   };
 
   const handleAddItem = () => {
-    setItems([...items, { product_id: "", quantity: "", unit_cost: "" }]);
+    setItems([...items, { product_id: "", quantity: "", unit_cost: "", total_cost: "", lastEdited: "unit_cost" }]);
   };
 
   const handleRemoveItem = (index: number) => {
@@ -229,7 +246,7 @@ export default function PurchaseEntryForm({
   const handleItemChange = (
     index: number,
     field: keyof FormItem,
-    value: string
+    value: string,
   ) => {
     const newItems = [...items];
     newItems[index] = { ...newItems[index], [field]: value };
@@ -253,10 +270,97 @@ export default function PurchaseEntryForm({
     }
   };
 
-  const getCatalogItemByProductId = (productId: string) => 
+  // Handle unit cost change - calculate total cost
+  const handleUnitCostChange = (index: number, value: string) => {
+    const newItems = [...items];
+    const quantity = parseFloat(newItems[index].quantity) || 0;
+    const unitCost = parseFloat(value) || 0;
+    const totalCost = quantity * unitCost;
+
+    newItems[index] = {
+      ...newItems[index],
+      unit_cost: value,
+      total_cost: totalCost > 0 ? totalCost.toFixed(2) : "",
+      lastEdited: "unit_cost",
+    };
+    setItems(newItems);
+
+    // Clear errors
+    clearItemErrors(index, "unit_cost");
+  };
+
+  // Handle total cost change - calculate unit cost with high precision
+  const handleTotalCostChange = (index: number, value: string) => {
+    const newItems = [...items];
+    const quantity = parseFloat(newItems[index].quantity) || 0;
+    const totalCost = parseFloat(value) || 0;
+    
+    // Calculate unit cost with high precision (6 decimals)
+    const unitCost = quantity > 0 ? totalCost / quantity : 0;
+
+    newItems[index] = {
+      ...newItems[index],
+      total_cost: value,
+      unit_cost: unitCost > 0 ? unitCost.toFixed(6) : "",
+      lastEdited: "total_cost",
+    };
+    setItems(newItems);
+
+    // Clear errors
+    clearItemErrors(index, "unit_cost");
+  };
+
+  // Helper to clear item-specific errors
+  const clearItemErrors = (index: number, field: string) => {
+    const errorKey = `item_${index}_${field}`;
+    if (errors[errorKey] || errors.items) {
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[errorKey];
+        delete newErrors.items;
+        return newErrors;
+      });
+    }
+  };
+
+  // Handle quantity change - recalculate based on lastEdited field
+  const handleQuantityChange = (index: number, value: string) => {
+    const newItems = [...items];
+    const item = newItems[index];
+    const quantity = parseFloat(value) || 0;
+
+    if (item.lastEdited === "total_cost" && item.total_cost) {
+      // If user was entering totals, recalculate unit cost
+      const totalCost = parseFloat(item.total_cost) || 0;
+      const unitCost = quantity > 0 ? totalCost / quantity : 0;
+      newItems[index] = {
+        ...item,
+        quantity: value,
+        unit_cost: unitCost > 0 ? unitCost.toFixed(6) : "",
+      };
+    } else {
+      // If user was entering unit costs (default), recalculate total
+      const unitCost = parseFloat(item.unit_cost) || 0;
+      const totalCost = quantity * unitCost;
+      newItems[index] = {
+        ...item,
+        quantity: value,
+        total_cost: totalCost > 0 ? totalCost.toFixed(2) : "",
+      };
+    }
+
+    setItems(newItems);
+    clearItemErrors(index, "quantity");
+  };
+
+  const getCatalogItemByProductId = (productId: string) =>
     catalogItems.find((item) => item.product_id === productId);
 
   const calculateItemTotal = (item: FormItem): number => {
+    // Use total_cost if available, otherwise calculate from quantity * unit_cost
+    if (item.total_cost) {
+      return parseFloat(item.total_cost) || 0;
+    }
     const qty = parseFloat(item.quantity) || 0;
     const cost = parseFloat(item.unit_cost) || 0;
     return qty * cost;
@@ -304,7 +408,9 @@ export default function PurchaseEntryForm({
     const selectedProductIds = items
       .filter((_, i) => i !== currentIndex)
       .map((item) => item.product_id);
-    return catalogItems.filter((item) => !selectedProductIds.includes(item.product_id));
+    return catalogItems.filter(
+      (item) => !selectedProductIds.includes(item.product_id),
+    );
   };
 
   // Handle product selection (unit_cost is entered manually for each purchase)
@@ -382,7 +488,10 @@ export default function PurchaseEntryForm({
               <select
                 value={formData.supplier_id}
                 onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, supplier_id: e.target.value }))
+                  setFormData((prev) => ({
+                    ...prev,
+                    supplier_id: e.target.value,
+                  }))
                 }
                 style={inputStyle(!!errors.supplier_id)}
               >
@@ -404,7 +513,10 @@ export default function PurchaseEntryForm({
                 type="date"
                 value={formData.entry_date}
                 onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, entry_date: e.target.value }))
+                  setFormData((prev) => ({
+                    ...prev,
+                    entry_date: e.target.value,
+                  }))
                 }
                 style={inputStyle(false)}
               />
@@ -540,13 +652,17 @@ export default function PurchaseEntryForm({
                 </thead>
                 <tbody>
                   {items.map((item, index) => {
-                    const selectedCatalogItem = getCatalogItemByProductId(item.product_id);
+                    const selectedCatalogItem = getCatalogItemByProductId(
+                      item.product_id,
+                    );
                     return (
                       <tr key={index}>
                         <td style={{ padding: "0.5rem" }}>
                           <select
                             value={item.product_id}
-                            onChange={(e) => handleProductSelect(index, e.target.value)}
+                            onChange={(e) =>
+                              handleProductSelect(index, e.target.value)
+                            }
                             disabled={!formData.supplier_id || loadingCatalog}
                             style={{
                               width: "100%",
@@ -556,30 +672,46 @@ export default function PurchaseEntryForm({
                               backgroundColor: "var(--color-surface)",
                               color: "var(--color-text-primary)",
                               fontSize: "0.875rem",
-                              opacity: !formData.supplier_id || loadingCatalog ? 0.6 : 1,
+                              opacity:
+                                !formData.supplier_id || loadingCatalog
+                                  ? 0.6
+                                  : 1,
                             }}
                           >
                             <option value="">
                               {!formData.supplier_id
                                 ? "Primero seleccione un proveedor"
                                 : loadingCatalog
-                                ? "Cargando productos..."
-                                : catalogItems.length === 0
-                                ? "El proveedor no tiene productos"
-                                : "Seleccionar producto"}
+                                  ? "Cargando productos..."
+                                  : catalogItems.length === 0
+                                    ? "El proveedor no tiene productos"
+                                    : "Seleccionar producto"}
                             </option>
-                            {getAvailableCatalogItems(index).map((catalogItem) => (
-                              <option key={catalogItem.product_id} value={catalogItem.product_id}>
-                                {catalogItem.product_name} - {formatCurrency(parseFloat(catalogItem.unit_cost))}
-                              </option>
-                            ))}
+                            {getAvailableCatalogItems(index).map(
+                              (catalogItem) => (
+                                <option
+                                  key={catalogItem.product_id}
+                                  value={catalogItem.product_id}
+                                >
+                                  {catalogItem.product_name} -{" "}
+                                  {formatCurrency(
+                                    parseFloat(catalogItem.unit_cost),
+                                  )}
+                                </option>
+                              ),
+                            )}
                             {/* Keep selected product in options even if selected elsewhere */}
                             {selectedCatalogItem &&
                               !getAvailableCatalogItems(index).find(
-                                (c) => c.product_id === selectedCatalogItem.product_id
+                                (c) =>
+                                  c.product_id ===
+                                  selectedCatalogItem.product_id,
                               ) && (
                                 <option value={selectedCatalogItem.product_id}>
-                                  {selectedCatalogItem.product_name} - {formatCurrency(parseFloat(selectedCatalogItem.unit_cost))}
+                                  {selectedCatalogItem.product_name} -{" "}
+                                  {formatCurrency(
+                                    parseFloat(selectedCatalogItem.unit_cost),
+                                  )}
                                 </option>
                               )}
                           </select>
@@ -589,7 +721,7 @@ export default function PurchaseEntryForm({
                             type="number"
                             value={item.quantity}
                             onChange={(e) =>
-                              handleItemChange(index, "quantity", e.target.value)
+                              handleQuantityChange(index, e.target.value)
                             }
                             placeholder="0"
                             min="0.01"
@@ -615,11 +747,11 @@ export default function PurchaseEntryForm({
                             type="number"
                             value={item.unit_cost}
                             onChange={(e) =>
-                              handleItemChange(index, "unit_cost", e.target.value)
+                              handleUnitCostChange(index, e.target.value)
                             }
                             placeholder="0"
                             min="0"
-                            step="0.01"
+                            step="0.000001"
                             style={{
                               width: "100%",
                               padding: "0.5rem",
@@ -636,15 +768,28 @@ export default function PurchaseEntryForm({
                             }}
                           />
                         </td>
-                        <td
-                          style={{
-                            padding: "0.5rem",
-                            textAlign: "right",
-                            fontWeight: "600",
-                            color: "var(--color-text-primary)",
-                          }}
-                        >
-                          {formatCurrency(calculateItemTotal(item))}
+                        <td style={{ padding: "0.5rem" }}>
+                          <input
+                            type="number"
+                            value={item.total_cost}
+                            onChange={(e) =>
+                              handleTotalCostChange(index, e.target.value)
+                            }
+                            placeholder="0"
+                            min="0"
+                            step="0.01"
+                            style={{
+                              width: "100%",
+                              padding: "0.5rem",
+                              border: "1px solid var(--color-border)",
+                              borderRadius: "var(--radius-sm)",
+                              backgroundColor: "var(--color-surface)",
+                              color: "var(--color-text-primary)",
+                              fontSize: "0.875rem",
+                              textAlign: "right",
+                              fontWeight: "600",
+                            }}
+                          />
                         </td>
                         <td style={{ padding: "0.5rem", textAlign: "center" }}>
                           {items.length > 1 && (
@@ -1026,7 +1171,7 @@ export default function PurchaseEntryForm({
                     fontSize: "0.875rem",
                     backgroundColor: "var(--color-surface)",
                     color: "var(--color-text-primary)",
-                    opacity: (pdfFile || xmlFile) ? 0.5 : 1,
+                    opacity: pdfFile || xmlFile ? 0.5 : 1,
                   }}
                 />
               )}
