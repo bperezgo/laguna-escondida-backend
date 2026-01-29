@@ -1,22 +1,22 @@
 # Supplier Catalog API
 
-Manage which products each supplier provides and at what price.
+Manage which products each supplier provides.
 
 ## Endpoints
 
-| Method | Endpoint                                  | Description                     |
-| ------ | ----------------------------------------- | ------------------------------- |
-| POST   | `/api/suppliers/:id/products`             | Add product to supplier catalog |
-| PUT    | `/api/suppliers/:id/products/:product_id` | Update product pricing          |
-| DELETE | `/api/suppliers/:id/products/:product_id` | Remove product from catalog     |
-| GET    | `/api/suppliers/:id/products`             | List products from a supplier   |
-| GET    | `/api/products/:id/suppliers`             | List suppliers for a product    |
+| Method | Endpoint                                  | Description                       |
+| ------ | ----------------------------------------- | --------------------------------- |
+| POST   | `/api/suppliers/:id/products`             | Add product to supplier catalog   |
+| PUT    | `/api/suppliers/:id/products/:product_id` | Update supplier catalog entry     |
+| DELETE | `/api/suppliers/:id/products/:product_id` | Remove product from catalog       |
+| GET    | `/api/suppliers/:id/products`             | List products from a supplier     |
+| GET    | `/api/products/:id/suppliers`             | List suppliers for a product      |
 
 ---
 
 ## Add Product to Supplier
 
-Adds a product to a supplier's catalog with pricing information.
+Adds a product to a supplier's catalog.
 
 ```
 POST /api/suppliers/:id/products
@@ -33,7 +33,6 @@ POST /api/suppliers/:id/products
 | Field        | Type   | Required | Description                                     |
 | ------------ | ------ | -------- | ----------------------------------------------- |
 | product_id   | UUID   | Yes      | Product ID to add                               |
-| unit_cost    | string | Yes      | Cost per unit (decimal)                         |
 | supplier_sku | string | No       | Supplier's SKU for this product (max 255 chars) |
 
 ### Example Request
@@ -41,7 +40,6 @@ POST /api/suppliers/:id/products
 ```json
 {
   "product_id": "660e8400-e29b-41d4-a716-446655440001",
-  "unit_cost": "2500.00",
   "supplier_sku": "FP-TOM-001"
 }
 ```
@@ -53,7 +51,6 @@ POST /api/suppliers/:id/products
   "id": "770e8400-e29b-41d4-a716-446655440002",
   "supplier_id": "550e8400-e29b-41d4-a716-446655440000",
   "product_id": "660e8400-e29b-41d4-a716-446655440001",
-  "unit_cost": "2500.00",
   "supplier_sku": "FP-TOM-001",
   "created_at": "2024-01-26T15:30:00Z",
   "updated_at": "2024-01-26T15:30:00Z"
@@ -80,9 +77,9 @@ POST /api/suppliers/:id/products
 
 ---
 
-## Update Product Pricing
+## Update Supplier Catalog Entry
 
-Updates the unit cost for a product in a supplier's catalog.
+Updates the supplier SKU for a product in a supplier's catalog.
 
 ```
 PUT /api/suppliers/:id/products/:product_id
@@ -99,14 +96,12 @@ PUT /api/suppliers/:id/products/:product_id
 
 | Field        | Type   | Required | Description                     |
 | ------------ | ------ | -------- | ------------------------------- |
-| unit_cost    | string | Yes      | New cost per unit (decimal)     |
 | supplier_sku | string | No       | Supplier's SKU for this product |
 
 ### Example Request
 
 ```json
 {
-  "unit_cost": "2800.00",
   "supplier_sku": "FP-TOM-002"
 }
 ```
@@ -118,7 +113,6 @@ PUT /api/suppliers/:id/products/:product_id
   "id": "770e8400-e29b-41d4-a716-446655440002",
   "supplier_id": "550e8400-e29b-41d4-a716-446655440000",
   "product_id": "660e8400-e29b-41d4-a716-446655440001",
-  "unit_cost": "2800.00",
   "supplier_sku": "FP-TOM-002",
   "created_at": "2024-01-26T15:30:00Z",
   "updated_at": "2024-01-26T16:00:00Z"
@@ -150,7 +144,7 @@ No response body on success.
 
 ## List Products from Supplier
 
-Returns all products that a supplier provides, with pricing.
+Returns all products that a supplier provides.
 
 ```
 GET /api/suppliers/:id/products
@@ -172,7 +166,6 @@ GET /api/suppliers/:id/products
       "supplier_id": "550e8400-e29b-41d4-a716-446655440000",
       "product_id": "660e8400-e29b-41d4-a716-446655440001",
       "product_name": "Tomato",
-      "unit_cost": "2500.00",
       "supplier_sku": "FP-TOM-001",
       "created_at": "2024-01-26T15:30:00Z",
       "updated_at": "2024-01-26T15:30:00Z"
@@ -182,7 +175,6 @@ GET /api/suppliers/:id/products
       "supplier_id": "550e8400-e29b-41d4-a716-446655440000",
       "product_id": "990e8400-e29b-41d4-a716-446655440004",
       "product_name": "Potato",
-      "unit_cost": "1800.00",
       "supplier_sku": "FP-POT-001",
       "created_at": "2024-01-26T15:30:00Z",
       "updated_at": "2024-01-26T15:30:00Z"
@@ -196,7 +188,7 @@ GET /api/suppliers/:id/products
 
 ## List Suppliers for Product
 
-Returns all suppliers that provide a specific product, with their pricing.
+Returns all suppliers that provide a specific product.
 
 ```
 GET /api/products/:id/suppliers
@@ -218,7 +210,6 @@ GET /api/products/:id/suppliers
       "supplier_id": "550e8400-e29b-41d4-a716-446655440000",
       "supplier_name": "Fresh Produce Co.",
       "product_id": "660e8400-e29b-41d4-a716-446655440001",
-      "unit_cost": "2500.00",
       "supplier_sku": "FP-TOM-001",
       "created_at": "2024-01-26T15:30:00Z",
       "updated_at": "2024-01-26T15:30:00Z"
@@ -228,7 +219,6 @@ GET /api/products/:id/suppliers
       "supplier_id": "bb0e8400-e29b-41d4-a716-446655440006",
       "supplier_name": "Local Farm",
       "product_id": "660e8400-e29b-41d4-a716-446655440001",
-      "unit_cost": "2200.00",
       "supplier_sku": "LF-TOM-100",
       "created_at": "2024-01-26T14:00:00Z",
       "updated_at": "2024-01-26T14:00:00Z"
@@ -238,4 +228,4 @@ GET /api/products/:id/suppliers
 }
 ```
 
-This is useful for comparing prices from different suppliers for the same product.
+This is useful for seeing all suppliers that provide a specific product.

@@ -13,7 +13,6 @@ var (
 	ErrSupplierCatalogCreationFailed = errors.New("failed to create supplier catalog entry")
 	ErrSupplierCatalogUpdateFailed   = errors.New("failed to update supplier catalog entry")
 	ErrSupplierCatalogDeleteFailed   = errors.New("failed to delete supplier catalog entry")
-	ErrInvalidUnitCost               = errors.New("invalid unit cost")
 
 	ErrPurchaseEntryNotFound       = errors.New("purchase entry not found")
 	ErrPurchaseEntryCreationFailed = errors.New("failed to create purchase entry")

@@ -11,7 +11,6 @@ import (
 	"laguna-escondida/backend/internal/domain/ports"
 
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -123,20 +122,11 @@ func (s *SupplierService) AddProductToSupplier(ctx context.Context, supplierID s
 		return nil, domainError.ErrSupplierCatalogAlreadyExists
 	}
 
-	unitCost, err := decimal.NewFromString(req.UnitCost)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", domainError.ErrInvalidUnitCost, err)
-	}
-	if unitCost.LessThan(decimal.Zero) {
-		return nil, fmt.Errorf("%w: unit cost cannot be negative", domainError.ErrInvalidUnitCost)
-	}
-
 	now := time.Now()
 	catalog := &dto.SupplierCatalog{
 		ID:          uuid.New().String(),
 		SupplierID:  supplierID,
 		ProductID:   req.ProductID,
-		UnitCost:    unitCost,
 		SupplierSKU: req.SupplierSKU,
 		CreatedAt:   now,
 		UpdatedAt:   now,
@@ -158,15 +148,6 @@ func (s *SupplierService) UpdateSupplierCatalog(ctx context.Context, supplierID,
 		return nil, fmt.Errorf("%w: %w", domainError.ErrSupplierCatalogNotFound, err)
 	}
 
-	unitCost, err := decimal.NewFromString(req.UnitCost)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", domainError.ErrInvalidUnitCost, err)
-	}
-	if unitCost.LessThan(decimal.Zero) {
-		return nil, fmt.Errorf("%w: unit cost cannot be negative", domainError.ErrInvalidUnitCost)
-	}
-
-	existing.UnitCost = unitCost
 	existing.SupplierSKU = req.SupplierSKU
 	existing.UpdatedAt = time.Now()
 

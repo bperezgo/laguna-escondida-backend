@@ -7,7 +7,6 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
 
-	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -20,14 +19,13 @@ func NewSupplierCatalogRepository(db *gorm.DB) ports.SupplierCatalogRepository {
 }
 
 type supplierCatalogModel struct {
-	ID          string          `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	SupplierID  string          `gorm:"type:uuid;not null;column:supplier_id"`
-	ProductID   string          `gorm:"type:uuid;not null;column:product_id"`
-	UnitCost    decimal.Decimal `gorm:"type:numeric(19,4);not null;column:unit_cost"`
-	SupplierSKU *string         `gorm:"type:varchar(255);column:supplier_sku"`
-	CreatedAt   time.Time       `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
-	UpdatedAt   time.Time       `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
-	DeletedAt   *time.Time      `gorm:"type:timestamp"`
+	ID          string     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	SupplierID  string     `gorm:"type:uuid;not null;column:supplier_id"`
+	ProductID   string     `gorm:"type:uuid;not null;column:product_id"`
+	SupplierSKU *string    `gorm:"type:varchar(255);column:supplier_sku"`
+	CreatedAt   time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	UpdatedAt   time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	DeletedAt   *time.Time `gorm:"type:timestamp"`
 }
 
 func (supplierCatalogModel) TableName() string {
@@ -35,25 +33,23 @@ func (supplierCatalogModel) TableName() string {
 }
 
 type supplierCatalogWithProductModel struct {
-	ID          string          `gorm:"column:id"`
-	SupplierID  string          `gorm:"column:supplier_id"`
-	ProductID   string          `gorm:"column:product_id"`
-	ProductName string          `gorm:"column:product_name"`
-	UnitCost    decimal.Decimal `gorm:"column:unit_cost"`
-	SupplierSKU *string         `gorm:"column:supplier_sku"`
-	CreatedAt   time.Time       `gorm:"column:created_at"`
-	UpdatedAt   time.Time       `gorm:"column:updated_at"`
+	ID          string    `gorm:"column:id"`
+	SupplierID  string    `gorm:"column:supplier_id"`
+	ProductID   string    `gorm:"column:product_id"`
+	ProductName string    `gorm:"column:product_name"`
+	SupplierSKU *string   `gorm:"column:supplier_sku"`
+	CreatedAt   time.Time `gorm:"column:created_at"`
+	UpdatedAt   time.Time `gorm:"column:updated_at"`
 }
 
 type supplierCatalogWithSupplierModel struct {
-	ID           string          `gorm:"column:id"`
-	SupplierID   string          `gorm:"column:supplier_id"`
-	SupplierName string          `gorm:"column:supplier_name"`
-	ProductID    string          `gorm:"column:product_id"`
-	UnitCost     decimal.Decimal `gorm:"column:unit_cost"`
-	SupplierSKU  *string         `gorm:"column:supplier_sku"`
-	CreatedAt    time.Time       `gorm:"column:created_at"`
-	UpdatedAt    time.Time       `gorm:"column:updated_at"`
+	ID           string    `gorm:"column:id"`
+	SupplierID   string    `gorm:"column:supplier_id"`
+	SupplierName string    `gorm:"column:supplier_name"`
+	ProductID    string    `gorm:"column:product_id"`
+	SupplierSKU  *string   `gorm:"column:supplier_sku"`
+	CreatedAt    time.Time `gorm:"column:created_at"`
+	UpdatedAt    time.Time `gorm:"column:updated_at"`
 }
 
 func (r *SupplierCatalogRepository) Create(ctx context.Context, catalog *dto.SupplierCatalog) error {
@@ -68,7 +64,6 @@ func (r *SupplierCatalogRepository) Create(ctx context.Context, catalog *dto.Sup
 			Model(&supplierCatalogModel{}).
 			Where("id = ?", existingModel.ID).
 			Updates(map[string]any{
-				"unit_cost":    catalog.UnitCost,
 				"supplier_sku": catalog.SupplierSKU,
 				"updated_at":   catalog.UpdatedAt,
 				"deleted_at":   nil,
@@ -83,7 +78,6 @@ func (r *SupplierCatalogRepository) Create(ctx context.Context, catalog *dto.Sup
 		ID:          catalog.ID,
 		SupplierID:  catalog.SupplierID,
 		ProductID:   catalog.ProductID,
-		UnitCost:    catalog.UnitCost,
 		SupplierSKU: catalog.SupplierSKU,
 		CreatedAt:   catalog.CreatedAt,
 		UpdatedAt:   catalog.UpdatedAt,
@@ -94,7 +88,6 @@ func (r *SupplierCatalogRepository) Create(ctx context.Context, catalog *dto.Sup
 
 func (r *SupplierCatalogRepository) Update(ctx context.Context, id string, catalog *dto.SupplierCatalog) error {
 	updateData := map[string]interface{}{
-		"unit_cost":    catalog.UnitCost,
 		"supplier_sku": catalog.SupplierSKU,
 		"updated_at":   catalog.UpdatedAt,
 	}
@@ -130,7 +123,7 @@ func (r *SupplierCatalogRepository) FindBySupplierID(ctx context.Context, suppli
 
 	err := r.db.WithContext(ctx).
 		Table("supplier_catalog sc").
-		Select("sc.id, sc.supplier_id, sc.product_id, p.name as product_name, sc.unit_cost, sc.supplier_sku, sc.created_at, sc.updated_at").
+		Select("sc.id, sc.supplier_id, sc.product_id, p.name as product_name, sc.supplier_sku, sc.created_at, sc.updated_at").
 		Joins("JOIN products p ON p.id = sc.product_id AND p.deleted_at IS NULL").
 		Where("sc.supplier_id = ? AND sc.deleted_at IS NULL", supplierID).
 		Order("p.name ASC").
@@ -147,7 +140,6 @@ func (r *SupplierCatalogRepository) FindBySupplierID(ctx context.Context, suppli
 			SupplierID:  model.SupplierID,
 			ProductID:   model.ProductID,
 			ProductName: model.ProductName,
-			UnitCost:    model.UnitCost,
 			SupplierSKU: model.SupplierSKU,
 			CreatedAt:   model.CreatedAt,
 			UpdatedAt:   model.UpdatedAt,
@@ -162,7 +154,7 @@ func (r *SupplierCatalogRepository) FindByProductID(ctx context.Context, product
 
 	err := r.db.WithContext(ctx).
 		Table("supplier_catalog sc").
-		Select("sc.id, sc.supplier_id, s.name as supplier_name, sc.product_id, sc.unit_cost, sc.supplier_sku, sc.created_at, sc.updated_at").
+		Select("sc.id, sc.supplier_id, s.name as supplier_name, sc.product_id, sc.supplier_sku, sc.created_at, sc.updated_at").
 		Joins("JOIN suppliers s ON s.id = sc.supplier_id AND s.deleted_at IS NULL").
 		Where("sc.product_id = ? AND sc.deleted_at IS NULL", productID).
 		Order("s.name ASC").
@@ -179,7 +171,6 @@ func (r *SupplierCatalogRepository) FindByProductID(ctx context.Context, product
 			SupplierID:   model.SupplierID,
 			SupplierName: model.SupplierName,
 			ProductID:    model.ProductID,
-			UnitCost:     model.UnitCost,
 			SupplierSKU:  model.SupplierSKU,
 			CreatedAt:    model.CreatedAt,
 			UpdatedAt:    model.UpdatedAt,
@@ -205,7 +196,6 @@ func (r *SupplierCatalogRepository) toDTO(model *supplierCatalogModel) *dto.Supp
 		ID:          model.ID,
 		SupplierID:  model.SupplierID,
 		ProductID:   model.ProductID,
-		UnitCost:    model.UnitCost,
 		SupplierSKU: model.SupplierSKU,
 		CreatedAt:   model.CreatedAt,
 		UpdatedAt:   model.UpdatedAt,

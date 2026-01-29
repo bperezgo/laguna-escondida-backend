@@ -13,7 +13,6 @@ import (
 	pkgPorts "laguna-escondida/backend/pkg/domain/ports"
 
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 )
 
 type PurchaseEntryService struct {
@@ -99,11 +98,6 @@ func (s *PurchaseEntryService) CreatePurchaseEntry(ctx context.Context, req *dto
 func (s *PurchaseEntryService) updateSupplierCatalog(ctx context.Context, supplierID string, item dto.CreatePurchaseEntryItemRequest) {
 	existing, err := s.supplierCatalogRepo.FindBySupplierAndProduct(ctx, supplierID, item.ProductID)
 
-	unitCost, parseErr := decimal.NewFromString(item.UnitCost)
-	if parseErr != nil {
-		return
-	}
-
 	if err != nil {
 		// Catalog entry doesn't exist, create it
 		now := time.Now()
@@ -111,7 +105,6 @@ func (s *PurchaseEntryService) updateSupplierCatalog(ctx context.Context, suppli
 			ID:         uuid.New().String(),
 			SupplierID: supplierID,
 			ProductID:  item.ProductID,
-			UnitCost:   unitCost,
 			CreatedAt:  now,
 			UpdatedAt:  now,
 		}
@@ -120,7 +113,6 @@ func (s *PurchaseEntryService) updateSupplierCatalog(ctx context.Context, suppli
 	}
 
 	// Update existing catalog entry with new unit cost
-	existing.UnitCost = unitCost
 	existing.UpdatedAt = time.Now()
 	_ = s.supplierCatalogRepo.Update(ctx, existing.ID, existing)
 }

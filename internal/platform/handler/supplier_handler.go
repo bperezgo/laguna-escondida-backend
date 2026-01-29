@@ -173,10 +173,6 @@ func (h *SupplierHandler) AddProductToSupplierHandler(c *gin.Context) {
 			c.JSON(http.StatusConflict, gin.H{"error": "Product already exists in supplier catalog"})
 			return
 		}
-		if errors.Is(err, domainError.ErrInvalidUnitCost) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add product to supplier"})
 		return
 	}
@@ -210,10 +206,6 @@ func (h *SupplierHandler) UpdateSupplierCatalogHandler(c *gin.Context) {
 
 		if errors.Is(err, domainError.ErrSupplierCatalogNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Supplier catalog entry not found"})
-			return
-		}
-		if errors.Is(err, domainError.ErrInvalidUnitCost) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update supplier catalog"})
