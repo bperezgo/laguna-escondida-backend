@@ -7,9 +7,11 @@ import type {
   UpdateProductRequest,
   ProductType,
   UnitOfMeasure,
+  ProductResponsibility,
 } from "@/types/product";
-import { PRODUCT_TYPES, UNITS_OF_MEASURE, requiresPricing } from "@/types/product";
+import { PRODUCT_TYPES, UNITS_OF_MEASURE, PREPARATION_AREAS, PRIORITY_LEVELS, requiresPricing } from "@/types/product";
 import { productsApi } from "@/lib/api/products";
+import { productResponsibilitiesApi } from "@/lib/api/productResponsibilities";
 
 interface ProductFormProps {
   product?: Product | null;
@@ -50,6 +52,13 @@ export default function ProductForm({
   const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
   const categoryInputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  // Product Responsibility State
+  const [hasResponsibility, setHasResponsibility] = useState(false);
+  const [responsibilityArea, setResponsibilityArea] = useState("");
+  const [responsibilityPriority, setResponsibilityPriority] = useState("0");
+  const [existingResponsibilityId, setExistingResponsibilityId] = useState<string | null>(null);
+  const [responsibilityLoading, setResponsibilityLoading] = useState(false);
 
   const needsPricing = requiresPricing(formData.product_type);
 
@@ -102,6 +111,42 @@ export default function ProductForm({
     };
   }, []);
 
+  // Fetch existing product responsibility when editing
+  useEffect(() => {
+    const fetchResponsibility = async () => {
+      if (!product?.id) {
+        // Reset responsibility state for new products
+        setHasResponsibility(false);
+        setResponsibilityArea("");
+        setResponsibilityPriority("0");
+        setExistingResponsibilityId(null);
+        return;
+      }
+
+      try {
+        setResponsibilityLoading(true);
+        const responsibility = await productResponsibilitiesApi.getById(product.id);
+        
+        // If we found a responsibility, populate the form
+        setHasResponsibility(true);
+        setResponsibilityArea(responsibility.area);
+        setResponsibilityPriority(responsibility.priority.toString());
+        setExistingResponsibilityId(responsibility.id);
+      } catch (error) {
+        // 404 means no responsibility exists, which is fine
+        // Just leave the fields empty
+        setHasResponsibility(false);
+        setResponsibilityArea("");
+        setResponsibilityPriority("0");
+        setExistingResponsibilityId(null);
+      } finally {
+        setResponsibilityLoading(false);
+      }
+    };
+
+    fetchResponsibility();
+  }, [product?.id]);
+
   // Filter categories based on input
   const filteredCategories = categories.filter((category) =>
     category.toLowerCase().includes(formData.category.toLowerCase())
@@ -145,6 +190,26 @@ export default function ProductForm({
       newErrors.sku = "El SKU es requerido";
     } else if (formData.sku.length > 255) {
       newErrors.sku = "El SKU debe tener 255 caracteres o menos";
+    }
+
+    // Product Responsibility Validation
+    if (hasResponsibility) {
+      // Area: required, min=1, max=255
+      if (!responsibilityArea.trim()) {
+        newErrors.responsibility_area = "El área de preparación es requerida";
+      } else if (responsibilityArea.length > 255) {
+        newErrors.responsibility_area = "El área debe tener 255 caracteres o menos";
+      }
+
+      // Priority: required, must be valid level (0-3)
+      if (!responsibilityPriority.trim()) {
+        newErrors.responsibility_priority = "El nivel de prioridad es requerido";
+      } else {
+        const priority = parseInt(responsibilityPriority);
+        if (isNaN(priority) || priority < 0 || priority > 3) {
+          newErrors.responsibility_priority = "El nivel de prioridad debe estar entre 0 y 3";
+        }
+      }
     }
 
     // Price fields only required if product type requires pricing
@@ -215,7 +280,56 @@ export default function ProductForm({
       submitData.total_price_with_taxes = formData.total_price_with_taxes.trim();
     }
 
-    await onSubmit(submitData);
+    try {
+      // First, submit the product
+      await onSubmit(submitData);
+
+      // After product is saved successfully, handle responsibility
+      await handleResponsibilityOperations();
+    } catch (error) {
+      // Error is already handled by onSubmit
+      throw error;
+    }
+  };
+
+  const handleResponsibilityOperations = async () => {
+    try {
+      if (hasResponsibility) {
+        const responsibilityData = {
+          area: responsibilityArea.trim(),
+          priority: parseInt(responsibilityPriority),
+        };
+
+        if (existingResponsibilityId) {
+          // Update existing responsibility
+          await productResponsibilitiesApi.update(
+            existingResponsibilityId,
+            responsibilityData
+          );
+        } else {
+          // Create new responsibility
+          await productResponsibilitiesApi.create({
+            product_name: formData.name.trim(),
+            ...responsibilityData,
+          });
+        }
+      } else if (existingResponsibilityId) {
+        // Delete responsibility if checkbox is unchecked
+        await productResponsibilitiesApi.delete(existingResponsibilityId);
+      }
+    } catch (error) {
+      // Log the error but don't fail the entire operation
+      console.error("Error handling product responsibility:", error);
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to save product responsibility";
+      
+      // Show a warning to the user
+      alert(
+        `El producto se guardó correctamente, pero hubo un problema con la responsabilidad de preparación: ${errorMessage}`
+      );
+    }
   };
 
   const handleChange = (field: string, value: string) => {
@@ -439,6 +553,160 @@ export default function ProductForm({
               maxLength={255}
             />
             {errors.sku && <p style={errorStyle}>{errors.sku}</p>}
+          </div>
+
+          {/* Product Responsibility Section */}
+          <div
+            style={{
+              marginBottom: "1.5rem",
+              padding: "1rem",
+              backgroundColor: "var(--color-bg)",
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--color-border)",
+            }}
+          >
+            <h3
+              style={{
+                margin: "0 0 1rem 0",
+                fontSize: "1rem",
+                fontWeight: "600",
+                color: "var(--color-text-secondary)",
+              }}
+            >
+              Responsabilidad de Preparación
+            </h3>
+
+            {responsibilityLoading ? (
+              <p style={{ color: "var(--color-text-secondary)", fontSize: "0.875rem" }}>
+                Cargando información de preparación...
+              </p>
+            ) : (
+              <>
+                {/* Checkbox */}
+                <div style={{ marginBottom: "1rem" }}>
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      cursor: "pointer",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={hasResponsibility}
+                      onChange={(e) => {
+                        setHasResponsibility(e.target.checked);
+                        // Clear errors when toggling
+                        if (!e.target.checked) {
+                          setErrors((prev) => {
+                            const newErrors = { ...prev };
+                            delete newErrors.responsibility_area;
+                            delete newErrors.responsibility_priority;
+                            return newErrors;
+                          });
+                        }
+                      }}
+                      style={{
+                        width: "1.25rem",
+                        height: "1.25rem",
+                        cursor: "pointer",
+                      }}
+                    />
+                    <span style={{ color: "var(--color-text-primary)", fontWeight: "500" }}>
+                      Este producto requiere preparación
+                    </span>
+                  </label>
+                </div>
+
+                {/* Area and Priority - Only shown when checkbox is checked */}
+                {hasResponsibility && (
+                  <>
+                    {/* Info text */}
+                    <div
+                      style={{
+                        marginBottom: "1rem",
+                        padding: "0.75rem",
+                        backgroundColor: "var(--color-primary-light)",
+                        borderRadius: "var(--radius-sm)",
+                        border: "1px solid var(--color-primary)",
+                        color: "var(--color-text-primary)",
+                        fontSize: "0.875rem",
+                      }}
+                    >
+                      Define qué área es responsable de preparar este producto y su nivel de prioridad. A mayor prioridad, menor tiempo de entrega.
+                    </div>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: "1rem",
+                      }}
+                    >
+                      {/* Area Dropdown */}
+                      <div>
+                        <label style={labelStyle}>Área de Preparación *</label>
+                        <select
+                          value={responsibilityArea}
+                          onChange={(e) => {
+                            setResponsibilityArea(e.target.value);
+                            // Clear error when user changes value
+                            if (errors.responsibility_area) {
+                              setErrors((prev) => {
+                                const newErrors = { ...prev };
+                                delete newErrors.responsibility_area;
+                                return newErrors;
+                              });
+                            }
+                          }}
+                          style={inputStyle(!!errors.responsibility_area)}
+                        >
+                          <option value="">Selecciona un área</option>
+                          {PREPARATION_AREAS.map((area) => (
+                            <option key={area.value} value={area.value}>
+                              {area.label}
+                            </option>
+                          ))}
+                        </select>
+                        {errors.responsibility_area && (
+                          <p style={errorStyle}>{errors.responsibility_area}</p>
+                        )}
+                      </div>
+
+                      {/* Priority Dropdown */}
+                      <div>
+                        <label style={labelStyle}>Nivel de Prioridad *</label>
+                        <select
+                          value={responsibilityPriority}
+                          onChange={(e) => {
+                            setResponsibilityPriority(e.target.value);
+                            // Clear error when user changes value
+                            if (errors.responsibility_priority) {
+                              setErrors((prev) => {
+                                const newErrors = { ...prev };
+                                delete newErrors.responsibility_priority;
+                                return newErrors;
+                              });
+                            }
+                          }}
+                          style={inputStyle(!!errors.responsibility_priority)}
+                        >
+                          {PRIORITY_LEVELS.map((level) => (
+                            <option key={level.value} value={level.value.toString()}>
+                              {level.label}
+                            </option>
+                          ))}
+                        </select>
+                        {errors.responsibility_priority && (
+                          <p style={errorStyle}>{errors.responsibility_priority}</p>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
           </div>
 
           {/* Pricing Section - Only shown for sellable products */}

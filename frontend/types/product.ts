@@ -1,20 +1,35 @@
-export type ProductType = 'SELLABLE' | 'INGREDIENT' | 'COMPOSITE' | 'BOTH';
+export type ProductType = "SELLABLE" | "INGREDIENT" | "COMPOSITE" | "BOTH";
 
-export type UnitOfMeasure = 'unit' | 'kg' | 'g' | 'l' | 'ml';
+export type UnitOfMeasure = "unit" | "kg" | "g" | "l" | "ml";
 
 export const PRODUCT_TYPES: { value: ProductType; label: string }[] = [
-  { value: 'SELLABLE', label: 'Vendible' },
-  { value: 'INGREDIENT', label: 'Ingrediente' },
-  { value: 'COMPOSITE', label: 'Compuesto' },
-  { value: 'BOTH', label: 'Vendible e Ingrediente' },
+  { value: "SELLABLE", label: "Vendible" },
+  { value: "INGREDIENT", label: "Ingrediente" },
+  { value: "COMPOSITE", label: "Compuesto" },
+  { value: "BOTH", label: "Vendible e Ingrediente" },
 ];
 
 export const UNITS_OF_MEASURE: { value: UnitOfMeasure; label: string }[] = [
-  { value: 'unit', label: 'Unidades' },
-  { value: 'kg', label: 'Kilogramos (kg)' },
-  { value: 'g', label: 'Gramos (g)' },
-  { value: 'l', label: 'Litros (l)' },
-  { value: 'ml', label: 'Mililitros (ml)' },
+  { value: "unit", label: "Unidades" },
+  { value: "kg", label: "Kilogramos (kg)" },
+  { value: "g", label: "Gramos (g)" },
+  { value: "l", label: "Litros (l)" },
+  { value: "ml", label: "Mililitros (ml)" },
+];
+
+export const PREPARATION_AREAS: { value: string; label: string }[] = [
+  { value: "kitchen", label: "Cocina" },
+  { value: "bar", label: "Bar" },
+  { value: "grill", label: "Parrilla" },
+  { value: "sushi", label: "Sushi" },
+  { value: "desserts", label: "Postres" },
+];
+
+export const PRIORITY_LEVELS: { value: number; label: string }[] = [
+  { value: 0, label: "No definido" },
+  { value: 1, label: "Bajo" },
+  { value: 2, label: "Medio" },
+  { value: 3, label: "Alto" },
 ];
 
 export interface Product {
@@ -74,5 +89,26 @@ export interface ProductListResponse {
 
 // Helper function to check if a product type requires pricing
 export function requiresPricing(productType: ProductType): boolean {
-  return productType !== 'INGREDIENT';
+  return productType !== "INGREDIENT";
+}
+
+// Product Responsibility Types
+export interface ProductResponsibility {
+  id: string;
+  product_id: string;
+  area: string;
+  priority: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateProductResponsibilityRequest {
+  product_name: string;
+  area: string;
+  priority: number;
+}
+
+export interface UpdateProductResponsibilityRequest {
+  area: string;
+  priority: number;
 }
