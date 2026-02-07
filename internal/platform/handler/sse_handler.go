@@ -155,36 +155,41 @@ func (h *SSEHandler) StreamOpenBillProductsHandler(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	pendingProducts, err := h.orderService.GetPendingOpenBillProductsByArea(ctx, area)
-	if err == nil && len(pendingProducts) > 0 {
-		h.logger.Info("Sending pending products on connection",
-			zap.String("handler", "StreamOpenBillProducts"),
-			zap.String("area", area),
-			zap.Int("count", len(pendingProducts)),
-		)
-		for _, product := range pendingProducts {
-			data, err := json.Marshal(product)
-			if err != nil {
-				h.logger.Error("Failed to marshal pending product",
-					zap.String("handler", "StreamOpenBillProducts"),
-					zap.String("area", area),
-					zap.Error(err),
-				)
-				continue
-			}
-			_, err = fmt.Fprintf(c.Writer, "event: open_bill_product.created\ndata: %s\n\n", data)
-			if err != nil {
-				h.logger.Error("Failed to write pending product",
-					zap.String("handler", "StreamOpenBillProducts"),
-					zap.String("area", area),
-					zap.Error(err),
-				)
-				continue
-			}
-			c.Writer.Flush()
-		}
-	}
+	pendingSent := false
 
 	c.Stream(func(w io.Writer) bool {
+		if !pendingSent {
+			pendingSent = true
+			if err == nil && len(pendingProducts) > 0 {
+				h.logger.Info("Sending pending products on connection",
+					zap.String("handler", "StreamOpenBillProducts"),
+					zap.String("area", area),
+					zap.Int("count", len(pendingProducts)),
+				)
+				for _, product := range pendingProducts {
+					data, err := json.Marshal(product)
+					if err != nil {
+						h.logger.Error("Failed to marshal pending product",
+							zap.String("handler", "StreamOpenBillProducts"),
+							zap.String("area", area),
+							zap.Error(err),
+						)
+						continue
+					}
+					_, err = fmt.Fprintf(w, "event: open_bill_product.created\ndata: %s\n\n", data)
+					if err != nil {
+						h.logger.Error("Failed to write pending product",
+							zap.String("handler", "StreamOpenBillProducts"),
+							zap.String("area", area),
+							zap.Error(err),
+						)
+						continue
+					}
+				}
+			}
+			return true
+		}
+
 		select {
 		case event, ok := <-client.Events:
 			if !ok {
