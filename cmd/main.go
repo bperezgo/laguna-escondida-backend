@@ -266,7 +266,7 @@ func main() {
 	purchaseEntryHandler := handler.NewPurchaseEntryHandler(purchaseEntryService)
 	expenseHandler := handler.NewExpenseHandler(expenseService)
 	productIngredientHandler := handler.NewProductIngredientHandler(productIngredientService)
-	sseHandler := handler.NewSSEHandler(sseHub, openBillProductHub, orderService)
+	sseHandler := handler.NewSSEHandler(sseHub, openBillProductHub, orderService, logger)
 
 	// Setup routes
 	router := gin.Default()
