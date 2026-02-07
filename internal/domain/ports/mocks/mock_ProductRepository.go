@@ -71,9 +71,9 @@ func (_c *MockProductRepository_Create_Call) RunAndReturn(run func(context.Conte
 	return _c
 }
 
-// CreatePreparationResponsibility provides a mock function with given fields: ctx, productID, area
-func (_m *MockProductRepository) CreatePreparationResponsibility(ctx context.Context, productID string, area string) (*dto.ProductPreparationResponsibility, error) {
-	ret := _m.Called(ctx, productID, area)
+// CreatePreparationResponsibility provides a mock function with given fields: ctx, productID, area, priority
+func (_m *MockProductRepository) CreatePreparationResponsibility(ctx context.Context, productID string, area string, priority int) (*dto.ProductPreparationResponsibility, error) {
+	ret := _m.Called(ctx, productID, area, priority)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreatePreparationResponsibility")
@@ -81,19 +81,19 @@ func (_m *MockProductRepository) CreatePreparationResponsibility(ctx context.Con
 
 	var r0 *dto.ProductPreparationResponsibility
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) (*dto.ProductPreparationResponsibility, error)); ok {
-		return rf(ctx, productID, area)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int) (*dto.ProductPreparationResponsibility, error)); ok {
+		return rf(ctx, productID, area, priority)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) *dto.ProductPreparationResponsibility); ok {
-		r0 = rf(ctx, productID, area)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int) *dto.ProductPreparationResponsibility); ok {
+		r0 = rf(ctx, productID, area, priority)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*dto.ProductPreparationResponsibility)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
-		r1 = rf(ctx, productID, area)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, int) error); ok {
+		r1 = rf(ctx, productID, area, priority)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -110,13 +110,14 @@ type MockProductRepository_CreatePreparationResponsibility_Call struct {
 //   - ctx context.Context
 //   - productID string
 //   - area string
-func (_e *MockProductRepository_Expecter) CreatePreparationResponsibility(ctx interface{}, productID interface{}, area interface{}) *MockProductRepository_CreatePreparationResponsibility_Call {
-	return &MockProductRepository_CreatePreparationResponsibility_Call{Call: _e.mock.On("CreatePreparationResponsibility", ctx, productID, area)}
+//   - priority int
+func (_e *MockProductRepository_Expecter) CreatePreparationResponsibility(ctx interface{}, productID interface{}, area interface{}, priority interface{}) *MockProductRepository_CreatePreparationResponsibility_Call {
+	return &MockProductRepository_CreatePreparationResponsibility_Call{Call: _e.mock.On("CreatePreparationResponsibility", ctx, productID, area, priority)}
 }
 
-func (_c *MockProductRepository_CreatePreparationResponsibility_Call) Run(run func(ctx context.Context, productID string, area string)) *MockProductRepository_CreatePreparationResponsibility_Call {
+func (_c *MockProductRepository_CreatePreparationResponsibility_Call) Run(run func(ctx context.Context, productID string, area string, priority int)) *MockProductRepository_CreatePreparationResponsibility_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(int))
 	})
 	return _c
 }
@@ -126,7 +127,7 @@ func (_c *MockProductRepository_CreatePreparationResponsibility_Call) Return(_a0
 	return _c
 }
 
-func (_c *MockProductRepository_CreatePreparationResponsibility_Call) RunAndReturn(run func(context.Context, string, string) (*dto.ProductPreparationResponsibility, error)) *MockProductRepository_CreatePreparationResponsibility_Call {
+func (_c *MockProductRepository_CreatePreparationResponsibility_Call) RunAndReturn(run func(context.Context, string, string, int) (*dto.ProductPreparationResponsibility, error)) *MockProductRepository_CreatePreparationResponsibility_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -174,6 +175,53 @@ func (_c *MockProductRepository_Delete_Call) Return(_a0 error) *MockProductRepos
 }
 
 func (_c *MockProductRepository_Delete_Call) RunAndReturn(run func(context.Context, string) error) *MockProductRepository_Delete_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// DeletePreparationResponsibility provides a mock function with given fields: ctx, id
+func (_m *MockProductRepository) DeletePreparationResponsibility(ctx context.Context, id string) error {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeletePreparationResponsibility")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
+		r0 = rf(ctx, id)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockProductRepository_DeletePreparationResponsibility_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeletePreparationResponsibility'
+type MockProductRepository_DeletePreparationResponsibility_Call struct {
+	*mock.Call
+}
+
+// DeletePreparationResponsibility is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+func (_e *MockProductRepository_Expecter) DeletePreparationResponsibility(ctx interface{}, id interface{}) *MockProductRepository_DeletePreparationResponsibility_Call {
+	return &MockProductRepository_DeletePreparationResponsibility_Call{Call: _e.mock.On("DeletePreparationResponsibility", ctx, id)}
+}
+
+func (_c *MockProductRepository_DeletePreparationResponsibility_Call) Run(run func(ctx context.Context, id string)) *MockProductRepository_DeletePreparationResponsibility_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockProductRepository_DeletePreparationResponsibility_Call) Return(_a0 error) *MockProductRepository_DeletePreparationResponsibility_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockProductRepository_DeletePreparationResponsibility_Call) RunAndReturn(run func(context.Context, string) error) *MockProductRepository_DeletePreparationResponsibility_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -471,6 +519,65 @@ func (_c *MockProductRepository_FindByName_Call) RunAndReturn(run func(context.C
 	return _c
 }
 
+// FindPreparationResponsibilityByID provides a mock function with given fields: ctx, id
+func (_m *MockProductRepository) FindPreparationResponsibilityByID(ctx context.Context, id string) (*dto.ProductPreparationResponsibility, error) {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindPreparationResponsibilityByID")
+	}
+
+	var r0 *dto.ProductPreparationResponsibility
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*dto.ProductPreparationResponsibility, error)); ok {
+		return rf(ctx, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *dto.ProductPreparationResponsibility); ok {
+		r0 = rf(ctx, id)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*dto.ProductPreparationResponsibility)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProductRepository_FindPreparationResponsibilityByID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindPreparationResponsibilityByID'
+type MockProductRepository_FindPreparationResponsibilityByID_Call struct {
+	*mock.Call
+}
+
+// FindPreparationResponsibilityByID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+func (_e *MockProductRepository_Expecter) FindPreparationResponsibilityByID(ctx interface{}, id interface{}) *MockProductRepository_FindPreparationResponsibilityByID_Call {
+	return &MockProductRepository_FindPreparationResponsibilityByID_Call{Call: _e.mock.On("FindPreparationResponsibilityByID", ctx, id)}
+}
+
+func (_c *MockProductRepository_FindPreparationResponsibilityByID_Call) Run(run func(ctx context.Context, id string)) *MockProductRepository_FindPreparationResponsibilityByID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockProductRepository_FindPreparationResponsibilityByID_Call) Return(_a0 *dto.ProductPreparationResponsibility, _a1 error) *MockProductRepository_FindPreparationResponsibilityByID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProductRepository_FindPreparationResponsibilityByID_Call) RunAndReturn(run func(context.Context, string) (*dto.ProductPreparationResponsibility, error)) *MockProductRepository_FindPreparationResponsibilityByID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Update provides a mock function with given fields: ctx, id, _a2
 func (_m *MockProductRepository) Update(ctx context.Context, id string, _a2 *product.Aggregate) error {
 	ret := _m.Called(ctx, id, _a2)
@@ -515,6 +622,67 @@ func (_c *MockProductRepository_Update_Call) Return(_a0 error) *MockProductRepos
 }
 
 func (_c *MockProductRepository_Update_Call) RunAndReturn(run func(context.Context, string, *product.Aggregate) error) *MockProductRepository_Update_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdatePreparationResponsibility provides a mock function with given fields: ctx, id, area, priority
+func (_m *MockProductRepository) UpdatePreparationResponsibility(ctx context.Context, id string, area string, priority int) (*dto.ProductPreparationResponsibility, error) {
+	ret := _m.Called(ctx, id, area, priority)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdatePreparationResponsibility")
+	}
+
+	var r0 *dto.ProductPreparationResponsibility
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int) (*dto.ProductPreparationResponsibility, error)); ok {
+		return rf(ctx, id, area, priority)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int) *dto.ProductPreparationResponsibility); ok {
+		r0 = rf(ctx, id, area, priority)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*dto.ProductPreparationResponsibility)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, int) error); ok {
+		r1 = rf(ctx, id, area, priority)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProductRepository_UpdatePreparationResponsibility_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdatePreparationResponsibility'
+type MockProductRepository_UpdatePreparationResponsibility_Call struct {
+	*mock.Call
+}
+
+// UpdatePreparationResponsibility is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+//   - area string
+//   - priority int
+func (_e *MockProductRepository_Expecter) UpdatePreparationResponsibility(ctx interface{}, id interface{}, area interface{}, priority interface{}) *MockProductRepository_UpdatePreparationResponsibility_Call {
+	return &MockProductRepository_UpdatePreparationResponsibility_Call{Call: _e.mock.On("UpdatePreparationResponsibility", ctx, id, area, priority)}
+}
+
+func (_c *MockProductRepository_UpdatePreparationResponsibility_Call) Run(run func(ctx context.Context, id string, area string, priority int)) *MockProductRepository_UpdatePreparationResponsibility_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(int))
+	})
+	return _c
+}
+
+func (_c *MockProductRepository_UpdatePreparationResponsibility_Call) Return(_a0 *dto.ProductPreparationResponsibility, _a1 error) *MockProductRepository_UpdatePreparationResponsibility_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProductRepository_UpdatePreparationResponsibility_Call) RunAndReturn(run func(context.Context, string, string, int) (*dto.ProductPreparationResponsibility, error)) *MockProductRepository_UpdatePreparationResponsibility_Call {
 	_c.Call.Return(run)
 	return _c
 }

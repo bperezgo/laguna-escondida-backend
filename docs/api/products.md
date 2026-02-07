@@ -511,3 +511,209 @@ When 3 Fish Plates are ordered:
 - Lemon stock decreases by: 1 * 3 = 3 units
 
 This happens automatically via the event-driven stock management system.
+
+---
+
+# Product Preparation Responsibilities API
+
+Manage which preparation area (kitchen, bar, grill, etc.) is responsible for preparing each product. Each product can have one preparation responsibility with a priority level.
+
+## Endpoints
+
+| Method | Endpoint                            | Description                         |
+| ------ | ----------------------------------- | ----------------------------------- |
+| POST   | `/api/product-responsibilities`     | Assign preparation area to product  |
+| GET    | `/api/product-responsibilities/:id` | Get preparation responsibility by ID |
+| PUT    | `/api/product-responsibilities/:id` | Update preparation area or priority |
+| DELETE | `/api/product-responsibilities/:id` | Remove preparation responsibility   |
+
+---
+
+## Create Product Responsibility
+
+Assigns a preparation area and priority to a product.
+
+```
+POST /api/product-responsibilities
+```
+
+### Request Body
+
+| Field        | Type   | Required | Description                        |
+| ------------ | ------ | -------- | ---------------------------------- |
+| product_name | string | Yes      | Exact product name (1-255 chars)   |
+| area         | string | Yes      | Preparation area (1-255 chars)     |
+| priority     | int    | Yes      | Priority level (0 = highest, etc.) |
+
+### Example Request
+
+```json
+{
+  "product_name": "Fish Ceviche",
+  "area": "kitchen",
+  "priority": 1
+}
+```
+
+### Example Response (201 Created)
+
+```json
+{
+  "id": "990e8400-e29b-41d4-a716-446655440004",
+  "product_id": "660e8400-e29b-41d4-a716-446655440001",
+  "area": "kitchen",
+  "priority": 1,
+  "created_at": "2024-01-26T17:00:00Z",
+  "updated_at": "2024-01-26T17:00:00Z"
+}
+```
+
+### Error Responses
+
+**404 Not Found** - Product not found
+
+```json
+{
+  "error": "Product not found"
+}
+```
+
+**400 Bad Request** - Invalid request body
+
+```json
+{
+  "error": "Invalid request body"
+}
+```
+
+---
+
+## Get Product Responsibility by ID
+
+Returns a single product preparation responsibility.
+
+```
+GET /api/product-responsibilities/:id
+```
+
+### Path Parameters
+
+| Parameter | Type | Description               |
+| --------- | ---- | ------------------------- |
+| id        | UUID | Product responsibility ID |
+
+### Example Response (200 OK)
+
+```json
+{
+  "id": "990e8400-e29b-41d4-a716-446655440004",
+  "product_id": "660e8400-e29b-41d4-a716-446655440001",
+  "area": "kitchen",
+  "priority": 1,
+  "created_at": "2024-01-26T17:00:00Z",
+  "updated_at": "2024-01-26T17:00:00Z"
+}
+```
+
+### Error Responses
+
+**404 Not Found** - Responsibility not found
+
+```json
+{
+  "error": "Product responsibility not found"
+}
+```
+
+---
+
+## Update Product Responsibility
+
+Updates the preparation area or priority for a product.
+
+```
+PUT /api/product-responsibilities/:id
+```
+
+### Path Parameters
+
+| Parameter | Type | Description               |
+| --------- | ---- | ------------------------- |
+| id        | UUID | Product responsibility ID |
+
+### Request Body
+
+| Field    | Type   | Required | Description                        |
+| -------- | ------ | -------- | ---------------------------------- |
+| area     | string | Yes      | Preparation area (1-255 chars)     |
+| priority | int    | Yes      | Priority level (0 = highest, etc.) |
+
+### Example Request
+
+```json
+{
+  "area": "bar",
+  "priority": 2
+}
+```
+
+### Example Response (200 OK)
+
+```json
+{
+  "id": "990e8400-e29b-41d4-a716-446655440004",
+  "product_id": "660e8400-e29b-41d4-a716-446655440001",
+  "area": "bar",
+  "priority": 2,
+  "created_at": "2024-01-26T17:00:00Z",
+  "updated_at": "2024-01-26T17:15:00Z"
+}
+```
+
+### Error Responses
+
+**404 Not Found** - Responsibility not found
+
+```json
+{
+  "error": "Product responsibility not found"
+}
+```
+
+**400 Bad Request** - Invalid request body
+
+```json
+{
+  "error": "Invalid request body"
+}
+```
+
+---
+
+## Delete Product Responsibility
+
+Removes a product's preparation responsibility assignment.
+
+```
+DELETE /api/product-responsibilities/:id
+```
+
+### Path Parameters
+
+| Parameter | Type | Description               |
+| --------- | ---- | ------------------------- |
+| id        | UUID | Product responsibility ID |
+
+### Response (204 No Content)
+
+No response body on success.
+
+### Error Responses
+
+**404 Not Found** - Responsibility not found
+
+```json
+{
+  "error": "Product responsibility not found"
+}
+```

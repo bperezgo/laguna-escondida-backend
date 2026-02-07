@@ -48,6 +48,7 @@ type productResponsibilityModel struct {
 	ID        string     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	ProductID string     `gorm:"type:uuid;not null"`
 	Area      string     `gorm:"type:varchar(255);not null"`
+	Priority  int        `gorm:"type:integer;not null;default:0"`
 	CreatedAt time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
 	UpdatedAt time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
 	DeletedAt *time.Time `gorm:"type:timestamp"`
@@ -206,11 +207,12 @@ func (r *ProductRepository) FindAllCategories(ctx context.Context) ([]string, er
 	return categories, nil
 }
 
-func (r *ProductRepository) CreatePreparationResponsibility(ctx context.Context, productID, area string) (*dto.ProductPreparationResponsibility, error) {
+func (r *ProductRepository) CreatePreparationResponsibility(ctx context.Context, productID, area string, priority int) (*dto.ProductPreparationResponsibility, error) {
 	now := time.Now()
 	model := &productResponsibilityModel{
 		ProductID: productID,
 		Area:      area,
+		Priority:  priority,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
@@ -223,6 +225,80 @@ func (r *ProductRepository) CreatePreparationResponsibility(ctx context.Context,
 		ID:        model.ID,
 		ProductID: model.ProductID,
 		Area:      model.Area,
+		Priority:  model.Priority,
+		CreatedAt: model.CreatedAt,
+		UpdatedAt: model.UpdatedAt,
+	}, nil
+}
+
+func (r *ProductRepository) UpdatePreparationResponsibility(ctx context.Context, id string, area string, priority int) (*dto.ProductPreparationResponsibility, error) {
+	now := time.Now()
+	updateData := map[string]any{
+		"area":       area,
+		"priority":   priority,
+		"updated_at": now,
+	}
+
+	result := r.db.WithContext(ctx).
+		Model(&productResponsibilityModel{}).
+		Where("id = ? AND deleted_at IS NULL", id).
+		Updates(updateData)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return nil, nil
+	}
+
+	var model productResponsibilityModel
+	if err := r.db.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", id).First(&model).Error; err != nil {
+		return nil, err
+	}
+
+	return &dto.ProductPreparationResponsibility{
+		ID:        model.ID,
+		ProductID: model.ProductID,
+		Area:      model.Area,
+		Priority:  model.Priority,
+		CreatedAt: model.CreatedAt,
+		UpdatedAt: model.UpdatedAt,
+	}, nil
+}
+
+func (r *ProductRepository) DeletePreparationResponsibility(ctx context.Context, id string) error {
+	now := time.Now()
+	result := r.db.WithContext(ctx).
+		Model(&productResponsibilityModel{}).
+		Where("id = ? AND deleted_at IS NULL", id).
+		Updates(map[string]interface{}{
+			"deleted_at": &now,
+			"updated_at": now,
+		})
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return nil
+	}
+
+	return nil
+}
+
+func (r *ProductRepository) FindPreparationResponsibilityByID(ctx context.Context, id string) (*dto.ProductPreparationResponsibility, error) {
+	var model productResponsibilityModel
+	if err := r.db.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", id).First(&model).Error; err != nil {
+		return nil, err
+	}
+
+	return &dto.ProductPreparationResponsibility{
+		ID:        model.ID,
+		ProductID: model.ProductID,
+		Area:      model.Area,
+		Priority:  model.Priority,
 		CreatedAt: model.CreatedAt,
 		UpdatedAt: model.UpdatedAt,
 	}, nil

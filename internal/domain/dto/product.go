@@ -79,12 +79,19 @@ type ProductListResponse struct {
 type CreateProductResponsibilityRequest struct {
 	ProductName string `json:"product_name" validate:"required,min=1,max=255"`
 	Area        string `json:"area" validate:"required,min=1,max=255"`
+	Priority    int    `json:"priority" validate:"required,gte=0"`
 }
 
 type ProductPreparationResponsibility struct {
 	ID        string    `json:"id"`
 	ProductID string    `json:"product_id"`
 	Area      string    `json:"area"`
+	Priority  int       `json:"priority"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type UpdateProductResponsibilityRequest struct {
+	Area     string `json:"area" validate:"required,min=1,max=255"`
+	Priority int    `json:"priority" validate:"required,gte=0"`
 }

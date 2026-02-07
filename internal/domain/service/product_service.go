@@ -99,9 +99,43 @@ func (s *ProductService) CreateProductResponsibility(ctx context.Context, req *d
 		return nil, fmt.Errorf("%w: %w", domainError.ErrProductNotFound, err)
 	}
 
-	responsibility, err := s.productRepo.CreatePreparationResponsibility(ctx, product.ID, req.Area)
+	responsibility, err := s.productRepo.CreatePreparationResponsibility(ctx, product.ID, req.Area, req.Priority)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create product responsibility: %w", err)
+	}
+
+	return responsibility, nil
+}
+
+// UpdateProductResponsibility updates an existing product responsibility
+func (s *ProductService) UpdateProductResponsibility(ctx context.Context, id string, req *dto.UpdateProductResponsibilityRequest) (*dto.ProductPreparationResponsibility, error) {
+	responsibility, err := s.productRepo.UpdatePreparationResponsibility(ctx, id, req.Area, req.Priority)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", domainError.ErrProductResponsibilityUpdateFailed, err)
+	}
+
+	if responsibility == nil {
+		return nil, domainError.ErrProductResponsibilityNotFound
+	}
+
+	return responsibility, nil
+}
+
+// DeleteProductResponsibility deletes a product responsibility
+func (s *ProductService) DeleteProductResponsibility(ctx context.Context, id string) error {
+	err := s.productRepo.DeletePreparationResponsibility(ctx, id)
+	if err != nil {
+		return fmt.Errorf("%w: %w", domainError.ErrProductResponsibilityDeleteFailed, err)
+	}
+
+	return nil
+}
+
+// GetProductResponsibilityByID retrieves a product responsibility by its ID
+func (s *ProductService) GetProductResponsibilityByID(ctx context.Context, id string) (*dto.ProductPreparationResponsibility, error) {
+	responsibility, err := s.productRepo.FindPreparationResponsibilityByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", domainError.ErrProductResponsibilityNotFound, err)
 	}
 
 	return responsibility, nil

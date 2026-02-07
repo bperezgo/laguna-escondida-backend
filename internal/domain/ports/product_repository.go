@@ -16,5 +16,8 @@ type ProductRepository interface {
 	FindByIDs(ctx context.Context, ids []string) ([]*dto.Product, error)
 	FindByName(ctx context.Context, name string) (*dto.Product, error)
 	FindAllCategories(ctx context.Context) ([]string, error)
-	CreatePreparationResponsibility(ctx context.Context, productID, area string) (*dto.ProductPreparationResponsibility, error)
+	CreatePreparationResponsibility(ctx context.Context, productID, area string, priority int) (*dto.ProductPreparationResponsibility, error)
+	UpdatePreparationResponsibility(ctx context.Context, id string, area string, priority int) (*dto.ProductPreparationResponsibility, error)
+	DeletePreparationResponsibility(ctx context.Context, id string) error
+	FindPreparationResponsibilityByID(ctx context.Context, id string) (*dto.ProductPreparationResponsibility, error)
 }

@@ -176,3 +176,80 @@ func (h *ProductHandler) CreateProductResponsibilityHandler(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, responsibility)
 }
+
+func (h *ProductHandler) UpdateProductResponsibilityHandler(c *gin.Context) {
+	responsibilityID := c.Param("id")
+	if responsibilityID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Responsibility ID is required"})
+		return
+	}
+
+	var req dto.UpdateProductResponsibilityRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("Error decoding request: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	responsibility, err := h.productService.UpdateProductResponsibility(c.Request.Context(), responsibilityID, &req)
+	if err != nil {
+		log.Printf("Error updating product responsibility: %v", err)
+
+		if errors.Is(err, domainError.ErrProductResponsibilityNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Product responsibility not found"})
+			return
+		}
+		if errors.Is(err, domainError.ErrProductResponsibilityUpdateFailed) {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update product responsibility"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, responsibility)
+}
+
+func (h *ProductHandler) DeleteProductResponsibilityHandler(c *gin.Context) {
+	responsibilityID := c.Param("id")
+	if responsibilityID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Responsibility ID is required"})
+		return
+	}
+
+	err := h.productService.DeleteProductResponsibility(c.Request.Context(), responsibilityID)
+	if err != nil {
+		log.Printf("Error deleting product responsibility: %v", err)
+
+		if errors.Is(err, domainError.ErrProductResponsibilityDeleteFailed) {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete product responsibility"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+func (h *ProductHandler) GetProductResponsibilityByIDHandler(c *gin.Context) {
+	responsibilityID := c.Param("id")
+	if responsibilityID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Responsibility ID is required"})
+		return
+	}
+
+	responsibility, err := h.productService.GetProductResponsibilityByID(c.Request.Context(), responsibilityID)
+	if err != nil {
+		log.Printf("Error getting product responsibility: %v", err)
+
+		if errors.Is(err, domainError.ErrProductResponsibilityNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Product responsibility not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, responsibility)
+}
