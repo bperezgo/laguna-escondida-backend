@@ -44,13 +44,13 @@ func (h *SSEHandler) StreamCommandsHandler(c *gin.Context) {
 
 	client := sse.NewClient(area)
 	h.hub.Register(client)
-	
+
 	h.logger.Info("SSE connection established",
 		zap.String("handler", "StreamCommands"),
 		zap.String("area", area),
 		zap.String("client_ip", c.ClientIP()),
 	)
-	
+
 	defer func() {
 		h.hub.Unregister(client)
 		h.logger.Info("SSE connection closed",
@@ -136,13 +136,13 @@ func (h *SSEHandler) StreamOpenBillProductsHandler(c *gin.Context) {
 
 	client := sse.NewOpenBillProductClient(area)
 	h.openBillProductHub.Register(client)
-	
+
 	h.logger.Info("SSE connection established",
 		zap.String("handler", "StreamOpenBillProducts"),
 		zap.String("area", area),
 		zap.String("client_ip", c.ClientIP()),
 	)
-	
+
 	defer func() {
 		h.openBillProductHub.Unregister(client)
 		h.logger.Info("SSE connection closed",
