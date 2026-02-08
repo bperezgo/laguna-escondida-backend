@@ -480,7 +480,14 @@ func (s *OrderService) CancelOpenBillProduct(ctx context.Context, openBillID, op
 
 // HandleOrderCreatedSSE notifies frontend via SSE when products with preparation areas are created
 func (s *OrderService) HandleOrderCreatedSSE(ctx context.Context, event dto.OrderCreatedEvent) error {
+	s.logger.Info("HandleOrderCreatedSSE called",
+		zap.String("open_bill_id", event.OpenBillID),
+		zap.String("temporal_identifier", event.TemporalIdentifier),
+		zap.Int("product_count", len(event.Products)),
+	)
+
 	if len(event.Products) == 0 {
+		s.logger.Info("HandleOrderCreatedSSE: no products to process")
 		return nil
 	}
 
@@ -489,12 +496,19 @@ func (s *OrderService) HandleOrderCreatedSSE(ctx context.Context, event dto.Orde
 		productIDs[i] = p.ProductID
 	}
 
+	s.logger.Debug("Fetching product preparation responsibilities", zap.Strings("product_ids", productIDs))
 	responsibilities, err := s.openBillRepo.GetProductPreparationResponsibilities(ctx, productIDs)
 	if err != nil {
+		s.logger.Error("Failed to get product preparation responsibilities", zap.Error(err))
 		return fmt.Errorf("failed to get product preparation responsibilities: %w", err)
 	}
 
+	s.logger.Info("Product preparation responsibilities retrieved",
+		zap.Int("responsibility_count", len(responsibilities)),
+	)
+
 	if len(responsibilities) == 0 {
+		s.logger.Warn("No preparation responsibilities found for products")
 		return nil
 	}
 
@@ -513,9 +527,11 @@ func (s *OrderService) HandleOrderCreatedSSE(ctx context.Context, event dto.Orde
 		responsibilityMap[responsibilities[i].ProductID] = &responsibilities[i]
 	}
 
+	notifiedCount := 0
 	for _, p := range event.Products {
 		responsibility, exists := responsibilityMap[p.ProductID]
 		if !exists {
+			s.logger.Debug("No responsibility found for product", zap.String("product_id", p.ProductID))
 			continue
 		}
 
@@ -532,11 +548,29 @@ func (s *OrderService) HandleOrderCreatedSSE(ctx context.Context, event dto.Orde
 			CreatedByName:      createdByName,
 		}
 
+		s.logger.Info("Notifying SSE clients",
+			zap.String("area", responsibility.Area),
+			zap.String("event_type", OpenBillProductCreatedEventType),
+			zap.String("product_name", responsibility.ProductName),
+			zap.Int("quantity", p.Quantity),
+		)
+
 		if err := s.openBillProductSSENotifier.NotifyArea(ctx, responsibility.Area, OpenBillProductCreatedEventType, sseData); err != nil {
 			s.logger.Error("failed to notify open bill product created", zap.Error(err))
+		} else {
+			notifiedCount++
+			s.logger.Debug("SSE notification sent successfully",
+				zap.String("area", responsibility.Area),
+				zap.String("product_name", responsibility.ProductName),
+			)
 		}
 
 	}
+
+	s.logger.Info("HandleOrderCreatedSSE completed",
+		zap.Int("products_notified", notifiedCount),
+		zap.Int("total_products", len(event.Products)),
+	)
 
 	return nil
 }

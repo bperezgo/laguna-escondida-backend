@@ -96,7 +96,7 @@ func main() {
 
 	// Initialize SSE Hubs
 	sseHub := sse.NewHub()
-	openBillProductHub := sse.NewOpenBillProductHub()
+	openBillProductHub := sse.NewOpenBillProductHub(logger)
 
 	// Initialize Watermill Event Bus for pub/sub messaging
 	watermillLogger := eventbus.NewZapLoggerAdapter(logger)
@@ -173,9 +173,13 @@ func main() {
 	}
 
 	// Start event subscriber in background
+	logger.Info("Starting SSE event subscriber for order events")
 	go func() {
+		logger.Info("SSE event subscriber goroutine started")
 		if errEventSubscriber := eventSubscriber.Start(context.Background()); errEventSubscriber != nil {
-			log.Printf("Event subscriber stopped: %v", errEventSubscriber)
+			logger.Error("Event subscriber stopped", zap.Error(errEventSubscriber))
+		} else {
+			logger.Info("Event subscriber completed successfully")
 		}
 	}()
 
@@ -235,9 +239,13 @@ func main() {
 	}
 
 	// Start stock subscriber in background
+	logger.Info("Starting stock event subscriber")
 	go func() {
+		logger.Info("Stock event subscriber goroutine started")
 		if errStockSubscriber := stockSubscriber.Start(context.Background()); errStockSubscriber != nil {
-			log.Printf("Stock subscriber stopped: %v", errStockSubscriber)
+			logger.Error("Stock subscriber stopped", zap.Error(errStockSubscriber))
+		} else {
+			logger.Info("Stock subscriber completed successfully")
 		}
 	}()
 
