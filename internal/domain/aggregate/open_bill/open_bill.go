@@ -137,6 +137,16 @@ func (a *Aggregate) UpdateProducts(products []*OpenBillProduct, totalAmount deci
 	a.updatedAt = time.Now()
 }
 
+func (a *Aggregate) UpdateInfo(temporalIdentifier *string, descriptor *string) {
+	if temporalIdentifier != nil {
+		a.temporalIdentifier = *temporalIdentifier
+	}
+	if descriptor != nil {
+		a.descriptor = descriptor
+	}
+	a.updatedAt = time.Now()
+}
+
 func (a *Aggregate) Status() dto.CommandStatus {
 	return a.status.Value()
 }

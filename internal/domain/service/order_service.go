@@ -272,6 +272,7 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 	}
 
 	existingBillAggregate.UpdateProducts(openBillProducts, totalAmount)
+	existingBillAggregate.UpdateInfo(req.TemporalIdentifier, req.Descriptor)
 
 	if err := s.openBillRepo.Update(ctx, existingBillAggregate); err != nil {
 		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
@@ -288,7 +289,7 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 
 	event := dto.NewOrderUpdatedEvent(
 		openBillID,
-		existingOpenBill.TemporalIdentifier,
+		existingBillAggregate.TemporalIdentifier(),
 		existingOpenBill.CreatedBy.ID,
 		existingOpenBill.Products,
 		req.Products,

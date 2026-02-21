@@ -349,9 +349,10 @@ func (r *OpenBillRepository) FindAggregateByID(ctx context.Context, id string) (
 func (r *OpenBillRepository) Update(ctx context.Context, aggregate *openBill.Aggregate) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		updateData := map[string]any{
-			"total_amount": aggregate.TotalAmount(),
-			"status":       string(aggregate.Status()),
-			"updated_at":   aggregate.UpdatedAt(),
+			"total_amount":       aggregate.TotalAmount(),
+			"temporal_identifier": aggregate.TemporalIdentifier(),
+			"status":             string(aggregate.Status()),
+			"updated_at":         aggregate.UpdatedAt(),
 		}
 		if aggregate.Descriptor() != nil {
 			updateData["descriptor"] = aggregate.Descriptor()

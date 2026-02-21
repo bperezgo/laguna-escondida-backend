@@ -77,7 +77,9 @@ type OrderProductItem struct {
 }
 
 type UpdateOrderRequest struct {
-	Products []OrderProductItem `json:"products" validate:"dive"`
+	TemporalIdentifier *string            `json:"temporal_identifier,omitempty" validate:"omitempty,uuid"`
+	Descriptor         *string            `json:"descriptor,omitempty"`
+	Products           []OrderProductItem `json:"products" validate:"dive"`
 }
 
 type BillProduct struct {

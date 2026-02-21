@@ -981,6 +981,218 @@ func TestUpdateOrder_RepositoryError_Update(t *testing.T) {
 	// Verify mocks
 }
 
+// UpdateOrder - UpdateInfo (temporal_identifier & descriptor) Tests
+
+func TestUpdateOrder_UpdateTemporalIdentifier(t *testing.T) {
+	ctx := createTestContext()
+	mockProductRepo := mocks.NewMockProductRepository(t)
+	mockOpenBillRepo := mocks.NewMockOpenBillRepository(t)
+	service := createTestService(t, mockProductRepo, mockOpenBillRepo, nil, nil)
+
+	openBillID := billID1
+	existingBill := &dto.OpenBillWithProducts{
+		ID:                 openBillID,
+		TemporalIdentifier: "ORDER-123",
+		TotalAmount:        decimal.NewFromFloat(100.0),
+		Products:           []dto.OpenBillProductDetail{},
+		CreatedBy:          dto.OpenBillCreator{ID: "user-123"},
+		CreatedAt:          time.Now(),
+		UpdatedAt:          time.Now(),
+	}
+	existingAggregate := createTestOpenBillAggregate(openBillID, []*openBill.OpenBillProduct{})
+
+	newTempID := "NEW-TEMP-ID"
+	req := &dto.UpdateOrderRequest{
+		TemporalIdentifier: &newTempID,
+		Products:           []dto.OrderProductItem{},
+	}
+
+	mockOpenBillRepo.On("FindByIDWithProducts", ctx, openBillID).Return(existingBill, nil)
+	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(existingAggregate, nil)
+	mockOpenBillRepo.On("Update", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
+
+	result, err := service.UpdateOrder(ctx, openBillID, req)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, newTempID, result.TemporalIdentifier)
+	assert.Nil(t, result.Descriptor)
+}
+
+func TestUpdateOrder_UpdateDescriptor(t *testing.T) {
+	ctx := createTestContext()
+	mockProductRepo := mocks.NewMockProductRepository(t)
+	mockOpenBillRepo := mocks.NewMockOpenBillRepository(t)
+	service := createTestService(t, mockProductRepo, mockOpenBillRepo, nil, nil)
+
+	openBillID := billID1
+	existingBill := &dto.OpenBillWithProducts{
+		ID:                 openBillID,
+		TemporalIdentifier: "ORDER-123",
+		TotalAmount:        decimal.NewFromFloat(100.0),
+		Products:           []dto.OpenBillProductDetail{},
+		CreatedBy:          dto.OpenBillCreator{ID: "user-123"},
+		CreatedAt:          time.Now(),
+		UpdatedAt:          time.Now(),
+	}
+	existingAggregate := createTestOpenBillAggregate(openBillID, []*openBill.OpenBillProduct{})
+
+	newDescriptor := "Mesa 12"
+	req := &dto.UpdateOrderRequest{
+		Descriptor: &newDescriptor,
+		Products:   []dto.OrderProductItem{},
+	}
+
+	mockOpenBillRepo.On("FindByIDWithProducts", ctx, openBillID).Return(existingBill, nil)
+	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(existingAggregate, nil)
+	mockOpenBillRepo.On("Update", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
+
+	result, err := service.UpdateOrder(ctx, openBillID, req)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, "ORDER-123", result.TemporalIdentifier)
+	assert.NotNil(t, result.Descriptor)
+	assert.Equal(t, "Mesa 12", *result.Descriptor)
+}
+
+func TestUpdateOrder_UpdateBothTemporalIdentifierAndDescriptor(t *testing.T) {
+	ctx := createTestContext()
+	mockProductRepo := mocks.NewMockProductRepository(t)
+	mockOpenBillRepo := mocks.NewMockOpenBillRepository(t)
+	service := createTestService(t, mockProductRepo, mockOpenBillRepo, nil, nil)
+
+	openBillID := billID1
+	existingBill := &dto.OpenBillWithProducts{
+		ID:                 openBillID,
+		TemporalIdentifier: "ORDER-123",
+		TotalAmount:        decimal.NewFromFloat(100.0),
+		Products:           []dto.OpenBillProductDetail{},
+		CreatedBy:          dto.OpenBillCreator{ID: "user-123"},
+		CreatedAt:          time.Now(),
+		UpdatedAt:          time.Now(),
+	}
+	existingAggregate := createTestOpenBillAggregate(openBillID, []*openBill.OpenBillProduct{})
+
+	newTempID := "NEW-TEMP-ID"
+	newDescriptor := "Mesa 7"
+	req := &dto.UpdateOrderRequest{
+		TemporalIdentifier: &newTempID,
+		Descriptor:         &newDescriptor,
+		Products:           []dto.OrderProductItem{},
+	}
+
+	mockOpenBillRepo.On("FindByIDWithProducts", ctx, openBillID).Return(existingBill, nil)
+	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(existingAggregate, nil)
+	mockOpenBillRepo.On("Update", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
+
+	result, err := service.UpdateOrder(ctx, openBillID, req)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, newTempID, result.TemporalIdentifier)
+	assert.NotNil(t, result.Descriptor)
+	assert.Equal(t, "Mesa 7", *result.Descriptor)
+}
+
+func TestUpdateOrder_UpdateInfoWithProducts(t *testing.T) {
+	ctx := createTestContext()
+	mockProductRepo := mocks.NewMockProductRepository(t)
+	mockOpenBillRepo := mocks.NewMockOpenBillRepository(t)
+	service := createTestService(t, mockProductRepo, mockOpenBillRepo, nil, nil)
+
+	openBillID := billID1
+	existingBill := &dto.OpenBillWithProducts{
+		ID:                 openBillID,
+		TemporalIdentifier: "ORDER-123",
+		TotalAmount:        decimal.NewFromFloat(50.0),
+		Products:           []dto.OpenBillProductDetail{},
+		CreatedBy:          dto.OpenBillCreator{ID: "user-123"},
+		CreatedAt:          time.Now(),
+		UpdatedAt:          time.Now(),
+	}
+	existingAggregate := createTestOpenBillAggregate(openBillID, []*openBill.OpenBillProduct{})
+
+	productID := productID1
+	productPrice := 100.0
+	product := createTestProduct(productID, "Test Product", "Category", 1, productPrice, 19.0)
+
+	newTempID := "UPDATED-TEMP"
+	newDescriptor := "Mesa 15"
+	req := &dto.UpdateOrderRequest{
+		TemporalIdentifier: &newTempID,
+		Descriptor:         &newDescriptor,
+		Products: []dto.OrderProductItem{
+			{OpenBillProductID: uuidPlaceholder0, ProductID: productID, Quantity: 2},
+		},
+	}
+
+	expectedTotal := productPrice * 2
+
+	mockOpenBillRepo.On("FindByIDWithProducts", ctx, openBillID).Return(existingBill, nil)
+	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(existingAggregate, nil)
+	mockProductRepo.On("FindByIDs", ctx, []string{productID}).Return([]*dto.Product{product}, nil)
+	mockOpenBillRepo.On("GetProductPreparationResponsibilities", ctx, []string{productID}).Return([]dto.ProductPreparationResponsibilityWithProduct{}, nil)
+	mockOpenBillRepo.On("Update", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
+
+	result, err := service.UpdateOrder(ctx, openBillID, req)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, newTempID, result.TemporalIdentifier)
+	assert.NotNil(t, result.Descriptor)
+	assert.Equal(t, "Mesa 15", *result.Descriptor)
+	assert.True(t, result.TotalAmount.Equal(decimal.NewFromFloat(expectedTotal)))
+	assert.Len(t, result.Products, 1)
+}
+
+func TestUpdateOrder_NilInfoFieldsPreservesExistingValues(t *testing.T) {
+	ctx := createTestContext()
+	mockProductRepo := mocks.NewMockProductRepository(t)
+	mockOpenBillRepo := mocks.NewMockOpenBillRepository(t)
+	service := createTestService(t, mockProductRepo, mockOpenBillRepo, nil, nil)
+
+	openBillID := billID1
+	existingDescriptor := "Mesa Original"
+	existingAggregate, _ := openBill.NewAggregateFromRepository(
+		openBillID,
+		"ORDER-ORIGINAL",
+		decimal.NewFromFloat(100.0),
+		&existingDescriptor,
+		[]*openBill.OpenBillProduct{},
+		userID1,
+		time.Now(),
+		time.Now(),
+	)
+
+	existingBill := &dto.OpenBillWithProducts{
+		ID:                 openBillID,
+		TemporalIdentifier: "ORDER-ORIGINAL",
+		TotalAmount:        decimal.NewFromFloat(100.0),
+		Descriptor:         &existingDescriptor,
+		Products:           []dto.OpenBillProductDetail{},
+		CreatedBy:          dto.OpenBillCreator{ID: "user-123"},
+		CreatedAt:          time.Now(),
+		UpdatedAt:          time.Now(),
+	}
+
+	req := &dto.UpdateOrderRequest{
+		Products: []dto.OrderProductItem{},
+	}
+
+	mockOpenBillRepo.On("FindByIDWithProducts", ctx, openBillID).Return(existingBill, nil)
+	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(existingAggregate, nil)
+	mockOpenBillRepo.On("Update", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
+
+	result, err := service.UpdateOrder(ctx, openBillID, req)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, "ORDER-ORIGINAL", result.TemporalIdentifier)
+	assert.NotNil(t, result.Descriptor)
+	assert.Equal(t, "Mesa Original", *result.Descriptor)
+}
+
 // ====================================================================
 // GetAllActiveOpenBills Tests
 // ====================================================================
