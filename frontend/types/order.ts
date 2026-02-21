@@ -77,6 +77,7 @@ export interface CreateOrderRequest {
 
 // Update Order Request
 export interface UpdateOrderRequest {
+  temporal_identifier?: string;
   descriptor?: string | null;
   products: OrderProductItem[];
 }

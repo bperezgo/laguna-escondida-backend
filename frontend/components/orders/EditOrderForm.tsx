@@ -1,8 +1,11 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { productsApi } from "@/lib/api/products";
 import { updateOrder } from "@/lib/api/orders";
+import { generateInvoicePrintHTML } from "@/lib/templates/invoicePrint";
+import { PermissionGate } from "@/components/permissions";
+import { PERMISSIONS } from "@/lib/permissions";
 import type { Product } from "@/types/product";
 import type { OpenBillWithProducts, OrderProductItem } from "@/types/order";
 import type { OpenBillProductStatus } from "@/types/commandItem";
@@ -11,6 +14,8 @@ interface EditOrderFormProps {
   openBill: OpenBillWithProducts;
   onClose: () => void;
   onSuccess: () => void;
+  onPayClick?: () => void;
+  onRemoveClick?: () => void;
 }
 
 interface ProductWithQuantity {
@@ -52,8 +57,15 @@ export default function EditOrderForm({
   openBill,
   onClose,
   onSuccess,
+  onPayClick,
+  onRemoveClick,
 }: EditOrderFormProps) {
+  const printRef = useRef<HTMLDivElement>(null);
   const [descriptor, setDescriptor] = useState(openBill.descriptor || "");
+  const [temporalIdentifier, setTemporalIdentifier] = useState(
+    openBill.temporal_identifier,
+  );
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProducts, setSelectedProducts] = useState<
     Map<string, ProductWithQuantity>
@@ -189,6 +201,7 @@ export default function EditOrderForm({
       }));
 
       await updateOrder(openBill.id, {
+        temporal_identifier: temporalIdentifier.trim(),
         descriptor: descriptor.trim() || null,
         products: orderProducts,
       });
@@ -204,6 +217,65 @@ export default function EditOrderForm({
   };
 
   const selectedProductsArray = Array.from(selectedProducts.values());
+
+  const groupedProducts = useMemo(() => {
+    const productMap = new Map<
+      string,
+      {
+        product: (typeof openBill.products)[0]["product"];
+        totalQuantity: number;
+      }
+    >();
+    openBill.products.forEach(({ product, quantity }) => {
+      if (productMap.has(product.id)) {
+        productMap.get(product.id)!.totalQuantity += quantity;
+      } else {
+        productMap.set(product.id, { product, totalQuantity: quantity });
+      }
+    });
+    return Array.from(productMap.values());
+  }, [openBill.products]);
+
+  const printTotals = useMemo(() => {
+    let subtotal = 0;
+    let totalVAT = 0;
+    let totalICO = 0;
+    openBill.products.forEach(({ product, quantity }) => {
+      subtotal += parseFloat(product.unit_price) * quantity;
+      totalVAT += parseFloat(product.vat_amount || "0") * quantity;
+      totalICO += parseFloat(product.ico_amount || "0") * quantity;
+    });
+    return { subtotal, totalVAT, totalICO, total: subtotal + totalVAT + totalICO };
+  }, [openBill.products]);
+
+  const handlePrint = () => {
+    const printContent = printRef.current;
+    if (!printContent) return;
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+    printWindow.document.write(
+      generateInvoicePrintHTML({
+        title: `Factura - ${openBill.temporal_identifier}`,
+        content: printContent.innerHTML,
+      }),
+    );
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
 
   return (
     <div
@@ -265,19 +337,98 @@ export default function EditOrderForm({
                 marginTop: "0.5rem",
                 fontSize: "0.9rem",
                 color: "var(--color-text-secondary)",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
               }}
             >
-              <span
+              {isEditingTitle ? (
+                <input
+                  autoFocus
+                  type="text"
+                  value={temporalIdentifier}
+                  onChange={(e) => setTemporalIdentifier(e.target.value)}
+                  onBlur={() => {
+                    if (!temporalIdentifier.trim()) {
+                      setTemporalIdentifier(openBill.temporal_identifier);
+                    }
+                    setIsEditingTitle(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      if (!temporalIdentifier.trim()) {
+                        setTemporalIdentifier(openBill.temporal_identifier);
+                      }
+                      setIsEditingTitle(false);
+                    }
+                    if (e.key === "Escape") {
+                      setTemporalIdentifier(openBill.temporal_identifier);
+                      setIsEditingTitle(false);
+                    }
+                  }}
+                  style={{
+                    backgroundColor: "var(--color-bg)",
+                    color: "var(--color-primary)",
+                    padding: "0.25rem 0.5rem",
+                    borderRadius: "var(--radius-sm)",
+                    fontWeight: "bold",
+                    fontSize: "0.9rem",
+                    border: "1px solid var(--color-primary)",
+                    outline: "none",
+                    fontFamily: "inherit",
+                    width: "auto",
+                    minWidth: "80px",
+                  }}
+                />
+              ) : (
+                <span
+                  style={{
+                    backgroundColor: "var(--color-primary-light)",
+                    color: "var(--color-primary)",
+                    padding: "0.25rem 0.5rem",
+                    borderRadius: "var(--radius-sm)",
+                    fontWeight: "bold",
+                  }}
+                >
+                  {temporalIdentifier}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsEditingTitle(true)}
+                title="Editar identificador"
                 style={{
-                  backgroundColor: "var(--color-primary-light)",
-                  color: "var(--color-primary)",
-                  padding: "0.25rem 0.5rem",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "0.2rem",
+                  display: "flex",
+                  alignItems: "center",
+                  color: "var(--color-text-muted)",
                   borderRadius: "var(--radius-sm)",
-                  fontWeight: "bold",
+                  transition: "color var(--transition-normal)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = "var(--color-primary)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = "var(--color-text-muted)";
                 }}
               >
-                {openBill.temporal_identifier}
-              </span>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                  <path d="m15 5 4 4" />
+                </svg>
+              </button>
             </div>
           </div>
           <button
@@ -325,6 +476,216 @@ export default function EditOrderForm({
           >
             ${openBill.total_amount}
           </span>
+        </div>
+
+        {/* Quick Actions Bar */}
+        <div
+          style={{
+            padding: "0.75rem 1.5rem",
+            borderBottom: "1px solid var(--color-border)",
+            display: "flex",
+            gap: "0.5rem",
+            backgroundColor: "var(--color-surface)",
+          }}
+        >
+          <button
+            type="button"
+            onClick={handlePrint}
+            style={{
+              flex: 1,
+              padding: "0.6rem 1rem",
+              fontSize: "0.875rem",
+              fontWeight: "bold",
+              backgroundColor: "var(--color-primary)",
+              color: "white",
+              border: "none",
+              borderRadius: "var(--radius-md)",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "0.4rem",
+              transition: "background-color var(--transition-normal)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor =
+                "var(--color-primary-hover)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "var(--color-primary)";
+            }}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="6 9 6 2 18 2 18 9" />
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+              <rect x="6" y="14" width="12" height="8" />
+            </svg>
+            Imprimir
+          </button>
+          {onPayClick && (
+            <PermissionGate permission={PERMISSIONS.ORDERS_UPDATE}>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onPayClick();
+                }}
+                style={{
+                  flex: 1,
+                  padding: "0.6rem 1rem",
+                  fontSize: "0.875rem",
+                  fontWeight: "bold",
+                  backgroundColor: "var(--color-success)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "var(--radius-md)",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.4rem",
+                  transition: "background-color var(--transition-normal)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor =
+                    "var(--color-success-hover)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor =
+                    "var(--color-success)";
+                }}
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="12" y1="1" x2="12" y2="23" />
+                  <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                </svg>
+                Pagar Cuenta
+              </button>
+            </PermissionGate>
+          )}
+          {onRemoveClick && (
+            <PermissionGate permission={PERMISSIONS.ORDERS_DELETE}>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onRemoveClick();
+                }}
+                style={{
+                  padding: "0.6rem 1rem",
+                  fontSize: "0.875rem",
+                  fontWeight: "bold",
+                  backgroundColor: "var(--color-danger)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "var(--radius-md)",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.4rem",
+                  transition: "background-color var(--transition-normal)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor =
+                    "var(--color-danger-hover)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor =
+                    "var(--color-danger)";
+                }}
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                </svg>
+                Eliminar
+              </button>
+            </PermissionGate>
+          )}
+        </div>
+
+        {/* Hidden Print Content */}
+        <div style={{ display: "none" }}>
+          <div ref={printRef}>
+            <div className="header">
+              <div className="bill-number">
+                Factura - {openBill.temporal_identifier}
+              </div>
+              <div className="date">{formatDate(openBill.created_at)}</div>
+              {openBill.created_by && (
+                <div className="date">
+                  Atendido por: {openBill.created_by.name}
+                </div>
+              )}
+            </div>
+            <div className="items">
+              {groupedProducts.map(({ product, totalQuantity }) => {
+                const itemTotal =
+                  parseFloat(product.total_price_with_taxes) * totalQuantity;
+                return (
+                  <div key={product.id} className="item">
+                    <div className="item-name">{product.name}</div>
+                    <div className="item-details">
+                      <span>
+                        ${product.total_price_with_taxes} x {totalQuantity}
+                      </span>
+                      <span>${itemTotal.toFixed(2)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="totals">
+              <div className="total-row">
+                <span>Subtotal:</span>
+                <span>${printTotals.subtotal.toFixed(2)}</span>
+              </div>
+              <div className="total-row">
+                <span>IVA:</span>
+                <span>${printTotals.totalVAT.toFixed(2)}</span>
+              </div>
+              <div className="total-row">
+                <span>ICO:</span>
+                <span>${printTotals.totalICO.toFixed(2)}</span>
+              </div>
+              <div className="total-row final">
+                <span>TOTAL:</span>
+                <span>${printTotals.total.toFixed(2)}</span>
+              </div>
+            </div>
+            <div className="footer">
+              <div>Gracias por su visita!</div>
+              <div>Laguna Escondida</div>
+            </div>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit}>

@@ -320,6 +320,8 @@ export default function OrdersPageClient() {
           openBill={editingBill}
           onClose={() => setEditingBill(null)}
           onSuccess={handleCreateSuccess}
+          onPayClick={() => setPaymentBill(editingBill)}
+          onRemoveClick={() => handleRemoveClick(editingBill)}
         />
       )}
 
