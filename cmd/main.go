@@ -135,6 +135,7 @@ func main() {
 	purchaseEntryService := service.NewPurchaseEntryService(purchaseEntryRepo, supplierRepo, supplierCatalogRepo, productRepo, spacesClient, eventBusImpl, slogLogger, cfg.OrganizationID)
 	expenseService := service.NewExpenseService(expenseCategoryRepo, expenseRepo, supplierRepo, spacesClient, cfg.OrganizationID)
 	productIngredientService := service.NewProductIngredientService(productIngredientRepo, productRepo)
+	financialService := service.NewFinancialService(billRepo, expenseRepo, purchaseEntryRepo)
 
 	// Initialize Event Subscriber
 	eventSubscriber, err := eventbus.NewGoChannelEventSubscriber(eventBusImpl.PubSub(), watermillLogger)
@@ -274,6 +275,7 @@ func main() {
 	purchaseEntryHandler := handler.NewPurchaseEntryHandler(purchaseEntryService)
 	expenseHandler := handler.NewExpenseHandler(expenseService)
 	productIngredientHandler := handler.NewProductIngredientHandler(productIngredientService)
+	financialHandler := handler.NewFinancialHandler(financialService)
 	sseHandler := handler.NewSSEHandler(sseHub, openBillProductHub, orderService, logger)
 
 	// Setup routes
@@ -366,6 +368,7 @@ func main() {
 	// Purchase Entry routes
 	router.POST("/api/purchase-entries", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.PurchaseEntriesCreate), purchaseEntryHandler.CreatePurchaseEntryHandler)
 	router.GET("/api/purchase-entries", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.PurchaseEntriesRead), purchaseEntryHandler.ListPurchaseEntriesHandler)
+	router.GET("/api/purchase-entries/export", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.PurchaseEntriesExport), purchaseEntryHandler.ExportPurchaseEntriesCSVHandler)
 	router.GET("/api/purchase-entries/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.PurchaseEntriesRead), purchaseEntryHandler.GetPurchaseEntryByIDHandler)
 	router.GET("/api/suppliers/:id/purchase-entries", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.PurchaseEntriesRead), purchaseEntryHandler.GetPurchaseEntriesBySupplierHandler)
 	router.POST("/api/purchase-entries/:id/documents", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.PurchaseEntriesUpload), purchaseEntryHandler.UploadPurchaseEntryDocumentHandler)
@@ -379,10 +382,14 @@ func main() {
 	// Expense routes
 	router.POST("/api/expenses", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpensesCreate), expenseHandler.CreateExpenseHandler)
 	router.GET("/api/expenses", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpensesRead), expenseHandler.ListExpensesHandler)
+	router.GET("/api/expenses/export", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpensesExport), expenseHandler.ExportExpensesCSVHandler)
 	router.GET("/api/expenses/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpensesRead), expenseHandler.GetExpenseByIDHandler)
 	router.PUT("/api/expenses/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpensesUpdate), expenseHandler.UpdateExpenseHandler)
 	router.DELETE("/api/expenses/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpensesDelete), expenseHandler.DeleteExpenseHandler)
 	router.POST("/api/expenses/:id/documents", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpensesUpload), expenseHandler.UploadExpenseDocumentHandler)
+
+	// Financial routes
+	router.GET("/api/financial/summary", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.FinancialRead), financialHandler.GetFinancialSummaryHandler)
 
 	// SSE routes for real-time open bill product notifications
 	router.GET("/api/sse/commands/:area", handler.SSEMiddleware(), handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SSECommandsRead), sseHandler.StreamCommandsHandler)

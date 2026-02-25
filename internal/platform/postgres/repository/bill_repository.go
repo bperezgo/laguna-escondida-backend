@@ -11,6 +11,7 @@ import (
 	"laguna-escondida/backend/internal/platform/postgres"
 	"laguna-escondida/backend/internal/platform/shared/constants"
 
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -245,6 +246,8 @@ func (r *BillRepository) FindByCriteria(ctx context.Context, criteria *dto.BillC
 			CUFE:           cufe,
 			Tascode:        tascode,
 			CustomerID:     customerID,
+			PDFStoragePath: bill.PDFStoragePath,
+			XMLStoragePath: bill.XMLStoragePath,
 			CreatedAt:      bill.CreatedAt,
 		}
 	}
@@ -324,6 +327,8 @@ func (r *BillRepository) FindAllByCriteria(ctx context.Context, criteria *dto.Bi
 			CUFE:           cufe,
 			Tascode:        tascode,
 			CustomerID:     customerID,
+			PDFStoragePath: bill.PDFStoragePath,
+			XMLStoragePath: bill.XMLStoragePath,
 			CreatedAt:      bill.CreatedAt,
 		}
 	}
@@ -358,6 +363,41 @@ func (r *BillRepository) UpdateDocumentURL(ctx context.Context, billID string, d
 		Where("id = ?", billID).
 		Update("document_url", documentURL).
 		Error
+}
+
+func (r *BillRepository) GetRevenueSummary(ctx context.Context, startDate time.Time, endDate time.Time) (*dto.RevenueSummary, error) {
+	var result struct {
+		TotalAmount   float64 `gorm:"column:total_amount"`
+		TotalVAT      float64 `gorm:"column:total_vat"`
+		TotalICO      float64 `gorm:"column:total_ico"`
+		TotalDiscount float64 `gorm:"column:total_discount"`
+		TotalTip      float64 `gorm:"column:total_tip"`
+		Count         int     `gorm:"column:count"`
+	}
+
+	err := r.db.WithContext(ctx).
+		Model(&billModel{}).
+		Select(`COALESCE(SUM(total_amount), 0) as total_amount,
+			COALESCE(SUM(vat), 0) as total_vat,
+			COALESCE(SUM(ico), 0) as total_ico,
+			COALESCE(SUM(discount_amount), 0) as total_discount,
+			COALESCE(SUM(tip), 0) as total_tip,
+			COUNT(*) as count`).
+		Where("created_at >= ? AND created_at <= ? AND deleted_at IS NULL", startDate, endDate).
+		Scan(&result).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &dto.RevenueSummary{
+		TotalAmount:   decimal.NewFromFloat(result.TotalAmount),
+		TotalVAT:      decimal.NewFromFloat(result.TotalVAT),
+		TotalICO:      decimal.NewFromFloat(result.TotalICO),
+		TotalDiscount: decimal.NewFromFloat(result.TotalDiscount),
+		TotalTip:      decimal.NewFromFloat(result.TotalTip),
+		Count:         result.Count,
+	}, nil
 }
 
 func (r *BillRepository) UpdateStoragePaths(ctx context.Context, billID string, pdfPath *string, xmlPath *string) error {

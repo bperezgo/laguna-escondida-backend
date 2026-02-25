@@ -1,7 +1,9 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"encoding/csv"
 	"fmt"
 	"time"
 
@@ -209,6 +211,8 @@ func (s *ExpenseService) ListExpenses(ctx context.Context) ([]*dto.ExpenseWithCa
 		return nil, fmt.Errorf("failed to list expenses: %w", err)
 	}
 
+	s.populateExpenseDownloadURLs(ctx, expenses)
+
 	return expenses, nil
 }
 
@@ -218,7 +222,26 @@ func (s *ExpenseService) ListExpensesByCriteria(ctx context.Context, criteria *d
 		return nil, fmt.Errorf("failed to list expenses by criteria: %w", err)
 	}
 
+	s.populateExpenseDownloadURLs(ctx, expenses)
+
 	return expenses, nil
+}
+
+func (s *ExpenseService) populateExpenseDownloadURLs(ctx context.Context, expenses []*dto.ExpenseWithCategory) {
+	for _, exp := range expenses {
+		if exp.PDFStoragePath != nil {
+			url, err := s.storageClient.GetPresignedURL(ctx, *exp.PDFStoragePath, 1*time.Hour)
+			if err == nil {
+				exp.PDFDownloadURL = &url
+			}
+		}
+		if exp.XMLStoragePath != nil {
+			url, err := s.storageClient.GetPresignedURL(ctx, *exp.XMLStoragePath, 1*time.Hour)
+			if err == nil {
+				exp.XMLDownloadURL = &url
+			}
+		}
+	}
 }
 
 func (s *ExpenseService) UploadExpenseDocument(ctx context.Context, expenseID string, categoryCode string, fileData []byte, fileType string) (*dto.DocumentUploadResult, error) {
@@ -289,4 +312,87 @@ func (s *ExpenseService) UploadExpenseDocuments(ctx context.Context, expenseID s
 		PDFStoragePath: &pdfStorageKey,
 		XMLStoragePath: &xmlStorageKey,
 	}, nil
+}
+
+func (s *ExpenseService) ExportExpensesCSV(ctx context.Context, req *dto.ExportExpensesRequest) ([]byte, error) {
+	criteria := &dto.ExpenseListCriteria{
+		CategoryID: req.CategoryID,
+		SupplierID: req.SupplierID,
+		StartDate:  req.StartDate,
+		EndDate:    req.EndDate,
+	}
+
+	expenses, err := s.expenseRepo.FindByCriteria(ctx, criteria)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch expenses: %w", err)
+	}
+
+	s.populateExpenseDownloadURLs(ctx, expenses)
+
+	var buf bytes.Buffer
+	writer := csv.NewWriter(&buf)
+
+	headers := []string{
+		"Fecha",
+		"ID",
+		"Categoria",
+		"Codigo Categoria",
+		"Proveedor",
+		"Monto",
+		"Detalle",
+		"Referencia",
+		"Notas",
+		"URL PDF",
+		"URL XML",
+	}
+	if err := writer.Write(headers); err != nil {
+		return nil, fmt.Errorf("failed to write CSV headers: %w", err)
+	}
+
+	for _, exp := range expenses {
+		supplierName := ""
+		if exp.SupplierName != nil {
+			supplierName = *exp.SupplierName
+		}
+		reference := ""
+		if exp.Reference != nil {
+			reference = *exp.Reference
+		}
+		notes := ""
+		if exp.Notes != nil {
+			notes = *exp.Notes
+		}
+		pdfURL := ""
+		if exp.PDFDownloadURL != nil {
+			pdfURL = *exp.PDFDownloadURL
+		}
+		xmlURL := ""
+		if exp.XMLDownloadURL != nil {
+			xmlURL = *exp.XMLDownloadURL
+		}
+
+		row := []string{
+			exp.ExpenseDate.Format("2006-01-02"),
+			exp.ID,
+			exp.CategoryName,
+			exp.CategoryCode,
+			supplierName,
+			exp.Amount.String(),
+			exp.Description,
+			reference,
+			notes,
+			pdfURL,
+			xmlURL,
+		}
+		if err := writer.Write(row); err != nil {
+			return nil, fmt.Errorf("failed to write CSV row: %w", err)
+		}
+	}
+
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		return nil, fmt.Errorf("failed to flush CSV writer: %w", err)
+	}
+
+	return buf.Bytes(), nil
 }

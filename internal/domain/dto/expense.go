@@ -61,6 +61,8 @@ type ExpenseWithCategory struct {
 	Notes          *string         `json:"notes,omitempty"`
 	PDFStoragePath *string         `json:"pdf_storage_path,omitempty"`
 	XMLStoragePath *string         `json:"xml_storage_path,omitempty"`
+	PDFDownloadURL *string         `json:"pdf_download_url,omitempty"`
+	XMLDownloadURL *string         `json:"xml_download_url,omitempty"`
 	CreatedAt      time.Time       `json:"created_at"`
 }
 
@@ -90,6 +92,13 @@ type ExpenseListResponse struct {
 }
 
 type ExpenseListCriteria struct {
+	CategoryID *string    `json:"category_id,omitempty"`
+	SupplierID *string    `json:"supplier_id,omitempty"`
+	StartDate  *time.Time `json:"start_date,omitempty"`
+	EndDate    *time.Time `json:"end_date,omitempty"`
+}
+
+type ExportExpensesRequest struct {
 	CategoryID *string    `json:"category_id,omitempty"`
 	SupplierID *string    `json:"supplier_id,omitempty"`
 	StartDate  *time.Time `json:"start_date,omitempty"`

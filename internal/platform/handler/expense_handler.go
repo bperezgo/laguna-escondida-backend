@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -384,4 +385,40 @@ func (h *ExpenseHandler) UploadExpenseDocumentHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+func (h *ExpenseHandler) ExportExpensesCSVHandler(c *gin.Context) {
+	var req dto.ExportExpensesRequest
+
+	if categoryID := c.Query("category_id"); categoryID != "" {
+		req.CategoryID = &categoryID
+	}
+
+	if supplierID := c.Query("supplier_id"); supplierID != "" {
+		req.SupplierID = &supplierID
+	}
+
+	if startDateStr := c.Query("start_date"); startDateStr != "" {
+		if parsedTime, err := time.Parse(time.RFC3339, startDateStr); err == nil {
+			req.StartDate = &parsedTime
+		}
+	}
+
+	if endDateStr := c.Query("end_date"); endDateStr != "" {
+		if parsedTime, err := time.Parse(time.RFC3339, endDateStr); err == nil {
+			req.EndDate = &parsedTime
+		}
+	}
+
+	csvData, err := h.expenseService.ExportExpensesCSV(c.Request.Context(), &req)
+	if err != nil {
+		log.Printf("Error exporting expenses to CSV: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to export expenses"})
+		return
+	}
+
+	filename := fmt.Sprintf("gastos_%s.csv", time.Now().Format("2006-01-02"))
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	c.Data(http.StatusOK, "text/csv; charset=utf-8", csvData)
 }

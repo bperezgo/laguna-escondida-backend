@@ -210,6 +210,7 @@ PUT /api/expense-categories/:id
 | ------ | ----------------------------- | -------------------------------- |
 | POST   | `/api/expenses`               | Create a new expense             |
 | GET    | `/api/expenses`               | List expenses (with filters)     |
+| GET    | `/api/expenses/export`        | Export expenses as CSV           |
 | GET    | `/api/expenses/:id`           | Get expense by ID                |
 | PUT    | `/api/expenses/:id`           | Update an expense                |
 | DELETE | `/api/expenses/:id`           | Delete an expense                |
@@ -631,5 +632,53 @@ Documents are stored at:
 ```json
 {
   "error": "Expense not found"
+}
+```
+
+---
+
+## Export Expenses CSV
+
+`GET /api/expenses/export`
+
+Downloads all expenses as a CSV file. Supports the same filters as the list endpoint. Intended for accountants.
+
+**Required permission:** `expenses:export`
+
+### Query Parameters
+
+| Parameter     | Type     | Required | Description                              |
+| ------------- | -------- | -------- | ---------------------------------------- |
+| `start_date`  | ISO 8601 | No       | Filter expenses from this date           |
+| `end_date`    | ISO 8601 | No       | Filter expenses up to this date          |
+| `category_id` | UUID     | No       | Filter by expense category               |
+| `supplier_id` | UUID     | No       | Filter by supplier                       |
+
+### CSV Columns
+
+| Column             | Description                       |
+| ------------------ | --------------------------------- |
+| `Fecha`            | Expense date (`YYYY-MM-DD`)                    |
+| `ID`               | Expense UUID                                   |
+| `Categoria`        | Category name                                  |
+| `Codigo Categoria` | Category code                                  |
+| `Proveedor`        | Supplier name (empty if none)                  |
+| `Monto`            | Amount                                         |
+| `Detalle`          | Description                                    |
+| `Referencia`       | Reference number (empty if none)               |
+| `Notas`            | Notes (empty if none)                          |
+| `URL PDF`          | Presigned download URL for PDF (empty if none) |
+| `URL XML`          | Presigned download URL for XML (empty if none) |
+
+### Example Response (200 OK)
+
+Returns a `text/csv` file with `Content-Disposition: attachment; filename=gastos_2024-01-26.csv`.
+
+### Error Responses
+
+**500 Internal Server Error**
+```json
+{
+  "error": "Failed to export expenses"
 }
 ```

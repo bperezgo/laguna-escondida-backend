@@ -1,7 +1,9 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"encoding/csv"
 	"fmt"
 	"log/slog"
 	"time"
@@ -132,6 +134,19 @@ func (s *PurchaseEntryService) ListPurchaseEntries(ctx context.Context) ([]*dto.
 		return nil, fmt.Errorf("failed to list purchase entries: %w", err)
 	}
 
+	s.populateDownloadURLs(ctx, entries)
+
+	return entries, nil
+}
+
+func (s *PurchaseEntryService) ListPurchaseEntriesByCriteria(ctx context.Context, criteria *dto.PurchaseEntryListCriteria) ([]*dto.PurchaseEntryWithSupplier, error) {
+	entries, err := s.purchaseEntryRepo.FindByCriteria(ctx, criteria)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list purchase entries by criteria: %w", err)
+	}
+
+	s.populateDownloadURLs(ctx, entries)
+
 	return entries, nil
 }
 
@@ -145,7 +160,26 @@ func (s *PurchaseEntryService) GetPurchaseEntriesBySupplier(ctx context.Context,
 		return nil, fmt.Errorf("failed to get supplier purchase entries: %w", err)
 	}
 
+	s.populateDownloadURLs(ctx, entries)
+
 	return entries, nil
+}
+
+func (s *PurchaseEntryService) populateDownloadURLs(ctx context.Context, entries []*dto.PurchaseEntryWithSupplier) {
+	for _, entry := range entries {
+		if entry.PDFStoragePath != nil {
+			url, err := s.storageClient.GetPresignedURL(ctx, *entry.PDFStoragePath, 1*time.Hour)
+			if err == nil {
+				entry.PDFDownloadURL = &url
+			}
+		}
+		if entry.XMLStoragePath != nil {
+			url, err := s.storageClient.GetPresignedURL(ctx, *entry.XMLStoragePath, 1*time.Hour)
+			if err == nil {
+				entry.XMLDownloadURL = &url
+			}
+		}
+	}
 }
 
 func (s *PurchaseEntryService) UploadPurchaseEntryDocument(ctx context.Context, purchaseEntryID string, fileData []byte, fileType string) (*dto.DocumentUploadResult, error) {
@@ -216,4 +250,76 @@ func (s *PurchaseEntryService) UploadPurchaseEntryDocuments(ctx context.Context,
 		PDFStoragePath: &pdfStorageKey,
 		XMLStoragePath: &xmlStorageKey,
 	}, nil
+}
+
+func (s *PurchaseEntryService) ExportPurchaseEntriesCSV(ctx context.Context, req *dto.ExportPurchaseEntriesRequest) ([]byte, error) {
+	criteria := &dto.PurchaseEntryListCriteria{
+		SupplierID: req.SupplierID,
+		StartDate:  req.StartDate,
+		EndDate:    req.EndDate,
+	}
+
+	entries, err := s.purchaseEntryRepo.FindByCriteria(ctx, criteria)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch purchase entries: %w", err)
+	}
+
+	s.populateDownloadURLs(ctx, entries)
+
+	var buf bytes.Buffer
+	writer := csv.NewWriter(&buf)
+
+	headers := []string{
+		"Fecha",
+		"ID",
+		"Proveedor",
+		"Referencia de Factura",
+		"Monto Total",
+		"Notas",
+		"URL PDF",
+		"URL XML",
+	}
+	if err := writer.Write(headers); err != nil {
+		return nil, fmt.Errorf("failed to write CSV headers: %w", err)
+	}
+
+	for _, entry := range entries {
+		invoiceReference := ""
+		if entry.InvoiceReference != nil {
+			invoiceReference = *entry.InvoiceReference
+		}
+		notes := ""
+		if entry.Notes != nil {
+			notes = *entry.Notes
+		}
+		pdfURL := ""
+		if entry.PDFDownloadURL != nil {
+			pdfURL = *entry.PDFDownloadURL
+		}
+		xmlURL := ""
+		if entry.XMLDownloadURL != nil {
+			xmlURL = *entry.XMLDownloadURL
+		}
+
+		row := []string{
+			entry.EntryDate.Format("2006-01-02"),
+			entry.ID,
+			entry.SupplierName,
+			invoiceReference,
+			entry.TotalAmount.String(),
+			notes,
+			pdfURL,
+			xmlURL,
+		}
+		if err := writer.Write(row); err != nil {
+			return nil, fmt.Errorf("failed to write CSV row: %w", err)
+		}
+	}
+
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		return nil, fmt.Errorf("failed to flush CSV writer: %w", err)
+	}
+
+	return buf.Bytes(), nil
 }

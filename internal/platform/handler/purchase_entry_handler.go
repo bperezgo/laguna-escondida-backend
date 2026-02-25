@@ -2,9 +2,11 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"time"
 
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
@@ -78,7 +80,39 @@ func (h *PurchaseEntryHandler) GetPurchaseEntryByIDHandler(c *gin.Context) {
 }
 
 func (h *PurchaseEntryHandler) ListPurchaseEntriesHandler(c *gin.Context) {
-	entries, err := h.purchaseEntryService.ListPurchaseEntries(c.Request.Context())
+	supplierID := c.Query("supplier_id")
+	startDateStr := c.Query("start_date")
+	endDateStr := c.Query("end_date")
+
+	hasCriteria := supplierID != "" || startDateStr != "" || endDateStr != ""
+
+	var entries []*dto.PurchaseEntryWithSupplier
+	var err error
+
+	if hasCriteria {
+		criteria := &dto.PurchaseEntryListCriteria{}
+
+		if supplierID != "" {
+			criteria.SupplierID = &supplierID
+		}
+
+		if startDateStr != "" {
+			if parsedTime, parseErr := time.Parse(time.RFC3339, startDateStr); parseErr == nil {
+				criteria.StartDate = &parsedTime
+			}
+		}
+
+		if endDateStr != "" {
+			if parsedTime, parseErr := time.Parse(time.RFC3339, endDateStr); parseErr == nil {
+				criteria.EndDate = &parsedTime
+			}
+		}
+
+		entries, err = h.purchaseEntryService.ListPurchaseEntriesByCriteria(c.Request.Context(), criteria)
+	} else {
+		entries, err = h.purchaseEntryService.ListPurchaseEntries(c.Request.Context())
+	}
+
 	if err != nil {
 		log.Printf("Error listing purchase entries: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list purchase entries"})
@@ -193,4 +227,36 @@ func (h *PurchaseEntryHandler) UploadPurchaseEntryDocumentHandler(c *gin.Context
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+func (h *PurchaseEntryHandler) ExportPurchaseEntriesCSVHandler(c *gin.Context) {
+	var req dto.ExportPurchaseEntriesRequest
+
+	if supplierID := c.Query("supplier_id"); supplierID != "" {
+		req.SupplierID = &supplierID
+	}
+
+	if startDateStr := c.Query("start_date"); startDateStr != "" {
+		if parsedTime, err := time.Parse(time.RFC3339, startDateStr); err == nil {
+			req.StartDate = &parsedTime
+		}
+	}
+
+	if endDateStr := c.Query("end_date"); endDateStr != "" {
+		if parsedTime, err := time.Parse(time.RFC3339, endDateStr); err == nil {
+			req.EndDate = &parsedTime
+		}
+	}
+
+	csvData, err := h.purchaseEntryService.ExportPurchaseEntriesCSV(c.Request.Context(), &req)
+	if err != nil {
+		log.Printf("Error exporting purchase entries to CSV: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to export purchase entries"})
+		return
+	}
+
+	filename := fmt.Sprintf("entradas_compra_%s.csv", time.Now().Format("2006-01-02"))
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	c.Data(http.StatusOK, "text/csv; charset=utf-8", csvData)
 }

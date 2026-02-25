@@ -266,6 +266,30 @@ curl -X POST "$BASE_URL/expenses/EXPENSE_ID/documents?category_code=rent" \
   -F "file=@/path/to/electronic_invoice.zip"
 ```
 
+### Export Expenses CSV (all)
+
+```bash
+curl -X GET "$BASE_URL/expenses/export" \
+  -H "Authorization: Bearer $TOKEN" \
+  -o gastos.csv
+```
+
+### Export Expenses CSV (filtered by date range)
+
+```bash
+curl -X GET "$BASE_URL/expenses/export?start_date=2024-01-01T00:00:00Z&end_date=2024-12-31T23:59:59Z" \
+  -H "Authorization: Bearer $TOKEN" \
+  -o gastos_2024.csv
+```
+
+### Export Expenses CSV (filtered by category)
+
+```bash
+curl -X GET "$BASE_URL/expenses/export?category_id=CATEGORY_ID&start_date=2024-01-01T00:00:00Z&end_date=2024-12-31T23:59:59Z" \
+  -H "Authorization: Bearer $TOKEN" \
+  -o gastos_categoria.csv
+```
+
 ---
 
 ## Products
@@ -386,6 +410,142 @@ curl -X PUT "$BASE_URL/products/COMPOSITE_PRODUCT_ID/ingredients/INGREDIENT_ID" 
 ```bash
 curl -X DELETE "$BASE_URL/products/COMPOSITE_PRODUCT_ID/ingredients/INGREDIENT_ID" \
   -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+## Financial Summary
+
+### Get Financial Summary for a Date Range
+
+```bash
+curl -X GET "$BASE_URL/financial/summary?start_date=2024-01-01T00:00:00Z&end_date=2024-12-31T23:59:59Z" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Get Financial Summary for Current Month
+
+```bash
+curl -X GET "$BASE_URL/financial/summary?start_date=2024-06-01T00:00:00Z&end_date=2024-06-30T23:59:59Z" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+## Invoices
+
+### Create Electronic Invoice (anonymous, cash)
+
+```bash
+curl -X POST "$BASE_URL/invoices" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "payment_code": "cash",
+    "items": [
+      { "product_id": "PRODUCT_ID_1", "quantity": 2 },
+      { "product_id": "PRODUCT_ID_2", "quantity": 1 }
+    ]
+  }'
+```
+
+### Create Electronic Invoice (identified customer, credit card)
+
+```bash
+curl -X POST "$BASE_URL/invoices" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "payment_code": "credit_card",
+    "customer": {
+      "id": "1234567890",
+      "document_type": "CC",
+      "name": "Juan García",
+      "email": "juan.garcia@email.com"
+    },
+    "items": [
+      { "product_id": "PRODUCT_ID_1", "quantity": 1 }
+    ]
+  }'
+```
+
+### List Invoices (paginated)
+
+```bash
+curl -X GET "$BASE_URL/invoices?page=1&page_size=20" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### List Invoices by Date Range
+
+```bash
+curl -X GET "$BASE_URL/invoices?created_at_start=2024-01-01T00:00:00Z&created_at_end=2024-01-31T23:59:59Z" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### List Invoices by Customer Identification
+
+```bash
+curl -X GET "$BASE_URL/invoices?national_identification=1234567890" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Export Invoices CSV (all)
+
+```bash
+curl -X GET "$BASE_URL/invoices/export" \
+  -H "Authorization: Bearer $TOKEN" \
+  -o facturas.csv
+```
+
+### Export Invoices CSV (filtered by date range)
+
+```bash
+curl -X GET "$BASE_URL/invoices/export?created_at_start=2024-01-01T00:00:00Z&created_at_end=2024-12-31T23:59:59Z" \
+  -H "Authorization: Bearer $TOKEN" \
+  -o facturas_2024.csv
+```
+
+---
+
+## Purchase Entries with Date Filtering
+
+### List Purchase Entries by Date Range
+
+```bash
+curl -X GET "$BASE_URL/purchase-entries?start_date=2024-01-01T00:00:00Z&end_date=2024-12-31T23:59:59Z" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### List Purchase Entries by Supplier and Date Range
+
+```bash
+curl -X GET "$BASE_URL/purchase-entries?supplier_id=SUPPLIER_ID&start_date=2024-01-01T00:00:00Z&end_date=2024-06-30T23:59:59Z" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Export Purchase Entries CSV (all)
+
+```bash
+curl -X GET "$BASE_URL/purchase-entries/export" \
+  -H "Authorization: Bearer $TOKEN" \
+  -o entradas_compra.csv
+```
+
+### Export Purchase Entries CSV (filtered by date range)
+
+```bash
+curl -X GET "$BASE_URL/purchase-entries/export?start_date=2024-01-01T00:00:00Z&end_date=2024-12-31T23:59:59Z" \
+  -H "Authorization: Bearer $TOKEN" \
+  -o entradas_compra_2024.csv
+```
+
+### Export Purchase Entries CSV (filtered by supplier)
+
+```bash
+curl -X GET "$BASE_URL/purchase-entries/export?supplier_id=SUPPLIER_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -o entradas_proveedor.csv
 ```
 
 ---

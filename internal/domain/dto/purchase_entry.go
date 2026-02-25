@@ -29,6 +29,8 @@ type PurchaseEntryWithSupplier struct {
 	Notes            *string              `json:"notes,omitempty"`
 	PDFStoragePath   *string              `json:"pdf_storage_path,omitempty"`
 	XMLStoragePath   *string              `json:"xml_storage_path,omitempty"`
+	PDFDownloadURL   *string              `json:"pdf_download_url,omitempty"`
+	XMLDownloadURL   *string              `json:"xml_download_url,omitempty"`
 	Items            []*PurchaseEntryItem `json:"items,omitempty"`
 	CreatedAt        time.Time            `json:"created_at"`
 }
@@ -60,4 +62,16 @@ type CreatePurchaseEntryRequest struct {
 type PurchaseEntryListResponse struct {
 	Entries []*PurchaseEntryWithSupplier `json:"entries"`
 	Total   *int                         `json:"total,omitempty"`
+}
+
+type PurchaseEntryListCriteria struct {
+	SupplierID *string    `json:"supplier_id,omitempty"`
+	StartDate  *time.Time `json:"start_date,omitempty"`
+	EndDate    *time.Time `json:"end_date,omitempty"`
+}
+
+type ExportPurchaseEntriesRequest struct {
+	SupplierID *string    `json:"supplier_id,omitempty"`
+	StartDate  *time.Time `json:"start_date,omitempty"`
+	EndDate    *time.Time `json:"end_date,omitempty"`
 }

@@ -172,6 +172,50 @@ func (r *PurchaseEntryRepository) FindAll(ctx context.Context) ([]*dto.PurchaseE
 	return result, nil
 }
 
+func (r *PurchaseEntryRepository) FindByCriteria(ctx context.Context, criteria *dto.PurchaseEntryListCriteria) ([]*dto.PurchaseEntryWithSupplier, error) {
+	var models []purchaseEntryWithSupplierModel
+
+	query := r.db.WithContext(ctx).
+		Table("purchase_entries pe").
+		Select("pe.id, pe.supplier_id, s.name as supplier_name, pe.total_amount, pe.invoice_reference, pe.entry_date, pe.notes, pe.pdf_storage_path, pe.xml_storage_path, pe.created_at").
+		Joins("JOIN suppliers s ON s.id = pe.supplier_id AND s.deleted_at IS NULL")
+
+	if criteria.SupplierID != nil {
+		query = query.Where("pe.supplier_id = ?", *criteria.SupplierID)
+	}
+
+	if criteria.StartDate != nil {
+		query = query.Where("pe.entry_date >= ?", *criteria.StartDate)
+	}
+
+	if criteria.EndDate != nil {
+		query = query.Where("pe.entry_date <= ?", *criteria.EndDate)
+	}
+
+	err := query.Order("pe.entry_date DESC").Find(&models).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]*dto.PurchaseEntryWithSupplier, len(models))
+	for i, model := range models {
+		result[i] = &dto.PurchaseEntryWithSupplier{
+			ID:               model.ID,
+			SupplierID:       model.SupplierID,
+			SupplierName:     model.SupplierName,
+			TotalAmount:      model.TotalAmount,
+			InvoiceReference: model.InvoiceReference,
+			EntryDate:        model.EntryDate,
+			Notes:            model.Notes,
+			PDFStoragePath:   model.PDFStoragePath,
+			XMLStoragePath:   model.XMLStoragePath,
+			CreatedAt:        model.CreatedAt,
+		}
+	}
+
+	return result, nil
+}
+
 func (r *PurchaseEntryRepository) FindBySupplierID(ctx context.Context, supplierID string) ([]*dto.PurchaseEntryWithSupplier, error) {
 	var models []purchaseEntryWithSupplierModel
 
@@ -234,6 +278,28 @@ func (r *PurchaseEntryRepository) findItemsByEntryID(ctx context.Context, entryI
 	}
 
 	return result, nil
+}
+
+func (r *PurchaseEntryRepository) GetPurchaseSummary(ctx context.Context, startDate time.Time, endDate time.Time) (*dto.PurchaseSummary, error) {
+	var result struct {
+		TotalAmount float64 `gorm:"column:total_amount"`
+		Count       int     `gorm:"column:count"`
+	}
+
+	err := r.db.WithContext(ctx).
+		Table("purchase_entries").
+		Select("COALESCE(SUM(total_amount), 0) as total_amount, COUNT(*) as count").
+		Where("entry_date >= ? AND entry_date <= ?", startDate, endDate).
+		Scan(&result).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &dto.PurchaseSummary{
+		TotalAmount: decimal.NewFromFloat(result.TotalAmount),
+		Count:       result.Count,
+	}, nil
 }
 
 func (r *PurchaseEntryRepository) UpdateStoragePaths(ctx context.Context, id string, pdfPath *string, xmlPath *string) error {

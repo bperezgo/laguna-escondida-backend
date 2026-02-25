@@ -8,6 +8,7 @@ Record goods received from suppliers. Also known as "Ingress" or inventory intak
 | ------ | ---------------------------------------- | --------------------------------- |
 | POST   | `/api/purchase-entries`                  | Create a new purchase entry       |
 | GET    | `/api/purchase-entries`                  | List all purchase entries         |
+| GET    | `/api/purchase-entries/export`           | Export purchase entries as CSV    |
 | GET    | `/api/purchase-entries/:id`              | Get purchase entry by ID          |
 | GET    | `/api/suppliers/:id/purchase-entries`    | List purchase entries by supplier |
 | POST   | `/api/purchase-entries/:id/documents`    | Upload supporting document        |
@@ -396,5 +397,49 @@ Documents are stored at:
 ```json
 {
   "error": "Purchase entry not found"
+}
+```
+
+---
+
+## Export Purchase Entries CSV
+
+`GET /api/purchase-entries/export`
+
+Downloads all purchase entries as a CSV file. Supports date and supplier filters. Intended for accountants.
+
+**Required permission:** `purchase-entries:export`
+
+### Query Parameters
+
+| Parameter     | Type     | Required | Description                              |
+| ------------- | -------- | -------- | ---------------------------------------- |
+| `start_date`  | ISO 8601 | No       | Filter entries from this date            |
+| `end_date`    | ISO 8601 | No       | Filter entries up to this date           |
+| `supplier_id` | UUID     | No       | Filter by supplier                       |
+
+### CSV Columns
+
+| Column                  | Description                            |
+| ----------------------- | -------------------------------------- |
+| `Fecha`                 | Entry date (`YYYY-MM-DD`)                      |
+| `ID`                    | Purchase entry UUID                            |
+| `Proveedor`             | Supplier name                                  |
+| `Referencia de Factura` | Invoice reference (empty if none)              |
+| `Monto Total`           | Total amount                                   |
+| `Notas`                 | Notes (empty if none)                          |
+| `URL PDF`               | Presigned download URL for PDF (empty if none) |
+| `URL XML`               | Presigned download URL for XML (empty if none) |
+
+### Example Response (200 OK)
+
+Returns a `text/csv` file with `Content-Disposition: attachment; filename=entradas_compra_2024-01-26.csv`.
+
+### Error Responses
+
+**500 Internal Server Error**
+```json
+{
+  "error": "Failed to export purchase entries"
 }
 ```

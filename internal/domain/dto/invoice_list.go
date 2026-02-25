@@ -17,6 +17,10 @@ type InvoiceListItem struct {
 	CUFE           string          `json:"cufe"`
 	Tascode        string          `json:"tascode"`
 	CustomerID     *string         `json:"customer_id,omitempty"`
+	PDFStoragePath *string         `json:"-"`
+	XMLStoragePath *string         `json:"-"`
+	PDFDownloadURL *string         `json:"pdf_download_url,omitempty"`
+	XMLDownloadURL *string         `json:"xml_download_url,omitempty"`
 	CreatedAt      time.Time       `json:"created_at"`
 }
 

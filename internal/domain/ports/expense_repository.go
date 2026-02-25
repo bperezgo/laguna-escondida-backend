@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"time"
 
 	"laguna-escondida/backend/internal/domain/aggregate/expense"
 	"laguna-escondida/backend/internal/domain/dto"
@@ -15,4 +16,5 @@ type ExpenseRepository interface {
 	FindAll(ctx context.Context) ([]*dto.ExpenseWithCategory, error)
 	FindByCriteria(ctx context.Context, criteria *dto.ExpenseListCriteria) ([]*dto.ExpenseWithCategory, error)
 	UpdateStoragePaths(ctx context.Context, id string, pdfPath *string, xmlPath *string) error
+	GetExpenseSummary(ctx context.Context, startDate time.Time, endDate time.Time) (*dto.ExpenseSummary, error)
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"laguna-escondida/backend/internal/platform/config"
 
@@ -15,9 +16,10 @@ import (
 )
 
 type SpacesClient struct {
-	client   *s3.Client
-	bucket   string
-	endpoint string
+	client        *s3.Client
+	presignClient *s3.PresignClient
+	bucket        string
+	endpoint      string
 }
 
 func NewSpacesClient(cfg *config.Config) (*SpacesClient, error) {
@@ -46,9 +48,10 @@ func NewSpacesClient(cfg *config.Config) (*SpacesClient, error) {
 	})
 
 	return &SpacesClient{
-		client:   client,
-		bucket:   cfg.SpacesBucket,
-		endpoint: fmt.Sprintf("%s.digitaloceanspaces.com", cfg.SpacesRegion),
+		client:        client,
+		presignClient: s3.NewPresignClient(client),
+		bucket:        cfg.SpacesBucket,
+		endpoint:      fmt.Sprintf("%s.digitaloceanspaces.com", cfg.SpacesRegion),
 	}, nil
 }
 
@@ -88,6 +91,17 @@ func (c *SpacesClient) Download(ctx context.Context, key string) ([]byte, error)
 func (c *SpacesClient) GetPublicURL(key string) string {
 	// Path-style URL format: https://{region}.digitaloceanspaces.com/{bucket}/{key}
 	return fmt.Sprintf("https://%s/%s/%s", c.endpoint, c.bucket, key)
+}
+
+func (c *SpacesClient) GetPresignedURL(ctx context.Context, key string, expiration time.Duration) (string, error) {
+	req, err := c.presignClient.PresignGetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(c.bucket),
+		Key:    aws.String(key),
+	}, s3.WithPresignExpires(expiration))
+	if err != nil {
+		return "", fmt.Errorf("failed to generate presigned URL: %w", err)
+	}
+	return req.URL, nil
 }
 
 func (c *SpacesClient) Delete(ctx context.Context, key string) error {

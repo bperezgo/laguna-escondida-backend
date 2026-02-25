@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"laguna-escondida/backend/internal/domain/aggregate/bill"
 	"laguna-escondida/backend/internal/domain/dto"
@@ -115,6 +116,8 @@ func (s *InvoiceService) ListInvoices(ctx context.Context, req *dto.ListInvoices
 		return nil, err
 	}
 
+	s.populateInvoiceDownloadURLs(ctx, invoices)
+
 	totalPages := int(totalCount) / criteria.PageSize
 	if int(totalCount)%criteria.PageSize != 0 {
 		totalPages++
@@ -198,6 +201,23 @@ func (s *InvoiceService) UpdateMissingDocumentURLs(ctx context.Context) (*dto.Up
 	}, nil
 }
 
+func (s *InvoiceService) populateInvoiceDownloadURLs(ctx context.Context, invoices []dto.InvoiceListItem) {
+	for i := range invoices {
+		if invoices[i].PDFStoragePath != nil {
+			url, err := s.storageClient.GetPresignedURL(ctx, *invoices[i].PDFStoragePath, 1*time.Hour)
+			if err == nil {
+				invoices[i].PDFDownloadURL = &url
+			}
+		}
+		if invoices[i].XMLStoragePath != nil {
+			url, err := s.storageClient.GetPresignedURL(ctx, *invoices[i].XMLStoragePath, 1*time.Hour)
+			if err == nil {
+				invoices[i].XMLDownloadURL = &url
+			}
+		}
+	}
+}
+
 func (s *InvoiceService) uploadInvoiceToStorage(ctx context.Context, billID, pdfURL, xmlURL string) (*string, *string, error) {
 	var pdfStoragePath, xmlStoragePath *string
 
@@ -266,6 +286,8 @@ func (s *InvoiceService) ExportInvoicesCSV(ctx context.Context, req *dto.ExportI
 		return nil, err
 	}
 
+	s.populateInvoiceDownloadURLs(ctx, invoices)
+
 	var buf bytes.Buffer
 	writer := csv.NewWriter(&buf)
 
@@ -279,6 +301,8 @@ func (s *InvoiceService) ExportInvoicesCSV(ctx context.Context, req *dto.ExportI
 		"ICO",
 		"Propina",
 		"URL Documento",
+		"URL PDF",
+		"URL XML",
 	}
 	if err := writer.Write(headers); err != nil {
 		return nil, fmt.Errorf("failed to write CSV headers: %w", err)
@@ -288,6 +312,14 @@ func (s *InvoiceService) ExportInvoicesCSV(ctx context.Context, req *dto.ExportI
 		documentURL := ""
 		if invoice.DocumentURL != nil {
 			documentURL = *invoice.DocumentURL
+		}
+		pdfURL := ""
+		if invoice.PDFDownloadURL != nil {
+			pdfURL = *invoice.PDFDownloadURL
+		}
+		xmlURL := ""
+		if invoice.XMLDownloadURL != nil {
+			xmlURL = *invoice.XMLDownloadURL
 		}
 
 		row := []string{
@@ -300,6 +332,8 @@ func (s *InvoiceService) ExportInvoicesCSV(ctx context.Context, req *dto.ExportI
 			invoice.ICO.String(),
 			invoice.Tip.String(),
 			documentURL,
+			pdfURL,
+			xmlURL,
 		}
 		if err := writer.Write(row); err != nil {
 			return nil, fmt.Errorf("failed to write CSV row: %w", err)

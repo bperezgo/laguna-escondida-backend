@@ -66,6 +66,7 @@ const (
 	PurchaseEntriesRead   Permission = "purchase-entries:read"
 	PurchaseEntriesCreate Permission = "purchase-entries:create"
 	PurchaseEntriesUpload Permission = "purchase-entries:upload"
+	PurchaseEntriesExport Permission = "purchase-entries:export"
 )
 
 // Expense Category permissions
@@ -82,6 +83,12 @@ const (
 	ExpensesUpdate Permission = "expenses:update"
 	ExpensesDelete Permission = "expenses:delete"
 	ExpensesUpload Permission = "expenses:upload"
+	ExpensesExport Permission = "expenses:export"
+)
+
+// Financial permissions
+const (
+	FinancialRead Permission = "financial:read"
 )
 
 // User permissions
@@ -116,11 +123,13 @@ func AllPermissions() []Permission {
 		// Supplier Catalog
 		SupplierCatalogRead, SupplierCatalogCreate, SupplierCatalogUpdate, SupplierCatalogDelete,
 		// Purchase Entries
-		PurchaseEntriesRead, PurchaseEntriesCreate, PurchaseEntriesUpload,
+		PurchaseEntriesRead, PurchaseEntriesCreate, PurchaseEntriesUpload, PurchaseEntriesExport,
 		// Expense Categories
 		ExpenseCategoriesRead, ExpenseCategoriesCreate, ExpenseCategoriesUpdate,
 		// Expenses
-		ExpensesRead, ExpensesCreate, ExpensesUpdate, ExpensesDelete, ExpensesUpload,
+		ExpensesRead, ExpensesCreate, ExpensesUpdate, ExpensesDelete, ExpensesUpload, ExpensesExport,
+		// Financial
+		FinancialRead,
 		// Users
 		UsersRead, UsersCreate,
 		// SSE

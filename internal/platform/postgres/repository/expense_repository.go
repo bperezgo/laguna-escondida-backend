@@ -189,6 +189,63 @@ func (r *ExpenseRepository) UpdateStoragePaths(ctx context.Context, id string, p
 		Updates(updates).Error
 }
 
+func (r *ExpenseRepository) GetExpenseSummary(ctx context.Context, startDate time.Time, endDate time.Time) (*dto.ExpenseSummary, error) {
+	var totalResult struct {
+		TotalAmount float64 `gorm:"column:total_amount"`
+		Count       int     `gorm:"column:count"`
+	}
+
+	err := r.db.WithContext(ctx).
+		Table("expenses").
+		Select("COALESCE(SUM(amount), 0) as total_amount, COUNT(*) as count").
+		Where("expense_date >= ? AND expense_date <= ?", startDate, endDate).
+		Scan(&totalResult).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	type categoryResult struct {
+		CategoryID   string  `gorm:"column:category_id"`
+		CategoryName string  `gorm:"column:category_name"`
+		CategoryCode string  `gorm:"column:category_code"`
+		TotalAmount  float64 `gorm:"column:total_amount"`
+		Count        int     `gorm:"column:count"`
+	}
+
+	var categoryResults []categoryResult
+
+	err = r.db.WithContext(ctx).
+		Table("expenses e").
+		Select("e.category_id, ec.name as category_name, ec.code as category_code, COALESCE(SUM(e.amount), 0) as total_amount, COUNT(*) as count").
+		Joins("JOIN expense_categories ec ON ec.id = e.category_id").
+		Where("e.expense_date >= ? AND e.expense_date <= ?", startDate, endDate).
+		Group("e.category_id, ec.name, ec.code").
+		Order("total_amount DESC").
+		Scan(&categoryResults).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	byCategory := make([]dto.ExpenseCategorySummary, len(categoryResults))
+	for i, cr := range categoryResults {
+		byCategory[i] = dto.ExpenseCategorySummary{
+			CategoryID:   cr.CategoryID,
+			CategoryName: cr.CategoryName,
+			CategoryCode: cr.CategoryCode,
+			TotalAmount:  decimal.NewFromFloat(cr.TotalAmount),
+			Count:        cr.Count,
+		}
+	}
+
+	return &dto.ExpenseSummary{
+		TotalAmount: decimal.NewFromFloat(totalResult.TotalAmount),
+		ByCategory:  byCategory,
+		Count:       totalResult.Count,
+	}, nil
+}
+
 func (r *ExpenseRepository) modelToDTO(model *expenseWithCategoryModel) *dto.ExpenseWithCategory {
 	return &dto.ExpenseWithCategory{
 		ID:             model.ID,

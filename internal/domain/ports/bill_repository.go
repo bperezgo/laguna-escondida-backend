@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"time"
 
 	"laguna-escondida/backend/internal/domain/aggregate/bill"
 	"laguna-escondida/backend/internal/domain/dto"
@@ -15,4 +16,5 @@ type BillRepository interface {
 	FindByNullDocumentURL(ctx context.Context) ([]*dto.BillWithTascode, error)
 	UpdateDocumentURL(ctx context.Context, billID string, documentURL string) error
 	UpdateStoragePaths(ctx context.Context, billID string, pdfPath *string, xmlPath *string) error
+	GetRevenueSummary(ctx context.Context, startDate time.Time, endDate time.Time) (*dto.RevenueSummary, error)
 }
