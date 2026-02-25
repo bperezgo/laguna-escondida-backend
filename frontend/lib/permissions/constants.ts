@@ -4,73 +4,76 @@
 
 export const PERMISSIONS = {
   // Orders
-  ORDERS_READ: 'orders:read',
-  ORDERS_CREATE: 'orders:create',
-  ORDERS_UPDATE: 'orders:update',
-  ORDERS_DELETE: 'orders:delete',
+  ORDERS_READ: "orders:read",
+  ORDERS_CREATE: "orders:create",
+  ORDERS_UPDATE: "orders:update",
+  ORDERS_DELETE: "orders:delete",
 
   // Products
-  PRODUCTS_READ: 'products:read',
-  PRODUCTS_CREATE: 'products:create',
-  PRODUCTS_UPDATE: 'products:update',
-  PRODUCTS_DELETE: 'products:delete',
+  PRODUCTS_READ: "products:read",
+  PRODUCTS_CREATE: "products:create",
+  PRODUCTS_UPDATE: "products:update",
+  PRODUCTS_DELETE: "products:delete",
 
   // Stock
-  STOCK_READ: 'stock:read',
-  STOCK_CREATE: 'stock:create',
-  STOCK_UPDATE: 'stock:update',
-  STOCK_DELETE: 'stock:delete',
+  STOCK_READ: "stock:read",
+  STOCK_CREATE: "stock:create",
+  STOCK_UPDATE: "stock:update",
+  STOCK_DELETE: "stock:delete",
 
   // Invoices
-  INVOICES_READ: 'invoices:read',
-  INVOICES_CREATE: 'invoices:create',
-  INVOICES_EXPORT: 'invoices:export',
+  INVOICES_READ: "invoices:read",
+  INVOICES_CREATE: "invoices:create",
+  INVOICES_EXPORT: "invoices:export",
 
   // Commands
-  COMMANDS_READ: 'commands:read',
-  COMMANDS_UPDATE: 'commands:update',
+  COMMANDS_READ: "commands:read",
+  COMMANDS_UPDATE: "commands:update",
 
   // Bill Owners
-  BILL_OWNERS_READ: 'bill-owners:read',
+  BILL_OWNERS_READ: "bill-owners:read",
 
   // Suppliers
-  SUPPLIERS_READ: 'suppliers:read',
-  SUPPLIERS_CREATE: 'suppliers:create',
-  SUPPLIERS_UPDATE: 'suppliers:update',
-  SUPPLIERS_DELETE: 'suppliers:delete',
+  SUPPLIERS_READ: "suppliers:read",
+  SUPPLIERS_CREATE: "suppliers:create",
+  SUPPLIERS_UPDATE: "suppliers:update",
+  SUPPLIERS_DELETE: "suppliers:delete",
 
   // Supplier Catalog
-  SUPPLIER_CATALOG_READ: 'supplier-catalog:read',
-  SUPPLIER_CATALOG_CREATE: 'supplier-catalog:create',
-  SUPPLIER_CATALOG_UPDATE: 'supplier-catalog:update',
-  SUPPLIER_CATALOG_DELETE: 'supplier-catalog:delete',
+  SUPPLIER_CATALOG_READ: "supplier-catalog:read",
+  SUPPLIER_CATALOG_CREATE: "supplier-catalog:create",
+  SUPPLIER_CATALOG_UPDATE: "supplier-catalog:update",
+  SUPPLIER_CATALOG_DELETE: "supplier-catalog:delete",
 
   // Purchase Entries
-  PURCHASE_ENTRIES_READ: 'purchase-entries:read',
-  PURCHASE_ENTRIES_CREATE: 'purchase-entries:create',
-  PURCHASE_ENTRIES_UPLOAD: 'purchase-entries:upload',
-  PURCHASE_ENTRIES_EXPORT: 'purchase-entries:export',
+  PURCHASE_ENTRIES_READ: "purchase-entries:read",
+  PURCHASE_ENTRIES_CREATE: "purchase-entries:create",
+  PURCHASE_ENTRIES_UPLOAD: "purchase-entries:upload",
+  PURCHASE_ENTRIES_EXPORT: "purchase-entries:export",
 
   // Expense Categories
-  EXPENSE_CATEGORIES_READ: 'expense-categories:read',
-  EXPENSE_CATEGORIES_CREATE: 'expense-categories:create',
-  EXPENSE_CATEGORIES_UPDATE: 'expense-categories:update',
+  EXPENSE_CATEGORIES_READ: "expense-categories:read",
+  EXPENSE_CATEGORIES_CREATE: "expense-categories:create",
+  EXPENSE_CATEGORIES_UPDATE: "expense-categories:update",
 
   // Expenses
-  EXPENSES_READ: 'expenses:read',
-  EXPENSES_CREATE: 'expenses:create',
-  EXPENSES_UPDATE: 'expenses:update',
-  EXPENSES_DELETE: 'expenses:delete',
-  EXPENSES_UPLOAD: 'expenses:upload',
-  EXPENSES_EXPORT: 'expenses:export',
+  EXPENSES_READ: "expenses:read",
+  EXPENSES_CREATE: "expenses:create",
+  EXPENSES_UPDATE: "expenses:update",
+  EXPENSES_DELETE: "expenses:delete",
+  EXPENSES_UPLOAD: "expenses:upload",
+  EXPENSES_EXPORT: "expenses:export",
+
+  // Financial
+  FINANCIAL_SUMMARY_READ: "financial:read",
 
   // Users
-  USERS_READ: 'users:read',
-  USERS_CREATE: 'users:create',
+  USERS_READ: "users:read",
+  USERS_CREATE: "users:create",
 
   // SSE (Real-time)
-  SSE_COMMANDS_READ: 'sse:commands:read',
-  SSE_COMMAND_ITEMS_READ: 'sse:command-items:read',
+  SSE_COMMANDS_READ: "sse:commands:read",
+  SSE_COMMAND_ITEMS_READ: "sse:command-items:read",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

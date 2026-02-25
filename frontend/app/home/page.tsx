@@ -61,6 +61,13 @@ const navItems = [
     permission: PERMISSIONS.EXPENSES_READ,
     hoverColor: "var(--color-warning)",
   },
+  {
+    href: "/financial",
+    title: "Finanzas",
+    description: "Resumen financiero — ingresos, gastos y utilidad",
+    permission: PERMISSIONS.FINANCIAL_SUMMARY_READ,
+    hoverColor: "var(--color-success)",
+  },
 ];
 
 export default function HomePage() {

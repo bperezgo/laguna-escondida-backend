@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la /Users/bryanperez/Documents/me/dev/laguna-escondida-frontend/app/\\\\\\(main\\\\\\)/)"
+    ]
+  }
+}
