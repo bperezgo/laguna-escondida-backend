@@ -489,7 +489,7 @@ Creates a new entity.
 
 \`\`\`json
 {
-"name": "Example Name"
+  "name": "Example Name"
 }
 \`\`\`
 
@@ -497,9 +497,9 @@ Creates a new entity.
 
 \`\`\`json
 {
-"id": "550e8400-e29b-41d4-a716-446655440000",
-"name": "Example Name",
-"created_at": "2024-01-26T15:30:00Z"
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "Example Name",
+  "created_at": "2024-01-26T15:30:00Z"
 }
 \`\`\`
 
@@ -508,8 +508,8 @@ Creates a new entity.
 **400 Bad Request** - Invalid input
 \`\`\`json
 {
-"error": "validation_error",
-"message": "name is required"
+  "error": "validation_error",
+  "message": "name is required"
 }
 \`\`\`
 ```
@@ -554,7 +554,7 @@ Remember: **Documentation is for the frontend team**. Keep it accurate, complete
    ```go
    // BAD - error not checked
    defer resp.Body.Close()
-   
+
    // GOOD - error explicitly ignored or handled
    defer func() {
        _ = resp.Body.Close()
