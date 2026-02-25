@@ -40,3 +40,9 @@ export interface PurchaseEntryListResponse {
   entries: PurchaseEntry[];
   total: number;
 }
+
+export interface PurchaseEntryFilters {
+  supplier_id?: string;
+  start_date?: string;
+  end_date?: string;
+}

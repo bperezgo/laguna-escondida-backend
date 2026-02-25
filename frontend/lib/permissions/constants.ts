@@ -49,6 +49,7 @@ export const PERMISSIONS = {
   PURCHASE_ENTRIES_READ: 'purchase-entries:read',
   PURCHASE_ENTRIES_CREATE: 'purchase-entries:create',
   PURCHASE_ENTRIES_UPLOAD: 'purchase-entries:upload',
+  PURCHASE_ENTRIES_EXPORT: 'purchase-entries:export',
 
   // Expense Categories
   EXPENSE_CATEGORIES_READ: 'expense-categories:read',
@@ -61,6 +62,7 @@ export const PERMISSIONS = {
   EXPENSES_UPDATE: 'expenses:update',
   EXPENSES_DELETE: 'expenses:delete',
   EXPENSES_UPLOAD: 'expenses:upload',
+  EXPENSES_EXPORT: 'expenses:export',
 
   // Users
   USERS_READ: 'users:read',
