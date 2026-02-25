@@ -204,16 +204,20 @@ func (h *ExpenseHandler) ListExpensesHandler(c *gin.Context) {
 			criteria.SupplierID = &supplierID
 		}
 		if startDateStr != "" {
-			startDate, err := time.Parse(time.RFC3339, startDateStr)
-			if err == nil {
-				criteria.StartDate = &startDate
+			startDate, err := parseStartDate(startDateStr)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid start_date format. Use YYYY-MM-DD or RFC3339"})
+				return
 			}
+			criteria.StartDate = &startDate
 		}
 		if endDateStr != "" {
-			endDate, err := time.Parse(time.RFC3339, endDateStr)
-			if err == nil {
-				criteria.EndDate = &endDate
+			endDate, err := parseEndDate(endDateStr)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid end_date format. Use YYYY-MM-DD or RFC3339"})
+				return
 			}
+			criteria.EndDate = &endDate
 		}
 	}
 
@@ -399,15 +403,21 @@ func (h *ExpenseHandler) ExportExpensesCSVHandler(c *gin.Context) {
 	}
 
 	if startDateStr := c.Query("start_date"); startDateStr != "" {
-		if parsedTime, err := time.Parse(time.RFC3339, startDateStr); err == nil {
-			req.StartDate = &parsedTime
+		parsedTime, err := parseStartDate(startDateStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid start_date format. Use YYYY-MM-DD or RFC3339"})
+			return
 		}
+		req.StartDate = &parsedTime
 	}
 
 	if endDateStr := c.Query("end_date"); endDateStr != "" {
-		if parsedTime, err := time.Parse(time.RFC3339, endDateStr); err == nil {
-			req.EndDate = &parsedTime
+		parsedTime, err := parseEndDate(endDateStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid end_date format. Use YYYY-MM-DD or RFC3339"})
+			return
 		}
+		req.EndDate = &parsedTime
 	}
 
 	csvData, err := h.expenseService.ExportExpensesCSV(c.Request.Context(), &req)

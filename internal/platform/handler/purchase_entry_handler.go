@@ -97,15 +97,21 @@ func (h *PurchaseEntryHandler) ListPurchaseEntriesHandler(c *gin.Context) {
 		}
 
 		if startDateStr != "" {
-			if parsedTime, parseErr := time.Parse(time.RFC3339, startDateStr); parseErr == nil {
-				criteria.StartDate = &parsedTime
+			parsedTime, parseErr := parseStartDate(startDateStr)
+			if parseErr != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid start_date format. Use YYYY-MM-DD or RFC3339"})
+				return
 			}
+			criteria.StartDate = &parsedTime
 		}
 
 		if endDateStr != "" {
-			if parsedTime, parseErr := time.Parse(time.RFC3339, endDateStr); parseErr == nil {
-				criteria.EndDate = &parsedTime
+			parsedTime, parseErr := parseEndDate(endDateStr)
+			if parseErr != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid end_date format. Use YYYY-MM-DD or RFC3339"})
+				return
 			}
+			criteria.EndDate = &parsedTime
 		}
 
 		entries, err = h.purchaseEntryService.ListPurchaseEntriesByCriteria(c.Request.Context(), criteria)
@@ -237,15 +243,21 @@ func (h *PurchaseEntryHandler) ExportPurchaseEntriesCSVHandler(c *gin.Context) {
 	}
 
 	if startDateStr := c.Query("start_date"); startDateStr != "" {
-		if parsedTime, err := time.Parse(time.RFC3339, startDateStr); err == nil {
-			req.StartDate = &parsedTime
+		parsedTime, err := parseStartDate(startDateStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid start_date format. Use YYYY-MM-DD or RFC3339"})
+			return
 		}
+		req.StartDate = &parsedTime
 	}
 
 	if endDateStr := c.Query("end_date"); endDateStr != "" {
-		if parsedTime, err := time.Parse(time.RFC3339, endDateStr); err == nil {
-			req.EndDate = &parsedTime
+		parsedTime, err := parseEndDate(endDateStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid end_date format. Use YYYY-MM-DD or RFC3339"})
+			return
 		}
+		req.EndDate = &parsedTime
 	}
 
 	csvData, err := h.purchaseEntryService.ExportPurchaseEntriesCSV(c.Request.Context(), &req)

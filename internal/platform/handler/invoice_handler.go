@@ -61,15 +61,21 @@ func (h *InvoiceHandler) ListInvoicesHandler(c *gin.Context) {
 	}
 
 	if createdAtStartStr := c.Query("created_at_start"); createdAtStartStr != "" {
-		if parsedTime, err := time.Parse(time.RFC3339, createdAtStartStr); err == nil {
-			req.CreatedAtStart = &parsedTime
+		parsedTime, err := parseStartDate(createdAtStartStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid created_at_start format. Use YYYY-MM-DD or RFC3339"})
+			return
 		}
+		req.CreatedAtStart = &parsedTime
 	}
 
 	if createdAtEndStr := c.Query("created_at_end"); createdAtEndStr != "" {
-		if parsedTime, err := time.Parse(time.RFC3339, createdAtEndStr); err == nil {
-			req.CreatedAtEnd = &parsedTime
+		parsedTime, err := parseEndDate(createdAtEndStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid created_at_end format. Use YYYY-MM-DD or RFC3339"})
+			return
 		}
+		req.CreatedAtEnd = &parsedTime
 	}
 
 	if nationalID := c.Query("national_identification"); nationalID != "" {
@@ -101,15 +107,21 @@ func (h *InvoiceHandler) ExportInvoicesCSVHandler(c *gin.Context) {
 	var req dto.ExportInvoicesRequest
 
 	if createdAtStartStr := c.Query("created_at_start"); createdAtStartStr != "" {
-		if parsedTime, err := time.Parse(time.RFC3339, createdAtStartStr); err == nil {
-			req.CreatedAtStart = &parsedTime
+		parsedTime, err := parseStartDate(createdAtStartStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid created_at_start format. Use YYYY-MM-DD or RFC3339"})
+			return
 		}
+		req.CreatedAtStart = &parsedTime
 	}
 
 	if createdAtEndStr := c.Query("created_at_end"); createdAtEndStr != "" {
-		if parsedTime, err := time.Parse(time.RFC3339, createdAtEndStr); err == nil {
-			req.CreatedAtEnd = &parsedTime
+		parsedTime, err := parseEndDate(createdAtEndStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid created_at_end format. Use YYYY-MM-DD or RFC3339"})
+			return
 		}
+		req.CreatedAtEnd = &parsedTime
 	}
 
 	if nationalID := c.Query("national_identification"); nationalID != "" {
