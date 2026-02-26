@@ -7,9 +7,20 @@ import type {
 } from "@/types/purchaseEntry";
 
 // GET /api/purchase-entries - Get all purchase entries
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const supplierId = searchParams.get("supplier_id");
+  const startDate = searchParams.get("start_date");
+  const endDate = searchParams.get("end_date");
+
+  const params = new URLSearchParams();
+  if (supplierId) params.set("supplier_id", supplierId);
+  if (startDate) params.set("start_date", startDate);
+  if (endDate) params.set("end_date", endDate);
+
+  const query = params.toString() ? `?${params.toString()}` : "";
   const response = await serverApiRequest<PurchaseEntryListResponse>(
-    "/purchase-entries"
+    `/purchase-entries${query}`
   );
   
   if (!response.ok) {
