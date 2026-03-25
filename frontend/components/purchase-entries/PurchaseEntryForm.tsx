@@ -51,9 +51,32 @@ export default function PurchaseEntryForm({
   const xmlInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
 
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const [isExtractingPdf, setIsExtractingPdf] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(
+    typeof window !== "undefined" ? window.innerWidth : 1200
+  );
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [catalogItems, setCatalogItems] = useState<SupplierCatalogItem[]>([]);
   const [loadingCatalog, setLoadingCatalog] = useState<boolean>(false);
+
+  // Track window width for responsive layout
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // Cleanup object URL on unmount
+  useEffect(() => {
+    return () => {
+      if (pdfPreviewUrl) {
+        URL.revokeObjectURL(pdfPreviewUrl);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Fetch supplier's catalog when supplier is selected
   useEffect(() => {
@@ -218,6 +241,7 @@ export default function PurchaseEntryForm({
         return newErrors;
       });
       setZipFile(file);
+      extractPdfFromZip(file);
       // Clear individual PDF and XML files when ZIP is selected
       setPdfFile(null);
       setXmlFile(null);
@@ -230,6 +254,59 @@ export default function PurchaseEntryForm({
     setZipFile(null);
     if (zipInputRef.current) {
       zipInputRef.current.value = "";
+    }
+    if (pdfPreviewUrl) {
+      URL.revokeObjectURL(pdfPreviewUrl);
+      setPdfPreviewUrl(null);
+    }
+    setErrors((prev) => {
+      const newErrors = { ...prev };
+      delete newErrors.zipPreview;
+      return newErrors;
+    });
+  };
+
+  const extractPdfFromZip = async (file: File) => {
+    setIsExtractingPdf(true);
+    try {
+      const JSZip = (await import("jszip")).default;
+      const zip = await JSZip.loadAsync(file);
+
+      const pdfEntry = Object.values(zip.files).find(
+        (entry) => !entry.dir && entry.name.toLowerCase().endsWith(".pdf")
+      );
+
+      if (!pdfEntry) {
+        setErrors((prev) => ({
+          ...prev,
+          zipPreview: "El ZIP no contiene un archivo PDF para previsualizar",
+        }));
+        return;
+      }
+
+      const blob = await pdfEntry.async("blob");
+      const url = URL.createObjectURL(
+        new Blob([blob], { type: "application/pdf" })
+      );
+
+      if (pdfPreviewUrl) {
+        URL.revokeObjectURL(pdfPreviewUrl);
+      }
+
+      setPdfPreviewUrl(url);
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors.zipPreview;
+        return newErrors;
+      });
+    } catch (err) {
+      console.error("Error extracting PDF from ZIP:", err);
+      setErrors((prev) => ({
+        ...prev,
+        zipPreview: "No se pudo extraer el PDF del archivo ZIP",
+      }));
+    } finally {
+      setIsExtractingPdf(false);
     }
   };
 
@@ -432,6 +509,61 @@ export default function PurchaseEntryForm({
     }
   };
 
+  const showSidePreview = pdfPreviewUrl && windowWidth >= 1024;
+  const showInlinePreview = pdfPreviewUrl && windowWidth < 1024;
+
+  const pdfPreview = pdfPreviewUrl ? (
+    <div
+      style={{
+        border: "1px solid var(--color-border)",
+        borderRadius: "var(--radius-sm)",
+        overflow: "hidden",
+        backgroundColor: "var(--color-surface)",
+      }}
+    >
+      <div
+        style={{
+          padding: "0.5rem 0.75rem",
+          backgroundColor: "var(--color-bg)",
+          borderBottom: "1px solid var(--color-border)",
+          fontSize: "0.75rem",
+          fontWeight: "600",
+          color: "var(--color-text-muted)",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <span>Vista previa de factura</span>
+        <button
+          type="button"
+          onClick={() => window.open(pdfPreviewUrl, "_blank")}
+          style={{
+            padding: "0.25rem 0.5rem",
+            backgroundColor: "transparent",
+            color: "var(--color-primary)",
+            border: "1px solid var(--color-primary)",
+            borderRadius: "var(--radius-sm)",
+            cursor: "pointer",
+            fontSize: "0.7rem",
+          }}
+        >
+          Abrir en nueva pestaña
+        </button>
+      </div>
+      <iframe
+        src={pdfPreviewUrl}
+        style={{
+          width: "100%",
+          height: showSidePreview ? "calc(90vh - 120px)" : "400px",
+          border: "none",
+          display: "block",
+        }}
+        title="Vista previa del PDF"
+      />
+    </div>
+  ) : null;
+
   return (
     <div
       style={{
@@ -453,12 +585,13 @@ export default function PurchaseEntryForm({
           backgroundColor: "var(--color-surface)",
           borderRadius: "var(--radius-md)",
           padding: "2rem",
-          maxWidth: "900px",
+          maxWidth: pdfPreviewUrl ? "1450px" : "900px",
           width: "100%",
           maxHeight: "90vh",
           overflowY: "auto",
           boxShadow: "var(--shadow-xl)",
           border: "1px solid var(--color-border)",
+          transition: "max-width 0.3s ease",
         }}
       >
         <h2
@@ -473,7 +606,137 @@ export default function PurchaseEntryForm({
           Nueva Entrada de Compra
         </h2>
 
-        <form onSubmit={handleSubmit}>
+        <div
+          style={{
+            display: "flex",
+            gap: "1.5rem",
+            alignItems: "flex-start",
+          }}
+        >
+        <form onSubmit={handleSubmit} style={{ flex: pdfPreviewUrl ? "0 0 860px" : "1 1 auto", minWidth: 0 }}>
+          {/* ZIP Upload — Step 1 */}
+          <div
+            style={{
+              marginBottom: "1.5rem",
+              padding: "1rem",
+              backgroundColor: "var(--color-bg)",
+              borderRadius: "var(--radius-sm)",
+              border: `1px solid ${zipFile ? "var(--color-primary)" : "var(--color-border)"}`,
+            }}
+          >
+            <label style={{ ...labelStyle, fontSize: "0.875rem", marginBottom: "0.5rem" }}>
+              Paso 1: Sube el archivo ZIP con factura (PDF + XML)
+            </label>
+            {zipFile ? (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.75rem",
+                  padding: "0.75rem",
+                  backgroundColor: "var(--color-surface)",
+                  borderRadius: "var(--radius-sm)",
+                  border: "1px solid var(--color-primary)",
+                }}
+              >
+                <span
+                  style={{
+                    padding: "0.25rem 0.5rem",
+                    backgroundColor: "var(--color-primary-light)",
+                    color: "var(--color-primary)",
+                    borderRadius: "var(--radius-sm)",
+                    fontSize: "0.75rem",
+                    fontWeight: "600",
+                  }}
+                >
+                  ZIP
+                </span>
+                <span
+                  style={{
+                    flex: 1,
+                    fontSize: "0.875rem",
+                    color: "var(--color-text-primary)",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {zipFile.name}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleRemoveZip}
+                  style={{
+                    padding: "0.25rem 0.5rem",
+                    backgroundColor: "transparent",
+                    color: "var(--color-danger)",
+                    border: "1px solid var(--color-danger)",
+                    borderRadius: "var(--radius-sm)",
+                    cursor: "pointer",
+                    fontSize: "0.75rem",
+                  }}
+                >
+                  Quitar
+                </button>
+              </div>
+            ) : (
+              <input
+                ref={zipInputRef}
+                type="file"
+                accept=".zip,application/zip,application/x-zip-compressed"
+                onChange={handleZipChange}
+                disabled={!!(pdfFile || xmlFile)}
+                style={{
+                  width: "100%",
+                  padding: "0.5rem",
+                  border: `1px solid ${errors.zip ? "var(--color-danger)" : "var(--color-border)"}`,
+                  borderRadius: "var(--radius-sm)",
+                  fontSize: "0.875rem",
+                  backgroundColor: "var(--color-surface)",
+                  color: "var(--color-text-primary)",
+                  opacity: pdfFile || xmlFile ? 0.5 : 1,
+                }}
+              />
+            )}
+            {errors.zip && <p style={errorStyle}>{errors.zip}</p>}
+            {isExtractingPdf && (
+              <p
+                style={{
+                  margin: "0.5rem 0 0 0",
+                  fontSize: "0.75rem",
+                  color: "var(--color-text-muted)",
+                }}
+              >
+                Extrayendo PDF para previsualización...
+              </p>
+            )}
+            {errors.zipPreview && (
+              <p
+                style={{
+                  margin: "0.25rem 0 0 0",
+                  color: "var(--color-warning, #b45309)",
+                  fontSize: "0.75rem",
+                }}
+              >
+                {errors.zipPreview}
+              </p>
+            )}
+            <p
+              style={{
+                margin: "0.25rem 0 0 0",
+                fontSize: "0.75rem",
+                color: "var(--color-text-muted)",
+              }}
+            >
+              El ZIP debe contener exactamente 1 PDF y 1 XML.
+            </p>
+          </div>
+
+          {/* Inline PDF preview for narrow screens */}
+          {showInlinePreview && (
+            <div style={{ marginBottom: "1.5rem" }}>{pdfPreview}</div>
+          )}
+
           {/* Supplier and Date Row */}
           <div
             style={{
@@ -1065,138 +1328,6 @@ export default function PurchaseEntryForm({
               )}
             </div>
 
-            {/* Separator */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "1rem",
-                margin: "1rem 0",
-              }}
-            >
-              <div
-                style={{
-                  flex: 1,
-                  height: "1px",
-                  backgroundColor: "var(--color-border)",
-                }}
-              />
-              <span
-                style={{
-                  fontSize: "0.75rem",
-                  color: "var(--color-text-muted)",
-                  fontWeight: "500",
-                }}
-              >
-                O
-              </span>
-              <div
-                style={{
-                  flex: 1,
-                  height: "1px",
-                  backgroundColor: "var(--color-border)",
-                }}
-              />
-            </div>
-
-            {/* ZIP Upload */}
-            <div>
-              <label style={{ ...labelStyle, fontSize: "0.875rem" }}>
-                Archivo ZIP (contiene PDF y XML)
-              </label>
-              {zipFile ? (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.75rem",
-                    padding: "0.75rem",
-                    backgroundColor: "var(--color-surface)",
-                    borderRadius: "var(--radius-sm)",
-                    border: "1px solid var(--color-primary)",
-                  }}
-                >
-                  <span
-                    style={{
-                      padding: "0.25rem 0.5rem",
-                      backgroundColor: "var(--color-primary-light)",
-                      color: "var(--color-primary)",
-                      borderRadius: "var(--radius-sm)",
-                      fontSize: "0.75rem",
-                      fontWeight: "600",
-                    }}
-                  >
-                    ZIP
-                  </span>
-                  <span
-                    style={{
-                      flex: 1,
-                      fontSize: "0.875rem",
-                      color: "var(--color-text-primary)",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {zipFile.name}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleRemoveZip}
-                    style={{
-                      padding: "0.25rem 0.5rem",
-                      backgroundColor: "transparent",
-                      color: "var(--color-danger)",
-                      border: "1px solid var(--color-danger)",
-                      borderRadius: "var(--radius-sm)",
-                      cursor: "pointer",
-                      fontSize: "0.75rem",
-                    }}
-                  >
-                    Quitar
-                  </button>
-                </div>
-              ) : (
-                <input
-                  ref={zipInputRef}
-                  type="file"
-                  accept=".zip,application/zip,application/x-zip-compressed"
-                  onChange={handleZipChange}
-                  disabled={!!(pdfFile || xmlFile)}
-                  style={{
-                    width: "100%",
-                    padding: "0.5rem",
-                    border: `1px solid ${errors.zip ? "var(--color-danger)" : "var(--color-border)"}`,
-                    borderRadius: "var(--radius-sm)",
-                    fontSize: "0.875rem",
-                    backgroundColor: "var(--color-surface)",
-                    color: "var(--color-text-primary)",
-                    opacity: pdfFile || xmlFile ? 0.5 : 1,
-                  }}
-                />
-              )}
-              {errors.zip && (
-                <p
-                  style={{
-                    margin: "0.25rem 0 0 0",
-                    color: "var(--color-danger)",
-                    fontSize: "0.875rem",
-                  }}
-                >
-                  {errors.zip}
-                </p>
-              )}
-              <p
-                style={{
-                  margin: "0.25rem 0 0 0",
-                  fontSize: "0.75rem",
-                  color: "var(--color-text-muted)",
-                }}
-              >
-                El ZIP debe contener exactamente 1 PDF y 1 XML.
-              </p>
-            </div>
-
             <p
               style={{
                 margin: "0.75rem 0 0 0",
@@ -1249,6 +1380,22 @@ export default function PurchaseEntryForm({
             </button>
           </div>
         </form>
+
+        {/* Side PDF preview for wide screens */}
+        {showSidePreview && (
+          <div
+            style={{
+              flex: "1 1 auto",
+              minWidth: "300px",
+              position: "sticky",
+              top: 0,
+              alignSelf: "flex-start",
+            }}
+          >
+            {pdfPreview}
+          </div>
+        )}
+        </div>
       </div>
     </div>
   );
