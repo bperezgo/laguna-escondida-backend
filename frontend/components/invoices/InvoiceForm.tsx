@@ -41,6 +41,9 @@ export default function InvoiceForm({
   onCancel,
   isLoading = false,
 }: InvoiceFormProps) {
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [pendingSubmitData, setPendingSubmitData] =
+    useState<CreateElectronicInvoiceRequest | null>(null);
   const [formData, setFormData] = useState({
     payment_code: "cash" as ElectronicInvoicePaymentCode,
     customer: {
@@ -238,20 +241,13 @@ export default function InvoiceForm({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!validate()) {
-      return;
-    }
-
-    // Only include customer if at least one field is filled
+  const buildSubmitData = (): CreateElectronicInvoiceRequest => {
     const hasCustomerData =
       formData.customer.id.trim() ||
       formData.customer.name.trim() ||
       formData.customer.email.trim();
 
-    const submitData: CreateElectronicInvoiceRequest = {
+    return {
       payment_code: formData.payment_code,
       ...(hasCustomerData && {
         customer: {
@@ -274,8 +270,30 @@ export default function InvoiceForm({
         taxes: item.taxes || [],
       })),
     };
+  };
 
-    await onSubmit(submitData);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!validate()) {
+      return;
+    }
+
+    const submitData = buildSubmitData();
+    setPendingSubmitData(submitData);
+    setShowConfirmation(true);
+  };
+
+  const handleConfirmSubmit = async () => {
+    if (!pendingSubmitData) return;
+    setShowConfirmation(false);
+    await onSubmit(pendingSubmitData);
+    setPendingSubmitData(null);
+  };
+
+  const handleCancelConfirmation = () => {
+    setShowConfirmation(false);
+    setPendingSubmitData(null);
   };
 
   const handleChange = (field: string, value: string) => {
@@ -1580,6 +1598,114 @@ export default function InvoiceForm({
             </button>
           </div>
         </form>
+
+        {/* Confirmation Modal */}
+        {showConfirmation && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0, 0, 0, 0.6)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 1100,
+            }}
+            onClick={handleCancelConfirmation}
+          >
+            <div
+              style={{
+                backgroundColor: "var(--color-surface)",
+                borderRadius: "var(--radius-md)",
+                padding: "2rem",
+                maxWidth: "420px",
+                width: "90%",
+                boxShadow: "var(--shadow-lg, 0 10px 25px rgba(0,0,0,0.2))",
+                textAlign: "center",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3
+                style={{
+                  margin: "0 0 1rem 0",
+                  fontSize: "1.25rem",
+                  fontWeight: "bold",
+                  color: "var(--color-text-primary)",
+                }}
+              >
+                Confirmar Factura
+              </h3>
+              <p
+                style={{
+                  margin: "0 0 0.5rem 0",
+                  fontSize: "0.95rem",
+                  color: "var(--color-text-secondary)",
+                }}
+              >
+                Estás a punto de crear una factura por un valor total de:
+              </p>
+              <p
+                style={{
+                  margin: "0 0 1.5rem 0",
+                  fontSize: "2rem",
+                  fontWeight: "700",
+                  color: "var(--color-primary)",
+                }}
+              >
+                $
+                {purchaseSummary.totalAmount.toLocaleString("es-CO", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </p>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "1rem",
+                  justifyContent: "center",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={handleCancelConfirmation}
+                  style={{
+                    padding: "0.75rem 1.5rem",
+                    backgroundColor: "var(--color-surface-hover)",
+                    color: "var(--color-text-primary)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: "var(--radius-sm)",
+                    cursor: "pointer",
+                    fontSize: "1rem",
+                    fontWeight: "500",
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmSubmit}
+                  disabled={isLoading}
+                  style={{
+                    padding: "0.75rem 1.5rem",
+                    backgroundColor: "var(--color-success)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "var(--radius-sm)",
+                    cursor: isLoading ? "not-allowed" : "pointer",
+                    fontSize: "1rem",
+                    fontWeight: "500",
+                    opacity: isLoading ? 0.6 : 1,
+                  }}
+                >
+                  {isLoading ? "Creando..." : "Confirmar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
