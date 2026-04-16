@@ -58,6 +58,24 @@ func (productResponsibilityModel) TableName() string {
 	return "product_preparation_responsibilities"
 }
 
+func (r *ProductRepository) FindBySKUs(ctx context.Context, skus []string) ([]*dto.Product, error) {
+	if len(skus) == 0 {
+		return []*dto.Product{}, nil
+	}
+
+	var models []productModel
+	if err := r.db.WithContext(ctx).Where("sku IN ? AND deleted_at IS NULL", skus).Find(&models).Error; err != nil {
+		return nil, err
+	}
+
+	products := make([]*dto.Product, len(models))
+	for i, model := range models {
+		products[i] = r.toDTO(&model)
+	}
+
+	return products, nil
+}
+
 func (r *ProductRepository) FindByIDs(ctx context.Context, ids []string) ([]*dto.Product, error) {
 	if len(ids) == 0 {
 		return []*dto.Product{}, nil

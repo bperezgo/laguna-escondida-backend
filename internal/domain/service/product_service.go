@@ -3,20 +3,31 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"laguna-escondida/backend/internal/domain/aggregate/product"
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
+
+	"github.com/google/uuid"
 )
 
 type ProductService struct {
-	productRepo ports.ProductRepository
+	productRepo         ports.ProductRepository
+	supplierRepo        ports.SupplierRepository
+	supplierCatalogRepo ports.SupplierCatalogRepository
 }
 
-func NewProductService(productRepo ports.ProductRepository) *ProductService {
+func NewProductService(
+	productRepo ports.ProductRepository,
+	supplierRepo ports.SupplierRepository,
+	supplierCatalogRepo ports.SupplierCatalogRepository,
+) *ProductService {
 	return &ProductService{
-		productRepo: productRepo,
+		productRepo:         productRepo,
+		supplierRepo:        supplierRepo,
+		supplierCatalogRepo: supplierCatalogRepo,
 	}
 }
 
@@ -139,6 +150,114 @@ func (s *ProductService) GetProductResponsibilityByID(ctx context.Context, id st
 	}
 
 	return responsibility, nil
+}
+
+// BulkCreateProducts creates multiple products, optionally linking them to a supplier
+func (s *ProductService) BulkCreateProducts(ctx context.Context, req *dto.BulkCreateProductRequest) (*dto.BulkCreateProductResponse, error) {
+	if len(req.Items) == 0 {
+		return nil, fmt.Errorf("%w: items cannot be empty", domainError.ErrProductCreationFailed)
+	}
+
+	// Validate supplier exists if provided
+	if req.SupplierID != nil {
+		if _, err := s.supplierRepo.FindByID(ctx, *req.SupplierID); err != nil {
+			return nil, fmt.Errorf("%w: %w", domainError.ErrSupplierNotFound, err)
+		}
+	}
+
+	// Extract all SKUs and check for duplicates in database
+	skus := make([]string, len(req.Items))
+	for i, item := range req.Items {
+		skus[i] = item.SKU
+	}
+
+	existingProducts, err := s.productRepo.FindBySKUs(ctx, skus)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", domainError.ErrProductCreationFailed, err)
+	}
+
+	existingSKUs := make(map[string]bool, len(existingProducts))
+	for _, p := range existingProducts {
+		existingSKUs[p.SKU] = true
+	}
+
+	response := &dto.BulkCreateProductResponse{
+		Created: make([]*dto.Product, 0),
+		Errors:  make([]dto.BulkCreateProductError, 0),
+	}
+
+	for i, item := range req.Items {
+		if existingSKUs[item.SKU] {
+			response.Errors = append(response.Errors, dto.BulkCreateProductError{
+				Index:   i,
+				SKU:     item.SKU,
+				Name:    item.Name,
+				Message: "product with this SKU already exists",
+			})
+			continue
+		}
+
+		createReq := &dto.CreateProductRequest{
+			Name:                item.Name,
+			Category:            item.Category,
+			ProductType:         item.ProductType,
+			UnitOfMeasure:       item.UnitOfMeasure,
+			VAT:                 item.VAT,
+			ICO:                 item.ICO,
+			TaxesFormat:         item.TaxesFormat,
+			Description:         item.Description,
+			SKU:                 item.SKU,
+			TotalPriceWithTaxes: item.TotalPriceWithTaxes,
+		}
+
+		aggregate, err := product.NewAggregateFromCreateProductRequest(createReq)
+		if err != nil {
+			response.Errors = append(response.Errors, dto.BulkCreateProductError{
+				Index:   i,
+				SKU:     item.SKU,
+				Name:    item.Name,
+				Message: err.Error(),
+			})
+			continue
+		}
+
+		if err := s.productRepo.Create(ctx, aggregate); err != nil {
+			response.Errors = append(response.Errors, dto.BulkCreateProductError{
+				Index:   i,
+				SKU:     item.SKU,
+				Name:    item.Name,
+				Message: fmt.Sprintf("failed to save: %s", err.Error()),
+			})
+			continue
+		}
+
+		productDTO := aggregate.ToDTO()
+		response.Created = append(response.Created, productDTO)
+
+		// Link to supplier catalog if supplier ID is provided
+		if req.SupplierID != nil {
+			now := time.Now()
+			catalog := &dto.SupplierCatalog{
+				ID:          uuid.New().String(),
+				SupplierID:  *req.SupplierID,
+				ProductID:   productDTO.ID,
+				SupplierSKU: item.SupplierSKU,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			}
+
+			if err := s.supplierCatalogRepo.Create(ctx, catalog); err != nil {
+				response.Errors = append(response.Errors, dto.BulkCreateProductError{
+					Index:   i,
+					SKU:     item.SKU,
+					Name:    item.Name,
+					Message: fmt.Sprintf("product created but failed to link to supplier: %s", err.Error()),
+				})
+			}
+		}
+	}
+
+	return response, nil
 }
 
 // ListCategories returns all unique product categories

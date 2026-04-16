@@ -519,6 +519,65 @@ func (_c *MockProductRepository_FindByName_Call) RunAndReturn(run func(context.C
 	return _c
 }
 
+// FindBySKUs provides a mock function with given fields: ctx, skus
+func (_m *MockProductRepository) FindBySKUs(ctx context.Context, skus []string) ([]*dto.Product, error) {
+	ret := _m.Called(ctx, skus)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindBySKUs")
+	}
+
+	var r0 []*dto.Product
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, []string) ([]*dto.Product, error)); ok {
+		return rf(ctx, skus)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, []string) []*dto.Product); ok {
+		r0 = rf(ctx, skus)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*dto.Product)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, []string) error); ok {
+		r1 = rf(ctx, skus)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProductRepository_FindBySKUs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindBySKUs'
+type MockProductRepository_FindBySKUs_Call struct {
+	*mock.Call
+}
+
+// FindBySKUs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - skus []string
+func (_e *MockProductRepository_Expecter) FindBySKUs(ctx interface{}, skus interface{}) *MockProductRepository_FindBySKUs_Call {
+	return &MockProductRepository_FindBySKUs_Call{Call: _e.mock.On("FindBySKUs", ctx, skus)}
+}
+
+func (_c *MockProductRepository_FindBySKUs_Call) Run(run func(ctx context.Context, skus []string)) *MockProductRepository_FindBySKUs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]string))
+	})
+	return _c
+}
+
+func (_c *MockProductRepository_FindBySKUs_Call) Return(_a0 []*dto.Product, _a1 error) *MockProductRepository_FindBySKUs_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProductRepository_FindBySKUs_Call) RunAndReturn(run func(context.Context, []string) ([]*dto.Product, error)) *MockProductRepository_FindBySKUs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // FindPreparationResponsibilityByID provides a mock function with given fields: ctx, id
 func (_m *MockProductRepository) FindPreparationResponsibilityByID(ctx context.Context, id string) (*dto.ProductPreparationResponsibility, error) {
 	ret := _m.Called(ctx, id)

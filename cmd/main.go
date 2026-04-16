@@ -127,7 +127,7 @@ func main() {
 		userRepo,
 		openBillProductHub,
 	)
-	productService := service.NewProductService(productRepo)
+	productService := service.NewProductService(productRepo, supplierRepo, supplierCatalogRepo)
 	stockService := service.NewStockService(stockRepo, productRepo)
 	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, jwtService)
 	billOwnerService := service.NewBillOwnerService(billOwnerRepo)
@@ -318,6 +318,7 @@ func main() {
 
 	// Product routes
 	router.POST("/api/products", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsCreate), productHandler.CreateProductHandler)
+	router.POST("/api/products/bulk", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsCreate), productHandler.BulkCreateProductsHandler)
 	router.GET("/api/products", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsRead), productHandler.ListProductsHandler)
 	router.GET("/api/products/categories", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsRead), productHandler.ListCategoriesHandler)
 	router.GET("/api/products/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsRead), productHandler.GetProductByIDHandler)

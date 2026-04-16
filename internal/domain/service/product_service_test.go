@@ -20,7 +20,16 @@ import (
 // Test helpers
 func createTestProductService(t *testing.T) (*ProductService, *mocks.MockProductRepository) {
 	mockRepo := mocks.NewMockProductRepository(t)
-	return NewProductService(mockRepo), mockRepo
+	mockSupplierRepo := mocks.NewMockSupplierRepository(t)
+	mockCatalogRepo := mocks.NewMockSupplierCatalogRepository(t)
+	return NewProductService(mockRepo, mockSupplierRepo, mockCatalogRepo), mockRepo
+}
+
+func createTestProductServiceWithAllMocks(t *testing.T) (*ProductService, *mocks.MockProductRepository, *mocks.MockSupplierRepository, *mocks.MockSupplierCatalogRepository) {
+	mockRepo := mocks.NewMockProductRepository(t)
+	mockSupplierRepo := mocks.NewMockSupplierRepository(t)
+	mockCatalogRepo := mocks.NewMockSupplierCatalogRepository(t)
+	return NewProductService(mockRepo, mockSupplierRepo, mockCatalogRepo), mockRepo, mockSupplierRepo, mockCatalogRepo
 }
 
 func createTestProductDTO(id, name, category string, version int, totalPrice, vatPercentage, icoPercentage float64) *dto.Product {
@@ -552,4 +561,206 @@ func TestGetProductByID_ProductNotFound(t *testing.T) {
 	assert.Nil(t, result)
 	assert.ErrorIs(t, err, domainError.ErrProductNotFound)
 
+}
+
+// BulkCreateProducts Tests
+
+func createBulkItem(name, sku, vat, ico, totalPrice string) dto.BulkCreateProductItem {
+	return dto.BulkCreateProductItem{
+		Name:                name,
+		Category:            "SNACKS",
+		ProductType:         "SELLABLE",
+		UnitOfMeasure:       "unit",
+		VAT:                 vat,
+		ICO:                 ico,
+		TaxesFormat:         "percentage",
+		SKU:                 sku,
+		TotalPriceWithTaxes: totalPrice,
+	}
+}
+
+// Success Cases
+func TestBulkCreateProducts_AllNew(t *testing.T) {
+	ctx := context.Background()
+	svc, mockRepo, _, _ := createTestProductServiceWithAllMocks(t)
+
+	req := &dto.BulkCreateProductRequest{
+		Items: []dto.BulkCreateProductItem{
+			createBulkItem("Product A", "SKU-A", "19", "8", "6500"),
+			createBulkItem("Product B", "SKU-B", "19", "8", "3200"),
+			createBulkItem("Product C", "SKU-C", "5", "8", "1500"),
+		},
+	}
+
+	mockRepo.On("FindBySKUs", ctx, []string{"SKU-A", "SKU-B", "SKU-C"}).Return([]*dto.Product{}, nil)
+	mockRepo.On("Create", ctx, mock.Anything).Return(nil).Times(3)
+
+	result, err := svc.BulkCreateProducts(ctx, req)
+
+	require.NoError(t, err)
+	assert.Len(t, result.Created, 3)
+	assert.Empty(t, result.Errors)
+}
+
+func TestBulkCreateProducts_WithSupplierLinking(t *testing.T) {
+	ctx := context.Background()
+	svc, mockRepo, mockSupplierRepo, mockCatalogRepo := createTestProductServiceWithAllMocks(t)
+
+	supplierID := "supplier-123"
+	supplierSKU := "S001"
+	req := &dto.BulkCreateProductRequest{
+		SupplierID: &supplierID,
+		Items: []dto.BulkCreateProductItem{
+			{
+				Name:                "Product A",
+				Category:            "SNACKS",
+				ProductType:         "SELLABLE",
+				UnitOfMeasure:       "unit",
+				VAT:                 "19",
+				ICO:                 "8",
+				TaxesFormat:         "percentage",
+				SKU:                 "SKU-A",
+				TotalPriceWithTaxes: "6500",
+				SupplierSKU:         &supplierSKU,
+			},
+		},
+	}
+
+	mockSupplierRepo.On("FindByID", ctx, supplierID).Return(&dto.Supplier{ID: supplierID, Name: "Ramo"}, nil)
+	mockRepo.On("FindBySKUs", ctx, []string{"SKU-A"}).Return([]*dto.Product{}, nil)
+	mockRepo.On("Create", ctx, mock.Anything).Return(nil)
+	mockCatalogRepo.On("Create", ctx, mock.MatchedBy(func(c *dto.SupplierCatalog) bool {
+		return c.SupplierID == supplierID && c.SupplierSKU != nil && *c.SupplierSKU == "S001"
+	})).Return(nil)
+
+	result, err := svc.BulkCreateProducts(ctx, req)
+
+	require.NoError(t, err)
+	assert.Len(t, result.Created, 1)
+	assert.Empty(t, result.Errors)
+	mockCatalogRepo.AssertCalled(t, "Create", ctx, mock.Anything)
+}
+
+// Partial Success Cases
+func TestBulkCreateProducts_PartialWithDuplicates(t *testing.T) {
+	ctx := context.Background()
+	svc, mockRepo, _, _ := createTestProductServiceWithAllMocks(t)
+
+	req := &dto.BulkCreateProductRequest{
+		Items: []dto.BulkCreateProductItem{
+			createBulkItem("New Product", "SKU-NEW", "19", "8", "6500"),
+			createBulkItem("Existing Product", "SKU-EXISTING", "19", "8", "3200"),
+		},
+	}
+
+	existingProduct := createTestProductDTO("p-1", "Existing Product", "SNACKS", 1, 3200, 0.19, 0.08)
+	existingProduct.SKU = "SKU-EXISTING"
+
+	mockRepo.On("FindBySKUs", ctx, []string{"SKU-NEW", "SKU-EXISTING"}).Return([]*dto.Product{existingProduct}, nil)
+	mockRepo.On("Create", ctx, mock.Anything).Return(nil)
+
+	result, err := svc.BulkCreateProducts(ctx, req)
+
+	require.NoError(t, err)
+	assert.Len(t, result.Created, 1)
+	assert.Len(t, result.Errors, 1)
+	assert.Equal(t, 1, result.Errors[0].Index)
+	assert.Equal(t, "SKU-EXISTING", result.Errors[0].SKU)
+	assert.Contains(t, result.Errors[0].Message, "already exists")
+}
+
+func TestBulkCreateProducts_AllDuplicates(t *testing.T) {
+	ctx := context.Background()
+	svc, mockRepo, _, _ := createTestProductServiceWithAllMocks(t)
+
+	req := &dto.BulkCreateProductRequest{
+		Items: []dto.BulkCreateProductItem{
+			createBulkItem("Product A", "SKU-A", "19", "8", "6500"),
+			createBulkItem("Product B", "SKU-B", "19", "8", "3200"),
+		},
+	}
+
+	existingA := createTestProductDTO("p-1", "Product A", "SNACKS", 1, 6500, 0.19, 0.08)
+	existingA.SKU = "SKU-A"
+	existingB := createTestProductDTO("p-2", "Product B", "SNACKS", 1, 3200, 0.19, 0.08)
+	existingB.SKU = "SKU-B"
+
+	mockRepo.On("FindBySKUs", ctx, []string{"SKU-A", "SKU-B"}).Return([]*dto.Product{existingA, existingB}, nil)
+
+	result, err := svc.BulkCreateProducts(ctx, req)
+
+	require.NoError(t, err)
+	assert.Empty(t, result.Created)
+	assert.Len(t, result.Errors, 2)
+	mockRepo.AssertNotCalled(t, "Create")
+}
+
+// Error Cases
+func TestBulkCreateProducts_InvalidSupplierID(t *testing.T) {
+	ctx := context.Background()
+	svc, _, mockSupplierRepo, _ := createTestProductServiceWithAllMocks(t)
+
+	supplierID := "invalid-supplier"
+	req := &dto.BulkCreateProductRequest{
+		SupplierID: &supplierID,
+		Items: []dto.BulkCreateProductItem{
+			createBulkItem("Product A", "SKU-A", "19", "8", "6500"),
+		},
+	}
+
+	mockSupplierRepo.On("FindByID", ctx, supplierID).Return(nil, errors.New("not found"))
+
+	result, err := svc.BulkCreateProducts(ctx, req)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, domainError.ErrSupplierNotFound)
+}
+
+func TestBulkCreateProducts_EmptyItems(t *testing.T) {
+	ctx := context.Background()
+	svc, _, _, _ := createTestProductServiceWithAllMocks(t)
+
+	req := &dto.BulkCreateProductRequest{
+		Items: []dto.BulkCreateProductItem{},
+	}
+
+	result, err := svc.BulkCreateProducts(ctx, req)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, domainError.ErrProductCreationFailed)
+}
+
+func TestBulkCreateProducts_ValidationFailure(t *testing.T) {
+	ctx := context.Background()
+	svc, mockRepo, _, _ := createTestProductServiceWithAllMocks(t)
+
+	req := &dto.BulkCreateProductRequest{
+		Items: []dto.BulkCreateProductItem{
+			createBulkItem("Good Product", "SKU-GOOD", "19", "8", "6500"),
+			{
+				Name:                "Bad Product",
+				Category:            "SNACKS",
+				ProductType:         "SELLABLE",
+				UnitOfMeasure:       "unit",
+				VAT:                 "invalid",
+				ICO:                 "8",
+				TaxesFormat:         "percentage",
+				SKU:                 "SKU-BAD",
+				TotalPriceWithTaxes: "3200",
+			},
+		},
+	}
+
+	mockRepo.On("FindBySKUs", ctx, []string{"SKU-GOOD", "SKU-BAD"}).Return([]*dto.Product{}, nil)
+	mockRepo.On("Create", ctx, mock.Anything).Return(nil)
+
+	result, err := svc.BulkCreateProducts(ctx, req)
+
+	require.NoError(t, err)
+	assert.Len(t, result.Created, 1)
+	assert.Len(t, result.Errors, 1)
+	assert.Equal(t, 1, result.Errors[0].Index)
+	assert.Equal(t, "SKU-BAD", result.Errors[0].SKU)
 }

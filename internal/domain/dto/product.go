@@ -95,3 +95,34 @@ type UpdateProductResponsibilityRequest struct {
 	Area     string `json:"area" validate:"required,min=1,max=255"`
 	Priority int    `json:"priority" validate:"required,gte=0"`
 }
+
+type BulkCreateProductItem struct {
+	Name                string  `json:"name" validate:"required,min=1,max=255"`
+	Category            string  `json:"category" validate:"required,min=1,max=100"`
+	ProductType         string  `json:"product_type" validate:"required,oneof=SELLABLE INGREDIENT COMPOSITE BOTH"`
+	UnitOfMeasure       string  `json:"unit_of_measure" validate:"required,oneof=unit kg g l ml"`
+	VAT                 string  `json:"vat" validate:"required,gte=0"`
+	ICO                 string  `json:"ico" validate:"required,gte=0"`
+	TaxesFormat         string  `json:"taxes_format" validate:"required,oneof=percentage fixed"`
+	Description         *string `json:"description"`
+	SKU                 string  `json:"sku" validate:"required,min=1,max=255"`
+	TotalPriceWithTaxes string  `json:"total_price_with_taxes"`
+	SupplierSKU         *string `json:"supplier_sku,omitempty"`
+}
+
+type BulkCreateProductRequest struct {
+	SupplierID *string                 `json:"supplier_id,omitempty" validate:"omitempty,uuid"`
+	Items      []BulkCreateProductItem `json:"items" validate:"required,min=1,dive"`
+}
+
+type BulkCreateProductResponse struct {
+	Created []*Product               `json:"created"`
+	Errors  []BulkCreateProductError `json:"errors,omitempty"`
+}
+
+type BulkCreateProductError struct {
+	Index   int    `json:"index"`
+	SKU     string `json:"sku"`
+	Name    string `json:"name"`
+	Message string `json:"message"`
+}

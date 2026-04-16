@@ -26,6 +26,7 @@ Manage products, including sellable items and ingredients.
 | Method | Endpoint                                      | Description                             |
 | ------ | --------------------------------------------- | --------------------------------------- |
 | POST   | `/api/products`                               | Create a new product                    |
+| POST   | `/api/products/bulk`                          | Bulk create products                    |
 | GET    | `/api/products`                               | List all products                       |
 | GET    | `/api/products/categories`                    | List all product categories             |
 | GET    | `/api/products/:id`                           | Get product by ID                       |
@@ -114,6 +115,125 @@ Note: For INGREDIENT type, price fields are not required and will default to zer
   "total_price_with_taxes": "8000.00",
   "created_at": "2024-01-26T15:30:00Z",
   "updated_at": "2024-01-26T15:30:00Z"
+}
+```
+
+---
+
+## Bulk Create Products
+
+Creates multiple products in a single request. Optionally links all created products to a supplier.
+
+```
+POST /api/products/bulk
+```
+
+### Request Body
+
+| Field       | Type   | Required | Description                                                  |
+| ----------- | ------ | -------- | ------------------------------------------------------------ |
+| supplier_id | string | No       | UUID of the supplier to link products to                     |
+| items       | array  | Yes      | Array of product items (min 1)                               |
+
+**Each item in `items`:**
+
+| Field                  | Type   | Required    | Description                                   |
+| ---------------------- | ------ | ----------- | --------------------------------------------- |
+| name                   | string | Yes         | Product name (1-255 chars)                    |
+| category               | string | Yes         | Category (1-100 chars)                        |
+| product_type           | string | Yes         | One of: SELLABLE, INGREDIENT, COMPOSITE, BOTH |
+| unit_of_measure        | string | Yes         | One of: unit, kg, g, l, ml                    |
+| sku                    | string | Yes         | Stock keeping unit (1-255 chars)              |
+| description            | string | No          | Product description                           |
+| total_price_with_taxes | string | Conditional | Required for SELLABLE, COMPOSITE, BOTH        |
+| vat                    | string | Conditional | VAT percentage, required if has price         |
+| ico                    | string | Conditional | ICO percentage, required if has price         |
+| taxes_format           | string | Conditional | Must be "percentage" if has price             |
+| supplier_sku           | string | No          | Supplier's own SKU for this product           |
+
+### Example Request
+
+```json
+{
+  "supplier_id": "550e8400-e29b-41d4-a716-446655440000",
+  "items": [
+    {
+      "name": "MAIZITOS LIMON 215G",
+      "category": "SNACKS",
+      "product_type": "SELLABLE",
+      "unit_of_measure": "unit",
+      "vat": "19",
+      "ico": "0",
+      "taxes_format": "percentage",
+      "sku": "7702914551403",
+      "total_price_with_taxes": "6499.78",
+      "supplier_sku": "59107"
+    },
+    {
+      "name": "MAIZITOS NATURAL 215G",
+      "category": "SNACKS",
+      "product_type": "SELLABLE",
+      "unit_of_measure": "unit",
+      "vat": "19",
+      "ico": "0",
+      "taxes_format": "percentage",
+      "sku": "7702914550505",
+      "total_price_with_taxes": "6499.78",
+      "supplier_sku": "59109"
+    }
+  ]
+}
+```
+
+### Example Response (201 Created)
+
+```json
+{
+  "created": [
+    {
+      "id": "660e8400-e29b-41d4-a716-446655440001",
+      "name": "MAIZITOS LIMON 215G",
+      "category": "SNACKS",
+      "product_type": "SELLABLE",
+      "unit_of_measure": "unit",
+      "version": 1,
+      "unit_price": "5462.00",
+      "vat": "0.19",
+      "vat_amount": "1037.78",
+      "ico": "0",
+      "ico_amount": "0",
+      "sku": "7702914551403",
+      "total_price_with_taxes": "6499.78",
+      "created_at": "2024-01-26T15:30:00Z",
+      "updated_at": "2024-01-26T15:30:00Z"
+    }
+  ],
+  "errors": [
+    {
+      "index": 1,
+      "sku": "7702914550505",
+      "name": "MAIZITOS NATURAL 215G",
+      "message": "product with this SKU already exists"
+    }
+  ]
+}
+```
+
+### Error Responses
+
+**404 Not Found** - Supplier not found
+
+```json
+{
+  "error": "Supplier not found"
+}
+```
+
+**400 Bad Request** - Empty items or validation error
+
+```json
+{
+  "error": "failed to create product: items cannot be empty"
 }
 ```
 

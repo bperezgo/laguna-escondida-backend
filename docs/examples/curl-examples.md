@@ -330,6 +330,43 @@ curl -X POST "$BASE_URL/products" \
   }'
 ```
 
+### Bulk Create Products (with supplier linking)
+
+```bash
+curl -X POST "$BASE_URL/products/bulk" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "supplier_id": "SUPPLIER_ID",
+    "items": [
+      {
+        "name": "MAIZITOS LIMON 215G",
+        "category": "SNACKS",
+        "product_type": "SELLABLE",
+        "unit_of_measure": "unit",
+        "vat": "19",
+        "ico": "0",
+        "taxes_format": "percentage",
+        "sku": "7702914551403",
+        "total_price_with_taxes": "6499.78",
+        "supplier_sku": "59107"
+      },
+      {
+        "name": "MAIZITOS NATURAL 215G",
+        "category": "SNACKS",
+        "product_type": "SELLABLE",
+        "unit_of_measure": "unit",
+        "vat": "19",
+        "ico": "0",
+        "taxes_format": "percentage",
+        "sku": "7702914550505",
+        "total_price_with_taxes": "6499.78",
+        "supplier_sku": "59109"
+      }
+    ]
+  }'
+```
+
 ### List Products
 
 ```bash

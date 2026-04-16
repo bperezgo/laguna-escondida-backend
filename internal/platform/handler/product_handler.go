@@ -143,6 +143,33 @@ func (h *ProductHandler) GetProductByIDHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, product)
 }
 
+func (h *ProductHandler) BulkCreateProductsHandler(c *gin.Context) {
+	var req dto.BulkCreateProductRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("Error decoding request: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	response, err := h.productService.BulkCreateProducts(c.Request.Context(), &req)
+	if err != nil {
+		log.Printf("Error bulk creating products: %v", err)
+
+		if errors.Is(err, domainError.ErrSupplierNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Supplier not found"})
+			return
+		}
+		if errors.Is(err, domainError.ErrProductCreationFailed) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, response)
+}
+
 func (h *ProductHandler) ListCategoriesHandler(c *gin.Context) {
 	categories, err := h.productService.ListCategories(c.Request.Context())
 	if err != nil {
