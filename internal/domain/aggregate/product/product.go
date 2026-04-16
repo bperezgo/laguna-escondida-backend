@@ -202,7 +202,7 @@ func NewAggregateFromCreateProductRequest(req *dto.CreateProductRequest) (*Aggre
 	// For INGREDIENT type, price/taxes are optional
 	if !productType.IsSellable() {
 		return &Aggregate{
-			id:                  uuid.New().String(),
+			id:                  uuid.Must(uuid.NewV7()).String(),
 			name:                req.Name,
 			category:            req.Category,
 			productType:         productType,
@@ -232,7 +232,7 @@ func NewAggregateFromCreateProductRequest(req *dto.CreateProductRequest) (*Aggre
 	}
 
 	return &Aggregate{
-		id:                  uuid.New().String(),
+		id:                  uuid.Must(uuid.NewV7()).String(),
 		name:                req.Name,
 		category:            req.Category,
 		productType:         productType,

@@ -47,7 +47,7 @@ func NewAggregateFromCreateRequest(req *dto.CreateExpenseRequest) (*Aggregate, e
 
 	now := time.Now()
 	return &Aggregate{
-		id:          uuid.New().String(),
+		id:          uuid.Must(uuid.NewV7()).String(),
 		categoryID:  req.CategoryID,
 		supplierID:  req.SupplierID,
 		amount:      amount,

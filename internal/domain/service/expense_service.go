@@ -49,7 +49,7 @@ func (s *ExpenseService) CreateCategory(ctx context.Context, req *dto.CreateExpe
 
 	now := time.Now()
 	category := &dto.ExpenseCategory{
-		ID:          uuid.New().String(),
+		ID:          uuid.Must(uuid.NewV7()).String(),
 		Code:        req.Code,
 		Name:        req.Name,
 		Description: req.Description,

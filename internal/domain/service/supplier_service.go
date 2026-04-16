@@ -124,7 +124,7 @@ func (s *SupplierService) AddProductToSupplier(ctx context.Context, supplierID s
 
 	now := time.Now()
 	catalog := &dto.SupplierCatalog{
-		ID:          uuid.New().String(),
+		ID:          uuid.Must(uuid.NewV7()).String(),
 		SupplierID:  supplierID,
 		ProductID:   req.ProductID,
 		SupplierSKU: req.SupplierSKU,

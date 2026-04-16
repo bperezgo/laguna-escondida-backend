@@ -60,7 +60,7 @@ func NewAggregateFromCreateRequest(req *dto.CreatePurchaseEntryRequest) (*Aggreg
 		totalAmount = totalAmount.Add(totalCost)
 
 		item := &Item{
-			id:        uuid.New().String(),
+			id:        uuid.Must(uuid.NewV7()).String(),
 			productID: itemReq.ProductID,
 			quantity:  quantity,
 			unitCost:  unitCost,
@@ -76,7 +76,7 @@ func NewAggregateFromCreateRequest(req *dto.CreatePurchaseEntryRequest) (*Aggreg
 
 	now := time.Now()
 	return &Aggregate{
-		id:               uuid.New().String(),
+		id:               uuid.Must(uuid.NewV7()).String(),
 		supplierID:       req.SupplierID,
 		totalAmount:      totalAmount,
 		invoiceReference: req.InvoiceReference,

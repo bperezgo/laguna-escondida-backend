@@ -67,7 +67,7 @@ func (s *ProductIngredientService) AddIngredient(ctx context.Context, compositeP
 
 	now := time.Now()
 	ingredient := &dto.ProductIngredient{
-		ID:                  uuid.New().String(),
+		ID:                  uuid.Must(uuid.NewV7()).String(),
 		CompositeProductID:  compositeProductID,
 		IngredientProductID: req.IngredientProductID,
 		Quantity:            quantity,

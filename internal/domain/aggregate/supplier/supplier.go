@@ -44,7 +44,7 @@ func NewAggregateFromCreateRequest(req *dto.CreateSupplierRequest) (*Aggregate, 
 
 	now := time.Now()
 	return &Aggregate{
-		id:                   uuid.New().String(),
+		id:                   uuid.Must(uuid.NewV7()).String(),
 		name:                 name,
 		identificationType:   req.IdentificationType,
 		identificationNumber: req.IdentificationNumber,

@@ -46,7 +46,7 @@ func (b *GoChannelEventBus) Publish(ctx context.Context, event ports.Event) erro
 		return fmt.Errorf("failed to marshal event: %w", err)
 	}
 
-	msg := message.NewMessage(uuid.NewString(), payload)
+	msg := message.NewMessage(uuid.Must(uuid.NewV7()).String(), payload)
 	msg.SetContext(ctx)
 
 	topic := event.EventName()

@@ -17,7 +17,7 @@ type BaseEvent struct {
 
 func NewBaseEvent(eventName, aggregateID string) BaseEvent {
 	return BaseEvent{
-		eventID:     uuid.NewString(),
+		eventID:     uuid.Must(uuid.NewV7()).String(),
 		eventName:   eventName,
 		aggregateID: aggregateID,
 		occurredAt:  time.Now(),

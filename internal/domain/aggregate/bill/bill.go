@@ -75,7 +75,7 @@ func NewBillFromCreateElectronicInvoiceRequest(invoice *dto.ElectronicInvoice, p
 	payAmount := totalAmount.Add(taxAmount).Sub(discountAmount)
 
 	return &Aggregate{
-		id:             uuid.New().String(),
+		id:             uuid.Must(uuid.NewV7()).String(),
 		totalAmount:    totalAmount,
 		discountAmount: discountAmount,
 		taxAmount:      taxAmount,

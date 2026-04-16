@@ -42,7 +42,7 @@ func NewAggregateFromCreateUserRequest(req *dto.CreateUserRequest) (*Aggregate, 
 
 	now := time.Now()
 	return &Aggregate{
-		id:        uuid.New().String(),
+		id:        uuid.Must(uuid.NewV7()).String(),
 		username:  req.Username,
 		password:  string(hashedPassword),
 		createdAt: now,

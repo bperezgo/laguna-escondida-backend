@@ -104,7 +104,7 @@ func (s *PurchaseEntryService) updateSupplierCatalog(ctx context.Context, suppli
 		// Catalog entry doesn't exist, create it
 		now := time.Now()
 		catalog := &dto.SupplierCatalog{
-			ID:         uuid.New().String(),
+			ID:         uuid.Must(uuid.NewV7()).String(),
 			SupplierID: supplierID,
 			ProductID:  item.ProductID,
 			CreatedAt:  now,

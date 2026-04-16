@@ -198,7 +198,7 @@ func NewAggregateFromCreateProductRequest(req *dto.CreateProductRequest) (*Aggre
         return nil, err
     }
     // ...validate, calculate derived fields
-    return &Aggregate{id: uuid.New().String(), sku: sku, ...}, nil
+    return &Aggregate{id: uuid.Must(uuid.NewV7()).String(), sku: sku, ...}, nil
 }
 
 // Factory: Reconstitute from persistence DTO
@@ -222,7 +222,7 @@ func (a *Aggregate) Update(req *dto.UpdateProductRequest) (*Aggregate, error) {
 - All creation goes through factory methods — never construct directly.
 - Business rules (tax calculations, validation) live inside the aggregate.
 - Use `decimal.Decimal` (shopspring) for monetary values — never `float64`.
-- UUIDs as primary keys (`uuid.New().String()`).
+- UUIDs (v7) as primary keys (`uuid.Must(uuid.NewV7()).String()`).
 
 ### Value Objects
 
@@ -574,7 +574,7 @@ type GoChannelEventBus struct {
 }
 
 func (b *GoChannelEventBus) Publish(ctx context.Context, event ports.Event) error {
-    msg := message.NewMessage(uuid.New().String(), event.Data())
+    msg := message.NewMessage(uuid.Must(uuid.NewV7()).String(), event.Data())
     return b.pubsub.Publish(event.EventName(), msg)
 }
 ```
@@ -857,7 +857,7 @@ func NewConfig() (*Config, error) {
 
 | Area | Convention |
 |---|---|
-| **IDs** | UUIDs as strings (`uuid.New().String()`) |
+| **IDs** | UUID v7 as strings (`uuid.Must(uuid.NewV7()).String()`) |
 | **Money** | `decimal.Decimal` (shopspring) — never `float64` |
 | **Timestamps** | `time.Time` with DB defaults |
 | **Deletion** | Soft delete via `deleted_at` column |

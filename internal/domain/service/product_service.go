@@ -238,7 +238,7 @@ func (s *ProductService) BulkCreateProducts(ctx context.Context, req *dto.BulkCr
 		if req.SupplierID != nil {
 			now := time.Now()
 			catalog := &dto.SupplierCatalog{
-				ID:          uuid.New().String(),
+				ID:          uuid.Must(uuid.NewV7()).String(),
 				SupplierID:  *req.SupplierID,
 				ProductID:   productDTO.ID,
 				SupplierSKU: item.SupplierSKU,
