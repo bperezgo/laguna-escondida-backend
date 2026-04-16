@@ -33,3 +33,6 @@ pem/
 main
 
 .mcp.json
+
+ai-plans/
+*.pdf
