@@ -35,6 +35,13 @@ func (h *SupportDocumentHandler) CreateSupportDocumentHandler(c *gin.Context) {
 		return
 	}
 
+	for i, item := range doc.Items {
+		if len(item.Description) < 5 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("item %d: description must be at least 5 characters", i)})
+			return
+		}
+	}
+
 	if err := h.supportDocumentService.CreateSupportDocument(c.Request.Context(), &doc); err != nil {
 		log.Printf("Error creating support document: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create support document"})

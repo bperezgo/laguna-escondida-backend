@@ -421,7 +421,7 @@ func (c *ElectronicInvoiceClient) CreateSupportDocument(
 				CountrySubentity:    "11001",
 				AddressLine:         "No Reporta",
 				DocumentNumber:      provider.DocumentNumber,
-				DocumentType:        mapDocumentTypeToCode(provider.DocumentType),
+				DocumentType:        "31", // always 31, no matter
 				Telephone:           "00000000",
 				Email:               provider.Email,
 			},
