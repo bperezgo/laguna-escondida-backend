@@ -112,16 +112,16 @@ type invoiceItemSupplier struct {
 }
 
 type invoiceItem struct {
-	Quantity    string                `json:"quantity"`
-	UnitPrice   string                `json:"unitPrice"`
-	Total       string                `json:"total"`
-	Description string                `json:"description"`
-	Brand       string                `json:"brand"`
-	Model       string                `json:"model"`
-	Code        string                `json:"code"`
-	Supplier    *invoiceItemSupplier  `json:"supplier,omitempty"`
-	Allowance   []invoiceAllowance    `json:"allowance,omitempty"`
-	Taxes       []invoiceTax          `json:"taxes,omitempty"`
+	Quantity    string               `json:"quantity"`
+	UnitPrice   string               `json:"unitPrice"`
+	Total       string               `json:"total"`
+	Description string               `json:"description"`
+	Brand       string               `json:"brand"`
+	Model       string               `json:"model"`
+	Code        string               `json:"code"`
+	Supplier    *invoiceItemSupplier `json:"supplier,omitempty"`
+	Allowance   []invoiceAllowance   `json:"allowance,omitempty"`
+	Taxes       []invoiceTax         `json:"taxes,omitempty"`
 }
 
 type invoiceAllowance struct {
