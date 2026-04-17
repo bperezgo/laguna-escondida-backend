@@ -106,16 +106,22 @@ type invoiceAmounts struct {
 	PayAmount      string `json:"payAmount"`
 }
 
+type invoiceItemSupplier struct {
+	Description string `json:"description"`
+	StartDate   string `json:"startDate"`
+}
+
 type invoiceItem struct {
-	Quantity    string             `json:"quantity"`
-	UnitPrice   string             `json:"unitPrice"`
-	Total       string             `json:"total"`
-	Description string             `json:"description"`
-	Brand       string             `json:"brand"`
-	Model       string             `json:"model"`
-	Code        string             `json:"code"`
-	Allowance   []invoiceAllowance `json:"allowance,omitempty"`
-	Taxes       []invoiceTax       `json:"taxes,omitempty"`
+	Quantity    string                `json:"quantity"`
+	UnitPrice   string                `json:"unitPrice"`
+	Total       string                `json:"total"`
+	Description string                `json:"description"`
+	Brand       string                `json:"brand"`
+	Model       string                `json:"model"`
+	Code        string                `json:"code"`
+	Supplier    *invoiceItemSupplier  `json:"supplier,omitempty"`
+	Allowance   []invoiceAllowance    `json:"allowance,omitempty"`
+	Taxes       []invoiceTax          `json:"taxes,omitempty"`
 }
 
 type invoiceAllowance struct {
@@ -276,7 +282,7 @@ func (c *ElectronicInvoiceClient) Create(
 
 				return invoiceItem{
 					Quantity:    decimal.NewFromInt(int64(billProduct.Quantity)).StringFixed(2),
-					UnitPrice:   billProduct.UnitPrice.String(),
+					UnitPrice:   billProduct.UnitPrice.StringFixed(2),
 					Total:       total.StringFixed(2),
 					Description: name,
 					Brand:       category,
@@ -438,30 +444,23 @@ func (c *ElectronicInvoiceClient) CreateSupportDocument(
 					category = unknown
 				}
 
+				code := billProduct.Code
+				if code == "" {
+					code = unknown
+				}
+
 				return invoiceItem{
 					Quantity:    decimal.NewFromInt(int64(billProduct.Quantity)).StringFixed(2),
-					UnitPrice:   billProduct.UnitPrice.String(),
+					UnitPrice:   billProduct.UnitPrice.StringFixed(2),
 					Total:       total.StringFixed(2),
 					Description: name,
 					Brand:       category,
 					Model:       category,
-					Code:        billProduct.Code,
-					Allowance: lo.Map(billProduct.Allowance, func(allowance dto.InvoiceAllowance, index int) invoiceAllowance {
-						return invoiceAllowance{
-							Charge:      allowance.Charge,
-							ReasonCode:  allowance.ReasonCode,
-							Description: allowance.Description,
-							BaseAmount:  allowance.BaseAmount,
-							Amount:      allowance.Amount,
-						}
-					}),
-					Taxes: lo.Map(billProduct.Taxes, func(tax dto.InvoiceTax, index int) invoiceTax {
-						return invoiceTax{
-							ID:        mapTaxCodeToID(tax.TaxCode),
-							TaxAmount: tax.TaxAmount,
-							Percent:   tax.Percent,
-						}
-					}),
+					Code:        code,
+					Supplier: &invoiceItemSupplier{
+						Description: "1",
+						StartDate:   issueDate,
+					},
 				}
 			}),
 		},

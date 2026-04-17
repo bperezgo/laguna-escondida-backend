@@ -49,7 +49,7 @@ func NewConfig() (*Config, error) {
 
 	supportDocumentPrefix := os.Getenv("SUPPORT_DOCUMENT_PREFIX")
 	if supportDocumentPrefix == "" {
-		supportDocumentPrefix = "DSTP"
+		supportDocumentPrefix = "SETP"
 	}
 
 	spacesRegion := os.Getenv("SPACES_REGION")
