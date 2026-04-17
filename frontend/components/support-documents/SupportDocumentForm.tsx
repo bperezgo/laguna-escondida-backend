@@ -103,6 +103,9 @@ export default function SupportDocumentForm({
       if (!item.description.trim()) {
         newErrors[`items.${index}.description`] =
           "La descripción es requerida";
+      } else if (item.description.trim().length < 5) {
+        newErrors[`items.${index}.description`] =
+          "La descripción debe tener al menos 5 caracteres";
       }
       if (!item.price || item.price <= 0) {
         newErrors[`items.${index}.price`] =
@@ -738,6 +741,7 @@ export default function SupportDocumentForm({
                     <input
                       type="text"
                       value={item.description}
+                      minLength={5}
                       onChange={(e) =>
                         updateItem(index, "description", e.target.value)
                       }

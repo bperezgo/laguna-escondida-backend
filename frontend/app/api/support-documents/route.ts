@@ -55,8 +55,7 @@ export async function POST(request: NextRequest) {
         { status: response.status }
       );
     }
-    const data = await response.json();
-    return NextResponse.json(data);
+    return response;
   } catch (error) {
     console.error("Error creating support document:", error);
     return NextResponse.json(
