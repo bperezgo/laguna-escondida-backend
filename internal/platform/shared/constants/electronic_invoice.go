@@ -1,5 +1,6 @@
 package constants
 
 const (
-	InvoicePrefix = "LAG"
+	InvoicePrefix         = "LAG"
+	SupportDocumentPrefix = "DS"
 )

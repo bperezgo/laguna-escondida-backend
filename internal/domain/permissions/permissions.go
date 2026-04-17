@@ -86,6 +86,13 @@ const (
 	ExpensesExport Permission = "expenses:export"
 )
 
+// Support Document permissions
+const (
+	SupportDocumentsRead   Permission = "support-documents:read"
+	SupportDocumentsCreate Permission = "support-documents:create"
+	SupportDocumentsExport Permission = "support-documents:export"
+)
+
 // Financial permissions
 const (
 	FinancialRead Permission = "financial:read"
@@ -128,6 +135,8 @@ func AllPermissions() []Permission {
 		ExpenseCategoriesRead, ExpenseCategoriesCreate, ExpenseCategoriesUpdate,
 		// Expenses
 		ExpensesRead, ExpensesCreate, ExpensesUpdate, ExpensesDelete, ExpensesUpload, ExpensesExport,
+		// Support Documents
+		SupportDocumentsRead, SupportDocumentsCreate, SupportDocumentsExport,
 		// Financial
 		FinancialRead,
 		// Users

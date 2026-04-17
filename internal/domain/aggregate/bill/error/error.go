@@ -11,7 +11,6 @@ const (
 	CodeProductsCannotBeEmpty  ProductErrorCode = "PRODUCTS_CANNOT_BE_EMPTY"
 	CodeInvalidAllowanceAmount ProductErrorCode = "INVALID_ALLOWANCE_AMOUNT"
 	CodeInvalidTaxAmount       ProductErrorCode = "INVALID_TAX_AMOUNT"
-	CodeInvalidPaymentCode     ProductErrorCode = "INVALID_PAYMENT_CODE"
 )
 
 // NewProductsCannotBeEmptyError creates an error for products cannot be empty
@@ -27,9 +26,4 @@ func NewInvalidAllowanceAmountError(amount string) *baseError.BaseError {
 // NewInvalidTaxAmountError creates an error for invalid tax amount
 func NewInvalidTaxAmountError(amount string) *baseError.BaseError {
 	return baseError.NewBaseError(baseError.ErrorCode(CodeInvalidTaxAmount), "invalid tax amount: "+amount)
-}
-
-// NewInvalidPaymentCodeError creates an error for invalid payment code
-func NewInvalidPaymentCodeError(code string) *baseError.BaseError {
-	return baseError.NewBaseError(baseError.ErrorCode(CodeInvalidPaymentCode), "invalid payment code: "+code)
 }

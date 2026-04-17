@@ -81,6 +81,65 @@ func (_c *MockElectronicInvoiceClient_Create_Call) RunAndReturn(run func(context
 	return _c
 }
 
+// CreateSupportDocument provides a mock function with given fields: ctx, req
+func (_m *MockElectronicInvoiceClient) CreateSupportDocument(ctx context.Context, req *dto.CreateSupportDocumentRequest) (*dto.CreateElectronicInvoiceResponse, error) {
+	ret := _m.Called(ctx, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateSupportDocument")
+	}
+
+	var r0 *dto.CreateElectronicInvoiceResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *dto.CreateSupportDocumentRequest) (*dto.CreateElectronicInvoiceResponse, error)); ok {
+		return rf(ctx, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *dto.CreateSupportDocumentRequest) *dto.CreateElectronicInvoiceResponse); ok {
+		r0 = rf(ctx, req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*dto.CreateElectronicInvoiceResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *dto.CreateSupportDocumentRequest) error); ok {
+		r1 = rf(ctx, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockElectronicInvoiceClient_CreateSupportDocument_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateSupportDocument'
+type MockElectronicInvoiceClient_CreateSupportDocument_Call struct {
+	*mock.Call
+}
+
+// CreateSupportDocument is a helper method to define mock.On call
+//   - ctx context.Context
+//   - req *dto.CreateSupportDocumentRequest
+func (_e *MockElectronicInvoiceClient_Expecter) CreateSupportDocument(ctx interface{}, req interface{}) *MockElectronicInvoiceClient_CreateSupportDocument_Call {
+	return &MockElectronicInvoiceClient_CreateSupportDocument_Call{Call: _e.mock.On("CreateSupportDocument", ctx, req)}
+}
+
+func (_c *MockElectronicInvoiceClient_CreateSupportDocument_Call) Run(run func(ctx context.Context, req *dto.CreateSupportDocumentRequest)) *MockElectronicInvoiceClient_CreateSupportDocument_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*dto.CreateSupportDocumentRequest))
+	})
+	return _c
+}
+
+func (_c *MockElectronicInvoiceClient_CreateSupportDocument_Call) Return(_a0 *dto.CreateElectronicInvoiceResponse, _a1 error) *MockElectronicInvoiceClient_CreateSupportDocument_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockElectronicInvoiceClient_CreateSupportDocument_Call) RunAndReturn(run func(context.Context, *dto.CreateSupportDocumentRequest) (*dto.CreateElectronicInvoiceResponse, error)) *MockElectronicInvoiceClient_CreateSupportDocument_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Get provides a mock function with given fields: ctx, tascode
 func (_m *MockElectronicInvoiceClient) Get(ctx context.Context, tascode string) (*dto.VerifyInvoiceStatusResponse, error) {
 	ret := _m.Called(ctx, tascode)

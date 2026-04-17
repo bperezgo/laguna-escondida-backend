@@ -10,6 +10,7 @@ type Config struct {
 	ElectronicInvoiceUser     string
 	ElectronicInvoicePassword string
 	ElectronicInvoicePrefix   string
+	SupportDocumentPrefix     string
 	AdminAPIKey               string
 	JWTSecret                 string
 	SpacesRegion              string
@@ -46,6 +47,11 @@ func NewConfig() (*Config, error) {
 		invoicePrefix = "SETP"
 	}
 
+	supportDocumentPrefix := os.Getenv("SUPPORT_DOCUMENT_PREFIX")
+	if supportDocumentPrefix == "" {
+		supportDocumentPrefix = "DSTP"
+	}
+
 	spacesRegion := os.Getenv("SPACES_REGION")
 	if spacesRegion == "" {
 		return nil, errors.New("SPACES_REGION is not set")
@@ -72,6 +78,7 @@ func NewConfig() (*Config, error) {
 		ElectronicInvoiceUser:     user,
 		ElectronicInvoicePassword: password,
 		ElectronicInvoicePrefix:   invoicePrefix,
+		SupportDocumentPrefix:     supportDocumentPrefix,
 		AdminAPIKey:               adminAPIKey,
 		JWTSecret:                 jwtSecret,
 		SpacesRegion:              spacesRegion,

@@ -136,6 +136,8 @@ func main() {
 	expenseService := service.NewExpenseService(expenseCategoryRepo, expenseRepo, supplierRepo, spacesClient, cfg.OrganizationID)
 	productIngredientService := service.NewProductIngredientService(productIngredientRepo, productRepo)
 	financialService := service.NewFinancialService(billRepo, expenseRepo, purchaseEntryRepo)
+	supportDocRepo := repository.NewSupportDocumentRepository(db.DB, electronicInvoiceClient, cfg)
+	supportDocService := service.NewSupportDocumentService(electronicInvoiceClient, supportDocRepo, spacesClient, cfg.OrganizationID)
 
 	// Initialize Event Subscriber
 	eventSubscriber, err := eventbus.NewGoChannelEventSubscriber(eventBusImpl.PubSub(), watermillLogger)
@@ -251,7 +253,7 @@ func main() {
 	}()
 
 	// Initialize and start cron scheduler
-	cronScheduler, err := cron.NewScheduler(invoiceService, logger)
+	cronScheduler, err := cron.NewScheduler(invoiceService, supportDocService, logger)
 	if err != nil {
 		log.Fatalf("Failed to create cron scheduler: %v", err)
 	}
@@ -276,6 +278,7 @@ func main() {
 	expenseHandler := handler.NewExpenseHandler(expenseService)
 	productIngredientHandler := handler.NewProductIngredientHandler(productIngredientService)
 	financialHandler := handler.NewFinancialHandler(financialService)
+	supportDocHandler := handler.NewSupportDocumentHandler(supportDocService)
 	sseHandler := handler.NewSSEHandler(sseHub, openBillProductHub, orderService, logger)
 
 	// Setup routes
@@ -301,6 +304,7 @@ func main() {
 
 	// Admin routes (protected with admin API key)
 	router.POST("/api/invoices/update-missing-document-urls", handler.AdminAPIKeyMiddleware(cfg), invoiceHandler.UpdateMissingDocumentURLsHandler)
+	router.POST("/api/support-documents/update-missing-document-urls", handler.AdminAPIKeyMiddleware(cfg), supportDocHandler.UpdateMissingSupportDocumentURLsHandler)
 
 	// Protected routes (require JWT authentication + permissions)
 	// Order routes
@@ -341,6 +345,11 @@ func main() {
 	router.POST("/api/invoices", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.InvoicesCreate), invoiceHandler.CreateElectronicInvoiceHandler)
 	router.GET("/api/invoices", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.InvoicesRead), invoiceHandler.ListInvoicesHandler)
 	router.GET("/api/invoices/export", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.InvoicesExport), invoiceHandler.ExportInvoicesCSVHandler)
+
+	// Support Document routes
+	router.POST("/api/support-documents", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SupportDocumentsCreate), supportDocHandler.CreateSupportDocumentHandler)
+	router.GET("/api/support-documents", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SupportDocumentsRead), supportDocHandler.ListSupportDocumentsHandler)
+	router.GET("/api/support-documents/export", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SupportDocumentsExport), supportDocHandler.ExportSupportDocumentsCSVHandler)
 
 	// Stock routes
 	router.POST("/api/stock", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.StockCreate), stockHandler.CreateStockHandler)

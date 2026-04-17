@@ -351,6 +351,170 @@ func (c *ElectronicInvoiceClient) Create(
 	}, nil
 }
 
+type supportDocumentRequest struct {
+	Invoice supportDocumentRequestData `json:"invoice"`
+}
+
+type supportDocumentRequestData struct {
+	Prefix      string          `json:"prefix"`
+	IntID       string          `json:"intID"`
+	IssueDate   string          `json:"issueDate"`
+	IssueTime   string          `json:"issueTime"`
+	PaymentType string          `json:"paymentType"`
+	PaymentCode string          `json:"paymentCode"`
+	Note1       string          `json:"note1"`
+	Supplier    invoiceSupplier `json:"supplier"`
+	Amounts     invoiceAmounts  `json:"amounts"`
+	Items       []invoiceItem   `json:"items"`
+}
+
+type invoiceSupplier struct {
+	AdditionalAccountID string `json:"additionalAccountID"`
+	Name                string `json:"name"`
+	City                string `json:"city"`
+	CountrySubentity    string `json:"countrySubentity"`
+	AddressLine         string `json:"addressLine"`
+	DocumentNumber      string `json:"documentNumber"`
+	DocumentType        string `json:"documentType"`
+	Telephone           string `json:"telephone"`
+	Email               string `json:"email"`
+}
+
+func (c *ElectronicInvoiceClient) CreateSupportDocument(
+	ctx context.Context,
+	createReq *dto.CreateSupportDocumentRequest,
+) (res *dto.CreateElectronicInvoiceResponse, err error) {
+	loc, locErr := time.LoadLocation("America/Bogota")
+	if locErr != nil {
+		loc = time.FixedZone("UTC-5", -5*60*60)
+	}
+	now := time.Now().In(loc)
+	issueDate := now.Format("20060102")
+	issueTime := now.Format("150405")
+
+	totalAmount := createReq.Bill.TotalAmount.StringFixed(2)
+	discountAmount := createReq.Bill.DiscountAmount.StringFixed(2)
+	taxAmount := createReq.Bill.TaxAmount.StringFixed(2)
+	payAmount := createReq.Bill.PayAmount.StringFixed(2)
+
+	provider := createReq.Bill.Provider
+
+	requestData := supportDocumentRequest{
+		Invoice: supportDocumentRequestData{
+			Prefix:      createReq.Prefix,
+			IntID:       strconv.Itoa(createReq.Consecutive),
+			IssueDate:   issueDate,
+			IssueTime:   issueTime,
+			PaymentType: "1",
+			PaymentCode: paymentCodeToCode(createReq.PaymentCode),
+			Note1:       utils.NumberToWords(payAmount),
+			Supplier: invoiceSupplier{
+				AdditionalAccountID: mapDocumentTypeToAdditionalAccountID(provider.DocumentType),
+				Name:                provider.Name,
+				City:                "No Reporta",
+				CountrySubentity:    "11001",
+				AddressLine:         "No Reporta",
+				DocumentNumber:      provider.DocumentNumber,
+				DocumentType:        mapDocumentTypeToCode(provider.DocumentType),
+				Telephone:           "00000000",
+				Email:               provider.Email,
+			},
+			Amounts: invoiceAmounts{
+				TotalAmount:    totalAmount,
+				DiscountAmount: discountAmount,
+				TaxAmount:      taxAmount,
+				PayAmount:      payAmount,
+			},
+			Items: lo.Map(createReq.Bill.Products, func(billProduct dto.BillProduct, _ int) invoiceItem {
+				total := billProduct.UnitPrice.Mul(decimal.NewFromInt(int64(billProduct.Quantity)))
+
+				name := billProduct.Name
+				if name == "" {
+					name = unknown
+				}
+
+				category := billProduct.Category
+				if category == "" {
+					category = unknown
+				}
+
+				return invoiceItem{
+					Quantity:    decimal.NewFromInt(int64(billProduct.Quantity)).StringFixed(2),
+					UnitPrice:   billProduct.UnitPrice.String(),
+					Total:       total.StringFixed(2),
+					Description: name,
+					Brand:       category,
+					Model:       category,
+					Code:        billProduct.Code,
+					Allowance: lo.Map(billProduct.Allowance, func(allowance dto.InvoiceAllowance, index int) invoiceAllowance {
+						return invoiceAllowance{
+							Charge:      allowance.Charge,
+							ReasonCode:  allowance.ReasonCode,
+							Description: allowance.Description,
+							BaseAmount:  allowance.BaseAmount,
+							Amount:      allowance.Amount,
+						}
+					}),
+					Taxes: lo.Map(billProduct.Taxes, func(tax dto.InvoiceTax, index int) invoiceTax {
+						return invoiceTax{
+							ID:        mapTaxCodeToID(tax.TaxCode),
+							TaxAmount: tax.TaxAmount,
+							Percent:   tax.Percent,
+						}
+					}),
+				}
+			}),
+		},
+	}
+
+	jsonData, err := json.Marshal(requestData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal support document request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("%s/facturacion.v30/invoice/", c.url), bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	auth := base64.StdEncoding.EncodeToString([]byte(c.user + ":" + c.password))
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Basic "+auth)
+
+	resp, err := c.client.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			err = closeErr
+		}
+	}()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("support document API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var invoiceResp invoiceResponse
+	if err := json.Unmarshal(body, &invoiceResp); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	if invoiceResp.InvoiceResult.Status.Code != 200 {
+		return nil, fmt.Errorf("support document API error: %s", invoiceResp.InvoiceResult.Status.Text)
+	}
+
+	return &dto.CreateElectronicInvoiceResponse{
+		Tascode: invoiceResp.InvoiceResult.Document.Tascode,
+		CUFE:    invoiceResp.InvoiceResult.Document.CUFE,
+	}, nil
+}
+
 func (c *ElectronicInvoiceClient) Get(ctx context.Context, invoiceID string) (res *dto.VerifyInvoiceStatusResponse, err error) {
 	requestData := verifyStatusRequest{
 		VerifyStatus: verifyStatusData{
