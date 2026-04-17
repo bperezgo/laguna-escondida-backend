@@ -12,6 +12,7 @@ export default function PageHeader() {
     if (pathname.startsWith("/products")) return "Productos";
     if (pathname.startsWith("/stock")) return "Inventario";
     if (pathname.startsWith("/invoices")) return "Facturas";
+    if (pathname.startsWith("/support-documents")) return "Documentos Soporte";
     if (pathname.startsWith("/kitchen")) return "Cocina";
     if (pathname.startsWith("/suppliers")) return "Proveedores";
     if (pathname.startsWith("/purchase-entries")) return "Entradas de Compra";

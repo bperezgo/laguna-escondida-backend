@@ -34,6 +34,13 @@ const navItems = [
     hoverColor: "var(--color-primary)",
   },
   {
+    href: "/support-documents",
+    title: "Documentos Soporte",
+    description: "Crear y administrar documentos soporte",
+    permission: PERMISSIONS.SUPPORT_DOCUMENTS_READ,
+    hoverColor: "var(--color-primary)",
+  },
+  {
     href: "/kitchen",
     title: "Cocina",
     description: "Ver comandas en tiempo real",

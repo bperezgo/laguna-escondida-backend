@@ -64,6 +64,11 @@ export const PERMISSIONS = {
   EXPENSES_UPLOAD: "expenses:upload",
   EXPENSES_EXPORT: "expenses:export",
 
+  // Support Documents
+  SUPPORT_DOCUMENTS_READ: "support-documents:read",
+  SUPPORT_DOCUMENTS_CREATE: "support-documents:create",
+  SUPPORT_DOCUMENTS_EXPORT: "support-documents:export",
+
   // Financial
   FINANCIAL_SUMMARY_READ: "financial:read",
 
