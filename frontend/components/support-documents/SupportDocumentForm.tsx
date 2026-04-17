@@ -1,14 +1,11 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import type {
   CreateSupportDocumentRequest,
   SupportDocumentPaymentCode,
   ProviderDocumentType,
-  SupportDocumentItem,
 } from "@/types/support-document";
-import type { Product } from "@/types/product";
-import { productsApi } from "@/lib/api/products";
 
 interface SupportDocumentFormProps {
   onSubmit: (data: CreateSupportDocumentRequest) => Promise<void>;
@@ -36,6 +33,12 @@ const DOCUMENT_TYPES: { value: ProviderDocumentType; label: string }[] = [
   { value: "NIT", label: "NIT" },
 ];
 
+interface SimpleItem {
+  quantity: number;
+  description: string;
+  price: number;
+}
+
 export default function SupportDocumentForm({
   onSubmit,
   onCancel,
@@ -52,43 +55,10 @@ export default function SupportDocumentForm({
       name: "",
       email: "",
     },
-    items: [] as SupportDocumentItem[],
+    items: [] as SimpleItem[],
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [products, setProducts] = useState<Product[]>([]);
-  const [productsLoading, setProductsLoading] = useState(false);
-  const [itemProductSearch, setItemProductSearch] = useState<
-    Record<number, string>
-  >({});
-  const [itemSelectedProduct, setItemSelectedProduct] = useState<
-    Record<number, Product | null>
-  >({});
-
-  useEffect(() => {
-    const fetchProducts = async () => {
-      setProductsLoading(true);
-      try {
-        const fetchedProducts = await productsApi.getAll();
-        setProducts(fetchedProducts);
-      } catch (error) {
-        console.error("Error fetching products:", error);
-      } finally {
-        setProductsLoading(false);
-      }
-    };
-
-    fetchProducts();
-  }, []);
-
-  const itemsDependency = useMemo(
-    () =>
-      formData.items
-        .map((item) => `${item.quantity}|${item.totalPriceWithTaxes}`)
-        .join("|"),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [formData.items]
-  );
 
   const purchaseSummary = useMemo(() => {
     const totalItems = formData.items.length;
@@ -97,90 +67,15 @@ export default function SupportDocumentForm({
       0
     );
     const totalAmount = formData.items.reduce(
-      (sum, item) => sum + (parseFloat(item.total) || 0),
+      (sum, item) => sum + (item.quantity || 0) * (item.price || 0),
       0
     );
     return { totalItems, totalQuantity, totalAmount };
   }, [formData.items]);
 
-  useEffect(() => {
-    formData.items.forEach((item, index) => {
-      const quantity = item.quantity || 0;
-      const totalPriceWithTaxes = parseFloat(item.totalPriceWithTaxes) || 0;
-      const calculatedTotal = (quantity * totalPriceWithTaxes).toFixed(2);
-
-      if (item.total !== calculatedTotal) {
-        setFormData((prev) => ({
-          ...prev,
-          items: prev.items.map((it, i) =>
-            i === index ? { ...it, total: calculatedTotal } : it
-          ),
-        }));
-      }
-    });
-  }, [itemsDependency, formData.items.length]);
-
-  const getFilteredProducts = (itemIndex: number): Product[] => {
-    const searchQuery = itemProductSearch[itemIndex] || "";
-    if (!searchQuery.trim()) {
-      return products;
-    }
-    const query = searchQuery.toLowerCase();
-    return products.filter(
-      (product) =>
-        product.name.toLowerCase().includes(query) ||
-        product.sku.toLowerCase().includes(query) ||
-        (product.description &&
-          product.description.toLowerCase().includes(query)) ||
-        (product.brand && product.brand.toLowerCase().includes(query)) ||
-        (product.model && product.model.toLowerCase().includes(query))
-    );
-  };
-
-  const handleProductSelect = (itemIndex: number, product: Product) => {
-    setItemSelectedProduct((prev) => ({
-      ...prev,
-      [itemIndex]: product,
-    }));
-    setItemProductSearch((prev) => ({
-      ...prev,
-      [itemIndex]: product.name,
-    }));
-
-    updateItem(itemIndex, "product_id", product.id);
-    updateItem(itemIndex, "description", product.description || product.name);
-    updateItem(
-      itemIndex,
-      "totalPriceWithTaxes",
-      product.total_price_with_taxes.toString()
-    );
-    updateItem(itemIndex, "brand", product.brand || "");
-    updateItem(itemIndex, "model", product.model || "");
-    updateItem(itemIndex, "code", product.sku);
-  };
-
-  const handleClearProduct = (itemIndex: number) => {
-    setItemSelectedProduct((prev) => {
-      const newState = { ...prev };
-      delete newState[itemIndex];
-      return newState;
-    });
-    setItemProductSearch((prev) => ({
-      ...prev,
-      [itemIndex]: "",
-    }));
-    updateItem(itemIndex, "description", "");
-    updateItem(itemIndex, "totalPriceWithTaxes", "");
-    updateItem(itemIndex, "brand", "");
-    updateItem(itemIndex, "model", "");
-    updateItem(itemIndex, "code", "");
-    updateItem(itemIndex, "total", "");
-  };
-
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    // Provider is required
     if (!formData.provider.id.trim()) {
       newErrors["provider.id"] =
         "El número de documento del proveedor es requerido";
@@ -189,8 +84,7 @@ export default function SupportDocumentForm({
       newErrors["provider.name"] = "El nombre del proveedor es requerido";
     }
     if (!formData.provider.email.trim()) {
-      newErrors["provider.email"] =
-        "El correo del proveedor es requerido";
+      newErrors["provider.email"] = "El correo del proveedor es requerido";
     } else if (
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.provider.email)
     ) {
@@ -206,13 +100,13 @@ export default function SupportDocumentForm({
         newErrors[`items.${index}.quantity`] =
           "La cantidad debe ser mayor a 0";
       }
-      if (!item.totalPriceWithTaxes.trim()) {
-        newErrors[`items.${index}.totalPriceWithTaxes`] =
-          "El precio total con impuestos es requerido";
-      }
       if (!item.description.trim()) {
         newErrors[`items.${index}.description`] =
           "La descripción es requerida";
+      }
+      if (!item.price || item.price <= 0) {
+        newErrors[`items.${index}.price`] =
+          "El precio debe ser mayor a 0";
       }
     });
 
@@ -230,15 +124,9 @@ export default function SupportDocumentForm({
         email: formData.provider.email.trim(),
       },
       items: formData.items.map((item) => ({
-        product_id: item.product_id.trim(),
         quantity: item.quantity,
-        totalPriceWithTaxes: item.totalPriceWithTaxes.trim(),
-        total: item.total.trim(),
         description: item.description.trim(),
-        brand: item.brand.trim(),
-        model: item.model.trim(),
-        code: item.code.trim(),
-        allowance: item.allowance || [],
+        price: item.price,
       })),
     };
   };
@@ -290,25 +178,10 @@ export default function SupportDocumentForm({
   };
 
   const addItem = () => {
-    const newIndex = formData.items.length;
     setFormData((prev) => ({
       ...prev,
-      items: [
-        ...prev.items,
-        {
-          product_id: "",
-          quantity: 0,
-          totalPriceWithTaxes: "",
-          total: "",
-          description: "",
-          brand: "",
-          model: "",
-          code: "",
-        },
-      ],
+      items: [...prev.items, { quantity: 0, description: "", price: 0 }],
     }));
-    setItemProductSearch((prev) => ({ ...prev, [newIndex]: "" }));
-    setItemSelectedProduct((prev) => ({ ...prev, [newIndex]: null }));
   };
 
   const removeItem = (index: number) => {
@@ -316,39 +189,11 @@ export default function SupportDocumentForm({
       ...prev,
       items: prev.items.filter((_, i) => i !== index),
     }));
-    setItemProductSearch((prev) => {
-      const newState = { ...prev };
-      delete newState[index];
-      const reindexed: Record<number, string> = {};
-      Object.keys(newState).forEach((key) => {
-        const oldIndex = parseInt(key);
-        if (oldIndex > index) {
-          reindexed[oldIndex - 1] = newState[oldIndex];
-        } else if (oldIndex < index) {
-          reindexed[oldIndex] = newState[oldIndex];
-        }
-      });
-      return reindexed;
-    });
-    setItemSelectedProduct((prev) => {
-      const newState = { ...prev };
-      delete newState[index];
-      const reindexed: Record<number, Product | null> = {};
-      Object.keys(newState).forEach((key) => {
-        const oldIndex = parseInt(key);
-        if (oldIndex > index) {
-          reindexed[oldIndex - 1] = newState[oldIndex];
-        } else if (oldIndex < index) {
-          reindexed[oldIndex] = newState[oldIndex];
-        }
-      });
-      return reindexed;
-    });
   };
 
   const updateItem = (
     index: number,
-    field: keyof SupportDocumentItem,
+    field: keyof SimpleItem,
     value: string | number
   ) => {
     setFormData((prev) => ({
@@ -365,14 +210,6 @@ export default function SupportDocumentForm({
         return newErrors;
       });
     }
-  };
-
-  const calculateItemTotal = (index: number) => {
-    const item = formData.items[index];
-    const quantity = item.quantity || 0;
-    const totalPriceWithTaxes = parseFloat(item.totalPriceWithTaxes) || 0;
-    const total = (quantity * totalPriceWithTaxes).toFixed(2);
-    updateItem(index, "total", total);
   };
 
   return (
@@ -775,229 +612,11 @@ export default function SupportDocumentForm({
                   </button>
                 </div>
 
-                {/* Product Selector */}
-                <div style={{ marginBottom: "1rem", position: "relative" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      marginBottom: "0.5rem",
-                      fontWeight: "500",
-                      color: "var(--color-text-primary)",
-                      fontSize: "0.875rem",
-                    }}
-                  >
-                    Seleccionar Producto
-                  </label>
-                  <div style={{ position: "relative" }}>
-                    <input
-                      type="text"
-                      value={itemProductSearch[index] || ""}
-                      onChange={(e) => {
-                        setItemProductSearch((prev) => ({
-                          ...prev,
-                          [index]: e.target.value,
-                        }));
-                      }}
-                      onFocus={() => {
-                        if (!itemProductSearch[index]) {
-                          setItemProductSearch((prev) => ({
-                            ...prev,
-                            [index]: "",
-                          }));
-                        }
-                      }}
-                      placeholder={
-                        productsLoading
-                          ? "Cargando productos..."
-                          : "Buscar y seleccionar un producto"
-                      }
-                      disabled={productsLoading}
-                      style={{
-                        width: "100%",
-                        padding: "0.5rem",
-                        border: "1px solid var(--color-border)",
-                        borderRadius: "var(--radius-sm)",
-                        fontSize: "0.875rem",
-                        boxSizing: "border-box",
-                        backgroundColor: "var(--color-surface)",
-                        color: "var(--color-text-primary)",
-                      }}
-                    />
-                    {!itemSelectedProduct[index] &&
-                      itemProductSearch[index] !== undefined &&
-                      itemProductSearch[index] !== "" &&
-                      getFilteredProducts(index).length > 0 && (
-                        <div
-                          style={{
-                            position: "absolute",
-                            top: "100%",
-                            left: 0,
-                            right: 0,
-                            backgroundColor: "var(--color-surface)",
-                            border: "1px solid var(--color-border)",
-                            borderRadius: "var(--radius-sm)",
-                            maxHeight: "200px",
-                            overflowY: "auto",
-                            zIndex: 1000,
-                            marginTop: "0.25rem",
-                            boxShadow: "var(--shadow-lg)",
-                          }}
-                        >
-                          {getFilteredProducts(index).map((product) => (
-                            <div
-                              key={product.id}
-                              onClick={() =>
-                                handleProductSelect(index, product)
-                              }
-                              style={{
-                                padding: "0.75rem",
-                                cursor: "pointer",
-                                borderBottom: "1px solid var(--color-border)",
-                                transition:
-                                  "background-color var(--transition-fast)",
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor =
-                                  "var(--color-surface-hover)";
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor =
-                                  "var(--color-surface)";
-                              }}
-                            >
-                              <div
-                                style={{
-                                  fontWeight: "500",
-                                  fontSize: "0.875rem",
-                                  marginBottom: "0.25rem",
-                                  color: "var(--color-text-primary)",
-                                }}
-                              >
-                                {product.name}
-                              </div>
-                              <div
-                                style={{
-                                  fontSize: "0.75rem",
-                                  color: "var(--color-text-muted)",
-                                }}
-                              >
-                                SKU: {product.sku} | Price: $
-                                {product.unit_price}
-                                {product.description &&
-                                  ` | ${product.description.substring(0, 50)}${
-                                    product.description.length > 50 ? "..." : ""
-                                  }`}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                  </div>
-
-                  {itemSelectedProduct[index] && (
-                    <div
-                      style={{
-                        marginTop: "0.75rem",
-                        padding: "0.75rem",
-                        backgroundColor: "var(--color-primary-light)",
-                        borderRadius: "var(--radius-sm)",
-                        border: "1px solid var(--color-primary)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          marginBottom: "0.5rem",
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontSize: "0.875rem",
-                            fontWeight: "500",
-                            color: "var(--color-primary)",
-                          }}
-                        >
-                          Producto Seleccionado:
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleClearProduct(index)}
-                          style={{
-                            padding: "0.25rem 0.5rem",
-                            backgroundColor: "var(--color-danger)",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "var(--radius-sm)",
-                            cursor: "pointer",
-                            fontSize: "0.75rem",
-                          }}
-                          title="Limpiar selección de producto"
-                        >
-                          Limpiar
-                        </button>
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "0.875rem",
-                          lineHeight: "1.6",
-                          color: "var(--color-text-primary)",
-                        }}
-                      >
-                        <div>
-                          <strong>Name:</strong>{" "}
-                          {itemSelectedProduct[index]!.name}
-                        </div>
-                        <div>
-                          <strong>SKU:</strong>{" "}
-                          {itemSelectedProduct[index]!.sku}
-                        </div>
-                        <div>
-                          <strong>Unit Price with Taxes:</strong> $
-                          {itemSelectedProduct[index]!.total_price_with_taxes}
-                        </div>
-                        {itemSelectedProduct[index]!.description && (
-                          <div>
-                            <strong>Description:</strong>{" "}
-                            {itemSelectedProduct[index]!.description}
-                          </div>
-                        )}
-                        {itemSelectedProduct[index]!.brand && (
-                          <div>
-                            <strong>Brand:</strong>{" "}
-                            {itemSelectedProduct[index]!.brand}
-                          </div>
-                        )}
-                        {itemSelectedProduct[index]!.model && (
-                          <div>
-                            <strong>Model:</strong>{" "}
-                            {itemSelectedProduct[index]!.model}
-                          </div>
-                        )}
-                        <div>
-                          <strong>Category:</strong>{" "}
-                          {itemSelectedProduct[index]!.category}
-                        </div>
-                        <div>
-                          <strong>IVA:</strong>{" "}
-                          {itemSelectedProduct[index]!.vat}%
-                        </div>
-                        <div>
-                          <strong>ICO:</strong>{" "}
-                          {itemSelectedProduct[index]!.ico}%
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "1fr 1fr 1fr",
+                    gridTemplateColumns: "100px 140px 1fr",
                     gap: "1rem",
-                    marginBottom: "1rem",
                   }}
                 >
                   <div>
@@ -1023,7 +642,6 @@ export default function SupportDocumentForm({
                             ? 0
                             : parseInt(e.target.value, 10) || 0;
                         updateItem(index, "quantity", numValue);
-                        calculateItemTotal(index);
                       }}
                       style={{
                         width: "100%",
@@ -1063,57 +681,37 @@ export default function SupportDocumentForm({
                         fontSize: "0.875rem",
                       }}
                     >
-                      Precio Total con Impuestos *{" "}
-                      {itemSelectedProduct[index] && (
-                        <span
-                          style={{
-                            fontSize: "0.75rem",
-                            color: "var(--color-text-muted)",
-                            fontWeight: "normal",
-                          }}
-                        >
-                          (del producto)
-                        </span>
-                      )}
+                      Precio *
                     </label>
                     <input
-                      type="text"
-                      value={item.totalPriceWithTaxes}
-                      onChange={
-                        itemSelectedProduct[index]
-                          ? undefined
-                          : (e) => {
-                              updateItem(
-                                index,
-                                "totalPriceWithTaxes",
-                                e.target.value
-                              );
-                              calculateItemTotal(index);
-                            }
-                      }
-                      readOnly={!!itemSelectedProduct[index]}
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={item.price || ""}
+                      onChange={(e) => {
+                        const numValue =
+                          e.target.value === ""
+                            ? 0
+                            : parseFloat(e.target.value) || 0;
+                        updateItem(index, "price", numValue);
+                      }}
                       style={{
                         width: "100%",
                         padding: "0.5rem",
                         border: `1px solid ${
-                          errors[`items.${index}.totalPriceWithTaxes`]
+                          errors[`items.${index}.price`]
                             ? "var(--color-danger)"
                             : "var(--color-border)"
                         }`,
                         borderRadius: "var(--radius-sm)",
                         fontSize: "0.875rem",
                         boxSizing: "border-box",
-                        backgroundColor: itemSelectedProduct[index]
-                          ? "var(--color-surface-hover)"
-                          : "var(--color-surface)",
+                        backgroundColor: "var(--color-surface)",
                         color: "var(--color-text-primary)",
-                        cursor: itemSelectedProduct[index]
-                          ? "not-allowed"
-                          : "text",
                       }}
                       placeholder="0.00"
                     />
-                    {errors[`items.${index}.totalPriceWithTaxes`] && (
+                    {errors[`items.${index}.price`] && (
                       <p
                         style={{
                           margin: "0.25rem 0 0 0",
@@ -1121,7 +719,7 @@ export default function SupportDocumentForm({
                           fontSize: "0.75rem",
                         }}
                       >
-                        {errors[`items.${index}.totalPriceWithTaxes`]}
+                        {errors[`items.${index}.price`]}
                       </p>
                     )}
                   </div>
@@ -1135,241 +733,41 @@ export default function SupportDocumentForm({
                         fontSize: "0.875rem",
                       }}
                     >
-                      Total
+                      Descripción *
                     </label>
                     <input
                       type="text"
-                      value={item.total}
-                      readOnly
+                      value={item.description}
+                      onChange={(e) =>
+                        updateItem(index, "description", e.target.value)
+                      }
                       style={{
                         width: "100%",
                         padding: "0.5rem",
-                        border: "1px solid var(--color-border)",
+                        border: `1px solid ${
+                          errors[`items.${index}.description`]
+                            ? "var(--color-danger)"
+                            : "var(--color-border)"
+                        }`,
                         borderRadius: "var(--radius-sm)",
                         fontSize: "0.875rem",
                         boxSizing: "border-box",
-                        backgroundColor: "var(--color-surface-hover)",
+                        backgroundColor: "var(--color-surface)",
                         color: "var(--color-text-primary)",
                       }}
+                      placeholder="Ingresa la descripción del artículo"
                     />
-                  </div>
-                </div>
-                <div style={{ marginBottom: "1rem" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      marginBottom: "0.5rem",
-                      fontWeight: "500",
-                      color: "var(--color-text-primary)",
-                      fontSize: "0.875rem",
-                    }}
-                  >
-                    Descripción *{" "}
-                    {itemSelectedProduct[index] && (
-                      <span
+                    {errors[`items.${index}.description`] && (
+                      <p
                         style={{
+                          margin: "0.25rem 0 0 0",
+                          color: "var(--color-danger)",
                           fontSize: "0.75rem",
-                          color: "var(--color-text-muted)",
-                          fontWeight: "normal",
                         }}
                       >
-                        (del producto)
-                      </span>
+                        {errors[`items.${index}.description`]}
+                      </p>
                     )}
-                  </label>
-                  <input
-                    type="text"
-                    value={item.description}
-                    onChange={(e) =>
-                      updateItem(index, "description", e.target.value)
-                    }
-                    readOnly={!!itemSelectedProduct[index]}
-                    style={{
-                      width: "100%",
-                      padding: "0.5rem",
-                      border: `1px solid ${
-                        errors[`items.${index}.description`]
-                          ? "var(--color-danger)"
-                          : "var(--color-border)"
-                      }`,
-                      borderRadius: "var(--radius-sm)",
-                      fontSize: "0.875rem",
-                      boxSizing: "border-box",
-                      backgroundColor: itemSelectedProduct[index]
-                        ? "var(--color-surface-hover)"
-                        : "var(--color-surface)",
-                      color: "var(--color-text-primary)",
-                    }}
-                    placeholder="Ingresa la descripción del artículo"
-                  />
-                  {errors[`items.${index}.description`] && (
-                    <p
-                      style={{
-                        margin: "0.25rem 0 0 0",
-                        color: "var(--color-danger)",
-                        fontSize: "0.75rem",
-                      }}
-                    >
-                      {errors[`items.${index}.description`]}
-                    </p>
-                  )}
-                </div>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr 1fr",
-                    gap: "1rem",
-                  }}
-                >
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        marginBottom: "0.5rem",
-                        fontWeight: "500",
-                        color: "var(--color-text-primary)",
-                        fontSize: "0.875rem",
-                      }}
-                    >
-                      Marca{" "}
-                      {itemSelectedProduct[index] && (
-                        <span
-                          style={{
-                            fontSize: "0.75rem",
-                            color: "var(--color-text-muted)",
-                            fontWeight: "normal",
-                          }}
-                        >
-                          (del producto)
-                        </span>
-                      )}
-                    </label>
-                    <input
-                      type="text"
-                      value={item.brand}
-                      onChange={
-                        itemSelectedProduct[index]
-                          ? undefined
-                          : (e) => updateItem(index, "brand", e.target.value)
-                      }
-                      readOnly={!!itemSelectedProduct[index]}
-                      style={{
-                        width: "100%",
-                        padding: "0.5rem",
-                        border: "1px solid var(--color-border)",
-                        borderRadius: "var(--radius-sm)",
-                        fontSize: "0.875rem",
-                        boxSizing: "border-box",
-                        backgroundColor: itemSelectedProduct[index]
-                          ? "var(--color-surface-hover)"
-                          : "var(--color-surface)",
-                        color: "var(--color-text-primary)",
-                        cursor: itemSelectedProduct[index]
-                          ? "not-allowed"
-                          : "text",
-                      }}
-                      placeholder="Ingresa la marca"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        marginBottom: "0.5rem",
-                        fontWeight: "500",
-                        color: "var(--color-text-primary)",
-                        fontSize: "0.875rem",
-                      }}
-                    >
-                      Modelo{" "}
-                      {itemSelectedProduct[index] && (
-                        <span
-                          style={{
-                            fontSize: "0.75rem",
-                            color: "var(--color-text-muted)",
-                            fontWeight: "normal",
-                          }}
-                        >
-                          (del producto)
-                        </span>
-                      )}
-                    </label>
-                    <input
-                      type="text"
-                      value={item.model}
-                      onChange={
-                        itemSelectedProduct[index]
-                          ? undefined
-                          : (e) => updateItem(index, "model", e.target.value)
-                      }
-                      readOnly={!!itemSelectedProduct[index]}
-                      style={{
-                        width: "100%",
-                        padding: "0.5rem",
-                        border: "1px solid var(--color-border)",
-                        borderRadius: "var(--radius-sm)",
-                        fontSize: "0.875rem",
-                        boxSizing: "border-box",
-                        backgroundColor: itemSelectedProduct[index]
-                          ? "var(--color-surface-hover)"
-                          : "var(--color-surface)",
-                        color: "var(--color-text-primary)",
-                        cursor: itemSelectedProduct[index]
-                          ? "not-allowed"
-                          : "text",
-                      }}
-                      placeholder="Ingresa el modelo"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        marginBottom: "0.5rem",
-                        fontWeight: "500",
-                        color: "var(--color-text-primary)",
-                        fontSize: "0.875rem",
-                      }}
-                    >
-                      Código{" "}
-                      {itemSelectedProduct[index] && (
-                        <span
-                          style={{
-                            fontSize: "0.75rem",
-                            color: "var(--color-text-muted)",
-                            fontWeight: "normal",
-                          }}
-                        >
-                          (del producto)
-                        </span>
-                      )}
-                    </label>
-                    <input
-                      type="text"
-                      value={item.code}
-                      onChange={
-                        itemSelectedProduct[index]
-                          ? undefined
-                          : (e) => updateItem(index, "code", e.target.value)
-                      }
-                      readOnly={!!itemSelectedProduct[index]}
-                      style={{
-                        width: "100%",
-                        padding: "0.5rem",
-                        border: "1px solid var(--color-border)",
-                        borderRadius: "var(--radius-sm)",
-                        fontSize: "0.875rem",
-                        boxSizing: "border-box",
-                        backgroundColor: itemSelectedProduct[index]
-                          ? "var(--color-surface-hover)"
-                          : "var(--color-surface)",
-                        color: "var(--color-text-primary)",
-                        cursor: itemSelectedProduct[index]
-                          ? "not-allowed"
-                          : "text",
-                      }}
-                      placeholder="Ingresa el código"
-                    />
                   </div>
                 </div>
               </div>
@@ -1394,7 +792,7 @@ export default function SupportDocumentForm({
             </button>
           </div>
 
-          {/* Purchase Summary */}
+          {/* Summary */}
           <div
             style={{
               marginBottom: "2rem",
@@ -1413,7 +811,7 @@ export default function SupportDocumentForm({
                 color: "var(--color-text-primary)",
               }}
             >
-              Resumen de Compra
+              Resumen
             </h3>
             <div
               style={{
@@ -1602,12 +1000,13 @@ export default function SupportDocumentForm({
                   color: "var(--color-text-secondary)",
                 }}
               >
+
                 Estás a punto de crear un documento soporte por un valor total
                 de:
               </p>
               <p
                 style={{
-                  margin: "0 0 1.5rem 0",
+                  margin: "0 0 0.5rem 0",
                   fontSize: "2rem",
                   fontWeight: "700",
                   color: "var(--color-primary)",
@@ -1618,6 +1017,16 @@ export default function SupportDocumentForm({
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 })}
+              </p>
+              <p
+                style={{
+                  margin: "0 0 1.5rem 0",
+                  fontSize: "0.95rem",
+                  color: "var(--color-text-secondary)",
+                }}
+              >
+                Proveedor: <strong>{formData.provider.name}</strong> (
+                {formData.provider.id})
               </p>
               <div
                 style={{

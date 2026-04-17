@@ -16,21 +16,9 @@ export interface Provider {
 }
 
 export interface SupportDocumentItem {
-  product_id: string;
   quantity: number;
-  totalPriceWithTaxes: string;
-  total: string;
   description: string;
-  brand: string;
-  model: string;
-  code: string;
-  allowance?: {
-    charge: string;
-    reasonCode: string;
-    description: string;
-    baseAmount: string;
-    amount: string;
-  }[];
+  price: number;
 }
 
 export interface CreateSupportDocumentRequest {
