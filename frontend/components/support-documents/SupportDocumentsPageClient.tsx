@@ -618,7 +618,7 @@ export default function SupportDocumentsPageClient() {
                           color: "var(--color-text-primary)",
                         }}
                       >
-                        CUFE
+                        CUDS
                       </th>
                       <th
                         style={{
@@ -747,9 +747,9 @@ export default function SupportDocumentsPageClient() {
                             textOverflow: "ellipsis",
                             whiteSpace: "nowrap",
                           }}
-                          title={doc.cufe}
+                          title={doc.cuds}
                         >
-                          {doc.cufe}
+                          {doc.cuds}
                         </td>
                         <td
                           style={{

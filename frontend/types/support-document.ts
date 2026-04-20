@@ -42,7 +42,7 @@ export interface SupportDocumentListItem {
   vat: number;
   ico: number;
   tip: number;
-  cufe: string;
+  cuds: string;
   tascode: string;
   provider_document_number: string;
   provider_name: string;
