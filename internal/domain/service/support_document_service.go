@@ -175,7 +175,7 @@ func (s *SupportDocumentService) ExportSupportDocumentsCSV(ctx context.Context, 
 
 	headers := []string{
 		"Fecha de Creacion",
-		"CUFE",
+		"CUDS",
 		"Tascode",
 		"Proveedor NIT",
 		"Proveedor Nombre",
@@ -208,7 +208,7 @@ func (s *SupportDocumentService) ExportSupportDocumentsCSV(ctx context.Context, 
 
 		row := []string{
 			doc.CreatedAt.Format("2006-01-02 15:04:05"),
-			doc.CUFE,
+			doc.CUDS,
 			doc.Tascode,
 			doc.ProviderDocumentNumber,
 			doc.ProviderName,

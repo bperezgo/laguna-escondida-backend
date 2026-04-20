@@ -165,6 +165,28 @@ type invoiceDocument struct {
 	CUFE     string `json:"CUFE"`
 }
 
+type supportDocumentResponse struct {
+	InvoiceResult supportDocumentResult `json:"invoiceResult"`
+}
+
+type supportDocumentResult struct {
+	Status   invoiceStatus              `json:"status"`
+	Document supportDocumentResponseDoc `json:"document"`
+	Prefix   invoicePrefix              `json:"prefix"`
+}
+
+type supportDocumentResponseDoc struct {
+	Type     string `json:"type"`
+	Mode     string `json:"mode"`
+	Tascode  string `json:"tascode"`
+	IntID    string `json:"intID"`
+	Document string `json:"document"`
+	Process  int    `json:"process"`
+	Retries  int    `json:"retries"`
+	Customer string `json:"customer"`
+	CUDS     string `json:"CUDS"`
+}
+
 type verifyStatusRequest struct {
 	VerifyStatus verifyStatusData `json:"verifyStatus"`
 }
@@ -389,7 +411,7 @@ type invoiceSupplier struct {
 func (c *ElectronicInvoiceClient) CreateSupportDocument(
 	ctx context.Context,
 	createReq *dto.CreateSupportDocumentRequest,
-) (res *dto.CreateElectronicInvoiceResponse, err error) {
+) (res *dto.CreateSupportDocumentResponse, err error) {
 	loc, locErr := time.LoadLocation("America/Bogota")
 	if locErr != nil {
 		loc = time.FixedZone("UTC-5", -5*60*60)
@@ -499,18 +521,18 @@ func (c *ElectronicInvoiceClient) CreateSupportDocument(
 		return nil, fmt.Errorf("support document API returned status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var invoiceResp invoiceResponse
-	if err := json.Unmarshal(body, &invoiceResp); err != nil {
+	var sdResp supportDocumentResponse
+	if err := json.Unmarshal(body, &sdResp); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
-	if invoiceResp.InvoiceResult.Status.Code != 200 {
-		return nil, fmt.Errorf("support document API error: %s", invoiceResp.InvoiceResult.Status.Text)
+	if sdResp.InvoiceResult.Status.Code != 200 {
+		return nil, fmt.Errorf("support document API error: %s", sdResp.InvoiceResult.Status.Text)
 	}
 
-	return &dto.CreateElectronicInvoiceResponse{
-		Tascode: invoiceResp.InvoiceResult.Document.Tascode,
-		CUFE:    invoiceResp.InvoiceResult.Document.CUFE,
+	return &dto.CreateSupportDocumentResponse{
+		Tascode: sdResp.InvoiceResult.Document.Tascode,
+		CUDS:    sdResp.InvoiceResult.Document.CUDS,
 	}, nil
 }
 

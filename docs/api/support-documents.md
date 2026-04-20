@@ -118,7 +118,7 @@ Returns a paginated list of support documents.
       "vat": "9500.0000",
       "ico": "0.0000",
       "tip": "0.0000",
-      "cufe": "abc123...",
+      "cuds": "abc123...",
       "tascode": "TAS-12345",
       "provider_document_number": "900123456",
       "provider_name": "Proveedor Ejemplo S.A.S",
@@ -153,7 +153,7 @@ Exports support documents as a CSV file.
 ### Response
 
 Returns a CSV file with headers:
-`Fecha de Creacion, CUFE, Tascode, Proveedor NIT, Proveedor Nombre, Total, Descuento, VAT, ICO, Propina, URL Documento, URL PDF, URL XML`
+`Fecha de Creacion, CUDS, Tascode, Proveedor NIT, Proveedor Nombre, Total, Descuento, VAT, ICO, Propina, URL Documento, URL PDF, URL XML`
 
 ---
 

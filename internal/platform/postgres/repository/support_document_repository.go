@@ -29,7 +29,7 @@ type supportDocumentModel struct {
 	DocumentURL            *string         `gorm:"type:text"`
 	PDFStoragePath         *string         `gorm:"type:text;column:pdf_storage_path"`
 	XMLStoragePath         *string         `gorm:"type:text;column:xml_storage_path"`
-	CUFE                   *string         `gorm:"type:varchar(255)"`
+	CUDS                   *string         `gorm:"type:varchar(255);column:cuds"`
 	Tascode                *string         `gorm:"type:varchar(255)"`
 	CreatedAt              time.Time       `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
 	UpdatedAt              time.Time       `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
@@ -88,7 +88,7 @@ func (r *SupportDocumentRepository) Create(ctx context.Context, doc *support_doc
 
 	docDTO := doc.ToDTO()
 
-	var response *dto.CreateElectronicInvoiceResponse
+	var response *dto.CreateSupportDocumentResponse
 	db := postgres.GetTxOrDB(ctx, r.db)
 	err = db.Transaction(func(tx *gorm.DB) error {
 		model := &supportDocumentModel{
@@ -149,7 +149,7 @@ func (r *SupportDocumentRepository) Create(ctx context.Context, doc *support_doc
 		if err := db.Model(&supportDocumentModel{}).
 			Where("id = ?", docDTO.ID).
 			Updates(map[string]any{
-				"cufe":    response.CUFE,
+				"cuds":    response.CUDS,
 				"tascode": response.Tascode,
 			}).Error; err != nil {
 			return err
@@ -190,9 +190,9 @@ func (r *SupportDocumentRepository) FindByCriteria(ctx context.Context, criteria
 
 	items := make([]dto.SupportDocumentListItem, len(docs))
 	for i, doc := range docs {
-		cufe := ""
-		if doc.CUFE != nil {
-			cufe = *doc.CUFE
+		cuds := ""
+		if doc.CUDS != nil {
+			cuds = *doc.CUDS
 		}
 		tascode := ""
 		if doc.Tascode != nil {
@@ -207,7 +207,7 @@ func (r *SupportDocumentRepository) FindByCriteria(ctx context.Context, criteria
 			ICO:                    doc.ICO,
 			Tip:                    doc.Tip,
 			DocumentURL:            doc.DocumentURL,
-			CUFE:                   cufe,
+			CUDS:                   cuds,
 			Tascode:                tascode,
 			ProviderDocumentNumber: doc.ProviderDocumentNumber,
 			ProviderName:           doc.ProviderName,
@@ -242,9 +242,9 @@ func (r *SupportDocumentRepository) FindAllByCriteria(ctx context.Context, crite
 
 	items := make([]dto.SupportDocumentListItem, len(docs))
 	for i, doc := range docs {
-		cufe := ""
-		if doc.CUFE != nil {
-			cufe = *doc.CUFE
+		cuds := ""
+		if doc.CUDS != nil {
+			cuds = *doc.CUDS
 		}
 		tascode := ""
 		if doc.Tascode != nil {
@@ -259,7 +259,7 @@ func (r *SupportDocumentRepository) FindAllByCriteria(ctx context.Context, crite
 			ICO:                    doc.ICO,
 			Tip:                    doc.Tip,
 			DocumentURL:            doc.DocumentURL,
-			CUFE:                   cufe,
+			CUDS:                   cuds,
 			Tascode:                tascode,
 			ProviderDocumentNumber: doc.ProviderDocumentNumber,
 			ProviderName:           doc.ProviderName,

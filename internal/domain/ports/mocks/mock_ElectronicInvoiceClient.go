@@ -82,23 +82,23 @@ func (_c *MockElectronicInvoiceClient_Create_Call) RunAndReturn(run func(context
 }
 
 // CreateSupportDocument provides a mock function with given fields: ctx, req
-func (_m *MockElectronicInvoiceClient) CreateSupportDocument(ctx context.Context, req *dto.CreateSupportDocumentRequest) (*dto.CreateElectronicInvoiceResponse, error) {
+func (_m *MockElectronicInvoiceClient) CreateSupportDocument(ctx context.Context, req *dto.CreateSupportDocumentRequest) (*dto.CreateSupportDocumentResponse, error) {
 	ret := _m.Called(ctx, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateSupportDocument")
 	}
 
-	var r0 *dto.CreateElectronicInvoiceResponse
+	var r0 *dto.CreateSupportDocumentResponse
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *dto.CreateSupportDocumentRequest) (*dto.CreateElectronicInvoiceResponse, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *dto.CreateSupportDocumentRequest) (*dto.CreateSupportDocumentResponse, error)); ok {
 		return rf(ctx, req)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *dto.CreateSupportDocumentRequest) *dto.CreateElectronicInvoiceResponse); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *dto.CreateSupportDocumentRequest) *dto.CreateSupportDocumentResponse); ok {
 		r0 = rf(ctx, req)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*dto.CreateElectronicInvoiceResponse)
+			r0 = ret.Get(0).(*dto.CreateSupportDocumentResponse)
 		}
 	}
 
@@ -130,12 +130,12 @@ func (_c *MockElectronicInvoiceClient_CreateSupportDocument_Call) Run(run func(c
 	return _c
 }
 
-func (_c *MockElectronicInvoiceClient_CreateSupportDocument_Call) Return(_a0 *dto.CreateElectronicInvoiceResponse, _a1 error) *MockElectronicInvoiceClient_CreateSupportDocument_Call {
+func (_c *MockElectronicInvoiceClient_CreateSupportDocument_Call) Return(_a0 *dto.CreateSupportDocumentResponse, _a1 error) *MockElectronicInvoiceClient_CreateSupportDocument_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockElectronicInvoiceClient_CreateSupportDocument_Call) RunAndReturn(run func(context.Context, *dto.CreateSupportDocumentRequest) (*dto.CreateElectronicInvoiceResponse, error)) *MockElectronicInvoiceClient_CreateSupportDocument_Call {
+func (_c *MockElectronicInvoiceClient_CreateSupportDocument_Call) RunAndReturn(run func(context.Context, *dto.CreateSupportDocumentRequest) (*dto.CreateSupportDocumentResponse, error)) *MockElectronicInvoiceClient_CreateSupportDocument_Call {
 	_c.Call.Return(run)
 	return _c
 }

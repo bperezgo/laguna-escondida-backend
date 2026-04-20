@@ -50,6 +50,11 @@ type CreateSupportDocumentRequest struct {
 	Bill        *SupportDocumentBill
 }
 
+type CreateSupportDocumentResponse struct {
+	Tascode string
+	CUDS    string
+}
+
 type SupportDocumentListItem struct {
 	ID                     string          `json:"id"`
 	TotalAmount            decimal.Decimal `json:"total_amount"`
@@ -58,7 +63,7 @@ type SupportDocumentListItem struct {
 	ICO                    decimal.Decimal `json:"ico"`
 	Tip                    decimal.Decimal `json:"tip"`
 	DocumentURL            *string         `json:"document_url,omitempty"`
-	CUFE                   string          `json:"cufe"`
+	CUDS                   string          `json:"cuds"`
 	Tascode                string          `json:"tascode"`
 	ProviderDocumentNumber string          `json:"provider_document_number"`
 	ProviderName           string          `json:"provider_name"`
