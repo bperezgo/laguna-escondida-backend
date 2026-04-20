@@ -171,7 +171,7 @@ type supportDocumentResponse struct {
 
 type supportDocumentResult struct {
 	Status   invoiceStatus              `json:"status"`
-	Document supportDocumentResponseDoc `json:"document"`
+	Document supportDocumentResponseDoc `json:"documento"`
 	Prefix   invoicePrefix              `json:"prefix"`
 }
 
@@ -181,9 +181,6 @@ type supportDocumentResponseDoc struct {
 	Tascode  string `json:"tascode"`
 	IntID    string `json:"intID"`
 	Document string `json:"document"`
-	Process  int    `json:"process"`
-	Retries  int    `json:"retries"`
-	Customer string `json:"customer"`
 	CUDS     string `json:"CUDS"`
 }
 

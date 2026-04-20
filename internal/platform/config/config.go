@@ -18,6 +18,8 @@ type Config struct {
 	SpacesSecret              string
 	SpacesBucket              string
 	OrganizationID            string
+	InvoiceURLCron            string
+	SupportDocumentURLCron    string
 }
 
 func NewConfig() (*Config, error) {
@@ -73,6 +75,16 @@ func NewConfig() (*Config, error) {
 		return nil, errors.New("ORGANIZATION_ID is not set")
 	}
 
+	invoiceURLCron := os.Getenv("INVOICE_URL_CRON")
+	if invoiceURLCron == "" {
+		invoiceURLCron = "0 * * * *"
+	}
+
+	supportDocumentURLCron := os.Getenv("SUPPORT_DOCUMENT_URL_CRON")
+	if supportDocumentURLCron == "" {
+		supportDocumentURLCron = "30 * * * *"
+	}
+
 	return &Config{
 		ElectronicInvoiceURL:      url,
 		ElectronicInvoiceUser:     user,
@@ -86,5 +98,7 @@ func NewConfig() (*Config, error) {
 		SpacesSecret:              spacesSecret,
 		SpacesBucket:              spacesBucket,
 		OrganizationID:            organizationID,
+		InvoiceURLCron:            invoiceURLCron,
+		SupportDocumentURLCron:    supportDocumentURLCron,
 	}, nil
 }

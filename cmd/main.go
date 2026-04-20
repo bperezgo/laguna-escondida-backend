@@ -253,7 +253,7 @@ func main() {
 	}()
 
 	// Initialize and start cron scheduler
-	cronScheduler, err := cron.NewScheduler(invoiceService, supportDocService, logger)
+	cronScheduler, err := cron.NewScheduler(invoiceService, supportDocService, cfg.InvoiceURLCron, cfg.SupportDocumentURLCron, logger)
 	if err != nil {
 		log.Fatalf("Failed to create cron scheduler: %v", err)
 	}

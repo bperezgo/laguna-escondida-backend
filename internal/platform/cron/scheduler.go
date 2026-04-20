@@ -13,10 +13,12 @@ type Scheduler struct {
 	scheduler              gocron.Scheduler
 	invoiceService         *service.InvoiceService
 	supportDocumentService *service.SupportDocumentService
+	invoiceCron            string
+	supportDocumentCron    string
 	logger                 *zap.Logger
 }
 
-func NewScheduler(invoiceService *service.InvoiceService, supportDocumentService *service.SupportDocumentService, logger *zap.Logger) (*Scheduler, error) {
+func NewScheduler(invoiceService *service.InvoiceService, supportDocumentService *service.SupportDocumentService, invoiceCron string, supportDocumentCron string, logger *zap.Logger) (*Scheduler, error) {
 	scheduler, err := gocron.NewScheduler()
 	if err != nil {
 		return nil, err
@@ -26,6 +28,8 @@ func NewScheduler(invoiceService *service.InvoiceService, supportDocumentService
 		scheduler:              scheduler,
 		invoiceService:         invoiceService,
 		supportDocumentService: supportDocumentService,
+		invoiceCron:            invoiceCron,
+		supportDocumentCron:    supportDocumentCron,
 		logger:                 logger,
 	}, nil
 }
@@ -46,7 +50,7 @@ func (s *Scheduler) Stop() error {
 
 func (s *Scheduler) registerJobs() error {
 	_, err := s.scheduler.NewJob(
-		gocron.CronJob("0 * * * *", false),
+		gocron.CronJob(s.invoiceCron, false),
 		gocron.NewTask(s.updateMissingDocumentURLsJob),
 	)
 	if err != nil {
@@ -54,10 +58,10 @@ func (s *Scheduler) registerJobs() error {
 		return err
 	}
 
-	s.logger.Info("Registered cron job: updateMissingDocumentURLs (runs every hour at minute 0)")
+	s.logger.Info("Registered cron job: updateMissingDocumentURLs", zap.String("cron", s.invoiceCron))
 
 	_, err = s.scheduler.NewJob(
-		gocron.CronJob("30 * * * *", false),
+		gocron.CronJob(s.supportDocumentCron, false),
 		gocron.NewTask(s.updateMissingSupportDocumentURLsJob),
 	)
 	if err != nil {
@@ -65,7 +69,7 @@ func (s *Scheduler) registerJobs() error {
 		return err
 	}
 
-	s.logger.Info("Registered cron job: updateMissingSupportDocumentURLs (runs every hour at minute 30)")
+	s.logger.Info("Registered cron job: updateMissingSupportDocumentURLs", zap.String("cron", s.supportDocumentCron))
 	return nil
 }
 
