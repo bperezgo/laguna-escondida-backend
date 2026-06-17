@@ -5,7 +5,7 @@
       "name": "Debug Next.js (Frontend + API Routes)",
       "type": "node",
       "request": "launch",
-      "runtimeExecutable": "npm",
+      "runtimeExecutable": "pnpm",
       "runtimeArgs": ["run", "dev:debug"],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen",
