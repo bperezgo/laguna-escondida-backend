@@ -18,6 +18,47 @@ services:
     networks:
       - laguna-network
 
+  # Local S3-compatible storage to mock DigitalOcean Spaces.
+  # S3 API on :9000, web console on http://localhost:9001 (minioadmin / minioadmin).
+  minio:
+    image: minio/minio:latest
+    container_name: laguna-escondida-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${SPACES_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${SPACES_SECRET:-minioadmin}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - ./minio_data:/data
+    networks:
+      - laguna-network
+
+  # One-shot init: waits for MinIO, creates the bucket and makes objects
+  # publicly readable (so GetPublicURL works like the public Spaces bucket).
+  createbuckets:
+    image: minio/mc:latest
+    container_name: laguna-escondida-createbuckets
+    depends_on:
+      - minio
+    environment:
+      SPACES_KEY: ${SPACES_KEY:-minioadmin}
+      SPACES_SECRET: ${SPACES_SECRET:-minioadmin}
+      SPACES_BUCKET: ${SPACES_BUCKET:-laguna-escondida}
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 \"$$SPACES_KEY\" \"$$SPACES_SECRET\"; do
+        echo 'Waiting for MinIO to be ready...'; sleep 1;
+      done;
+      mc mb --ignore-existing local/\"$$SPACES_BUCKET\";
+      mc anonymous set download local/\"$$SPACES_BUCKET\";
+      echo 'Bucket ready.';
+      exit 0;
+      "
+    networks:
+      - laguna-network
+
   # backend:
   #   build:
   #     context: .

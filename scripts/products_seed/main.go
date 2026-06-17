@@ -26,6 +26,8 @@ type LoginResponse struct {
 type CreateProductRequest struct {
 	Name                string  `json:"name"`
 	Category            string  `json:"category"`
+	ProductType         string  `json:"product_type"`
+	UnitOfMeasure       string  `json:"unit_of_measure"`
 	VAT                 string  `json:"vat"`
 	ICO                 string  `json:"ico"`
 	TaxesFormat         string  `json:"taxes_format"`
@@ -43,6 +45,8 @@ type ProductRecord struct {
 	ICO                 string
 	Description         string
 	SKU                 string
+	ProductType         string
+	UnitOfMeasure       string
 }
 
 func main() {
@@ -87,11 +91,13 @@ func main() {
 
 	reader := csv.NewReader(file)
 
-	// Read header
+	// Read header and build a column-name -> index map so the script is
+	// resilient to column ordering and added columns in the CSV.
 	header, err := reader.Read()
 	if err != nil {
 		log.Fatalf("Failed to read CSV header: %v", err)
 	}
+	cols := buildColumnIndex(header)
 
 	log.Printf("CSV Header: %v\n", header)
 	log.Println("Starting product creation...")
@@ -117,7 +123,7 @@ func main() {
 		lineNumber++
 
 		// Parse record
-		productRecord := parseRecord(record)
+		productRecord := parseRecord(record, cols)
 
 		// Skip if no total price (empty records)
 		if productRecord.TotalPriceWithTaxes == "" || productRecord.TotalPriceWithTaxes == "0" {
@@ -148,31 +154,54 @@ func main() {
 	log.Println("=============================")
 }
 
-func parseRecord(record []string) ProductRecord {
-	// CSV columns: name,category,total_price_with_taxes,unit_price,vat,ico,description,sku
+func buildColumnIndex(header []string) map[string]int {
+	cols := make(map[string]int, len(header))
+	for i, name := range header {
+		cols[strings.ToLower(strings.TrimSpace(name))] = i
+	}
+	return cols
+}
+
+func parseRecord(record []string, cols map[string]int) ProductRecord {
 	return ProductRecord{
-		Name:                getField(record, 0),
-		Category:            getField(record, 1),
-		TotalPriceWithTaxes: getField(record, 2),
-		UnitPrice:           getField(record, 3),
-		VAT:                 getField(record, 4),
-		ICO:                 getField(record, 5),
-		Description:         getField(record, 6),
-		SKU:                 getField(record, 7),
+		Name:                getField(record, cols, "name"),
+		Category:            getField(record, cols, "category"),
+		TotalPriceWithTaxes: getField(record, cols, "total_price_with_taxes"),
+		UnitPrice:           getField(record, cols, "unit_price"),
+		VAT:                 getField(record, cols, "vat"),
+		ICO:                 getField(record, cols, "ico"),
+		Description:         getField(record, cols, "description"),
+		SKU:                 getField(record, cols, "sku"),
+		ProductType:         getField(record, cols, "product_type"),
+		UnitOfMeasure:       getField(record, cols, "unit_of_measure"),
 	}
 }
 
-func getField(record []string, index int) string {
-	if index >= len(record) {
+func getField(record []string, cols map[string]int, name string) string {
+	index, ok := cols[name]
+	if !ok || index < 0 || index >= len(record) {
 		return ""
 	}
 	return strings.TrimSpace(record[index])
 }
 
 func createProductRequest(record ProductRecord) *CreateProductRequest {
+	// All seeded products are sellable, single-unit items unless the CSV
+	// specifies otherwise, so default the API-required fields accordingly.
+	productType := record.ProductType
+	if productType == "" {
+		productType = "SELLABLE"
+	}
+	unitOfMeasure := record.UnitOfMeasure
+	if unitOfMeasure == "" {
+		unitOfMeasure = "unit"
+	}
+
 	req := &CreateProductRequest{
 		Name:                record.Name,
 		Category:            record.Category,
+		ProductType:         productType,
+		UnitOfMeasure:       unitOfMeasure,
 		VAT:                 convertPercentageToDecimal(record.VAT),
 		ICO:                 convertPercentageToDecimal(record.ICO),
 		TaxesFormat:         "percentage",

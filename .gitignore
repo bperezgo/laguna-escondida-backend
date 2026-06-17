@@ -23,6 +23,9 @@ go.work
 # Postgres data
 postgres_data/
 
+# MinIO data
+minio_data/
+
 __debug_bin*
 
 ./main

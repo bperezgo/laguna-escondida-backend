@@ -14,6 +14,7 @@ type Config struct {
 	AdminAPIKey               string
 	JWTSecret                 string
 	SpacesRegion              string
+	SpacesEndpoint            string
 	SpacesKey                 string
 	SpacesSecret              string
 	SpacesBucket              string
@@ -58,6 +59,10 @@ func NewConfig() (*Config, error) {
 	if spacesRegion == "" {
 		return nil, errors.New("SPACES_REGION is not set")
 	}
+
+	// SPACES_ENDPOINT is optional: when set (e.g. http://localhost:9000 for a
+	// local MinIO), it overrides the default DigitalOcean Spaces endpoint.
+	spacesEndpoint := os.Getenv("SPACES_ENDPOINT")
 	spacesKey := os.Getenv("SPACES_KEY")
 	if spacesKey == "" {
 		return nil, errors.New("SPACES_KEY is not set")
@@ -94,6 +99,7 @@ func NewConfig() (*Config, error) {
 		AdminAPIKey:               adminAPIKey,
 		JWTSecret:                 jwtSecret,
 		SpacesRegion:              spacesRegion,
+		SpacesEndpoint:            spacesEndpoint,
 		SpacesKey:                 spacesKey,
 		SpacesSecret:              spacesSecret,
 		SpacesBucket:              spacesBucket,

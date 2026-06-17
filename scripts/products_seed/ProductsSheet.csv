@@ -1,122 +1,122 @@
-name,category,total_price_with_taxes,unit_price,vat,ico,description,brand,model,sku
-Cerveza Redds lata 269ml,Bebida,7000,6481.48,0%,8.00%,Cerveza Redds lata 269ml,bar,bar,BAR-CERVEZA-REDDS-LATA-269ML
-Tutifrutit,Bebida,5000,4629.63,0%,8.00%,Tutifrutit,snacks,snacks,BAR-TUTIFRUTIT
-Gaseosa Postobón,Bebida,5000,4629.63,0%,8.00%,Gaseosa Postobón,snacks,snacks,BAR-GASEOSA-POSTOBON
-Soda Bretaña,Bebida,5000,4629.63,0%,8.00%,Soda Bretaña,snacks,snacks,BAR-SODA-BRETANA
-Gaseosa Cocacola,Bebida,5000,4629.63,0%,8.00%,Gaseosa Cocacola,snacks,snacks,BAR-GASEOSA-COCACOLA
-Cocacola Pet,Bebida,5000,4629.63,0%,8.00%,Cocacola Pet,snacks,snacks,BAR-COCACOLA-PET
-Cocacola 1 1/2 Litro,Bebida,12000,11111.11,0%,8.00%,Cocacola 1 1/2 Litro,snacks,snacks,BAR-COCACOLA-1500ML
-Postobón 1 1/2 Litro,Bebida,12000,11111.11,0%,8.00%,Postobón 1 1/2 Litro,snacks,snacks,BAR-POSTOBON-1500ML
-Electrolit,Bebida,7000,6481.48,0%,8.00%,Electrolit,snacks,snacks,BAR-ELECTROLIT
-Vive 100 Verde 380ml,Bebida,7000,6481.48,0%,8.00%,Vive 100 Verde 380ml,snacks,snacks,BAR-VIVE100-VERDE-380ML
-Vive 100 Azul 380ml,Bebida,7000,6481.48,0%,8.00%,Vive 100 Azul 380ml,snacks,snacks,BAR-VIVE100-AZUL-380ML
-Vive 100 Rojo 380ml,Bebida,7000,6481.48,0%,8.00%,Vive 100 Rojo 380ml,snacks,snacks,BAR-VIVE100-ROJO-380ML
-Malta mini,Bebida,4000,3703.70,0%,8.00%,Malta mini,snacks,snacks,BAR-MALTA-MINI
-Malta personal,Bebida,5000,4629.63,0%,8.00%,Malta personal,snacks,snacks,BAR-MALTA-PERSONAL
-Agua saborizada H20,Bebida,5000,4629.63,0%,8.00%,Agua saborizada H20,snacks,snacks,BAR-AGUA-SABORIZADA-H20
-Agua Cristal Personal 600ml,Bebida,3000,2777.78,0%,8.00%,Agua Cristal Personal 600ml,snacks,snacks,BAR-AGUA-CRISTAL-600ML
-Agua Brisa Personal 600ml,Bebida,3000,2777.78,0%,8.00%,Agua Brisa Personal 600ml,snacks,snacks,BAR-AGUA-BRISA-600ML
-Gatorade,Bebida,9000,8333.33,0%,8.00%,Gatorade,snacks,snacks,BAR-GATORADE
-Hit 500 ml,Bebida,5000,4629.63,0%,8.00%,Hit 500 ml,snacks,snacks,BAR-HIT-500ML
-Saviloe 420ml,Bebida,8000,7407.41,0%,8.00%,Saviloe 420ml,snacks,snacks,BAR-SAVILOE-420ML
-Cerveza Club Colombia Latón,Cerveza,9000,8333.33,0%,8.00%,Cerveza Club Colombia Latón,bar,bar,BAR-CERVEZA-CLUB-COLOMBIA-LATON
-Cerveza Pilsen Latón,Cerveza,9000,8333.33,0%,8.00%,Cerveza Pilsen Latón,bar,bar,BAR-CERVEZA-PILSEN-LATON
-Cerveza Aguila Latón,Cerveza,9000,8333.33,0%,8.00%,Cerveza Aguila Latón,bar,bar,BAR-CERVEZA-AGUILA-LATON
-Cerveza Aguila Light Latón,Cerveza,9000,8333.33,0%,8.00%,Cerveza Aguila Light Latón,bar,bar,BAR-CERVEZA-AGUILA-LIGHT-LATON
-Cerveza Redds,Cerveza,8000,7407.41,0%,8.00%,Cerveza Redds,bar,bar,BAR-CERVEZA-REDDS-BOTELLA
-Club Colombia 330ml,Cerveza,8000,7407.41,0%,8.00%,Club Colombia 330ml,bar,bar,BAR-CLUB-COLOMBIA-330ML
-Corona 330ml,Cerveza,10000,9259.26,0%,8.00%,Corona 330ml,bar,bar,BAR-CORONA-330ML
-Cerveza Poker 330ml,Cerveza,8000,7407.41,0%,8.00%,Cerveza Poker 330ml,bar,bar,BAR-CERVEZA-POKER-330ML
-Cerveza Aguila Light 330ml,Cerveza,8000,7407.41,0%,8.00%,Cerveza Aguila Light 330ml,bar,bar,BAR-CERVEZA-AGUILA-LIGHT-330ML
-Cerverza Aguila Negra 330ml,Cerveza,8000,7407.41,0%,8.00%,Cerverza Aguila Negra 330ml,bar,bar,BAR-CERVEZA-AGUILA-NEGRA-330ML
-Malta Vidrio,Bebida,5000,4629.63,0%,8.00%,Malta Vidrio,snacks,snacks,BAR-MALTA-VIDRIO
-Cola Y pola,Bebida,8000,7407.41,0%,8.00%,Cola Y pola,snacks,snacks,BAR-COLA-Y-POLA
-Cerveza Pilsen 330ml,Cerveza,8000,7407.41,0%,8.00%,Cerveza Pilsen 330ml,bar,bar,BAR-CERVEZA-PILSEN-330ML
-Caja Ron Medellín 1L Tetrapack,Licor,110000,101851.85,0%,8.00%,Caja Ron Medellín 1L Tetrapack,bar,bar,BAR-RON-MEDELLIN-1L-TETRAPACK
-Caja Tetra pack Aguardiente 1L,Licor,110000,101851.85,0%,8.00%,Caja Tetra pack Aguardiente 1L,bar,bar,BAR-AGUARDIENTE-1L-TETRAPACK
-Aguardiente 1/2 tapa azul,Licor,60000,55555.56,0%,8.00%,Aguardiente 1/2 tapa azul,bar,bar,BAR-AGUARDIENTE-MEDIA-TAPA-AZUL
-Aguardiente 1/2 tapa roja,Licor,60000,55555.56,0%,8.00%,Aguardiente 1/2 tapa roja,bar,bar,BAR-AGUARDIENTE-MEDIA-TAPA-ROJA
-Aguardiente 1/2 tapa verde,Licor,60000,55555.56,0%,8.00%,Aguardiente 1/2 tapa verde,bar,bar,BAR-AGUARDIENTE-MEDIA-TAPA-VERDE
-Botella Aguardiente tapa roja 750ml,Licor,90000,83333.33,0%,8.00%,Botella Aguardiente tapa roja 750ml,bar,bar,BAR-AGUARDIENTE-BOTELLA-TAPA-ROJA-750ML
-Botella Aguardiente tapa azul 750ml,Licor,90000,83333.33,0%,8.00%,Botella Aguardiente tapa azul 750ml,bar,bar,BAR-AGUARDIENTE-BOTELLA-TAPA-AZUL-750ML
-Botella Ron viejo de caldas 750ml,Licor,90000,83333.33,0%,8.00%,Botella Ron viejo de caldas 750ml,bar,bar,BAR-RON-VIEJO-CALDAS-750ML
-Brandi 1/2,Licor,70000,64814.81,0%,8.00%,Brandi 1/2,bar,bar,BAR-BRANDI-MEDIA
-Ron Medellin 3 años 1/2L Botella 375ml,Licor,60000,55555.56,0%,8.00%,Ron Medellin 3 años 1/2L Botella 375ml,bar,bar,BAR-RON-MEDELLIN-3ANOS-375ML
-"Ron viejo de Caldas Azul, licor Especial",Licor,60000,55555.56,0%,8.00%,"Ron viejo de Caldas Azul, licor Especial",bar,bar,BAR-RON-VIEJO-CALDAS-AZUL-ESPECIAL
-Ron viejo de caldas 375ml,Licor,60000,55555.56,0%,8.00%,Ron viejo de caldas 375ml,bar,bar,BAR-RON-VIEJO-CALDAS-375ML
-Ron Medellin 8 años 1/2,Licor,60000,55555.56,0%,8.00%,Ron Medellin 8 años 1/2,bar,bar,BAR-RON-MEDELLIN-8ANOS-MEDIA
-Old Par,Licor,120000,111111.11,0%,8.00%,Old Par,bar,bar,BAR-OLD-PAR
-Bucanas,Licor,120000,111111.11,0%,8.00%,Bucanas,bar,bar,BAR-BUCANAS
-Ron Medellin 8 años Botella 750 ml,Licor,110000,101851.85,0%,8.00%,Ron Medellin 8 años Botella 750 ml,bar,bar,BAR-RON-MEDELLIN-8ANOS-750ML
-Jose Cuervo Tequila Botella,Licor,110000,101851.85,0%,8.00%,Jose Cuervo Tequila Botella,bar,bar,BAR-JOSE-CUERVO-TEQUILA
-Bailies,Licor,110000,101851.85,0%,8.00%,Bailies,bar,bar,BAR-BAILIES
-Botella Aguardiente Tapa Verde 750ml,Licor,90000,83333.33,0%,8.00%,Botella Aguardiente Tapa Verde 750ml,bar,bar,BAR-AGUARDIENTE-BOTELLA-TAPA-VERDE-750ML
-Aguardiente Botella Tapa Azul 1L,Licor,110000,101851.85,0%,8.00%,Aguardiente Botella Tapa Azul 1L,bar,bar,BAR-AGUARDIENTE-BOTELLA-TAPA-AZUL-1L
-Aguardiente Botella Tapa Roja 1L,Licor,110000,101851.85,0%,8.00%,Aguardiente Botella Tapa Roja 1L,bar,bar,BAR-AGUARDIENTE-BOTELLA-TAPA-ROJA-1L
-Salchicas viena,Snacks,8000,7407.41,0%,8.00%,Salchicas viena,snacks,snacks,SNACKS-SALCHICHAS-VIENA
-Paquetón Fritolay,Snacks,12000,11111.11,0%,8.00%,Paquetón Fritolay,snacks,snacks,SNACKS-PAQUETON-FRITOLAY
-DeTodito pequeño,Snacks,5000,4629.63,0%,8.00%,DeTodito pequeño,snacks,snacks,SNACKS-DETODITO-PEQUENO
-Dorito dinamita,Snacks,5000,4629.63,0%,8.00%,Dorito dinamita,snacks,snacks,SNACKS-DORITO-DINAMITA
-Dorito normal,Snacks,5000,4629.63,0%,8.00%,Dorito normal,snacks,snacks,SNACKS-DORITO-NORMAL
-Papas Margarita,Snacks,5000,4629.63,0%,8.00%,Papas Margarita,snacks,snacks,SNACKS-PAPAS-MARGARITA
-Cheetos,Snacks,5000,4629.63,0%,8.00%,Cheetos,snacks,snacks,SNACKS-CHEETOS
-Natuchips,Snacks,5000,4629.63,0%,8.00%,Natuchips,snacks,snacks,SNACKS-NATUCHIPS
-Choclitos pequños,Snacks,5000,4629.63,0%,8.00%,Choclitos pequños,snacks,snacks,SNACKS-CHOCLITOS-PEQUENOS
-Boliquesos,Snacks,5000,4629.63,0%,8.00%,Boliquesos,snacks,snacks,SNACKS-BOLIQUESOS
-BonBonBum,Snacks,1000,925.93,0%,8.00%,BonBonBum,snacks,snacks,SNACKS-BONBONBUM
-Chokis Galleta,Snacks,3000,2777.78,0%,8.00%,Chokis Galleta,snacks,snacks,SNACKS-CHOKIS-GALLETA
-Manimoto,Snacks,4000,3703.70,0%,8.00%,Manimoto,snacks,snacks,SNACKS-MANIMOTO
-Chicles,Snacks,500,462.96,0%,8.00%,Chicles,snacks,snacks,SNACKS-CHICLES
-Galletas Noel Wafers,Snacks,2000,1851.85,0%,8.00%,Galletas Noel Wafers,snacks,snacks,SNACKS-GALLETAS-NOEL-WAFERS
-Trident pequeño,Snacks,500,462.96,0%,8.00%,Trident pequeño,snacks,snacks,SNACKS-TRIDENT-PEQUENO
-Galleta Milo,Snacks,4000,3703.70,0%,8.00%,Galleta Milo,snacks,snacks,SNACKS-GALLETA-MILO
-Galleta Festival,Snacks,3000,2777.78,0%,8.00%,Galleta Festival,snacks,snacks,SNACKS-GALLETA-FESTIVAL
-Jumbo Flow,Snacks,8000,7407.41,0%,8.00%,Jumbo Flow,snacks,snacks,SNACKS-JUMBO-FLOW
-Jumbo mediano 35g,Snacks,8000,7407.41,0%,8.00%,Jumbo mediano 35g,snacks,snacks,SNACKS-JUMBO-MEDIANO-35G
-Trident de 5,Snacks,3000,2777.78,0%,8.00%,Trident de 5,snacks,snacks,SNACKS-TRIDENT-5UNIDADES
-Candelas,Accesorios,3000,2777.78,0%,8.00%,Candelas,bar,bar,SNACKS-CANDELAS
-Los Cuates Sabor Margarita y Mango 269ml,Cerveza,8000,7407.41,0%,8.00%,Los Cuates Sabor Margarita y Mango 269ml,bar,bar,SNACKS-LOS-CUATES-MARGARITA-MANGO-269ML
-Los Cuates Sabor Margarita y Fresa 269ml,Cerveza,8000,7407.41,0%,8.00%,Los Cuates Sabor Margarita y Fresa 269ml,bar,bar,SNACKS-LOS-CUATES-MARGARITA-FRESA-269ML
-Entrada de empanadas,Carta,15000,13888.89,0%,8.00%,"Deliciosa entrada de 8 empanadas, con guacamole, ají o pico de gallo ",entrada,entrada,CARTA-ENTRADA-EMPANADAS
-Entrada de canastas de patacón,Carta,15000,13888.89,0%,8.00%,"Cinco canastas de plátano maduro, relleno de hogao, acompañado con nuestro dip de guacamole de la casa",entrada,entrada,CARTA-ENTRADA-CANASTAS
-Tilapia frita,Carta,34000,31481.48,0%,8.00%,"Tilapia de 400 g, acompañada de canastas de plátano maduro, arroz y ensalada de la casa",fuerte,fuerte,CART-FUERTE-TILAPIA
-Trucha frita,Carta,34000,31481.48,0%,8.00%,"Trucha de 230 g, acompañada de canastas de plátano maduro, arroz y ensalada de la casa",fuerte,fuerte,CARTA-FUERTE-TRUCHA
-Bagre en salsa criolla,Carta,28000,25925.93,0%,8.00%,"Rodaja de Bagre, con patacón, arepa y ensalada de la casa",fuerte,fuerte,CARTA-FUERTE-BAGRE
-Res a la plancha,Carta,28000,25925.93,0%,8.00%,"170g de carne de res, con ensalada de la casa, papas al vapor o a la francesa",fuerte,fuerte,CARTA-FUERTE-RES
-Pollo a la plancha,Carta,28000,25925.93,0%,8.00%,"180g de pechuga de pollo, con ensalada de la casa, papas al vapor o a la francesa",fuerte,fuerte,CARTA-FUERTE-PECHUGA
-Hamburguesa de la casa,Carta,28000,25925.93,0%,8.00%,"Carne, cebolla caramelizada, queso motzarella, pan artesanal, lechuga, y salsa de la casa",fuerte,fuerte,CARTA-FUERTE-HAMBURGUESA
-Chorizo,Carta,20000,18518.52,0%,8.00%,Papitas a la francesa arepa gratinada y ensalada,fuerte,fuerte,CARTA-FUERTE-CHORIZO
-Chicharron,Carta,28000,25925.93,0%,8.00%,"170g de chicharrón, con ensalada de la casa, papas al vapor o a la francesa",fuerte,fuerte,CARTA-FUERTE-CHICHARRON
-Picada para dos,Carta,50000,46296.30,0%,8.00%,"Chicharron, carne de res, carne de cerdo, chorizo, papa cocida, tomate",fuerte,fuerte,CARTA-FUERTE-PICADA-DOS
-Picada familiar,Carta,80000,74074.07,0%,8.00%,"Chicharron, carne de res, carne de cerdo, chorizo, papa cocida, tomate, para cuatro personas",fuerte,fuerte,CARTA-FUERTE-PICADA-CUATRO
-Cerdo a la plancha,Carta,28000,25925.93,0%,8.00%,"170g de carne de cerdo, con ensalada de la casa, papas al vapor o a la francesa",fuerte,fuerte,CARTA-FUERTE-CERDO
-Sopa de Costilla,Carta,10000,9259.26,0%,8.00%,Sopa Costilla,sopa,sopa,CARTA-SOPA-COSTILLA
-Sopa de Albondiga,Carta,10000,9259.26,0%,8.00%,Sopa de Albondiga,sopa,sopa,CARTA-SOPA-ALBONDIGA
-Consomé de Pescado,Carta,10000,9259.26,0%,8.00%,Consomé de Pescado,sopa,sopa,CARTA-SOPA-PESCADO
-Nuggets de pescado,Carta,20000,18518.52,0%,8.00%,Nuggets de pescado,infantil,infantil,CARTA-INFANTIL-NUGGETS-PESCADO
-Nuggets de pollo,Carta,20000,18518.52,0%,8.00%,Nuggets de pollo,infantil,infantil,CARTA-INFANTIL-NUGGETS-POLLO
-Salchipapas,Carta,15000,13888.89,0%,8.00%,Salchipapas,infantil,infantil,CARTA-INFANTIL-SALCHIPAPAS
-Sodas Saborizadas,Carta,10000,9259.26,0%,8.00%,"Sodas Saborizadas, Cereza, mango, fresa",bebidas frias,bebidas frias,CARTA-FRIAS-SODA-SABORIZADA
-Copa de Vino,Carta,12000,11111.11,0%,8.00%,Copa de Vino,bebidas frias,bebidas frias,CARTA-FRIAS-COPA-VINO
-Jugos en Agua,Carta,10000,9259.26,0%,8.00%,Jugos en Agua,bebidas frias,bebidas frias,CARTA-FRIAS-JUGO-AGUA
-Jugos en leche,Carta,10000,9259.26,0%,8.00%,Jugos en leche,bebidas frias,bebidas frias,CARTA-FRIAS-JUGO-LECHE
-Limonadas,Carta,10000,9259.26,0%,8.00%,"Limonadas, coco, cereza o natural",bebidas frias,bebidas frias,CARTA-FRIAS-LIMONADA
-Jarra de Sangría,Carta,45000,41666.67,0%,8.00%,Jarra de Sangría,bebidas frias,bebidas frias,CARTA-FRIAS-JARRA-SANGRIA
-Jarra de Guandolo,Carta,28000,25925.93,0%,8.00%,Jarra de Guandolo,bebidas frias,bebidas frias,CARTA-FRIAS-JARRA-GUANDOLO
-Malteadas,Carta,12000,11111.11,0%,8.00%,Malteadas,bebidas frias,bebidas frias,CARTA-FRIAS-MALTEADA
-Milo frío,Carta,10000,9259.26,0%,8.00%,Milo frío,bebidas frias,bebidas frias,CARTA-FRIAS-MILO
-Café Americano,Carta,4000,3703.70,0%,8.00%,Café Americano,bebidas calientes,bebidas calientes,CARTA-CALIENTES-CAFE-AMERICANO
-Capuccino,Carta,7000,6481.48,0%,8.00%,Capuccino,bebidas calientes,bebidas calientes,CARTA-CALIENTES-CAPUCCINO
-Cafe Latte,Carta,5000,4629.63,0%,8.00%,Café Latte,bebidas calientes,bebidas calientes,CARTA-CALIENTES-LATTE
-Milo caliente,Carta,10000,9259.26,0%,8.00%,Milo caliente,bebidas calientes,bebidas calientes,CARTA-CALIENTES-MILO
-Aromática de frutos,Carta,8000,7407.41,0%,8.00%,Aromática de frutos rojos o amarillos,bebidas calientes,bebidas calientes,CARTA-CALIENTES-AROMATICA
-Vino Caliente,Carta,12000,11111.11,0%,8.00%,Vino Caliente,bebidas calientes,bebidas calientes,CARTA-CALIENTES-COPA-VINO
-Gramo Pescado de Lago,Lago,32,29.63,0%,8.00%,Gramo Pescado de Lago,pescado,pescado,LAGO-PESCADO
-Michelada Cerveza Nacional,Bebidas,10000,9259.26,0%,8.00%,Michelada Cerveza Nacional,bebidas frias,bebidas frias,CARTA-FRIAS-MICHELADA-CERVEZA-NACIONAL
-Michelada Cerveza Importadas,Bebidas,11000,10185.19,0%,8.00%,Michelada Cerveza Importadas,bebidas frias,bebidas frias,CARTA-FRIAS-MICHELADA-CERVEZA-IMPORTADA
-Michelada Gaseosa,Bebidas,9000,8333.33,0%,8.00%,Michelada Gaseosa,bebidas frias,bebidas frias,CARTA-FRIAS-MICHELADA-GASEOSA
-Chocolatina Jumbo Grande,Snacks,12000,11111.11,0%,8.00%,Chocolatina Jumbo Grande,snacks,snacks,SNACKS-CHOCOLATINA-JUMBO-GRANDE
-Trululu,Snacks,4000,3703.70,0%,8.00%,Trululu,snacks,snacks,SNACKS-TRULULU
-Advil,Medicamento,4000,3703.70,0%,8.00%,Advil,snacks,snacks,SNACKS-ADVIL
-Oreo,Snacks,4000,3703.70,0%,8.00%,Oreo,snacks,snacks,SNACKS-OREO
-Del Valle,Bebidas,12000,11111.11,0%,8.00%,Del Valle,snacks,snacks,SNACKS-DELVALLE
+name,category,total_price_with_taxes,unit_price,vat,ico,description,brand,model,sku,product_type,unit_of_measure
+Cerveza Redds lata 269ml,Bebida,7000,6481.48,0%,8.00%,Cerveza Redds lata 269ml,bar,bar,BAR-CERVEZA-REDDS-LATA-269ML,SELLABLE,unit
+Tutifrutit,Bebida,5000,4629.63,0%,8.00%,Tutifrutit,snacks,snacks,BAR-TUTIFRUTIT,SELLABLE,unit
+Gaseosa Postobón,Bebida,5000,4629.63,0%,8.00%,Gaseosa Postobón,snacks,snacks,BAR-GASEOSA-POSTOBON,SELLABLE,unit
+Soda Bretaña,Bebida,5000,4629.63,0%,8.00%,Soda Bretaña,snacks,snacks,BAR-SODA-BRETANA,SELLABLE,unit
+Gaseosa Cocacola,Bebida,5000,4629.63,0%,8.00%,Gaseosa Cocacola,snacks,snacks,BAR-GASEOSA-COCACOLA,SELLABLE,unit
+Cocacola Pet,Bebida,5000,4629.63,0%,8.00%,Cocacola Pet,snacks,snacks,BAR-COCACOLA-PET,SELLABLE,unit
+Cocacola 1 1/2 Litro,Bebida,12000,11111.11,0%,8.00%,Cocacola 1 1/2 Litro,snacks,snacks,BAR-COCACOLA-1500ML,SELLABLE,unit
+Postobón 1 1/2 Litro,Bebida,12000,11111.11,0%,8.00%,Postobón 1 1/2 Litro,snacks,snacks,BAR-POSTOBON-1500ML,SELLABLE,unit
+Electrolit,Bebida,7000,6481.48,0%,8.00%,Electrolit,snacks,snacks,BAR-ELECTROLIT,SELLABLE,unit
+Vive 100 Verde 380ml,Bebida,7000,6481.48,0%,8.00%,Vive 100 Verde 380ml,snacks,snacks,BAR-VIVE100-VERDE-380ML,SELLABLE,unit
+Vive 100 Azul 380ml,Bebida,7000,6481.48,0%,8.00%,Vive 100 Azul 380ml,snacks,snacks,BAR-VIVE100-AZUL-380ML,SELLABLE,unit
+Vive 100 Rojo 380ml,Bebida,7000,6481.48,0%,8.00%,Vive 100 Rojo 380ml,snacks,snacks,BAR-VIVE100-ROJO-380ML,SELLABLE,unit
+Malta mini,Bebida,4000,3703.70,0%,8.00%,Malta mini,snacks,snacks,BAR-MALTA-MINI,SELLABLE,unit
+Malta personal,Bebida,5000,4629.63,0%,8.00%,Malta personal,snacks,snacks,BAR-MALTA-PERSONAL,SELLABLE,unit
+Agua saborizada H20,Bebida,5000,4629.63,0%,8.00%,Agua saborizada H20,snacks,snacks,BAR-AGUA-SABORIZADA-H20,SELLABLE,unit
+Agua Cristal Personal 600ml,Bebida,3000,2777.78,0%,8.00%,Agua Cristal Personal 600ml,snacks,snacks,BAR-AGUA-CRISTAL-600ML,SELLABLE,unit
+Agua Brisa Personal 600ml,Bebida,3000,2777.78,0%,8.00%,Agua Brisa Personal 600ml,snacks,snacks,BAR-AGUA-BRISA-600ML,SELLABLE,unit
+Gatorade,Bebida,9000,8333.33,0%,8.00%,Gatorade,snacks,snacks,BAR-GATORADE,SELLABLE,unit
+Hit 500 ml,Bebida,5000,4629.63,0%,8.00%,Hit 500 ml,snacks,snacks,BAR-HIT-500ML,SELLABLE,unit
+Saviloe 420ml,Bebida,8000,7407.41,0%,8.00%,Saviloe 420ml,snacks,snacks,BAR-SAVILOE-420ML,SELLABLE,unit
+Cerveza Club Colombia Latón,Cerveza,9000,8333.33,0%,8.00%,Cerveza Club Colombia Latón,bar,bar,BAR-CERVEZA-CLUB-COLOMBIA-LATON,SELLABLE,unit
+Cerveza Pilsen Latón,Cerveza,9000,8333.33,0%,8.00%,Cerveza Pilsen Latón,bar,bar,BAR-CERVEZA-PILSEN-LATON,SELLABLE,unit
+Cerveza Aguila Latón,Cerveza,9000,8333.33,0%,8.00%,Cerveza Aguila Latón,bar,bar,BAR-CERVEZA-AGUILA-LATON,SELLABLE,unit
+Cerveza Aguila Light Latón,Cerveza,9000,8333.33,0%,8.00%,Cerveza Aguila Light Latón,bar,bar,BAR-CERVEZA-AGUILA-LIGHT-LATON,SELLABLE,unit
+Cerveza Redds,Cerveza,8000,7407.41,0%,8.00%,Cerveza Redds,bar,bar,BAR-CERVEZA-REDDS-BOTELLA,SELLABLE,unit
+Club Colombia 330ml,Cerveza,8000,7407.41,0%,8.00%,Club Colombia 330ml,bar,bar,BAR-CLUB-COLOMBIA-330ML,SELLABLE,unit
+Corona 330ml,Cerveza,10000,9259.26,0%,8.00%,Corona 330ml,bar,bar,BAR-CORONA-330ML,SELLABLE,unit
+Cerveza Poker 330ml,Cerveza,8000,7407.41,0%,8.00%,Cerveza Poker 330ml,bar,bar,BAR-CERVEZA-POKER-330ML,SELLABLE,unit
+Cerveza Aguila Light 330ml,Cerveza,8000,7407.41,0%,8.00%,Cerveza Aguila Light 330ml,bar,bar,BAR-CERVEZA-AGUILA-LIGHT-330ML,SELLABLE,unit
+Cerverza Aguila Negra 330ml,Cerveza,8000,7407.41,0%,8.00%,Cerverza Aguila Negra 330ml,bar,bar,BAR-CERVEZA-AGUILA-NEGRA-330ML,SELLABLE,unit
+Malta Vidrio,Bebida,5000,4629.63,0%,8.00%,Malta Vidrio,snacks,snacks,BAR-MALTA-VIDRIO,SELLABLE,unit
+Cola Y pola,Bebida,8000,7407.41,0%,8.00%,Cola Y pola,snacks,snacks,BAR-COLA-Y-POLA,SELLABLE,unit
+Cerveza Pilsen 330ml,Cerveza,8000,7407.41,0%,8.00%,Cerveza Pilsen 330ml,bar,bar,BAR-CERVEZA-PILSEN-330ML,SELLABLE,unit
+Caja Ron Medellín 1L Tetrapack,Licor,110000,101851.85,0%,8.00%,Caja Ron Medellín 1L Tetrapack,bar,bar,BAR-RON-MEDELLIN-1L-TETRAPACK,SELLABLE,unit
+Caja Tetra pack Aguardiente 1L,Licor,110000,101851.85,0%,8.00%,Caja Tetra pack Aguardiente 1L,bar,bar,BAR-AGUARDIENTE-1L-TETRAPACK,SELLABLE,unit
+Aguardiente 1/2 tapa azul,Licor,60000,55555.56,0%,8.00%,Aguardiente 1/2 tapa azul,bar,bar,BAR-AGUARDIENTE-MEDIA-TAPA-AZUL,SELLABLE,unit
+Aguardiente 1/2 tapa roja,Licor,60000,55555.56,0%,8.00%,Aguardiente 1/2 tapa roja,bar,bar,BAR-AGUARDIENTE-MEDIA-TAPA-ROJA,SELLABLE,unit
+Aguardiente 1/2 tapa verde,Licor,60000,55555.56,0%,8.00%,Aguardiente 1/2 tapa verde,bar,bar,BAR-AGUARDIENTE-MEDIA-TAPA-VERDE,SELLABLE,unit
+Botella Aguardiente tapa roja 750ml,Licor,90000,83333.33,0%,8.00%,Botella Aguardiente tapa roja 750ml,bar,bar,BAR-AGUARDIENTE-BOTELLA-TAPA-ROJA-750ML,SELLABLE,unit
+Botella Aguardiente tapa azul 750ml,Licor,90000,83333.33,0%,8.00%,Botella Aguardiente tapa azul 750ml,bar,bar,BAR-AGUARDIENTE-BOTELLA-TAPA-AZUL-750ML,SELLABLE,unit
+Botella Ron viejo de caldas 750ml,Licor,90000,83333.33,0%,8.00%,Botella Ron viejo de caldas 750ml,bar,bar,BAR-RON-VIEJO-CALDAS-750ML,SELLABLE,unit
+Brandi 1/2,Licor,70000,64814.81,0%,8.00%,Brandi 1/2,bar,bar,BAR-BRANDI-MEDIA,SELLABLE,unit
+Ron Medellin 3 años 1/2L Botella 375ml,Licor,60000,55555.56,0%,8.00%,Ron Medellin 3 años 1/2L Botella 375ml,bar,bar,BAR-RON-MEDELLIN-3ANOS-375ML,SELLABLE,unit
+"Ron viejo de Caldas Azul, licor Especial",Licor,60000,55555.56,0%,8.00%,"Ron viejo de Caldas Azul, licor Especial",bar,bar,BAR-RON-VIEJO-CALDAS-AZUL-ESPECIAL,SELLABLE,unit
+Ron viejo de caldas 375ml,Licor,60000,55555.56,0%,8.00%,Ron viejo de caldas 375ml,bar,bar,BAR-RON-VIEJO-CALDAS-375ML,SELLABLE,unit
+Ron Medellin 8 años 1/2,Licor,60000,55555.56,0%,8.00%,Ron Medellin 8 años 1/2,bar,bar,BAR-RON-MEDELLIN-8ANOS-MEDIA,SELLABLE,unit
+Old Par,Licor,120000,111111.11,0%,8.00%,Old Par,bar,bar,BAR-OLD-PAR,SELLABLE,unit
+Bucanas,Licor,120000,111111.11,0%,8.00%,Bucanas,bar,bar,BAR-BUCANAS,SELLABLE,unit
+Ron Medellin 8 años Botella 750 ml,Licor,110000,101851.85,0%,8.00%,Ron Medellin 8 años Botella 750 ml,bar,bar,BAR-RON-MEDELLIN-8ANOS-750ML,SELLABLE,unit
+Jose Cuervo Tequila Botella,Licor,110000,101851.85,0%,8.00%,Jose Cuervo Tequila Botella,bar,bar,BAR-JOSE-CUERVO-TEQUILA,SELLABLE,unit
+Bailies,Licor,110000,101851.85,0%,8.00%,Bailies,bar,bar,BAR-BAILIES,SELLABLE,unit
+Botella Aguardiente Tapa Verde 750ml,Licor,90000,83333.33,0%,8.00%,Botella Aguardiente Tapa Verde 750ml,bar,bar,BAR-AGUARDIENTE-BOTELLA-TAPA-VERDE-750ML,SELLABLE,unit
+Aguardiente Botella Tapa Azul 1L,Licor,110000,101851.85,0%,8.00%,Aguardiente Botella Tapa Azul 1L,bar,bar,BAR-AGUARDIENTE-BOTELLA-TAPA-AZUL-1L,SELLABLE,unit
+Aguardiente Botella Tapa Roja 1L,Licor,110000,101851.85,0%,8.00%,Aguardiente Botella Tapa Roja 1L,bar,bar,BAR-AGUARDIENTE-BOTELLA-TAPA-ROJA-1L,SELLABLE,unit
+Salchicas viena,Snacks,8000,7407.41,0%,8.00%,Salchicas viena,snacks,snacks,SNACKS-SALCHICHAS-VIENA,SELLABLE,unit
+Paquetón Fritolay,Snacks,12000,11111.11,0%,8.00%,Paquetón Fritolay,snacks,snacks,SNACKS-PAQUETON-FRITOLAY,SELLABLE,unit
+DeTodito pequeño,Snacks,5000,4629.63,0%,8.00%,DeTodito pequeño,snacks,snacks,SNACKS-DETODITO-PEQUENO,SELLABLE,unit
+Dorito dinamita,Snacks,5000,4629.63,0%,8.00%,Dorito dinamita,snacks,snacks,SNACKS-DORITO-DINAMITA,SELLABLE,unit
+Dorito normal,Snacks,5000,4629.63,0%,8.00%,Dorito normal,snacks,snacks,SNACKS-DORITO-NORMAL,SELLABLE,unit
+Papas Margarita,Snacks,5000,4629.63,0%,8.00%,Papas Margarita,snacks,snacks,SNACKS-PAPAS-MARGARITA,SELLABLE,unit
+Cheetos,Snacks,5000,4629.63,0%,8.00%,Cheetos,snacks,snacks,SNACKS-CHEETOS,SELLABLE,unit
+Natuchips,Snacks,5000,4629.63,0%,8.00%,Natuchips,snacks,snacks,SNACKS-NATUCHIPS,SELLABLE,unit
+Choclitos pequños,Snacks,5000,4629.63,0%,8.00%,Choclitos pequños,snacks,snacks,SNACKS-CHOCLITOS-PEQUENOS,SELLABLE,unit
+Boliquesos,Snacks,5000,4629.63,0%,8.00%,Boliquesos,snacks,snacks,SNACKS-BOLIQUESOS,SELLABLE,unit
+BonBonBum,Snacks,1000,925.93,0%,8.00%,BonBonBum,snacks,snacks,SNACKS-BONBONBUM,SELLABLE,unit
+Chokis Galleta,Snacks,3000,2777.78,0%,8.00%,Chokis Galleta,snacks,snacks,SNACKS-CHOKIS-GALLETA,SELLABLE,unit
+Manimoto,Snacks,4000,3703.70,0%,8.00%,Manimoto,snacks,snacks,SNACKS-MANIMOTO,SELLABLE,unit
+Chicles,Snacks,500,462.96,0%,8.00%,Chicles,snacks,snacks,SNACKS-CHICLES,SELLABLE,unit
+Galletas Noel Wafers,Snacks,2000,1851.85,0%,8.00%,Galletas Noel Wafers,snacks,snacks,SNACKS-GALLETAS-NOEL-WAFERS,SELLABLE,unit
+Trident pequeño,Snacks,500,462.96,0%,8.00%,Trident pequeño,snacks,snacks,SNACKS-TRIDENT-PEQUENO,SELLABLE,unit
+Galleta Milo,Snacks,4000,3703.70,0%,8.00%,Galleta Milo,snacks,snacks,SNACKS-GALLETA-MILO,SELLABLE,unit
+Galleta Festival,Snacks,3000,2777.78,0%,8.00%,Galleta Festival,snacks,snacks,SNACKS-GALLETA-FESTIVAL,SELLABLE,unit
+Jumbo Flow,Snacks,8000,7407.41,0%,8.00%,Jumbo Flow,snacks,snacks,SNACKS-JUMBO-FLOW,SELLABLE,unit
+Jumbo mediano 35g,Snacks,8000,7407.41,0%,8.00%,Jumbo mediano 35g,snacks,snacks,SNACKS-JUMBO-MEDIANO-35G,SELLABLE,unit
+Trident de 5,Snacks,3000,2777.78,0%,8.00%,Trident de 5,snacks,snacks,SNACKS-TRIDENT-5UNIDADES,SELLABLE,unit
+Candelas,Accesorios,3000,2777.78,0%,8.00%,Candelas,bar,bar,SNACKS-CANDELAS,SELLABLE,unit
+Los Cuates Sabor Margarita y Mango 269ml,Cerveza,8000,7407.41,0%,8.00%,Los Cuates Sabor Margarita y Mango 269ml,bar,bar,SNACKS-LOS-CUATES-MARGARITA-MANGO-269ML,SELLABLE,unit
+Los Cuates Sabor Margarita y Fresa 269ml,Cerveza,8000,7407.41,0%,8.00%,Los Cuates Sabor Margarita y Fresa 269ml,bar,bar,SNACKS-LOS-CUATES-MARGARITA-FRESA-269ML,SELLABLE,unit
+Entrada de empanadas,Carta,15000,13888.89,0%,8.00%,"Deliciosa entrada de 8 empanadas, con guacamole, ají o pico de gallo ",entrada,entrada,CARTA-ENTRADA-EMPANADAS,SELLABLE,unit
+Entrada de canastas de patacón,Carta,15000,13888.89,0%,8.00%,"Cinco canastas de plátano maduro, relleno de hogao, acompañado con nuestro dip de guacamole de la casa",entrada,entrada,CARTA-ENTRADA-CANASTAS,SELLABLE,unit
+Tilapia frita,Carta,34000,31481.48,0%,8.00%,"Tilapia de 400 g, acompañada de canastas de plátano maduro, arroz y ensalada de la casa",fuerte,fuerte,CART-FUERTE-TILAPIA,SELLABLE,unit
+Trucha frita,Carta,34000,31481.48,0%,8.00%,"Trucha de 230 g, acompañada de canastas de plátano maduro, arroz y ensalada de la casa",fuerte,fuerte,CARTA-FUERTE-TRUCHA,SELLABLE,unit
+Bagre en salsa criolla,Carta,28000,25925.93,0%,8.00%,"Rodaja de Bagre, con patacón, arepa y ensalada de la casa",fuerte,fuerte,CARTA-FUERTE-BAGRE,SELLABLE,unit
+Res a la plancha,Carta,28000,25925.93,0%,8.00%,"170g de carne de res, con ensalada de la casa, papas al vapor o a la francesa",fuerte,fuerte,CARTA-FUERTE-RES,SELLABLE,unit
+Pollo a la plancha,Carta,28000,25925.93,0%,8.00%,"180g de pechuga de pollo, con ensalada de la casa, papas al vapor o a la francesa",fuerte,fuerte,CARTA-FUERTE-PECHUGA,SELLABLE,unit
+Hamburguesa de la casa,Carta,28000,25925.93,0%,8.00%,"Carne, cebolla caramelizada, queso motzarella, pan artesanal, lechuga, y salsa de la casa",fuerte,fuerte,CARTA-FUERTE-HAMBURGUESA,SELLABLE,unit
+Chorizo,Carta,20000,18518.52,0%,8.00%,Papitas a la francesa arepa gratinada y ensalada,fuerte,fuerte,CARTA-FUERTE-CHORIZO,SELLABLE,unit
+Chicharron,Carta,28000,25925.93,0%,8.00%,"170g de chicharrón, con ensalada de la casa, papas al vapor o a la francesa",fuerte,fuerte,CARTA-FUERTE-CHICHARRON,SELLABLE,unit
+Picada para dos,Carta,50000,46296.30,0%,8.00%,"Chicharron, carne de res, carne de cerdo, chorizo, papa cocida, tomate",fuerte,fuerte,CARTA-FUERTE-PICADA-DOS,SELLABLE,unit
+Picada familiar,Carta,80000,74074.07,0%,8.00%,"Chicharron, carne de res, carne de cerdo, chorizo, papa cocida, tomate, para cuatro personas",fuerte,fuerte,CARTA-FUERTE-PICADA-CUATRO,SELLABLE,unit
+Cerdo a la plancha,Carta,28000,25925.93,0%,8.00%,"170g de carne de cerdo, con ensalada de la casa, papas al vapor o a la francesa",fuerte,fuerte,CARTA-FUERTE-CERDO,SELLABLE,unit
+Sopa de Costilla,Carta,10000,9259.26,0%,8.00%,Sopa Costilla,sopa,sopa,CARTA-SOPA-COSTILLA,SELLABLE,unit
+Sopa de Albondiga,Carta,10000,9259.26,0%,8.00%,Sopa de Albondiga,sopa,sopa,CARTA-SOPA-ALBONDIGA,SELLABLE,unit
+Consomé de Pescado,Carta,10000,9259.26,0%,8.00%,Consomé de Pescado,sopa,sopa,CARTA-SOPA-PESCADO,SELLABLE,unit
+Nuggets de pescado,Carta,20000,18518.52,0%,8.00%,Nuggets de pescado,infantil,infantil,CARTA-INFANTIL-NUGGETS-PESCADO,SELLABLE,unit
+Nuggets de pollo,Carta,20000,18518.52,0%,8.00%,Nuggets de pollo,infantil,infantil,CARTA-INFANTIL-NUGGETS-POLLO,SELLABLE,unit
+Salchipapas,Carta,15000,13888.89,0%,8.00%,Salchipapas,infantil,infantil,CARTA-INFANTIL-SALCHIPAPAS,SELLABLE,unit
+Sodas Saborizadas,Carta,10000,9259.26,0%,8.00%,"Sodas Saborizadas, Cereza, mango, fresa",bebidas frias,bebidas frias,CARTA-FRIAS-SODA-SABORIZADA,SELLABLE,unit
+Copa de Vino,Carta,12000,11111.11,0%,8.00%,Copa de Vino,bebidas frias,bebidas frias,CARTA-FRIAS-COPA-VINO,SELLABLE,unit
+Jugos en Agua,Carta,10000,9259.26,0%,8.00%,Jugos en Agua,bebidas frias,bebidas frias,CARTA-FRIAS-JUGO-AGUA,SELLABLE,unit
+Jugos en leche,Carta,10000,9259.26,0%,8.00%,Jugos en leche,bebidas frias,bebidas frias,CARTA-FRIAS-JUGO-LECHE,SELLABLE,unit
+Limonadas,Carta,10000,9259.26,0%,8.00%,"Limonadas, coco, cereza o natural",bebidas frias,bebidas frias,CARTA-FRIAS-LIMONADA,SELLABLE,unit
+Jarra de Sangría,Carta,45000,41666.67,0%,8.00%,Jarra de Sangría,bebidas frias,bebidas frias,CARTA-FRIAS-JARRA-SANGRIA,SELLABLE,unit
+Jarra de Guandolo,Carta,28000,25925.93,0%,8.00%,Jarra de Guandolo,bebidas frias,bebidas frias,CARTA-FRIAS-JARRA-GUANDOLO,SELLABLE,unit
+Malteadas,Carta,12000,11111.11,0%,8.00%,Malteadas,bebidas frias,bebidas frias,CARTA-FRIAS-MALTEADA,SELLABLE,unit
+Milo frío,Carta,10000,9259.26,0%,8.00%,Milo frío,bebidas frias,bebidas frias,CARTA-FRIAS-MILO,SELLABLE,unit
+Café Americano,Carta,4000,3703.70,0%,8.00%,Café Americano,bebidas calientes,bebidas calientes,CARTA-CALIENTES-CAFE-AMERICANO,SELLABLE,unit
+Capuccino,Carta,7000,6481.48,0%,8.00%,Capuccino,bebidas calientes,bebidas calientes,CARTA-CALIENTES-CAPUCCINO,SELLABLE,unit
+Cafe Latte,Carta,5000,4629.63,0%,8.00%,Café Latte,bebidas calientes,bebidas calientes,CARTA-CALIENTES-LATTE,SELLABLE,unit
+Milo caliente,Carta,10000,9259.26,0%,8.00%,Milo caliente,bebidas calientes,bebidas calientes,CARTA-CALIENTES-MILO,SELLABLE,unit
+Aromática de frutos,Carta,8000,7407.41,0%,8.00%,Aromática de frutos rojos o amarillos,bebidas calientes,bebidas calientes,CARTA-CALIENTES-AROMATICA,SELLABLE,unit
+Vino Caliente,Carta,12000,11111.11,0%,8.00%,Vino Caliente,bebidas calientes,bebidas calientes,CARTA-CALIENTES-COPA-VINO,SELLABLE,unit
+Gramo Pescado de Lago,Lago,32,29.63,0%,8.00%,Gramo Pescado de Lago,pescado,pescado,LAGO-PESCADO,SELLABLE,g
+Michelada Cerveza Nacional,Bebidas,10000,9259.26,0%,8.00%,Michelada Cerveza Nacional,bebidas frias,bebidas frias,CARTA-FRIAS-MICHELADA-CERVEZA-NACIONAL,SELLABLE,unit
+Michelada Cerveza Importadas,Bebidas,11000,10185.19,0%,8.00%,Michelada Cerveza Importadas,bebidas frias,bebidas frias,CARTA-FRIAS-MICHELADA-CERVEZA-IMPORTADA,SELLABLE,unit
+Michelada Gaseosa,Bebidas,9000,8333.33,0%,8.00%,Michelada Gaseosa,bebidas frias,bebidas frias,CARTA-FRIAS-MICHELADA-GASEOSA,SELLABLE,unit
+Chocolatina Jumbo Grande,Snacks,12000,11111.11,0%,8.00%,Chocolatina Jumbo Grande,snacks,snacks,SNACKS-CHOCOLATINA-JUMBO-GRANDE,SELLABLE,unit
+Trululu,Snacks,4000,3703.70,0%,8.00%,Trululu,snacks,snacks,SNACKS-TRULULU,SELLABLE,unit
+Advil,Medicamento,4000,3703.70,0%,8.00%,Advil,snacks,snacks,SNACKS-ADVIL,SELLABLE,unit
+Oreo,Snacks,4000,3703.70,0%,8.00%,Oreo,snacks,snacks,SNACKS-OREO,SELLABLE,unit
+Del Valle,Bebidas,12000,11111.11,0%,8.00%,Del Valle,snacks,snacks,SNACKS-DELVALLE,SELLABLE,unit

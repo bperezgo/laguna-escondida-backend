@@ -36,8 +36,13 @@ func NewSpacesClient(cfg *config.Config) (*SpacesClient, error) {
 		return nil, fmt.Errorf("failed to load AWS config: %w", err)
 	}
 
-	// Use path-style URLs: https://{region}.digitaloceanspaces.com/{bucket}/{key}
-	endpoint := fmt.Sprintf("https://%s.digitaloceanspaces.com", cfg.SpacesRegion)
+	// Use path-style URLs: {endpoint}/{bucket}/{key}.
+	// Defaults to DigitalOcean Spaces, but SPACES_ENDPOINT can override it to
+	// point at a local S3-compatible service such as MinIO for local testing.
+	endpoint := cfg.SpacesEndpoint
+	if endpoint == "" {
+		endpoint = fmt.Sprintf("https://%s.digitaloceanspaces.com", cfg.SpacesRegion)
+	}
 
 	client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
 		o.BaseEndpoint = aws.String(endpoint)
@@ -51,7 +56,7 @@ func NewSpacesClient(cfg *config.Config) (*SpacesClient, error) {
 		client:        client,
 		presignClient: s3.NewPresignClient(client),
 		bucket:        cfg.SpacesBucket,
-		endpoint:      fmt.Sprintf("%s.digitaloceanspaces.com", cfg.SpacesRegion),
+		endpoint:      endpoint,
 	}, nil
 }
 
@@ -89,8 +94,8 @@ func (c *SpacesClient) Download(ctx context.Context, key string) ([]byte, error)
 }
 
 func (c *SpacesClient) GetPublicURL(key string) string {
-	// Path-style URL format: https://{region}.digitaloceanspaces.com/{bucket}/{key}
-	return fmt.Sprintf("https://%s/%s/%s", c.endpoint, c.bucket, key)
+	// Path-style URL format: {endpoint}/{bucket}/{key}
+	return fmt.Sprintf("%s/%s/%s", c.endpoint, c.bucket, key)
 }
 
 func (c *SpacesClient) GetPresignedURL(ctx context.Context, key string, expiration time.Duration) (string, error) {
