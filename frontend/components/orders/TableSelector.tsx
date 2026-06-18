@@ -2,12 +2,26 @@
 
 import { useState } from 'react';
 import type { Table } from '@/types/order';
+import { Badge, Button, Input } from '@/components/ui';
+import type { BadgeTone } from '@/components/ui';
 
 interface TableSelectorProps {
   selectedTable: Table | null;
   onTableSelect: (table: Table) => void;
   onCreateNewTable: (tableNumber: number) => void;
 }
+
+const STATUS_LABEL: Record<Table['Status'], string> = {
+  available: 'Disponible',
+  occupied: 'Ocupada',
+  reserved: 'Reservada',
+};
+
+const STATUS_TONE: Record<Table['Status'], BadgeTone> = {
+  available: 'success',
+  occupied: 'danger',
+  reserved: 'warning',
+};
 
 export default function TableSelector({
   selectedTable,
@@ -30,7 +44,7 @@ export default function TableSelector({
   const handleCreateTable = async () => {
     const tableNum = parseInt(newTableNumber);
     if (isNaN(tableNum) || tableNum <= 0) {
-      alert('Please enter a valid table number');
+      alert('Por favor ingresa un número de mesa válido');
       return;
     }
 
@@ -41,173 +55,171 @@ export default function TableSelector({
       setShowCreateForm(false);
     } catch (error) {
       console.error('Error creating table:', error);
-      alert('Failed to create table');
+      alert('No se pudo crear la mesa');
     } finally {
       setIsCreating(false);
     }
   };
 
-  const getStatusColor = (status: Table['Status']) => {
+  const getStatusBorder = (status: Table['Status']) => {
     switch (status) {
       case 'available':
-        return '#28a745';
+        return 'var(--color-success)';
       case 'occupied':
-        return '#dc3545';
+        return 'var(--color-danger)';
       case 'reserved':
-        return '#ffc107';
+        return 'var(--color-warning)';
       default:
-        return '#6c757d';
+        return 'var(--color-border-strong)';
     }
   };
 
   return (
-    <div style={{
-      padding: '1rem',
-      backgroundColor: '#f8f9fa',
-      borderRadius: '8px',
-      marginBottom: '1.5rem',
-    }}>
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '1rem',
-        flexWrap: 'wrap',
-        gap: '1rem',
-      }}>
-        <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 'bold' }}>
-          {selectedTable ? `Table ${selectedTable.Number}` : 'Select a Table'}
+    <div
+      style={{
+        padding: '1rem',
+        backgroundColor: 'var(--color-bg)',
+        borderRadius: 'var(--radius-lg)',
+        border: '1px solid var(--color-border)',
+        marginBottom: '1.5rem',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '1rem',
+          flexWrap: 'wrap',
+          gap: '1rem',
+        }}
+      >
+        <h2
+          style={{
+            margin: 0,
+            fontSize: '1.5rem',
+            fontWeight: 700,
+            color: 'var(--color-text-primary)',
+          }}
+        >
+          {selectedTable ? `Mesa ${selectedTable.Number}` : 'Seleccionar Mesa'}
         </h2>
         {!showCreateForm && (
-          <button
-            onClick={() => setShowCreateForm(true)}
-            style={{
-              padding: '0.5rem 1rem',
-              backgroundColor: '#007bff',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '0.875rem',
-              fontWeight: '500',
-            }}
-          >
-            + New Table
-          </button>
+          <Button size="sm" onClick={() => setShowCreateForm(true)}>
+            + Nueva Mesa
+          </Button>
         )}
       </div>
 
       {showCreateForm && (
-        <div style={{
-          padding: '1rem',
-          backgroundColor: 'white',
-          borderRadius: '4px',
-          marginBottom: '1rem',
-          display: 'flex',
-          gap: '0.5rem',
-          flexWrap: 'wrap',
-        }}>
-          <input
-            type="number"
-            placeholder="Table number"
-            value={newTableNumber}
-            onChange={(e) => setNewTableNumber(e.target.value)}
-            style={{
-              flex: 1,
-              minWidth: '150px',
-              padding: '0.5rem',
-              border: '1px solid #ced4da',
-              borderRadius: '4px',
-              fontSize: '1rem',
-            }}
-          />
-          <button
-            onClick={handleCreateTable}
-            disabled={isCreating}
-            style={{
-              padding: '0.5rem 1rem',
-              backgroundColor: isCreating ? '#6c757d' : '#28a745',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: isCreating ? 'not-allowed' : 'pointer',
-              fontSize: '0.875rem',
-            }}
-          >
-            {isCreating ? 'Creating...' : 'Create'}
-          </button>
-          <button
+        <div
+          style={{
+            padding: '1rem',
+            backgroundColor: 'var(--color-surface)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--color-border)',
+            marginBottom: '1rem',
+            display: 'flex',
+            gap: '0.5rem',
+            alignItems: 'flex-end',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ flex: 1, minWidth: '150px' }}>
+            <Input
+              type="number"
+              label="Número de mesa"
+              placeholder="Ej. 6"
+              value={newTableNumber}
+              onChange={(e) => setNewTableNumber(e.target.value)}
+            />
+          </div>
+          <Button onClick={handleCreateTable} disabled={isCreating}>
+            {isCreating ? 'Creando...' : 'Crear'}
+          </Button>
+          <Button
+            variant="secondary"
             onClick={() => {
               setShowCreateForm(false);
               setNewTableNumber('');
             }}
-            style={{
-              padding: '0.5rem 1rem',
-              backgroundColor: '#6c757d',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '0.875rem',
-            }}
           >
-            Cancel
-          </button>
+            Cancelar
+          </Button>
         </div>
       )}
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
-        gap: '0.75rem',
-      }}>
-        {mockTables.map((table) => (
-          <button
-            key={table.ID}
-            onClick={() => onTableSelect(table)}
-            style={{
-              padding: '1rem',
-              backgroundColor: selectedTable?.ID === table.ID ? '#007bff' : 'white',
-              color: selectedTable?.ID === table.ID ? 'white' : '#333',
-              border: `2px solid ${selectedTable?.ID === table.ID ? '#007bff' : getStatusColor(table.Status)}`,
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontSize: '1rem',
-              fontWeight: 'bold',
-              transition: 'all 0.2s',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '0.5rem',
-            }}
-            onMouseEnter={(e) => {
-              if (selectedTable?.ID !== table.ID) {
-                e.currentTarget.style.transform = 'scale(1.05)';
-                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (selectedTable?.ID !== table.ID) {
-                e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.boxShadow = 'none';
-              }
-            }}
-          >
-            <span>Table {table.Number}</span>
-            <span style={{
-              fontSize: '0.75rem',
-              padding: '0.25rem 0.5rem',
-              borderRadius: '4px',
-              backgroundColor: selectedTable?.ID === table.ID ? 'rgba(255,255,255,0.2)' : getStatusColor(table.Status),
-              color: selectedTable?.ID === table.ID ? 'white' : 'white',
-              textTransform: 'capitalize',
-            }}>
-              {table.Status}
-            </span>
-          </button>
-        ))}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
+          gap: '0.75rem',
+        }}
+      >
+        {mockTables.map((table) => {
+          const isSelected = selectedTable?.ID === table.ID;
+          return (
+            <button
+              key={table.ID}
+              type="button"
+              onClick={() => onTableSelect(table)}
+              style={{
+                padding: '1rem',
+                backgroundColor: isSelected
+                  ? 'var(--color-primary)'
+                  : 'var(--color-surface)',
+                color: isSelected
+                  ? 'var(--color-on-primary, #ffffff)'
+                  : 'var(--color-text-primary)',
+                border: `2px solid ${
+                  isSelected ? 'var(--color-primary)' : getStatusBorder(table.Status)
+                }`,
+                borderRadius: 'var(--radius-md)',
+                cursor: 'pointer',
+                fontSize: '1rem',
+                fontWeight: 700,
+                transition: 'transform var(--transition-fast), box-shadow var(--transition-fast)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '0.5rem',
+              }}
+              onMouseEnter={(e) => {
+                if (!isSelected) {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isSelected) {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = 'none';
+                }
+              }}
+            >
+              <span>Mesa {table.Number}</span>
+              {isSelected ? (
+                <span
+                  style={{
+                    fontSize: '0.7rem',
+                    fontWeight: 600,
+                    padding: '0.2rem 0.5rem',
+                    borderRadius: 'var(--radius-sm)',
+                    backgroundColor: 'rgba(255,255,255,0.2)',
+                    color: 'var(--color-on-primary, #ffffff)',
+                  }}
+                >
+                  {STATUS_LABEL[table.Status]}
+                </span>
+              ) : (
+                <Badge tone={STATUS_TONE[table.Status]} dot={false}>
+                  {STATUS_LABEL[table.Status]}
+                </Badge>
+              )}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
 }
-

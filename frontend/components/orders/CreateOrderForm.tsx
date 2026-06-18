@@ -5,6 +5,7 @@ import { productsApi } from "@/lib/api/products";
 import { createOrder } from "@/lib/api/orders";
 import type { Product } from "@/types/product";
 import type { OrderProductItem } from "@/types/order";
+import { Button, Input, Select, Textarea } from "@/components/ui";
 
 interface CreateOrderFormProps {
   onClose: () => void;
@@ -276,63 +277,23 @@ export default function CreateOrderForm({
 
             {/* Temporal Identifier */}
             <div style={{ marginBottom: "1rem" }}>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: "0.5rem",
-                  fontWeight: "bold",
-                  color: "var(--color-text-primary)",
-                }}
-              >
-                Identificador Temporal *
-              </label>
-              <input
+              <Input
+                label="Identificador Temporal *"
                 type="text"
                 value={temporalIdentifier}
                 onChange={(e) => setTemporalIdentifier(e.target.value)}
                 required
-                style={{
-                  width: "100%",
-                  padding: "0.75rem",
-                  fontSize: "1rem",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: "var(--radius-md)",
-                  outline: "none",
-                  backgroundColor: "var(--color-bg)",
-                  color: "var(--color-text-primary)",
-                }}
               />
             </div>
 
             {/* Descriptor */}
             <div style={{ marginBottom: "1.5rem" }}>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: "0.5rem",
-                  fontWeight: "bold",
-                  color: "var(--color-text-primary)",
-                }}
-              >
-                Descriptor (Opcional)
-              </label>
-              <textarea
+              <Textarea
+                label="Descriptor (Opcional)"
                 value={descriptor}
                 onChange={(e) => setDescriptor(e.target.value)}
                 placeholder="Descripción del cliente o mesa..."
                 rows={3}
-                style={{
-                  width: "100%",
-                  padding: "0.75rem",
-                  fontSize: "1rem",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: "var(--radius-md)",
-                  outline: "none",
-                  resize: "vertical",
-                  fontFamily: "inherit",
-                  backgroundColor: "var(--color-bg)",
-                  color: "var(--color-text-primary)",
-                }}
               />
             </div>
 
@@ -528,44 +489,29 @@ export default function CreateOrderForm({
                   flexWrap: "wrap",
                 }}
               >
-                <input
-                  type="text"
-                  placeholder="Buscar productos..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{
-                    flex: "1 1 250px",
-                    padding: "0.75rem",
-                    fontSize: "1rem",
-                    border: "1px solid var(--color-border)",
-                    borderRadius: "var(--radius-md)",
-                    outline: "none",
-                    backgroundColor: "var(--color-bg)",
-                    color: "var(--color-text-primary)",
-                  }}
-                />
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  style={{
-                    flex: "0 1 200px",
-                    padding: "0.75rem",
-                    fontSize: "1rem",
-                    border: "1px solid var(--color-border)",
-                    borderRadius: "var(--radius-md)",
-                    outline: "none",
-                    backgroundColor: "var(--color-bg)",
-                    color: "var(--color-text-primary)",
-                    cursor: "pointer",
-                  }}
-                >
-                  <option value="all">Todas las categorías</option>
-                  {categories.map((category) => (
-                    <option key={category} value={category}>
-                      {category}
-                    </option>
-                  ))}
-                </select>
+                <div style={{ flex: "1 1 250px" }}>
+                  <Input
+                    type="search"
+                    placeholder="Buscar productos..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    aria-label="Buscar productos"
+                  />
+                </div>
+                <div style={{ flex: "0 1 200px" }}>
+                  <Select
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    aria-label="Filtrar por categoría"
+                  >
+                    <option value="all">Todas las categorías</option>
+                    {categories.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
               </div>
               <div
                 style={{
@@ -672,44 +618,15 @@ export default function CreateOrderForm({
               backgroundColor: "var(--color-surface)",
             }}
           >
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                padding: "0.75rem 1.5rem",
-                fontSize: "1rem",
-                fontWeight: "bold",
-                backgroundColor: "var(--color-surface-hover)",
-                color: "var(--color-text-primary)",
-                border: "1px solid var(--color-border)",
-                borderRadius: "var(--radius-md)",
-                cursor: "pointer",
-              }}
-            >
+            <Button type="button" variant="secondary" onClick={onClose}>
               Cancelar
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               disabled={isSubmitting || selectedProducts.size === 0}
-              style={{
-                padding: "0.75rem 1.5rem",
-                fontSize: "1rem",
-                fontWeight: "bold",
-                backgroundColor:
-                  isSubmitting || selectedProducts.size === 0
-                    ? "var(--color-text-muted)"
-                    : "var(--color-success)",
-                color: "white",
-                border: "none",
-                borderRadius: "var(--radius-md)",
-                cursor:
-                  isSubmitting || selectedProducts.size === 0
-                    ? "not-allowed"
-                    : "pointer",
-              }}
             >
               {isSubmitting ? "Creando..." : "Crear Orden"}
-            </button>
+            </Button>
           </div>
         </form>
       </div>

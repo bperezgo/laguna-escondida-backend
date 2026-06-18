@@ -6,6 +6,7 @@ import { getBillOwnerById } from "@/lib/api/billOwners";
 import { generateInvoicePrintHTML } from "@/lib/templates/invoicePrint";
 import type { OpenBillWithProducts } from "@/types/order";
 import type { PaymentType, PayOrderRequest } from "@/types/billOwner";
+import { Button, Input, Modal, Select } from "@/components/ui";
 
 interface PaymentModalProps {
   openBill: OpenBillWithProducts;
@@ -177,7 +178,7 @@ export default function PaymentModal({
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleString("en-US", {
+    return date.toLocaleString("es-CO", {
       month: "short",
       day: "numeric",
       year: "numeric",
@@ -186,750 +187,412 @@ export default function PaymentModal({
     });
   };
 
+  const sectionCard: React.CSSProperties = {
+    padding: "1rem",
+    backgroundColor: "var(--color-bg)",
+    borderRadius: "var(--radius-md)",
+    border: "1px solid var(--color-border)",
+  };
+
   return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: "var(--color-overlay)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1000,
-        padding: "1rem",
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          backgroundColor: "var(--color-surface)",
-          borderRadius: "var(--radius-lg)",
-          maxWidth: "600px",
-          width: "100%",
-          maxHeight: "90vh",
-          overflow: "auto",
-          boxShadow: "var(--shadow-xl)",
-          border: "1px solid var(--color-border)",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div
-          style={{
-            padding: "1.5rem",
-            borderBottom: "1px solid var(--color-border)",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            position: "sticky",
-            top: 0,
-            backgroundColor: "var(--color-surface)",
-            zIndex: 1,
-          }}
-        >
-          <h2
-            style={{
-              margin: 0,
-              fontSize: "1.5rem",
-              fontWeight: "bold",
-              color: "var(--color-text-primary)",
-            }}
-          >
-            Resumen de Cuenta
-          </h2>
-          <button
-            onClick={onClose}
-            style={{
-              background: "none",
-              border: "none",
-              fontSize: "1.5rem",
-              cursor: "pointer",
-              color: "var(--color-text-secondary)",
-              padding: "0.25rem",
-              lineHeight: 1,
-              transition: "color var(--transition-fast)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = "var(--color-text-primary)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = "var(--color-text-secondary)";
-            }}
-          >
-            ×
-          </button>
-        </div>
-
-        {/* Bill Content for Screen */}
-        <div style={{ padding: "1.5rem" }}>
-          {/* Error Message */}
-          {error && (
-            <div
-              style={{
-                padding: "1rem",
-                backgroundColor: "var(--color-danger-light)",
-                border: "1px solid var(--color-danger)",
-                borderRadius: "var(--radius-md)",
-                color: "var(--color-danger)",
-                marginBottom: "1rem",
-              }}
-            >
-              {error}
-            </div>
-          )}
-
-          {/* Bill Info */}
-          <div
-            style={{
-              marginBottom: "1.5rem",
-              padding: "1rem",
-              backgroundColor: "var(--color-bg)",
-              borderRadius: "var(--radius-md)",
-              border: "1px solid var(--color-border)",
-            }}
-          >
-            <div
-              style={{
-                fontSize: "1.5rem",
-                fontWeight: "bold",
-                color: "var(--color-primary)",
-                marginBottom: "0.5rem",
-              }}
-            >
-              {openBill.temporal_identifier}
-            </div>
-            {openBill.descriptor && (
-              <div
-                style={{
-                  marginBottom: "0.5rem",
-                  color: "var(--color-text-secondary)",
-                }}
-              >
-                {openBill.descriptor}
-              </div>
-            )}
-            <div
-              style={{ fontSize: "0.875rem", color: "var(--color-text-muted)" }}
-            >
-              <div>Creado por: {openBill.created_by?.name}</div>
-              <div>Fecha: {formatDate(openBill.created_at)}</div>
-            </div>
-          </div>
-
-          {/* Payment Type */}
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label
-              style={{
-                display: "block",
-                marginBottom: "0.5rem",
-                fontWeight: "bold",
-                color: "var(--color-text-primary)",
-              }}
-            >
-              Tipo de Pago *
-            </label>
-            <select
-              value={paymentType}
-              onChange={(e) => setPaymentType(e.target.value as PaymentType)}
-              disabled={isPaying}
-              style={{
-                width: "100%",
-                padding: "0.75rem",
-                fontSize: "1rem",
-                border: "1px solid var(--color-border)",
-                borderRadius: "var(--radius-md)",
-                outline: "none",
-                backgroundColor: "var(--color-bg)",
-                color: "var(--color-text-primary)",
-                cursor: isPaying ? "not-allowed" : "pointer",
-              }}
-            >
-              <option value="cash">Efectivo</option>
-              <option value="credit_card">Tarjeta de Crédito</option>
-              <option value="debit_card">Tarjeta de Débito</option>
-              <option value="transfer_debit_bank">
-                Transferencia Débito Bancaria
-              </option>
-              <option value="transfer_credit_bank">
-                Transferencia Crédito Bancaria
-              </option>
-              <option value="transfer_debit_interbank">
-                Transferencia Débito Interbancaria
-              </option>
-            </select>
-          </div>
-
-          {/* Customer Search */}
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label
-              style={{
-                display: "block",
-                marginBottom: "0.5rem",
-                fontWeight: "bold",
-                color: "var(--color-text-primary)",
-              }}
-            >
-              ID de Cliente (Opcional)
-            </label>
-            <div style={{ display: "flex", gap: "0.5rem" }}>
-              <input
-                type="text"
-                value={customerId}
-                onChange={(e) => setCustomerId(e.target.value)}
-                placeholder="Ingresa ID del cliente..."
-                disabled={isPaying || isSearching}
-                style={{
-                  flex: 1,
-                  padding: "0.75rem",
-                  fontSize: "1rem",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: "var(--radius-md)",
-                  outline: "none",
-                  backgroundColor: "var(--color-bg)",
-                  color: "var(--color-text-primary)",
-                }}
-              />
-              <button
-                type="button"
-                onClick={handleSearchCustomer}
-                disabled={isPaying || isSearching}
-                style={{
-                  padding: "0.75rem 1.5rem",
-                  fontSize: "1rem",
-                  fontWeight: "bold",
-                  backgroundColor:
-                    isPaying || isSearching
-                      ? "var(--color-text-muted)"
-                      : "var(--color-primary)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "var(--radius-md)",
-                  cursor: isPaying || isSearching ? "not-allowed" : "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  transition: "background-color var(--transition-normal)",
-                }}
-              >
-                {isSearching ? "Buscando..." : "Buscar"}
-              </button>
-            </div>
-          </div>
-
-          {/* Customer Form */}
-          <div
-            style={{
-              marginBottom: "1.5rem",
-              padding: "1rem",
-              backgroundColor: "var(--color-bg)",
-              borderRadius: "var(--radius-md)",
-              border: "1px solid var(--color-border)",
-            }}
-          >
-            <h4
-              style={{
-                margin: "0 0 1rem 0",
-                fontSize: "1rem",
-                fontWeight: "bold",
-                color: "var(--color-text-primary)",
-              }}
-            >
-              Información del Cliente (Opcional)
-            </h4>
-            <div
-              style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
-            >
-              <div>
-                <label
-                  style={{
-                    display: "block",
-                    marginBottom: "0.25rem",
-                    fontSize: "0.875rem",
-                    color: "var(--color-text-secondary)",
-                  }}
-                >
-                  Nombre
-                </label>
-                <input
-                  type="text"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Nombre del cliente..."
-                  disabled={isPaying}
-                  style={{
-                    width: "100%",
-                    padding: "0.5rem",
-                    fontSize: "0.875rem",
-                    border: "1px solid var(--color-border)",
-                    borderRadius: "var(--radius-sm)",
-                    outline: "none",
-                    backgroundColor: "var(--color-surface)",
-                    color: "var(--color-text-primary)",
-                  }}
-                />
-              </div>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "1rem",
-                }}
-              >
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      marginBottom: "0.25rem",
-                      fontSize: "0.875rem",
-                      color: "var(--color-text-secondary)",
-                    }}
-                  >
-                    Correo Electrónico
-                  </label>
-                  <input
-                    type="email"
-                    value={customerEmail}
-                    onChange={(e) => setCustomerEmail(e.target.value)}
-                    placeholder="correo@ejemplo.com..."
-                    disabled={isPaying}
-                    style={{
-                      width: "100%",
-                      padding: "0.5rem",
-                      fontSize: "0.875rem",
-                      border: "1px solid var(--color-border)",
-                      borderRadius: "var(--radius-sm)",
-                      outline: "none",
-                      backgroundColor: "var(--color-surface)",
-                      color: "var(--color-text-primary)",
-                    }}
-                  />
-                </div>
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      marginBottom: "0.25rem",
-                      fontSize: "0.875rem",
-                      color: "var(--color-text-secondary)",
-                    }}
-                  >
-                    Teléfono (opcional)
-                  </label>
-                  <input
-                    type="tel"
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    placeholder="Número de teléfono..."
-                    disabled={isPaying}
-                    style={{
-                      width: "100%",
-                      padding: "0.5rem",
-                      fontSize: "0.875rem",
-                      border: "1px solid var(--color-border)",
-                      borderRadius: "var(--radius-sm)",
-                      outline: "none",
-                      backgroundColor: "var(--color-surface)",
-                      color: "var(--color-text-primary)",
-                    }}
-                  />
-                </div>
-              </div>
-              <div>
-                <label
-                  style={{
-                    display: "block",
-                    marginBottom: "0.25rem",
-                    fontSize: "0.875rem",
-                    color: "var(--color-text-secondary)",
-                  }}
-                >
-                  Dirección (opcional)
-                </label>
-                <input
-                  type="text"
-                  value={customerAddress}
-                  onChange={(e) => setCustomerAddress(e.target.value)}
-                  placeholder="Dirección..."
-                  disabled={isPaying}
-                  style={{
-                    width: "100%",
-                    padding: "0.5rem",
-                    fontSize: "0.875rem",
-                    border: "1px solid var(--color-border)",
-                    borderRadius: "var(--radius-sm)",
-                    outline: "none",
-                    backgroundColor: "var(--color-surface)",
-                    color: "var(--color-text-primary)",
-                  }}
-                />
-              </div>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "1rem",
-                }}
-              >
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      marginBottom: "0.25rem",
-                      fontSize: "0.875rem",
-                      color: "var(--color-text-secondary)",
-                    }}
-                  >
-                    Tipo de ID
-                  </label>
-                  <select
-                    value={customerIdentificationType}
-                    onChange={(e) =>
-                      setCustomerIdentificationType(e.target.value)
-                    }
-                    disabled={isPaying}
-                    style={{
-                      width: "100%",
-                      padding: "0.5rem",
-                      fontSize: "0.875rem",
-                      border: "1px solid var(--color-border)",
-                      borderRadius: "var(--radius-sm)",
-                      outline: "none",
-                      backgroundColor: "var(--color-surface)",
-                      color: "var(--color-text-primary)",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <option value="">Seleccionar Tipo de ID...</option>
-                    <option value="CC">CC</option>
-                    <option value="NIT">NIT</option>
-                  </select>
-                </div>
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      marginBottom: "0.25rem",
-                      fontSize: "0.875rem",
-                      color: "var(--color-text-secondary)",
-                    }}
-                  >
-                    Identificación
-                  </label>
-                  <input
-                    type="text"
-                    value={customerIdentification}
-                    onChange={(e) => setCustomerIdentification(e.target.value)}
-                    placeholder="Número de ID..."
-                    disabled={isPaying}
-                    style={{
-                      width: "100%",
-                      padding: "0.5rem",
-                      fontSize: "0.875rem",
-                      border: "1px solid var(--color-border)",
-                      borderRadius: "var(--radius-sm)",
-                      outline: "none",
-                      backgroundColor: "var(--color-surface)",
-                      color: "var(--color-text-primary)",
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Items */}
-          <div style={{ marginBottom: "1.5rem" }}>
-            <h3
-              style={{
-                margin: "0 0 1rem 0",
-                fontSize: "1.1rem",
-                fontWeight: "bold",
-                color: "var(--color-text-primary)",
-              }}
-            >
-              Artículos
-            </h3>
-            <div
-              style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
-            >
-              {consolidated.map(({ product, totalQuantity }) => {
-                const itemTotal =
-                  parseFloat(product.total_price_with_taxes) * totalQuantity;
-                return (
-                  <div
-                    key={product.id}
-                    style={{
-                      padding: "1rem",
-                      backgroundColor: "var(--color-bg)",
-                      borderRadius: "var(--radius-md)",
-                      border: "1px solid var(--color-border)",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "flex-start",
-                        marginBottom: "0.5rem",
-                      }}
-                    >
-                      <div style={{ flex: 1 }}>
-                        <div
-                          style={{
-                            fontWeight: "bold",
-                            color: "var(--color-text-primary)",
-                            marginBottom: "0.25rem",
-                          }}
-                        >
-                          {product.name}
-                        </div>
-                        <div
-                          style={{
-                            fontSize: "0.875rem",
-                            color: "var(--color-text-secondary)",
-                          }}
-                        >
-                          ${product.total_price_with_taxes} × {totalQuantity}
-                        </div>
-                      </div>
-                      <div
-                        style={{
-                          fontWeight: "bold",
-                          fontSize: "1.1rem",
-                          color: "var(--color-secondary)",
-                        }}
-                      >
-                        ${itemTotal.toFixed(2)}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Totals */}
-          <div
-            style={{
-              padding: "1.5rem",
-              backgroundColor: "var(--color-bg)",
-              borderRadius: "var(--radius-md)",
-              marginBottom: "1rem",
-              border: "1px solid var(--color-border)",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: "0.75rem",
-                fontSize: "1rem",
-              }}
-            >
-              <span style={{ color: "var(--color-text-secondary)" }}>
-                Subtotal:
-              </span>
-              <span
-                style={{
-                  fontWeight: "500",
-                  color: "var(--color-text-primary)",
-                }}
-              >
-                ${subtotal.toFixed(2)}
-              </span>
-            </div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: "0.75rem",
-                fontSize: "1rem",
-              }}
-            >
-              <span style={{ color: "var(--color-text-secondary)" }}>
-                VAT (IVA):
-              </span>
-              <span
-                style={{
-                  fontWeight: "500",
-                  color: "var(--color-text-primary)",
-                }}
-              >
-                ${totalVAT.toFixed(2)}
-              </span>
-            </div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: "1rem",
-                fontSize: "1rem",
-              }}
-            >
-              <span style={{ color: "var(--color-text-secondary)" }}>ICO:</span>
-              <span
-                style={{
-                  fontWeight: "500",
-                  color: "var(--color-text-primary)",
-                }}
-              >
-                ${totalICO.toFixed(2)}
-              </span>
-            </div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                paddingTop: "1rem",
-                borderTop: "2px solid var(--color-border)",
-                fontSize: "1.5rem",
-                fontWeight: "bold",
-              }}
-            >
-              <span style={{ color: "var(--color-text-primary)" }}>Total:</span>
-              <span style={{ color: "var(--color-success)" }}>
-                ${total.toFixed(2)}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Hidden Print Content */}
-        <div style={{ display: "none" }}>
-          <div ref={printRef}>
-            <div className="header">
-              <div className="bill-number">
-                Factura - {openBill.temporal_identifier}
-              </div>
-              <div className="date">{formatDate(openBill.created_at)}</div>
-              {openBill.created_by && (
-                <div className="date">
-                  {/* TODO: Agregar el nombre del usuario que creó la factura */}
-                  Served by: {openBill.created_by.name}
-                </div>
-              )}
-            </div>
-
-            <div className="items">
-              {consolidated.map(({ product, totalQuantity }) => {
-                const itemTotal =
-                  parseFloat(product.total_price_with_taxes) * totalQuantity;
-                return (
-                  <div key={product.id} className="item">
-                    <div className="item-name">{product.name}</div>
-                    <div className="item-details">
-                      <span>
-                        ${product.total_price_with_taxes} × {totalQuantity}
-                      </span>
-                      <span>${itemTotal.toFixed(2)}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="totals">
-              <div className="total-row">
-                <span>Subtotal:</span>
-                <span>${subtotal.toFixed(2)}</span>
-              </div>
-              <div className="total-row">
-                <span>IVA:</span>
-                <span>${totalVAT.toFixed(2)}</span>
-              </div>
-              <div className="total-row">
-                <span>ICO:</span>
-                <span>${totalICO.toFixed(2)}</span>
-              </div>
-              <div className="total-row final">
-                <span>TOTAL:</span>
-                <span>${total.toFixed(2)}</span>
-              </div>
-            </div>
-
-            <div className="footer">
-              <div>¡Gracias por su visita!</div>
-              <div>Laguna Escondida</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer Buttons */}
-        <div
-          style={{
-            padding: "1.5rem",
-            borderTop: "1px solid var(--color-border)",
-            display: "flex",
-            gap: "1rem",
-            justifyContent: "flex-end",
-            position: "sticky",
-            bottom: 0,
-            backgroundColor: "var(--color-surface)",
-          }}
-        >
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isPaying}
-            style={{
-              padding: "0.75rem 1.5rem",
-              fontSize: "1rem",
-              fontWeight: "bold",
-              backgroundColor: "var(--color-surface-hover)",
-              color: "var(--color-text-primary)",
-              border: "1px solid var(--color-border)",
-              borderRadius: "var(--radius-md)",
-              cursor: isPaying ? "not-allowed" : "pointer",
-              opacity: isPaying ? 0.6 : 1,
-              transition: "all var(--transition-normal)",
-            }}
-          >
+    <Modal
+      open
+      onClose={onClose}
+      title="Resumen de Cuenta"
+      size="md"
+      closeOnOverlay={!isPaying}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={isPaying}>
             Cerrar
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="secondary"
             onClick={handlePrint}
             disabled={isPaying}
-            style={{
-              padding: "0.75rem 1.5rem",
-              fontSize: "1rem",
-              fontWeight: "bold",
-              backgroundColor: "var(--color-primary)",
-              color: "white",
-              border: "none",
-              borderRadius: "var(--radius-md)",
-              cursor: isPaying ? "not-allowed" : "pointer",
-              opacity: isPaying ? 0.6 : 1,
-              transition: "background-color var(--transition-normal)",
-            }}
+            leftIcon={
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="6 9 6 2 18 2 18 9" />
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                <rect x="6" y="14" width="12" height="8" />
+              </svg>
+            }
           >
             Imprimir Cuenta
-          </button>
-          <button
-            type="button"
-            onClick={handlePayment}
-            disabled={isPaying}
+          </Button>
+          <Button onClick={handlePayment} disabled={isPaying}>
+            {isPaying ? "Procesando..." : "Pagar y Cerrar Cuenta"}
+          </Button>
+        </>
+      }
+    >
+      {/* Error Message */}
+      {error && (
+        <div
+          style={{
+            padding: "1rem",
+            backgroundColor: "var(--color-danger-light)",
+            border: "1px solid var(--color-danger)",
+            borderRadius: "var(--radius-md)",
+            color: "var(--color-danger)",
+            marginBottom: "1rem",
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      {/* Bill Info */}
+      <div style={{ ...sectionCard, marginBottom: "1.5rem" }}>
+        <div
+          style={{
+            fontSize: "1.5rem",
+            fontWeight: "bold",
+            color: "var(--color-primary)",
+            marginBottom: "0.5rem",
+          }}
+        >
+          {openBill.temporal_identifier}
+        </div>
+        {openBill.descriptor && (
+          <div
             style={{
-              padding: "0.75rem 1.5rem",
-              fontSize: "1rem",
-              fontWeight: "bold",
-              backgroundColor: isPaying
-                ? "var(--color-text-muted)"
-                : "var(--color-success)",
-              color: "white",
-              border: "none",
-              borderRadius: "var(--radius-md)",
-              cursor: isPaying ? "not-allowed" : "pointer",
-              transition: "background-color var(--transition-normal)",
+              marginBottom: "0.5rem",
+              color: "var(--color-text-secondary)",
             }}
           >
-            {isPaying ? "Procesando..." : "Pagar y Cerrar Cuenta"}
-          </button>
+            {openBill.descriptor}
+          </div>
+        )}
+        <div style={{ fontSize: "0.875rem", color: "var(--color-text-muted)" }}>
+          <div>Creado por: {openBill.created_by?.name}</div>
+          <div>Fecha: {formatDate(openBill.created_at)}</div>
         </div>
       </div>
-    </div>
+
+      {/* Payment Type */}
+      <div style={{ marginBottom: "1.5rem" }}>
+        <Select
+          label="Tipo de Pago *"
+          value={paymentType}
+          onChange={(e) => setPaymentType(e.target.value as PaymentType)}
+          disabled={isPaying}
+        >
+          <option value="cash">Efectivo</option>
+          <option value="credit_card">Tarjeta de Crédito</option>
+          <option value="debit_card">Tarjeta de Débito</option>
+          <option value="transfer_debit_bank">
+            Transferencia Débito Bancaria
+          </option>
+          <option value="transfer_credit_bank">
+            Transferencia Crédito Bancaria
+          </option>
+          <option value="transfer_debit_interbank">
+            Transferencia Débito Interbancaria
+          </option>
+        </Select>
+      </div>
+
+      {/* Customer Search */}
+      <div
+        style={{
+          marginBottom: "1.5rem",
+          display: "flex",
+          gap: "0.5rem",
+          alignItems: "flex-end",
+        }}
+      >
+        <div style={{ flex: 1 }}>
+          <Input
+            label="ID de Cliente (Opcional)"
+            value={customerId}
+            onChange={(e) => setCustomerId(e.target.value)}
+            placeholder="Ingresa ID del cliente..."
+            disabled={isPaying || isSearching}
+          />
+        </div>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={handleSearchCustomer}
+          disabled={isPaying || isSearching}
+        >
+          {isSearching ? "Buscando..." : "Buscar"}
+        </Button>
+      </div>
+
+      {/* Customer Form */}
+      <div style={{ ...sectionCard, marginBottom: "1.5rem" }}>
+        <h4
+          style={{
+            margin: "0 0 1rem 0",
+            fontSize: "1rem",
+            fontWeight: "bold",
+            color: "var(--color-text-primary)",
+          }}
+        >
+          Información del Cliente (Opcional)
+        </h4>
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          <Input
+            label="Nombre"
+            value={customerName}
+            onChange={(e) => setCustomerName(e.target.value)}
+            placeholder="Nombre del cliente..."
+            disabled={isPaying}
+          />
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "1rem",
+            }}
+          >
+            <Input
+              label="Correo Electrónico"
+              type="email"
+              value={customerEmail}
+              onChange={(e) => setCustomerEmail(e.target.value)}
+              placeholder="correo@ejemplo.com..."
+              disabled={isPaying}
+            />
+            <Input
+              label="Teléfono (opcional)"
+              type="tel"
+              value={customerPhone}
+              onChange={(e) => setCustomerPhone(e.target.value)}
+              placeholder="Número de teléfono..."
+              disabled={isPaying}
+            />
+          </div>
+          <Input
+            label="Dirección (opcional)"
+            value={customerAddress}
+            onChange={(e) => setCustomerAddress(e.target.value)}
+            placeholder="Dirección..."
+            disabled={isPaying}
+          />
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "1rem",
+            }}
+          >
+            <Select
+              label="Tipo de ID"
+              value={customerIdentificationType}
+              onChange={(e) => setCustomerIdentificationType(e.target.value)}
+              disabled={isPaying}
+            >
+              <option value="">Seleccionar Tipo de ID...</option>
+              <option value="CC">CC</option>
+              <option value="NIT">NIT</option>
+            </Select>
+            <Input
+              label="Identificación"
+              value={customerIdentification}
+              onChange={(e) => setCustomerIdentification(e.target.value)}
+              placeholder="Número de ID..."
+              disabled={isPaying}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Items */}
+      <div style={{ marginBottom: "1.5rem" }}>
+        <h3
+          style={{
+            margin: "0 0 1rem 0",
+            fontSize: "1.1rem",
+            fontWeight: "bold",
+            color: "var(--color-text-primary)",
+          }}
+        >
+          Artículos
+        </h3>
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          {consolidated.map(({ product, totalQuantity }) => {
+            const itemTotal =
+              parseFloat(product.total_price_with_taxes) * totalQuantity;
+            return (
+              <div key={product.id} style={sectionCard}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                  }}
+                >
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{
+                        fontWeight: "bold",
+                        color: "var(--color-text-primary)",
+                        marginBottom: "0.25rem",
+                      }}
+                    >
+                      {product.name}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "0.875rem",
+                        color: "var(--color-text-secondary)",
+                      }}
+                    >
+                      ${product.total_price_with_taxes} × {totalQuantity}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      fontWeight: "bold",
+                      fontSize: "1.1rem",
+                      color: "var(--color-text-primary)",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    ${itemTotal.toFixed(2)}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Totals */}
+      <div
+        style={{
+          padding: "1.5rem",
+          backgroundColor: "var(--color-bg)",
+          borderRadius: "var(--radius-md)",
+          border: "1px solid var(--color-border)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            marginBottom: "0.75rem",
+            fontSize: "1rem",
+          }}
+        >
+          <span style={{ color: "var(--color-text-secondary)" }}>
+            Subtotal:
+          </span>
+          <span style={{ fontWeight: 500, color: "var(--color-text-primary)" }}>
+            ${subtotal.toFixed(2)}
+          </span>
+        </div>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            marginBottom: "0.75rem",
+            fontSize: "1rem",
+          }}
+        >
+          <span style={{ color: "var(--color-text-secondary)" }}>IVA:</span>
+          <span style={{ fontWeight: 500, color: "var(--color-text-primary)" }}>
+            ${totalVAT.toFixed(2)}
+          </span>
+        </div>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            marginBottom: "1rem",
+            fontSize: "1rem",
+          }}
+        >
+          <span style={{ color: "var(--color-text-secondary)" }}>ICO:</span>
+          <span style={{ fontWeight: 500, color: "var(--color-text-primary)" }}>
+            ${totalICO.toFixed(2)}
+          </span>
+        </div>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            paddingTop: "1rem",
+            borderTop: "2px solid var(--color-border)",
+            fontSize: "1.5rem",
+            fontWeight: "bold",
+          }}
+        >
+          <span style={{ color: "var(--color-text-primary)" }}>Total:</span>
+          <span style={{ color: "var(--color-primary)" }}>
+            ${total.toFixed(2)}
+          </span>
+        </div>
+      </div>
+
+      {/* Hidden Print Content */}
+      <div style={{ display: "none" }}>
+        <div ref={printRef}>
+          <div className="header">
+            <div className="bill-number">
+              Factura - {openBill.temporal_identifier}
+            </div>
+            <div className="date">{formatDate(openBill.created_at)}</div>
+            {openBill.created_by && (
+              <div className="date">Served by: {openBill.created_by.name}</div>
+            )}
+          </div>
+
+          <div className="items">
+            {consolidated.map(({ product, totalQuantity }) => {
+              const itemTotal =
+                parseFloat(product.total_price_with_taxes) * totalQuantity;
+              return (
+                <div key={product.id} className="item">
+                  <div className="item-name">{product.name}</div>
+                  <div className="item-details">
+                    <span>
+                      ${product.total_price_with_taxes} × {totalQuantity}
+                    </span>
+                    <span>${itemTotal.toFixed(2)}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="totals">
+            <div className="total-row">
+              <span>Subtotal:</span>
+              <span>${subtotal.toFixed(2)}</span>
+            </div>
+            <div className="total-row">
+              <span>IVA:</span>
+              <span>${totalVAT.toFixed(2)}</span>
+            </div>
+            <div className="total-row">
+              <span>ICO:</span>
+              <span>${totalICO.toFixed(2)}</span>
+            </div>
+            <div className="total-row final">
+              <span>TOTAL:</span>
+              <span>${total.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <div className="footer">
+            <div>¡Gracias por su visita!</div>
+            <div>Laguna Escondida</div>
+          </div>
+        </div>
+      </div>
+    </Modal>
   );
 }

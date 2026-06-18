@@ -3,6 +3,7 @@
 import { OpenBill } from "@/types/order";
 import { PermissionGate } from "@/components/permissions";
 import { PERMISSIONS } from "@/lib/permissions";
+import { Badge, Button, Card } from "@/components/ui";
 
 interface OpenBillCardProps {
   openBill: OpenBill;
@@ -19,7 +20,7 @@ export default function OpenBillCard({
 }: OpenBillCardProps) {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleString("en-US", {
+    return date.toLocaleString("es-CO", {
       month: "short",
       day: "numeric",
       year: "numeric",
@@ -29,99 +30,59 @@ export default function OpenBillCard({
   };
 
   return (
-    <div
+    <Card
+      interactive={!!onClick}
       onClick={onClick}
       style={{
-        backgroundColor: "var(--color-surface)",
-        border: "1px solid var(--color-border)",
-        borderRadius: "var(--radius-lg)",
         padding: "1.25rem",
-        cursor: onClick ? "pointer" : "default",
-        transition: "all var(--transition-normal)",
-        boxShadow: "var(--shadow-sm)",
-      }}
-      onMouseEnter={(e) => {
-        if (onClick) {
-          e.currentTarget.style.transform = "translateY(-2px)";
-          e.currentTarget.style.boxShadow = "var(--shadow-lg)";
-          e.currentTarget.style.borderColor = "var(--color-primary)";
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (onClick) {
-          e.currentTarget.style.transform = "translateY(0)";
-          e.currentTarget.style.boxShadow = "var(--shadow-sm)";
-          e.currentTarget.style.borderColor = "var(--color-border)";
-        }
+        display: "flex",
+        flexDirection: "column",
+        gap: "1rem",
       }}
     >
-      {/* Temporal Identifier - Main Title */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          marginBottom: "0.75rem",
-        }}
-      >
-        <span
-          style={{
-            fontSize: "0.75rem",
-            fontWeight: "bold",
-            color: "var(--color-primary)",
-            backgroundColor: "var(--color-primary-light)",
-            padding: "0.25rem 0.75rem",
-            borderRadius: "var(--radius-sm)",
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
-          }}
-        >
+      {/* Temporal identifier */}
+      <div>
+        <Badge tone="info" dot={false}>
           {openBill.temporal_identifier}
-        </span>
+        </Badge>
       </div>
 
       {/* Descriptor */}
-      <div
-        style={{
-          marginBottom: "1rem",
-        }}
-      >
-        {openBill.descriptor ? (
-          <p
-            style={{
-              margin: 0,
-              fontSize: "0.95rem",
-              color: "var(--color-text-primary)",
-              lineHeight: "1.5",
-              display: "-webkit-box",
-              WebkitLineClamp: 3,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-              minHeight: "3rem",
-            }}
-          >
-            {openBill.descriptor}
-          </p>
-        ) : (
-          <p
-            style={{
-              margin: 0,
-              fontSize: "0.875rem",
-              color: "var(--color-text-muted)",
-              fontStyle: "italic",
-              minHeight: "3rem",
-            }}
-          >
-            Sin descripción
-          </p>
-        )}
-      </div>
+      {openBill.descriptor ? (
+        <p
+          style={{
+            margin: 0,
+            fontSize: "0.95rem",
+            color: "var(--color-text-primary)",
+            lineHeight: 1.5,
+            display: "-webkit-box",
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+            minHeight: "3rem",
+          }}
+        >
+          {openBill.descriptor}
+        </p>
+      ) : (
+        <p
+          style={{
+            margin: 0,
+            fontSize: "0.875rem",
+            color: "var(--color-text-muted)",
+            fontStyle: "italic",
+            minHeight: "3rem",
+          }}
+        >
+          Sin descripción
+        </p>
+      )}
 
-      {/* Total Amount */}
+      {/* Total amount */}
       <div
         style={{
-          marginBottom: "1rem",
-          padding: "0.75rem",
-          backgroundColor: "var(--color-primary-light)",
+          padding: "0.75rem 1rem",
+          background: "var(--color-primary-50)",
           borderRadius: "var(--radius-md)",
           display: "flex",
           justifyContent: "space-between",
@@ -131,7 +92,7 @@ export default function OpenBillCard({
         <span
           style={{
             fontSize: "0.85rem",
-            fontWeight: "500",
+            fontWeight: 500,
             color: "var(--color-text-secondary)",
           }}
         >
@@ -140,15 +101,16 @@ export default function OpenBillCard({
         <span
           style={{
             fontSize: "1.25rem",
-            fontWeight: "bold",
-            color: "var(--color-primary)",
+            fontWeight: 800,
+            color: "var(--color-primary-hover)",
+            fontVariantNumeric: "tabular-nums",
           }}
         >
           ${openBill.total_amount}
         </span>
       </div>
 
-      {/* Meta Information */}
+      {/* Meta */}
       <div
         style={{
           display: "flex",
@@ -158,133 +120,60 @@ export default function OpenBillCard({
           borderTop: "1px solid var(--color-border)",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem",
-          }}
-        >
-          <span
-            style={{
-              fontSize: "0.8rem",
-              color: "var(--color-text-muted)",
-              fontWeight: "500",
-            }}
-          >
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <span style={{ fontSize: "0.8rem", color: "var(--color-text-muted)", fontWeight: 500 }}>
             Creado por:
           </span>
-          <span
-            style={{
-              fontSize: "0.8rem",
-              color: "var(--color-text-primary)",
-              fontWeight: "bold",
-            }}
-          >
+          <span style={{ fontSize: "0.8rem", color: "var(--color-text-primary)", fontWeight: 700 }}>
             {openBill.created_by?.name}
           </span>
         </div>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem",
-          }}
-        >
-          <span
-            style={{
-              fontSize: "0.8rem",
-              color: "var(--color-text-muted)",
-              fontWeight: "500",
-            }}
-          >
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <span style={{ fontSize: "0.8rem", color: "var(--color-text-muted)", fontWeight: 500 }}>
             Creado el:
           </span>
-          <span
-            style={{
-              fontSize: "0.8rem",
-              color: "var(--color-text-secondary)",
-            }}
-          >
+          <span style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
             {formatDate(openBill.created_at)}
           </span>
         </div>
       </div>
 
-      {/* Action Buttons */}
+      {/* Actions */}
       {(onPayClick || onRemoveClick) && (
-        <div
-          style={{
-            marginTop: "1rem",
-            display: "flex",
-            gap: "0.5rem",
-          }}
-        >
+        <div style={{ display: "flex", gap: "0.5rem" }}>
           {onRemoveClick && (
             <PermissionGate permission={PERMISSIONS.ORDERS_DELETE}>
-              <button
+              <Button
+                variant="danger"
+                size="lg"
+                style={{ flex: onPayClick ? "0 0 auto" : 1 }}
+                title="Eliminar cuenta"
                 onClick={(e) => {
                   e.stopPropagation();
                   onRemoveClick();
                 }}
-                style={{
-                  flex: onPayClick ? "0 0 auto" : "1",
-                  padding: "0.75rem",
-                  fontSize: "1rem",
-                  fontWeight: "bold",
-                  backgroundColor: "var(--color-danger)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "var(--radius-md)",
-                  cursor: "pointer",
-                  transition: "background-color var(--transition-normal)",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor =
-                    "var(--color-danger-hover)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "var(--color-danger)";
-                }}
-                title="Eliminar cuenta"
               >
                 Eliminar
-              </button>
+              </Button>
             </PermissionGate>
           )}
           {onPayClick && (
             <PermissionGate permission={PERMISSIONS.ORDERS_UPDATE}>
-              <button
+              <Button
+                variant="primary"
+                size="lg"
+                style={{ flex: 1 }}
                 onClick={(e) => {
                   e.stopPropagation();
                   onPayClick();
                 }}
-                style={{
-                  flex: "1",
-                  padding: "0.75rem",
-                  fontSize: "1rem",
-                  fontWeight: "bold",
-                  backgroundColor: "var(--color-success)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "var(--radius-md)",
-                  cursor: "pointer",
-                  transition: "background-color var(--transition-normal)",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor =
-                    "var(--color-success-hover)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "var(--color-success)";
-                }}
               >
                 Pagar Cuenta
-              </button>
+              </Button>
             </PermissionGate>
           )}
         </div>
       )}
-    </div>
+    </Card>
   );
 }

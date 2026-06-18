@@ -14,6 +14,7 @@ import {
 import type { OpenBill, OpenBillWithProducts } from "@/types/order";
 import { PermissionGate } from "@/components/permissions";
 import { PERMISSIONS } from "@/lib/permissions";
+import { Button } from "@/components/ui";
 
 export default function OrdersPageClient() {
   const [openBills, setOpenBills] = useState<OpenBill[]>([]);
@@ -149,30 +150,13 @@ export default function OrdersPageClient() {
             Cuentas Abiertas
           </h1>
           <PermissionGate permission={PERMISSIONS.ORDERS_CREATE}>
-            <button
+            <Button
+              size="lg"
               onClick={() => setShowCreateForm(true)}
-              style={{
-                padding: "0.875rem 1.75rem",
-                fontSize: "1.05rem",
-                fontWeight: "bold",
-                backgroundColor: "var(--color-primary)",
-                color: "white",
-                border: "none",
-                borderRadius: "var(--radius-md)",
-                cursor: "pointer",
-                transition: "background-color var(--transition-normal)",
-                boxShadow: "var(--shadow-md)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor =
-                  "var(--color-primary-hover)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--color-primary)";
-              }}
+              style={{ boxShadow: "var(--shadow-md)" }}
             >
               + Crear Nueva Orden
-            </button>
+            </Button>
           </PermissionGate>
         </div>
 

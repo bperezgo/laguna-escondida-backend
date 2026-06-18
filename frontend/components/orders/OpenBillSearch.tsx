@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent } from "react";
+import { Input } from "@/components/ui";
 
 interface OpenBillSearchProps {
   searchQuery: string;
@@ -16,34 +17,13 @@ export default function OpenBillSearch({
   };
 
   return (
-    <div
-      style={{
-        marginBottom: "1.5rem",
-        width: "100%",
-      }}
-    >
-      <input
-        type="text"
+    <div style={{ marginBottom: "1.5rem", width: "100%" }}>
+      <Input
+        type="search"
         placeholder="Buscar por identificador temporal..."
         value={searchQuery}
         onChange={handleChange}
-        style={{
-          width: "100%",
-          padding: "0.875rem 1rem",
-          fontSize: "1rem",
-          border: "1px solid var(--color-border)",
-          borderRadius: "var(--radius-md)",
-          outline: "none",
-          transition: "border-color var(--transition-normal)",
-          backgroundColor: "var(--color-surface)",
-          color: "var(--color-text-primary)",
-        }}
-        onFocus={(e) => {
-          e.currentTarget.style.borderColor = "var(--color-primary)";
-        }}
-        onBlur={(e) => {
-          e.currentTarget.style.borderColor = "var(--color-border)";
-        }}
+        aria-label="Buscar cuentas abiertas"
       />
     </div>
   );

@@ -154,8 +154,8 @@ export default function CommandItemCard({
         >
           <span
             style={{
-              backgroundColor: "#1a1a2e",
-              color: "white",
+              backgroundColor: "var(--color-primary)",
+              color: "var(--color-text-inverse)",
               padding: "0.25rem 0.5rem",
               borderRadius: "var(--radius-sm)",
               fontWeight: "bold",

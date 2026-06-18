@@ -6,6 +6,7 @@ import { updateOrder } from "@/lib/api/orders";
 import { generateInvoicePrintHTML } from "@/lib/templates/invoicePrint";
 import { PermissionGate } from "@/components/permissions";
 import { PERMISSIONS } from "@/lib/permissions";
+import { Button, Input, Textarea } from "@/components/ui";
 import type { Product } from "@/types/product";
 import type { OpenBillWithProducts, OrderProductItem } from "@/types/order";
 import type { OpenBillProductStatus } from "@/types/commandItem";
@@ -488,146 +489,83 @@ export default function EditOrderForm({
             backgroundColor: "var(--color-surface)",
           }}
         >
-          <button
-            type="button"
+          <Button
+            variant="secondary"
             onClick={handlePrint}
-            style={{
-              flex: 1,
-              padding: "0.6rem 1rem",
-              fontSize: "0.875rem",
-              fontWeight: "bold",
-              backgroundColor: "var(--color-primary)",
-              color: "white",
-              border: "none",
-              borderRadius: "var(--radius-md)",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "0.4rem",
-              transition: "background-color var(--transition-normal)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor =
-                "var(--color-primary-hover)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--color-primary)";
-            }}
+            style={{ flex: 1 }}
+            leftIcon={
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="6 9 6 2 18 2 18 9" />
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                <rect x="6" y="14" width="12" height="8" />
+              </svg>
+            }
           >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polyline points="6 9 6 2 18 2 18 9" />
-              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-              <rect x="6" y="14" width="12" height="8" />
-            </svg>
             Imprimir
-          </button>
+          </Button>
           {onPayClick && (
             <PermissionGate permission={PERMISSIONS.ORDERS_UPDATE}>
-              <button
-                type="button"
+              <Button
                 onClick={() => {
                   onClose();
                   onPayClick();
                 }}
-                style={{
-                  flex: 1,
-                  padding: "0.6rem 1rem",
-                  fontSize: "0.875rem",
-                  fontWeight: "bold",
-                  backgroundColor: "var(--color-success)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "var(--radius-md)",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "0.4rem",
-                  transition: "background-color var(--transition-normal)",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor =
-                    "var(--color-success-hover)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor =
-                    "var(--color-success)";
-                }}
+                style={{ flex: 1 }}
+                leftIcon={
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="12" y1="1" x2="12" y2="23" />
+                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                  </svg>
+                }
               >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <line x1="12" y1="1" x2="12" y2="23" />
-                  <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                </svg>
                 Pagar Cuenta
-              </button>
+              </Button>
             </PermissionGate>
           )}
           {onRemoveClick && (
             <PermissionGate permission={PERMISSIONS.ORDERS_DELETE}>
-              <button
-                type="button"
+              <Button
+                variant="danger"
                 onClick={() => {
                   onClose();
                   onRemoveClick();
                 }}
-                style={{
-                  padding: "0.6rem 1rem",
-                  fontSize: "0.875rem",
-                  fontWeight: "bold",
-                  backgroundColor: "var(--color-danger)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "var(--radius-md)",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "0.4rem",
-                  transition: "background-color var(--transition-normal)",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor =
-                    "var(--color-danger-hover)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor =
-                    "var(--color-danger)";
-                }}
+                leftIcon={
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  </svg>
+                }
               >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                </svg>
                 Eliminar
-              </button>
+              </Button>
             </PermissionGate>
           )}
         </div>
@@ -752,33 +690,12 @@ export default function EditOrderForm({
 
             {/* Descriptor */}
             <div style={{ marginBottom: "1.5rem" }}>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: "0.5rem",
-                  fontWeight: "bold",
-                  color: "var(--color-text-primary)",
-                }}
-              >
-                Descriptor (Opcional)
-              </label>
-              <textarea
+              <Textarea
+                label="Descriptor (Opcional)"
                 value={descriptor}
                 onChange={(e) => setDescriptor(e.target.value)}
                 placeholder="Descripción del cliente o mesa..."
                 rows={3}
-                style={{
-                  width: "100%",
-                  padding: "0.75rem",
-                  fontSize: "1rem",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: "var(--radius-md)",
-                  outline: "none",
-                  resize: "vertical",
-                  fontFamily: "inherit",
-                  backgroundColor: "var(--color-bg)",
-                  color: "var(--color-text-primary)",
-                }}
               />
             </div>
 
@@ -954,23 +871,13 @@ export default function EditOrderForm({
                             </button>
                           </div>
                         </div>
-                        <input
+                        <Input
                           type="text"
                           value={notes}
                           onChange={(e) =>
                             handleNotesChange(lineItemId, e.target.value)
                           }
                           placeholder="Agregar notas (opcional)..."
-                          style={{
-                            width: "100%",
-                            padding: "0.5rem",
-                            fontSize: "0.875rem",
-                            border: "1px solid var(--color-border)",
-                            borderRadius: "var(--radius-sm)",
-                            outline: "none",
-                            backgroundColor: "var(--color-bg)",
-                            color: "var(--color-text-primary)",
-                          }}
                         />
                       </div>
                     ),
@@ -991,23 +898,14 @@ export default function EditOrderForm({
               >
                 Agregar Más Productos
               </h3>
-              <input
-                type="text"
-                placeholder="Buscar productos..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "0.75rem",
-                  fontSize: "1rem",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: "var(--radius-md)",
-                  outline: "none",
-                  marginBottom: "1rem",
-                  backgroundColor: "var(--color-bg)",
-                  color: "var(--color-text-primary)",
-                }}
-              />
+              <div style={{ marginBottom: "1rem" }}>
+                <Input
+                  type="search"
+                  placeholder="Buscar productos..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
               <div
                 style={{
                   maxHeight: "300px",
@@ -1113,40 +1011,12 @@ export default function EditOrderForm({
               backgroundColor: "var(--color-surface)",
             }}
           >
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                padding: "0.75rem 1.5rem",
-                fontSize: "1rem",
-                fontWeight: "bold",
-                backgroundColor: "var(--color-surface-hover)",
-                color: "var(--color-text-primary)",
-                border: "1px solid var(--color-border)",
-                borderRadius: "var(--radius-md)",
-                cursor: "pointer",
-              }}
-            >
+            <Button type="button" variant="secondary" onClick={onClose}>
               Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              style={{
-                padding: "0.75rem 1.5rem",
-                fontSize: "1rem",
-                fontWeight: "bold",
-                backgroundColor: isSubmitting
-                  ? "var(--color-text-muted)"
-                  : "var(--color-primary)",
-                color: "white",
-                border: "none",
-                borderRadius: "var(--radius-md)",
-                cursor: isSubmitting ? "not-allowed" : "pointer",
-              }}
-            >
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? "Actualizando..." : "Actualizar Orden"}
-            </button>
+            </Button>
           </div>
         </form>
       </div>
