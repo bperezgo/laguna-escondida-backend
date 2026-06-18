@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import type { Stock } from "@/types/stock";
-import StockCard from "./StockCard";
+import { Button, Input, Table, Badge } from "@/components/ui";
+import { PermissionGate } from "@/components/permissions";
+import { PERMISSIONS } from "@/lib/permissions";
 
 interface StockListProps {
   stocks: Stock[];
@@ -23,6 +25,14 @@ export default function StockList({
 
   // Create a map of product IDs to product names
   const productMap = new Map(products.map((p) => [p.id, p.name]));
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("es-CO", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
 
   // Filter stocks based on search term
   const filteredStocks = stocks.filter((stock) => {
@@ -55,44 +65,13 @@ export default function StockList({
 
   return (
     <div>
-      <div
-        style={{
-          marginBottom: "2rem",
-          padding: "1.5rem",
-          backgroundColor: "var(--color-surface)",
-          borderRadius: "var(--radius-md)",
-          border: "1px solid var(--color-border)",
-        }}
-      >
-        <div style={{ flex: "1", minWidth: "200px" }}>
-          <label
-            style={{
-              display: "block",
-              marginBottom: "0.5rem",
-              fontWeight: "500",
-              fontSize: "0.875rem",
-              color: "var(--color-text-primary)",
-            }}
-          >
-            Buscar Inventarios
-          </label>
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar por nombre de producto o ID..."
-            style={{
-              width: "100%",
-              padding: "0.75rem",
-              border: "1px solid var(--color-border)",
-              borderRadius: "var(--radius-sm)",
-              fontSize: "1rem",
-              boxSizing: "border-box",
-              backgroundColor: "var(--color-bg)",
-              color: "var(--color-text-primary)",
-            }}
-          />
-        </div>
+      <div style={{ maxWidth: 400, marginBottom: "1.5rem" }}>
+        <Input
+          label="Buscar Inventarios"
+          placeholder="Buscar por nombre de producto o ID..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
       </div>
 
       <div style={{ marginBottom: "1rem", color: "var(--color-text-secondary)", fontSize: "0.9rem" }}>
@@ -107,17 +86,67 @@ export default function StockList({
           </p>
         </div>
       ) : (
-        <div>
-          {filteredStocks.map((stock) => (
-            <StockCard
-              key={stock.id}
-              stock={stock}
-              productName={productMap.get(stock.product_id)}
-              onAdjust={onAdjust}
-              onDelete={onDelete}
-            />
-          ))}
-        </div>
+        <Table>
+          <thead>
+            <tr>
+              <th>Producto</th>
+              <th>ID del Producto</th>
+              <th data-numeric>Inventario</th>
+              <th>Actualizado</th>
+              <th style={{ textAlign: "right" }}>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredStocks.map((stock) => (
+              <tr key={stock.id}>
+                <td style={{ fontWeight: 600 }}>
+                  {productMap.get(stock.product_id) || `Producto ${stock.product_id}`}
+                </td>
+                <td
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    color: "var(--color-text-muted)",
+                    fontSize: "0.75rem",
+                  }}
+                >
+                  {stock.product_id}
+                </td>
+                <td data-numeric>
+                  <Badge
+                    tone={
+                      stock.amount === 0
+                        ? "danger"
+                        : stock.amount < 10
+                          ? "warning"
+                          : "success"
+                    }
+                  >
+                    {stock.amount}
+                  </Badge>
+                </td>
+                <td>{formatDate(stock.updated_at)}</td>
+                <td style={{ textAlign: "right" }}>
+                  <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+                    <PermissionGate permission={PERMISSIONS.STOCK_UPDATE}>
+                      <Button variant="primary" size="sm" onClick={() => onAdjust(stock)}>
+                        Ajustar
+                      </Button>
+                    </PermissionGate>
+                    <PermissionGate permission={PERMISSIONS.STOCK_DELETE}>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => onDelete(stock.product_id)}
+                      >
+                        Eliminar
+                      </Button>
+                    </PermissionGate>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
       )}
     </div>
   );

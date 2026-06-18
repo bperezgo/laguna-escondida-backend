@@ -10,6 +10,7 @@ import type {
 import SupportDocumentForm from "@/components/support-documents/SupportDocumentForm";
 import { PermissionGate } from "@/components/permissions";
 import { PERMISSIONS } from "@/lib/permissions";
+import { Button, Input, Table } from "@/components/ui";
 
 export default function SupportDocumentsPageClient() {
   const [showForm, setShowForm] = useState<boolean>(false);
@@ -162,7 +163,7 @@ export default function SupportDocumentsPageClient() {
 
   const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleString("en-US", {
+    return date.toLocaleString("es-CO", {
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
@@ -221,82 +222,32 @@ export default function SupportDocumentsPageClient() {
           </div>
           <div style={{ display: "flex", gap: "0.75rem" }}>
             <PermissionGate permission={PERMISSIONS.SUPPORT_DOCUMENTS_EXPORT}>
-              <button
+              <Button
+                variant="secondary"
                 onClick={handleExportCSV}
                 disabled={exportLoading}
-                style={{
-                  padding: "0.75rem 1.5rem",
-                  backgroundColor: exportLoading
-                    ? "var(--color-border)"
-                    : "var(--color-primary)",
-                  color: exportLoading ? "var(--color-text-muted)" : "white",
-                  border: "none",
-                  borderRadius: "var(--radius-sm)",
-                  cursor: exportLoading ? "not-allowed" : "pointer",
-                  fontSize: "1rem",
-                  fontWeight: "500",
-                  boxShadow: "var(--shadow-sm)",
-                  transition: "background-color var(--transition-normal)",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                }}
-                onMouseEnter={(e) => {
-                  if (!exportLoading) {
-                    e.currentTarget.style.backgroundColor =
-                      "var(--color-primary-hover)";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!exportLoading) {
-                    e.currentTarget.style.backgroundColor =
-                      "var(--color-primary)";
-                  }
-                }}
+                leftIcon={
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                }
               >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
                 {exportLoading ? "Exportando..." : "Descargar CSV"}
-              </button>
+              </Button>
             </PermissionGate>
             <PermissionGate permission={PERMISSIONS.SUPPORT_DOCUMENTS_CREATE}>
-              <button
-                onClick={handleCreate}
-                style={{
-                  padding: "0.75rem 1.5rem",
-                  backgroundColor: "var(--color-success)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "var(--radius-sm)",
-                  cursor: "pointer",
-                  fontSize: "1rem",
-                  fontWeight: "500",
-                  boxShadow: "var(--shadow-sm)",
-                  transition: "background-color var(--transition-normal)",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor =
-                    "var(--color-success-hover)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor =
-                    "var(--color-success)";
-                }}
-              >
-                + Crear Documento Soporte
-              </button>
+              <Button onClick={handleCreate}>+ Crear Documento Soporte</Button>
             </PermissionGate>
           </div>
         </div>
@@ -361,88 +312,25 @@ export default function SupportDocumentsPageClient() {
               marginBottom: "1rem",
             }}
           >
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: "0.5rem",
-                  fontSize: "0.875rem",
-                  fontWeight: "500",
-                  color: "var(--color-text-secondary)",
-                }}
-              >
-                Fecha de Inicio
-              </label>
-              <input
-                type="date"
-                value={createdAtStart}
-                onChange={(e) => setCreatedAtStart(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "0.5rem",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: "var(--radius-sm)",
-                  fontSize: "1rem",
-                  backgroundColor: "var(--color-bg)",
-                  color: "var(--color-text-primary)",
-                }}
-              />
-            </div>
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: "0.5rem",
-                  fontSize: "0.875rem",
-                  fontWeight: "500",
-                  color: "var(--color-text-secondary)",
-                }}
-              >
-                Fecha de Fin
-              </label>
-              <input
-                type="date"
-                value={createdAtEnd}
-                onChange={(e) => setCreatedAtEnd(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "0.5rem",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: "var(--radius-sm)",
-                  fontSize: "1rem",
-                  backgroundColor: "var(--color-bg)",
-                  color: "var(--color-text-primary)",
-                }}
-              />
-            </div>
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: "0.5rem",
-                  fontSize: "0.875rem",
-                  fontWeight: "500",
-                  color: "var(--color-text-secondary)",
-                }}
-              >
-                NIT del Proveedor
-              </label>
-              <input
-                type="text"
-                value={providerDocumentNumber}
-                onChange={(e) => setProviderDocumentNumber(e.target.value)}
-                placeholder="Ingresa el NIT del proveedor"
-                style={{
-                  width: "100%",
-                  padding: "0.5rem",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: "var(--radius-sm)",
-                  fontSize: "1rem",
-                  backgroundColor: "var(--color-bg)",
-                  color: "var(--color-text-primary)",
-                }}
-              />
-            </div>
+            <Input
+              label="Fecha de Inicio"
+              type="date"
+              value={createdAtStart}
+              onChange={(e) => setCreatedAtStart(e.target.value)}
+            />
+            <Input
+              label="Fecha de Fin"
+              type="date"
+              value={createdAtEnd}
+              onChange={(e) => setCreatedAtEnd(e.target.value)}
+            />
+            <Input
+              label="NIT del Proveedor"
+              type="text"
+              value={providerDocumentNumber}
+              onChange={(e) => setProviderDocumentNumber(e.target.value)}
+              placeholder="Ingresa el NIT del proveedor"
+            />
           </div>
           <div
             style={{
@@ -450,53 +338,10 @@ export default function SupportDocumentsPageClient() {
               gap: "1rem",
             }}
           >
-            <button
-              onClick={handleApplyFilters}
-              style={{
-                padding: "0.5rem 1.5rem",
-                backgroundColor: "var(--color-primary)",
-                color: "white",
-                border: "none",
-                borderRadius: "var(--radius-sm)",
-                cursor: "pointer",
-                fontSize: "1rem",
-                fontWeight: "500",
-                transition: "background-color var(--transition-normal)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor =
-                  "var(--color-primary-hover)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--color-primary)";
-              }}
-            >
-              Aplicar Filtros
-            </button>
-            <button
-              onClick={handleClearFilters}
-              style={{
-                padding: "0.5rem 1.5rem",
-                backgroundColor: "var(--color-surface-hover)",
-                color: "var(--color-text-primary)",
-                border: "1px solid var(--color-border)",
-                borderRadius: "var(--radius-sm)",
-                cursor: "pointer",
-                fontSize: "1rem",
-                fontWeight: "500",
-                transition: "background-color var(--transition-normal)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor =
-                  "var(--color-surface-active)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor =
-                  "var(--color-surface-hover)";
-              }}
-            >
+            <Button onClick={handleApplyFilters}>Aplicar Filtros</Button>
+            <Button variant="secondary" onClick={handleClearFilters}>
               Limpiar Filtros
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -546,358 +391,125 @@ export default function SupportDocumentsPageClient() {
           <>
             <div
               style={{
-                backgroundColor: "var(--color-surface)",
-                borderRadius: "var(--radius-md)",
-                border: "1px solid var(--color-border)",
-                overflow: "hidden",
+                marginBottom: "0.75rem",
+                fontSize: "0.875rem",
+                color: "var(--color-text-secondary)",
               }}
             >
-              <div
-                style={{
-                  padding: "1rem 1.5rem",
-                  borderBottom: "1px solid var(--color-border)",
-                  backgroundColor: "var(--color-bg)",
-                }}
-              >
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: "0.875rem",
-                    color: "var(--color-text-secondary)",
-                  }}
-                >
-                  Mostrando {documents.length} de {total} documentos soporte
-                </p>
-              </div>
-              <div
-                style={{
-                  overflowX: "auto",
-                }}
-              >
-                <table
-                  style={{
-                    width: "100%",
-                    borderCollapse: "collapse",
-                  }}
-                >
-                  <thead>
-                    <tr
-                      style={{
-                        backgroundColor: "var(--color-bg)",
-                        borderBottom: "1px solid var(--color-border)",
-                      }}
-                    >
-                      <th
-                        style={{
-                          padding: "1rem",
-                          textAlign: "left",
-                          fontSize: "0.875rem",
-                          fontWeight: "bold",
-                          color: "var(--color-text-primary)",
-                        }}
-                      >
-                        Fecha de Creación
-                      </th>
-                      <th
-                        style={{
-                          padding: "1rem",
-                          textAlign: "left",
-                          fontSize: "0.875rem",
-                          fontWeight: "bold",
-                          color: "var(--color-text-primary)",
-                        }}
-                      >
-                        Proveedor
-                      </th>
-                      <th
-                        style={{
-                          padding: "1rem",
-                          textAlign: "left",
-                          fontSize: "0.875rem",
-                          fontWeight: "bold",
-                          color: "var(--color-text-primary)",
-                        }}
-                      >
-                        CUDS
-                      </th>
-                      <th
-                        style={{
-                          padding: "1rem",
-                          textAlign: "left",
-                          fontSize: "0.875rem",
-                          fontWeight: "bold",
-                          color: "var(--color-text-primary)",
-                        }}
-                      >
-                        Tascode
-                      </th>
-                      <th
-                        style={{
-                          padding: "1rem",
-                          textAlign: "right",
-                          fontSize: "0.875rem",
-                          fontWeight: "bold",
-                          color: "var(--color-text-primary)",
-                        }}
-                      >
-                        Total
-                      </th>
-                      <th
-                        style={{
-                          padding: "1rem",
-                          textAlign: "right",
-                          fontSize: "0.875rem",
-                          fontWeight: "bold",
-                          color: "var(--color-text-primary)",
-                        }}
-                      >
-                        Descuento
-                      </th>
-                      <th
-                        style={{
-                          padding: "1rem",
-                          textAlign: "right",
-                          fontSize: "0.875rem",
-                          fontWeight: "bold",
-                          color: "var(--color-text-primary)",
-                        }}
-                      >
-                        VAT
-                      </th>
-                      <th
-                        style={{
-                          padding: "1rem",
-                          textAlign: "right",
-                          fontSize: "0.875rem",
-                          fontWeight: "bold",
-                          color: "var(--color-text-primary)",
-                        }}
-                      >
-                        ICO
-                      </th>
-                      <th
-                        style={{
-                          padding: "1rem",
-                          textAlign: "right",
-                          fontSize: "0.875rem",
-                          fontWeight: "bold",
-                          color: "var(--color-text-primary)",
-                        }}
-                      >
-                        Propina
-                      </th>
-                      <th
-                        style={{
-                          padding: "1rem",
-                          textAlign: "center",
-                          fontSize: "0.875rem",
-                          fontWeight: "bold",
-                          color: "var(--color-text-primary)",
-                        }}
-                      >
-                        PDF
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {documents.map((doc, index) => (
-                      <tr
-                        key={doc.id}
-                        style={{
-                          borderBottom: "1px solid var(--color-border)",
-                          backgroundColor:
-                            index % 2 === 0
-                              ? "var(--color-surface)"
-                              : "var(--color-bg)",
-                        }}
-                      >
-                        <td
-                          style={{
-                            padding: "1rem",
-                            fontSize: "0.875rem",
-                            color: "var(--color-text-primary)",
-                          }}
-                        >
-                          {formatDateTime(doc.created_at)}
-                        </td>
-                        <td
-                          style={{
-                            padding: "1rem",
-                            fontSize: "0.875rem",
-                            color: "var(--color-text-primary)",
-                          }}
-                        >
-                          <div>{doc.provider_name}</div>
-                          <div
-                            style={{
-                              fontSize: "0.75rem",
-                              color: "var(--color-text-muted)",
-                            }}
-                          >
-                            {doc.provider_document_number}
-                          </div>
-                        </td>
-                        <td
-                          style={{
-                            padding: "1rem",
-                            fontSize: "0.75rem",
-                            color: "var(--color-text-secondary)",
-                            maxWidth: "150px",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                          title={doc.cuds}
-                        >
-                          {doc.cuds}
-                        </td>
-                        <td
-                          style={{
-                            padding: "1rem",
-                            fontSize: "0.875rem",
-                            color: "var(--color-text-primary)",
-                          }}
-                        >
-                          {doc.tascode}
-                        </td>
-                        <td
-                          style={{
-                            padding: "1rem",
-                            fontSize: "0.875rem",
-                            fontWeight: "bold",
-                            color: "var(--color-success)",
-                            textAlign: "right",
-                          }}
-                        >
-                          ${doc.total_amount}
-                        </td>
-                        <td
-                          style={{
-                            padding: "1rem",
-                            fontSize: "0.875rem",
-                            color: "var(--color-text-secondary)",
-                            textAlign: "right",
-                          }}
-                        >
-                          ${doc.discount_amount}
-                        </td>
-                        <td
-                          style={{
-                            padding: "1rem",
-                            fontSize: "0.875rem",
-                            color: "var(--color-text-secondary)",
-                            textAlign: "right",
-                          }}
-                        >
-                          ${doc.vat}
-                        </td>
-                        <td
-                          style={{
-                            padding: "1rem",
-                            fontSize: "0.875rem",
-                            color: "var(--color-text-secondary)",
-                            textAlign: "right",
-                          }}
-                        >
-                          ${doc.ico}
-                        </td>
-                        <td
-                          style={{
-                            padding: "1rem",
-                            fontSize: "0.875rem",
-                            color: "var(--color-text-secondary)",
-                            textAlign: "right",
-                          }}
-                        >
-                          ${doc.tip}
-                        </td>
-                        <td
-                          style={{
-                            padding: "1rem",
-                            textAlign: "center",
-                          }}
-                        >
-                          {doc.pdf_download_url ? (
-                            <button
-                              onClick={() =>
-                                handleDocumentClick(doc.pdf_download_url!)
-                              }
-                              style={{
-                                background: "none",
-                                border: "none",
-                                cursor: "pointer",
-                                padding: "0.25rem",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                              }}
-                              title="Ver documento (PDF)"
-                            >
-                              <svg
-                                width="24"
-                                height="24"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="var(--color-success)"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                <polyline points="14 2 14 8 20 8" />
-                                <line x1="16" y1="13" x2="8" y2="13" />
-                                <line x1="16" y1="17" x2="8" y2="17" />
-                                <polyline points="10 9 9 9 8 9" />
-                              </svg>
-                            </button>
-                          ) : (
-                            <div
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                padding: "0.25rem",
-                              }}
-                              title="Documento no disponible"
-                            >
-                              <svg
-                                width="24"
-                                height="24"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="var(--color-danger)"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                <polyline points="14 2 14 8 20 8" />
-                                <line x1="9" y1="15" x2="15" y2="15" />
-                                <line x1="12" y1="12" x2="12" y2="18" />
-                                <line
-                                  x1="9"
-                                  y1="12"
-                                  x2="15"
-                                  y2="18"
-                                  stroke="var(--color-danger)"
-                                />
-                                <line
-                                  x1="15"
-                                  y1="12"
-                                  x2="9"
-                                  y2="18"
-                                  stroke="var(--color-danger)"
-                                />
-                              </svg>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              Mostrando {documents.length} de {total} documentos soporte
             </div>
+            <Table>
+              <thead>
+                <tr>
+                  <th>Fecha de Creación</th>
+                  <th>Proveedor</th>
+                  <th>CUDS</th>
+                  <th>Tascode</th>
+                  <th data-numeric>Total</th>
+                  <th data-numeric>Descuento</th>
+                  <th data-numeric>VAT</th>
+                  <th data-numeric>ICO</th>
+                  <th data-numeric>Propina</th>
+                  <th style={{ textAlign: "center" }}>PDF</th>
+                </tr>
+              </thead>
+              <tbody>
+                {documents.map((doc) => (
+                  <tr key={doc.id}>
+                    <td>{formatDateTime(doc.created_at)}</td>
+                    <td>
+                      <div>{doc.provider_name}</div>
+                      <div
+                        style={{
+                          fontSize: "0.75rem",
+                          color: "var(--color-text-muted)",
+                        }}
+                      >
+                        {doc.provider_document_number}
+                      </div>
+                    </td>
+                    <td
+                      style={{
+                        fontSize: "0.75rem",
+                        color: "var(--color-text-secondary)",
+                        maxWidth: "150px",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                      title={doc.cuds}
+                    >
+                      {doc.cuds}
+                    </td>
+                    <td>{doc.tascode}</td>
+                    <td data-numeric style={{ fontWeight: 600 }}>
+                      ${doc.total_amount}
+                    </td>
+                    <td data-numeric>${doc.discount_amount}</td>
+                    <td data-numeric>${doc.vat}</td>
+                    <td data-numeric>${doc.ico}</td>
+                    <td data-numeric>${doc.tip}</td>
+                    <td style={{ textAlign: "center" }}>
+                      {doc.pdf_download_url ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            handleDocumentClick(doc.pdf_download_url!)
+                          }
+                          title="Ver documento (PDF)"
+                        >
+                          <svg
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="var(--color-success)"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                            <polyline points="14 2 14 8 20 8" />
+                            <line x1="16" y1="13" x2="8" y2="13" />
+                            <line x1="16" y1="17" x2="8" y2="17" />
+                            <polyline points="10 9 9 9 8 9" />
+                          </svg>
+                        </Button>
+                      ) : (
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: "0.25rem",
+                          }}
+                          title="Documento no disponible"
+                        >
+                          <svg
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="var(--color-danger)"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                            <polyline points="14 2 14 8 20 8" />
+                            <line x1="9" y1="15" x2="15" y2="15" />
+                            <line x1="12" y1="12" x2="12" y2="18" />
+                            <line x1="9" y1="12" x2="15" y2="18" />
+                            <line x1="15" y1="12" x2="9" y2="18" />
+                          </svg>
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
 
             {/* Pagination */}
             {totalPages > 1 && (
@@ -910,26 +522,13 @@ export default function SupportDocumentsPageClient() {
                   marginTop: "1.5rem",
                 }}
               >
-                <button
+                <Button
+                  variant="secondary"
                   onClick={() => handlePageChange(currentPage - 1)}
                   disabled={currentPage === 1}
-                  style={{
-                    padding: "0.5rem 1rem",
-                    backgroundColor:
-                      currentPage === 1
-                        ? "var(--color-border)"
-                        : "var(--color-primary)",
-                    color:
-                      currentPage === 1 ? "var(--color-text-muted)" : "white",
-                    border: "none",
-                    borderRadius: "var(--radius-sm)",
-                    cursor: currentPage === 1 ? "not-allowed" : "pointer",
-                    fontSize: "0.875rem",
-                    fontWeight: "500",
-                  }}
                 >
                   Anterior
-                </button>
+                </Button>
                 <span
                   style={{
                     padding: "0.5rem 1rem",
@@ -939,29 +538,13 @@ export default function SupportDocumentsPageClient() {
                 >
                   Página {currentPage} de {totalPages}
                 </span>
-                <button
+                <Button
+                  variant="secondary"
                   onClick={() => handlePageChange(currentPage + 1)}
                   disabled={currentPage === totalPages}
-                  style={{
-                    padding: "0.5rem 1rem",
-                    backgroundColor:
-                      currentPage === totalPages
-                        ? "var(--color-border)"
-                        : "var(--color-primary)",
-                    color:
-                      currentPage === totalPages
-                        ? "var(--color-text-muted)"
-                        : "white",
-                    border: "none",
-                    borderRadius: "var(--radius-sm)",
-                    cursor:
-                      currentPage === totalPages ? "not-allowed" : "pointer",
-                    fontSize: "0.875rem",
-                    fontWeight: "500",
-                  }}
                 >
                   Siguiente
-                </button>
+                </Button>
               </div>
             )}
           </>

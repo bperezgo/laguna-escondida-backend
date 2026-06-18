@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { financialSummaryApi } from "@/lib/api/financialSummary";
 import type { FinancialSummary } from "@/types/financialSummary";
-import SummaryKpiCard from "./SummaryKpiCard";
+import { Card, CardBody, Input, Button, StatCard } from "@/components/ui";
 import ExpenseCategoryBreakdown from "./ExpenseCategoryBreakdown";
 
 const getMonthBounds = () => {
@@ -12,6 +12,17 @@ const getMonthBounds = () => {
   const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
   const fmt = (d: Date) => d.toISOString().split("T")[0];
   return { start: fmt(first), end: fmt(last) };
+};
+
+const formatCurrency = (value: string | number) => {
+  const num = typeof value === "number" ? value : parseFloat(value);
+  if (isNaN(num)) return "$0";
+  return new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: "COP",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(num);
 };
 
 export default function FinancialSummaryPageClient() {
@@ -63,7 +74,7 @@ export default function FinancialSummaryPageClient() {
         <div
           style={{
             display: "flex",
-            alignItems: "center",
+            alignItems: "flex-end",
             justifyContent: "space-between",
             flexWrap: "wrap",
             gap: "1rem",
@@ -96,78 +107,30 @@ export default function FinancialSummaryPageClient() {
           <div
             style={{
               display: "flex",
-              alignItems: "center",
+              alignItems: "flex-end",
               gap: "0.75rem",
               flexWrap: "wrap",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-              <label
-                style={{
-                  fontSize: "0.8rem",
-                  color: "var(--color-text-secondary)",
-                }}
-              >
-                Desde
-              </label>
-              <input
+            <div style={{ width: "160px" }}>
+              <Input
+                label="Desde"
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                style={{
-                  padding: "0.4rem 0.6rem",
-                  backgroundColor: "var(--color-surface)",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: "var(--radius-md)",
-                  color: "var(--color-text-primary)",
-                  fontSize: "0.875rem",
-                  cursor: "pointer",
-                }}
               />
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-              <label
-                style={{
-                  fontSize: "0.8rem",
-                  color: "var(--color-text-secondary)",
-                }}
-              >
-                Hasta
-              </label>
-              <input
+            <div style={{ width: "160px" }}>
+              <Input
+                label="Hasta"
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                style={{
-                  padding: "0.4rem 0.6rem",
-                  backgroundColor: "var(--color-surface)",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: "var(--radius-md)",
-                  color: "var(--color-text-primary)",
-                  fontSize: "0.875rem",
-                  cursor: "pointer",
-                }}
               />
             </div>
-            <button
-              onClick={fetchSummary}
-              disabled={loading}
-              style={{
-                padding: "0.4rem 1rem",
-                backgroundColor: loading
-                  ? "var(--color-surface-hover)"
-                  : "var(--color-primary)",
-                color: loading ? "var(--color-text-muted)" : "white",
-                border: "none",
-                borderRadius: "var(--radius-md)",
-                cursor: loading ? "not-allowed" : "pointer",
-                fontSize: "0.875rem",
-                fontWeight: 500,
-                transition: "background-color var(--transition-normal)",
-              }}
-            >
+            <Button variant="primary" onClick={fetchSummary} disabled={loading}>
               {loading ? "Cargando..." : "Actualizar"}
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -224,82 +187,70 @@ export default function FinancialSummaryPageClient() {
                 marginBottom: "1rem",
               }}
             >
-              <SummaryKpiCard
+              <StatCard
                 label="Ingresos"
-                amount={summary.revenue.total_amount}
-                count={summary.revenue.count}
-                accentColor="var(--color-primary)"
+                value={formatCurrency(summary.revenue.total_amount)}
+                delta={`${summary.revenue.count} registros`}
               />
-              <SummaryKpiCard
+              <StatCard
                 label="Gastos"
-                amount={summary.expenses.total_amount}
-                count={summary.expenses.count}
-                accentColor="var(--color-warning)"
+                value={formatCurrency(summary.expenses.total_amount)}
+                delta={`${summary.expenses.count} registros`}
               />
-              <SummaryKpiCard
+              <StatCard
                 label="Compras"
-                amount={summary.purchases.total_amount}
-                count={summary.purchases.count}
-                accentColor="var(--color-text-secondary)"
+                value={formatCurrency(summary.purchases.total_amount)}
+                delta={`${summary.purchases.count} registros`}
               />
             </div>
 
             {/* Net income — full-width accent card */}
-            <div
-              style={{
-                backgroundColor: "var(--color-surface)",
-                border: `1px solid ${netIncomeColor}`,
-                borderRadius: "var(--radius-md)",
-                padding: "1.25rem 1.5rem",
-                boxShadow: "var(--shadow-md)",
-                marginBottom: "1rem",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: "1rem",
-                flexWrap: "wrap",
-              }}
-            >
-              <div>
-                <p
-                  style={{
-                    fontSize: "0.75rem",
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    color: "var(--color-text-secondary)",
-                    marginBottom: "0.4rem",
-                  }}
-                >
-                  Utilidad Neta
-                </p>
-                <p
-                  style={{
-                    fontSize: "2rem",
-                    fontWeight: 700,
-                    color: netIncomeColor,
-                    margin: 0,
-                    lineHeight: 1.1,
-                  }}
-                >
-                  {new Intl.NumberFormat("es-CO", {
-                    style: "currency",
-                    currency: "COP",
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 0,
-                  }).format(netIncome)}
-                </p>
-              </div>
-              <p
+            <Card style={{ borderColor: netIncomeColor, marginBottom: "1rem" }}>
+              <CardBody
                 style={{
-                  fontSize: "0.8rem",
-                  color: "var(--color-text-muted)",
-                  margin: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "1rem",
+                  flexWrap: "wrap",
                 }}
               >
-                Ingresos − Gastos − Compras
-              </p>
-            </div>
+                <div>
+                  <p
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                      color: "var(--color-text-secondary)",
+                      marginBottom: "0.4rem",
+                    }}
+                  >
+                    Utilidad Neta
+                  </p>
+                  <p
+                    style={{
+                      fontSize: "2rem",
+                      fontWeight: 700,
+                      color: netIncomeColor,
+                      margin: 0,
+                      lineHeight: 1.1,
+                    }}
+                  >
+                    {formatCurrency(netIncome)}
+                  </p>
+                </div>
+                <p
+                  style={{
+                    fontSize: "0.8rem",
+                    color: "var(--color-text-muted)",
+                    margin: 0,
+                  }}
+                >
+                  Ingresos − Gastos − Compras
+                </p>
+              </CardBody>
+            </Card>
 
             {/* Expense category breakdown */}
             <ExpenseCategoryBreakdown

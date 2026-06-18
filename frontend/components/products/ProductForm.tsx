@@ -12,6 +12,7 @@ import type {
 import { PRODUCT_TYPES, UNITS_OF_MEASURE, PREPARATION_AREAS, PRIORITY_LEVELS, requiresPricing } from "@/types/product";
 import { productsApi } from "@/lib/api/products";
 import { productResponsibilitiesApi } from "@/lib/api/productResponsibilities";
+import { Modal, Input, Select, Textarea, Button } from "@/components/ui";
 
 interface ProductFormProps {
   product?: Product | null;
@@ -126,7 +127,7 @@ export default function ProductForm({
       try {
         setResponsibilityLoading(true);
         const responsibility = await productResponsibilitiesApi.getById(product.id);
-        
+
         // If we found a responsibility, populate the form
         setHasResponsibility(true);
         setResponsibilityArea(responsibility.area);
@@ -324,7 +325,7 @@ export default function ProductForm({
         error instanceof Error
           ? error.message
           : "Failed to save product responsibility";
-      
+
       // Show a warning to the user
       alert(
         `El producto se guardó correctamente, pero hubo un problema con la responsabilidad de preparación: ${errorMessage}`
@@ -344,524 +345,389 @@ export default function ProductForm({
     }
   };
 
-  const inputStyle = (hasError: boolean) => ({
-    width: "100%",
-    padding: "0.75rem",
-    border: `1px solid ${hasError ? "var(--color-danger)" : "var(--color-border)"}`,
-    borderRadius: "var(--radius-sm)",
-    fontSize: "1rem",
-    boxSizing: "border-box" as const,
-    backgroundColor: "var(--color-bg)",
-    color: "var(--color-text-primary)",
-  });
-
-  const labelStyle = {
-    display: "block",
-    marginBottom: "0.5rem",
-    fontWeight: "500",
-    color: "var(--color-text-primary)",
-  };
-
-  const errorStyle = {
-    margin: "0.25rem 0 0 0",
-    color: "var(--color-danger)",
-    fontSize: "0.875rem",
-  };
-
   return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: "var(--color-overlay)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1000,
-        padding: "1rem",
-      }}
+    <Modal
+      open
+      onClose={onCancel}
+      title={product ? "Editar Producto" : "Crear Nuevo Producto"}
+      size="lg"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onCancel} disabled={isLoading}>
+            Cancelar
+          </Button>
+          <Button type="submit" form="product-form" disabled={isLoading}>
+            {isLoading ? "Guardando..." : product ? "Actualizar" : "Crear"}
+          </Button>
+        </>
+      }
     >
-      <div
-        style={{
-          backgroundColor: "var(--color-surface)",
-          borderRadius: "var(--radius-md)",
-          padding: "2rem",
-          maxWidth: "600px",
-          width: "100%",
-          maxHeight: "90vh",
-          overflowY: "auto",
-          boxShadow: "var(--shadow-xl)",
-          border: "1px solid var(--color-border)",
-        }}
+      <form
+        id="product-form"
+        onSubmit={handleSubmit}
+        style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}
       >
-        <h2
-          style={{
-            marginTop: 0,
-            marginBottom: "1.5rem",
-            fontSize: "1.5rem",
-            fontWeight: "bold",
-            color: "var(--color-text-primary)",
-          }}
-        >
-          {product ? "Editar Producto" : "Crear Nuevo Producto"}
-        </h2>
+        {/* Name */}
+        <Input
+          label="Nombre del Producto *"
+          type="text"
+          value={formData.name}
+          onChange={(e) => handleChange("name", e.target.value)}
+          error={errors.name}
+          placeholder="Ingresa el nombre del producto"
+          maxLength={255}
+        />
 
-        <form onSubmit={handleSubmit}>
-          {/* Name */}
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label style={labelStyle}>Nombre del Producto *</label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => handleChange("name", e.target.value)}
-              style={inputStyle(!!errors.name)}
-              placeholder="Ingresa el nombre del producto"
-              maxLength={255}
-            />
-            {errors.name && <p style={errorStyle}>{errors.name}</p>}
-          </div>
-
-          {/* Category with Autocomplete */}
-          <div style={{ marginBottom: "1.5rem", position: "relative" }}>
-            <label style={labelStyle}>Categoría *</label>
-            <input
-              ref={categoryInputRef}
-              type="text"
-              value={formData.category}
-              onChange={(e) => {
-                handleChange("category", e.target.value);
-                setShowCategorySuggestions(true);
-              }}
-              onFocus={() => setShowCategorySuggestions(true)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  setShowCategorySuggestions(false);
-                }
-              }}
-              style={inputStyle(!!errors.category)}
-              placeholder="Ingresa la categoría"
-              maxLength={100}
-              autoComplete="off"
-            />
-            {/* Category Suggestions Dropdown */}
-            {showCategorySuggestions && filteredCategories.length > 0 && formData.category && (
-              <div
-                ref={suggestionsRef}
-                style={{
-                  position: "absolute",
-                  top: "100%",
-                  left: 0,
-                  right: 0,
-                  backgroundColor: "var(--color-surface)",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: "var(--radius-sm)",
-                  boxShadow: "var(--shadow-md)",
-                  maxHeight: "200px",
-                  overflowY: "auto",
-                  zIndex: 10,
-                  marginTop: "0.25rem",
-                }}
-              >
-                {filteredCategories.map((category, index) => (
-                  <div
-                    key={index}
-                    onClick={() => handleCategorySelect(category)}
-                    style={{
-                      padding: "0.75rem",
-                      cursor: "pointer",
-                      borderBottom:
-                        index < filteredCategories.length - 1
-                          ? "1px solid var(--color-border)"
-                          : "none",
-                      backgroundColor: "var(--color-surface)",
-                      color: "var(--color-text-primary)",
-                      transition: "background-color var(--transition-fast)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = "var(--color-surface-hover)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "var(--color-surface)";
-                    }}
-                  >
-                    {category}
-                  </div>
-                ))}
-              </div>
-            )}
-            {errors.category && <p style={errorStyle}>{errors.category}</p>}
-          </div>
-
-          {/* Product Type and Unit of Measure - Side by Side */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "1rem",
-              marginBottom: "1.5rem",
+        {/* Category with Autocomplete */}
+        <div style={{ position: "relative" }}>
+          <Input
+            ref={categoryInputRef}
+            label="Categoría *"
+            type="text"
+            value={formData.category}
+            onChange={(e) => {
+              handleChange("category", e.target.value);
+              setShowCategorySuggestions(true);
             }}
-          >
-            <div>
-              <label style={labelStyle}>Tipo de Producto *</label>
-              <select
-                value={formData.product_type}
-                onChange={(e) => handleChange("product_type", e.target.value)}
-                style={inputStyle(!!errors.product_type)}
-              >
-                {PRODUCT_TYPES.map((type) => (
-                  <option key={type.value} value={type.value}>
-                    {type.label}
-                  </option>
-                ))}
-              </select>
-              {errors.product_type && (
-                <p style={errorStyle}>{errors.product_type}</p>
-              )}
-            </div>
-
-            <div>
-              <label style={labelStyle}>Unidad de Medida *</label>
-              <select
-                value={formData.unit_of_measure}
-                onChange={(e) => handleChange("unit_of_measure", e.target.value)}
-                style={inputStyle(!!errors.unit_of_measure)}
-              >
-                {UNITS_OF_MEASURE.map((unit) => (
-                  <option key={unit.value} value={unit.value}>
-                    {unit.label}
-                  </option>
-                ))}
-              </select>
-              {errors.unit_of_measure && (
-                <p style={errorStyle}>{errors.unit_of_measure}</p>
-              )}
-            </div>
-          </div>
-
-          {/* SKU */}
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label style={labelStyle}>SKU *</label>
-            <input
-              type="text"
-              value={formData.sku}
-              onChange={(e) => handleChange("sku", e.target.value)}
-              style={inputStyle(!!errors.sku)}
-              placeholder="Ingresa el SKU"
-              maxLength={255}
-            />
-            {errors.sku && <p style={errorStyle}>{errors.sku}</p>}
-          </div>
-
-          {/* Product Responsibility Section */}
-          <div
-            style={{
-              marginBottom: "1.5rem",
-              padding: "1rem",
-              backgroundColor: "var(--color-bg)",
-              borderRadius: "var(--radius-sm)",
-              border: "1px solid var(--color-border)",
+            onFocus={() => setShowCategorySuggestions(true)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                setShowCategorySuggestions(false);
+              }
             }}
-          >
-            <h3
+            error={errors.category}
+            placeholder="Ingresa la categoría"
+            maxLength={100}
+            autoComplete="off"
+          />
+          {/* Category Suggestions Dropdown */}
+          {showCategorySuggestions && filteredCategories.length > 0 && formData.category && (
+            <div
+              ref={suggestionsRef}
               style={{
-                margin: "0 0 1rem 0",
-                fontSize: "1rem",
-                fontWeight: "600",
-                color: "var(--color-text-secondary)",
+                position: "absolute",
+                top: "100%",
+                left: 0,
+                right: 0,
+                backgroundColor: "var(--color-surface)",
+                border: "1px solid var(--color-border)",
+                borderRadius: "var(--radius-sm)",
+                boxShadow: "var(--shadow-md)",
+                maxHeight: "200px",
+                overflowY: "auto",
+                zIndex: 10,
+                marginTop: "0.25rem",
               }}
             >
-              Responsabilidad de Preparación
-            </h3>
+              {filteredCategories.map((category, index) => (
+                <div
+                  key={index}
+                  onClick={() => handleCategorySelect(category)}
+                  style={{
+                    padding: "0.75rem",
+                    cursor: "pointer",
+                    borderBottom:
+                      index < filteredCategories.length - 1
+                        ? "1px solid var(--color-border)"
+                        : "none",
+                    backgroundColor: "var(--color-surface)",
+                    color: "var(--color-text-primary)",
+                    transition: "background-color var(--transition-fast)",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "var(--color-surface-hover)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "var(--color-surface)";
+                  }}
+                >
+                  {category}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
-            {responsibilityLoading ? (
-              <p style={{ color: "var(--color-text-secondary)", fontSize: "0.875rem" }}>
-                Cargando información de preparación...
-              </p>
-            ) : (
-              <>
-                {/* Checkbox */}
-                <div style={{ marginBottom: "1rem" }}>
-                  <label
+        {/* Product Type and Unit of Measure - Side by Side */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "1rem",
+          }}
+        >
+          <Select
+            label="Tipo de Producto *"
+            value={formData.product_type}
+            onChange={(e) => handleChange("product_type", e.target.value)}
+            error={errors.product_type}
+          >
+            {PRODUCT_TYPES.map((type) => (
+              <option key={type.value} value={type.value}>
+                {type.label}
+              </option>
+            ))}
+          </Select>
+
+          <Select
+            label="Unidad de Medida *"
+            value={formData.unit_of_measure}
+            onChange={(e) => handleChange("unit_of_measure", e.target.value)}
+            error={errors.unit_of_measure}
+          >
+            {UNITS_OF_MEASURE.map((unit) => (
+              <option key={unit.value} value={unit.value}>
+                {unit.label}
+              </option>
+            ))}
+          </Select>
+        </div>
+
+        {/* SKU */}
+        <Input
+          label="SKU *"
+          type="text"
+          value={formData.sku}
+          onChange={(e) => handleChange("sku", e.target.value)}
+          error={errors.sku}
+          placeholder="Ingresa el SKU"
+          maxLength={255}
+        />
+
+        {/* Product Responsibility Section */}
+        <div
+          style={{
+            padding: "1rem",
+            backgroundColor: "var(--color-bg)",
+            borderRadius: "var(--radius-sm)",
+            border: "1px solid var(--color-border)",
+          }}
+        >
+          <h3
+            style={{
+              margin: "0 0 1rem 0",
+              fontSize: "1rem",
+              fontWeight: "600",
+              color: "var(--color-text-secondary)",
+            }}
+          >
+            Responsabilidad de Preparación
+          </h3>
+
+          {responsibilityLoading ? (
+            <p style={{ color: "var(--color-text-secondary)", fontSize: "0.875rem" }}>
+              Cargando información de preparación...
+            </p>
+          ) : (
+            <>
+              {/* Checkbox */}
+              <div style={{ marginBottom: "1rem" }}>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    cursor: "pointer",
+                    gap: "0.5rem",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={hasResponsibility}
+                    onChange={(e) => {
+                      setHasResponsibility(e.target.checked);
+                      // Clear errors when toggling
+                      if (!e.target.checked) {
+                        setErrors((prev) => {
+                          const newErrors = { ...prev };
+                          delete newErrors.responsibility_area;
+                          delete newErrors.responsibility_priority;
+                          return newErrors;
+                        });
+                      }
+                    }}
                     style={{
-                      display: "flex",
-                      alignItems: "center",
+                      width: "1.25rem",
+                      height: "1.25rem",
                       cursor: "pointer",
-                      gap: "0.5rem",
+                      accentColor: "var(--color-primary)",
+                    }}
+                  />
+                  <span style={{ color: "var(--color-text-primary)", fontWeight: "500" }}>
+                    Este producto requiere preparación
+                  </span>
+                </label>
+              </div>
+
+              {/* Area and Priority - Only shown when checkbox is checked */}
+              {hasResponsibility && (
+                <>
+                  {/* Info text */}
+                  <div
+                    style={{
+                      marginBottom: "1rem",
+                      padding: "0.75rem",
+                      backgroundColor: "var(--color-primary-light)",
+                      borderRadius: "var(--radius-sm)",
+                      border: "1px solid var(--color-primary)",
+                      color: "var(--color-text-primary)",
+                      fontSize: "0.875rem",
                     }}
                   >
-                    <input
-                      type="checkbox"
-                      checked={hasResponsibility}
+                    Define qué área es responsable de preparar este producto y su nivel de prioridad. A mayor prioridad, menor tiempo de entrega.
+                  </div>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: "1rem",
+                    }}
+                  >
+                    {/* Area Dropdown */}
+                    <Select
+                      label="Área de Preparación *"
+                      value={responsibilityArea}
                       onChange={(e) => {
-                        setHasResponsibility(e.target.checked);
-                        // Clear errors when toggling
-                        if (!e.target.checked) {
+                        setResponsibilityArea(e.target.value);
+                        // Clear error when user changes value
+                        if (errors.responsibility_area) {
                           setErrors((prev) => {
                             const newErrors = { ...prev };
                             delete newErrors.responsibility_area;
+                            return newErrors;
+                          });
+                        }
+                      }}
+                      error={errors.responsibility_area}
+                    >
+                      <option value="">Selecciona un área</option>
+                      {PREPARATION_AREAS.map((area) => (
+                        <option key={area.value} value={area.value}>
+                          {area.label}
+                        </option>
+                      ))}
+                    </Select>
+
+                    {/* Priority Dropdown */}
+                    <Select
+                      label="Nivel de Prioridad *"
+                      value={responsibilityPriority}
+                      onChange={(e) => {
+                        setResponsibilityPriority(e.target.value);
+                        // Clear error when user changes value
+                        if (errors.responsibility_priority) {
+                          setErrors((prev) => {
+                            const newErrors = { ...prev };
                             delete newErrors.responsibility_priority;
                             return newErrors;
                           });
                         }
                       }}
-                      style={{
-                        width: "1.25rem",
-                        height: "1.25rem",
-                        cursor: "pointer",
-                      }}
-                    />
-                    <span style={{ color: "var(--color-text-primary)", fontWeight: "500" }}>
-                      Este producto requiere preparación
-                    </span>
-                  </label>
-                </div>
-
-                {/* Area and Priority - Only shown when checkbox is checked */}
-                {hasResponsibility && (
-                  <>
-                    {/* Info text */}
-                    <div
-                      style={{
-                        marginBottom: "1rem",
-                        padding: "0.75rem",
-                        backgroundColor: "var(--color-primary-light)",
-                        borderRadius: "var(--radius-sm)",
-                        border: "1px solid var(--color-primary)",
-                        color: "var(--color-text-primary)",
-                        fontSize: "0.875rem",
-                      }}
+                      error={errors.responsibility_priority}
                     >
-                      Define qué área es responsable de preparar este producto y su nivel de prioridad. A mayor prioridad, menor tiempo de entrega.
-                    </div>
-
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: "1rem",
-                      }}
-                    >
-                      {/* Area Dropdown */}
-                      <div>
-                        <label style={labelStyle}>Área de Preparación *</label>
-                        <select
-                          value={responsibilityArea}
-                          onChange={(e) => {
-                            setResponsibilityArea(e.target.value);
-                            // Clear error when user changes value
-                            if (errors.responsibility_area) {
-                              setErrors((prev) => {
-                                const newErrors = { ...prev };
-                                delete newErrors.responsibility_area;
-                                return newErrors;
-                              });
-                            }
-                          }}
-                          style={inputStyle(!!errors.responsibility_area)}
-                        >
-                          <option value="">Selecciona un área</option>
-                          {PREPARATION_AREAS.map((area) => (
-                            <option key={area.value} value={area.value}>
-                              {area.label}
-                            </option>
-                          ))}
-                        </select>
-                        {errors.responsibility_area && (
-                          <p style={errorStyle}>{errors.responsibility_area}</p>
-                        )}
-                      </div>
-
-                      {/* Priority Dropdown */}
-                      <div>
-                        <label style={labelStyle}>Nivel de Prioridad *</label>
-                        <select
-                          value={responsibilityPriority}
-                          onChange={(e) => {
-                            setResponsibilityPriority(e.target.value);
-                            // Clear error when user changes value
-                            if (errors.responsibility_priority) {
-                              setErrors((prev) => {
-                                const newErrors = { ...prev };
-                                delete newErrors.responsibility_priority;
-                                return newErrors;
-                              });
-                            }
-                          }}
-                          style={inputStyle(!!errors.responsibility_priority)}
-                        >
-                          {PRIORITY_LEVELS.map((level) => (
-                            <option key={level.value} value={level.value.toString()}>
-                              {level.label}
-                            </option>
-                          ))}
-                        </select>
-                        {errors.responsibility_priority && (
-                          <p style={errorStyle}>{errors.responsibility_priority}</p>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Pricing Section - Only shown for sellable products */}
-          {needsPricing && (
-            <>
-              <div
-                style={{
-                  marginBottom: "1.5rem",
-                  padding: "1rem",
-                  backgroundColor: "var(--color-bg)",
-                  borderRadius: "var(--radius-sm)",
-                  border: "1px solid var(--color-border)",
-                }}
-              >
-                <h3
-                  style={{
-                    margin: "0 0 1rem 0",
-                    fontSize: "1rem",
-                    fontWeight: "600",
-                    color: "var(--color-text-secondary)",
-                  }}
-                >
-                  Información de Precios
-                </h3>
-
-                {/* Price Total */}
-                <div style={{ marginBottom: "1rem" }}>
-                  <label style={labelStyle}>Precio Total con Impuestos *</label>
-                  <input
-                    type="text"
-                    value={formData.total_price_with_taxes}
-                    onChange={(e) =>
-                      handleChange("total_price_with_taxes", e.target.value)
-                    }
-                    style={inputStyle(!!errors.total_price_with_taxes)}
-                    placeholder="0.00"
-                  />
-                  {errors.total_price_with_taxes && (
-                    <p style={errorStyle}>{errors.total_price_with_taxes}</p>
-                  )}
-                </div>
-
-                {/* VAT and ICO - Side by Side */}
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: "1rem",
-                  }}
-                >
-                  <div>
-                    <label style={labelStyle}>IVA (%) *</label>
-                    <input
-                      type="text"
-                      value={formData.vat}
-                      onChange={(e) => handleChange("vat", e.target.value)}
-                      style={inputStyle(!!errors.vat)}
-                      placeholder="19"
-                    />
-                    {errors.vat && <p style={errorStyle}>{errors.vat}</p>}
+                      {PRIORITY_LEVELS.map((level) => (
+                        <option key={level.value} value={level.value.toString()}>
+                          {level.label}
+                        </option>
+                      ))}
+                    </Select>
                   </div>
-
-                  <div>
-                    <label style={labelStyle}>ICO (%) *</label>
-                    <input
-                      type="text"
-                      value={formData.ico}
-                      onChange={(e) => handleChange("ico", e.target.value)}
-                      style={inputStyle(!!errors.ico)}
-                      placeholder="8"
-                    />
-                    {errors.ico && <p style={errorStyle}>{errors.ico}</p>}
-                  </div>
-                </div>
-              </div>
+                </>
+              )}
             </>
           )}
+        </div>
 
-          {/* Info message for ingredients */}
-          {!needsPricing && (
+        {/* Pricing Section - Only shown for sellable products */}
+        {needsPricing && (
+          <div
+            style={{
+              padding: "1rem",
+              backgroundColor: "var(--color-bg)",
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--color-border)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "1rem",
+            }}
+          >
+            <h3
+              style={{
+                margin: 0,
+                fontSize: "1rem",
+                fontWeight: "600",
+                color: "var(--color-text-secondary)",
+              }}
+            >
+              Información de Precios
+            </h3>
+
+            {/* Price Total */}
+            <Input
+              label="Precio Total con Impuestos *"
+              type="text"
+              value={formData.total_price_with_taxes}
+              onChange={(e) =>
+                handleChange("total_price_with_taxes", e.target.value)
+              }
+              error={errors.total_price_with_taxes}
+              placeholder="0.00"
+            />
+
+            {/* VAT and ICO - Side by Side */}
             <div
               style={{
-                marginBottom: "1.5rem",
-                padding: "1rem",
-                backgroundColor: "var(--color-primary-light)",
-                borderRadius: "var(--radius-sm)",
-                border: "1px solid var(--color-primary)",
-                color: "var(--color-text-primary)",
-                fontSize: "0.875rem",
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "1rem",
               }}
             >
-              Los ingredientes no requieren información de precios ya que no se venden directamente.
+              <Input
+                label="IVA (%) *"
+                type="text"
+                value={formData.vat}
+                onChange={(e) => handleChange("vat", e.target.value)}
+                error={errors.vat}
+                placeholder="19"
+              />
+
+              <Input
+                label="ICO (%) *"
+                type="text"
+                value={formData.ico}
+                onChange={(e) => handleChange("ico", e.target.value)}
+                error={errors.ico}
+                placeholder="8"
+              />
             </div>
-          )}
-
-          {/* Description */}
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label style={labelStyle}>Descripción</label>
-            <textarea
-              value={formData.description}
-              onChange={(e) => handleChange("description", e.target.value)}
-              style={{
-                ...inputStyle(!!errors.description),
-                minHeight: "80px",
-                resize: "vertical",
-              }}
-              placeholder="Ingresa la descripción del producto (opcional)"
-            />
-            {errors.description && (
-              <p style={errorStyle}>{errors.description}</p>
-            )}
           </div>
+        )}
 
-          {/* Buttons */}
+        {/* Info message for ingredients */}
+        {!needsPricing && (
           <div
-            style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}
+            style={{
+              padding: "1rem",
+              backgroundColor: "var(--color-primary-light)",
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--color-primary)",
+              color: "var(--color-text-primary)",
+              fontSize: "0.875rem",
+            }}
           >
-            <button
-              type="button"
-              onClick={onCancel}
-              disabled={isLoading}
-              style={{
-                padding: "0.75rem 1.5rem",
-                backgroundColor: "var(--color-surface-hover)",
-                color: "var(--color-text-primary)",
-                border: "1px solid var(--color-border)",
-                borderRadius: "var(--radius-sm)",
-                cursor: isLoading ? "not-allowed" : "pointer",
-                fontSize: "1rem",
-                fontWeight: "500",
-                opacity: isLoading ? 0.6 : 1,
-              }}
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={isLoading}
-              style={{
-                padding: "0.75rem 1.5rem",
-                backgroundColor: "var(--color-success)",
-                color: "white",
-                border: "none",
-                borderRadius: "var(--radius-sm)",
-                cursor: isLoading ? "not-allowed" : "pointer",
-                fontSize: "1rem",
-                fontWeight: "500",
-                opacity: isLoading ? 0.6 : 1,
-              }}
-            >
-              {isLoading ? "Guardando..." : product ? "Actualizar" : "Crear"}
-            </button>
+            Los ingredientes no requieren información de precios ya que no se venden directamente.
           </div>
-        </form>
-      </div>
-    </div>
+        )}
+
+        {/* Description */}
+        <Textarea
+          label="Descripción"
+          value={formData.description}
+          onChange={(e) => handleChange("description", e.target.value)}
+          error={errors.description}
+          placeholder="Ingresa la descripción del producto (opcional)"
+        />
+      </form>
+    </Modal>
   );
 }

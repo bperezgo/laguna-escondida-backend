@@ -8,6 +8,7 @@ import type {
   CreatePurchaseEntryRequest,
   CreatePurchaseEntryItemRequest,
 } from "@/types/purchaseEntry";
+import { Input, Select, Textarea, Button, Table } from "@/components/ui";
 
 interface PurchaseEntryFormProps {
   suppliers: Supplier[];
@@ -67,6 +68,20 @@ export default function PurchaseEntryForm({
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  // Custom modal shell: lock body scroll + close on Escape
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
+    };
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onCancel]);
 
   // Cleanup object URL on unmount
   useEffect(() => {
@@ -371,7 +386,7 @@ export default function PurchaseEntryForm({
     const newItems = [...items];
     const quantity = parseFloat(newItems[index].quantity) || 0;
     const totalCost = parseFloat(value) || 0;
-    
+
     // Calculate unit cost with high precision (6 decimals)
     const unitCost = quantity > 0 ? totalCost / quantity : 0;
 
@@ -456,30 +471,6 @@ export default function PurchaseEntryForm({
     }).format(amount);
   };
 
-  const inputStyle = (hasError: boolean) => ({
-    width: "100%",
-    padding: "0.75rem",
-    border: `1px solid ${hasError ? "var(--color-danger)" : "var(--color-border)"}`,
-    borderRadius: "var(--radius-sm)",
-    fontSize: "1rem",
-    boxSizing: "border-box" as const,
-    backgroundColor: "var(--color-bg)",
-    color: "var(--color-text-primary)",
-  });
-
-  const labelStyle = {
-    display: "block",
-    marginBottom: "0.5rem",
-    fontWeight: "500",
-    color: "var(--color-text-primary)",
-  };
-
-  const errorStyle = {
-    margin: "0.25rem 0 0 0",
-    color: "var(--color-danger)",
-    fontSize: "0.875rem",
-  };
-
   // Get catalog items that haven't been selected yet
   const getAvailableCatalogItems = (currentIndex: number) => {
     const selectedProductIds = items
@@ -535,27 +526,20 @@ export default function PurchaseEntryForm({
         }}
       >
         <span>Vista previa de factura</span>
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="sm"
           onClick={() => window.open(pdfPreviewUrl, "_blank")}
-          style={{
-            padding: "0.25rem 0.5rem",
-            backgroundColor: "transparent",
-            color: "var(--color-primary)",
-            border: "1px solid var(--color-primary)",
-            borderRadius: "var(--radius-sm)",
-            cursor: "pointer",
-            fontSize: "0.7rem",
-          }}
         >
           Abrir en nueva pestaña
-        </button>
+        </Button>
       </div>
       <iframe
         src={pdfPreviewUrl}
         style={{
           width: "100%",
-          height: showSidePreview ? "calc(90vh - 120px)" : "400px",
+          height: showSidePreview ? "60vh" : "400px",
           border: "none",
           display: "block",
         }}
@@ -566,68 +550,530 @@ export default function PurchaseEntryForm({
 
   return (
     <div
+      role="presentation"
+      onClick={onCancel}
       style={{
         position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: "var(--color-overlay)",
+        inset: 0,
+        background: "var(--color-overlay)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
+        padding: "24px",
         zIndex: 1000,
-        padding: "1rem",
       }}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
         style={{
-          backgroundColor: "var(--color-surface)",
-          borderRadius: "var(--radius-md)",
-          padding: "2rem",
-          maxWidth: pdfPreviewUrl ? "1450px" : "900px",
-          width: "100%",
-          maxHeight: "90vh",
-          overflowY: "auto",
-          boxShadow: "var(--shadow-xl)",
+          background: "var(--color-surface)",
           border: "1px solid var(--color-border)",
-          transition: "max-width 0.3s ease",
+          borderRadius: "var(--radius-lg)",
+          boxShadow: "var(--shadow-xl)",
+          width: "100%",
+          maxWidth: showSidePreview ? "min(1400px, 95vw)" : "780px",
+          maxHeight: "90vh",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
         }}
       >
-        <h2
-          style={{
-            marginTop: 0,
-            marginBottom: "1.5rem",
-            fontSize: "1.5rem",
-            fontWeight: "bold",
-            color: "var(--color-text-primary)",
-          }}
-        >
-          Nueva Entrada de Compra
-        </h2>
-
+        {/* Header */}
         <div
           style={{
+            padding: "18px 22px",
+            borderBottom: "1px solid var(--color-border)",
             display: "flex",
-            gap: "1.5rem",
-            alignItems: "flex-start",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "12px",
           }}
         >
-        <form onSubmit={handleSubmit} style={{ flex: pdfPreviewUrl ? "0 0 860px" : "1 1 auto", minWidth: 0 }}>
-          {/* ZIP Upload — Step 1 */}
-          <div
+          <h2
             style={{
-              marginBottom: "1.5rem",
-              padding: "1rem",
-              backgroundColor: "var(--color-bg)",
-              borderRadius: "var(--radius-sm)",
-              border: `1px solid ${zipFile ? "var(--color-primary)" : "var(--color-border)"}`,
+              margin: 0,
+              fontSize: "17px",
+              fontWeight: 700,
+              color: "var(--color-text-primary)",
             }}
           >
-            <label style={{ ...labelStyle, fontSize: "0.875rem", marginBottom: "0.5rem" }}>
-              Paso 1: Sube el archivo ZIP con factura (PDF + XML)
+            Nueva Entrada de Compra
+          </h2>
+          <button
+            type="button"
+            onClick={onCancel}
+            aria-label="Cerrar"
+            style={{
+              border: "none",
+              background: "transparent",
+              color: "var(--color-text-muted)",
+              fontSize: "16px",
+              lineHeight: 1,
+              width: "32px",
+              height: "32px",
+              borderRadius: "var(--radius-sm)",
+              cursor: "pointer",
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Body: form (left) + optional side PDF preview (right on wide screens) */}
+        <div style={{ display: "flex", flex: 1, minHeight: 0, overflow: "hidden" }}>
+          <form
+            id="purchase-entry-form"
+            onSubmit={handleSubmit}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "1.25rem",
+              flex: showSidePreview ? "0 0 520px" : 1,
+              minWidth: 0,
+              overflowY: "auto",
+              padding: "22px",
+            }}
+          >
+        {/* ZIP Upload — Step 1 */}
+        <div
+          style={{
+            padding: "1rem",
+            backgroundColor: "var(--color-bg)",
+            borderRadius: "var(--radius-sm)",
+            border: `1px solid ${zipFile ? "var(--color-primary)" : "var(--color-border)"}`,
+          }}
+        >
+          <label
+            style={{
+              display: "block",
+              marginBottom: "0.5rem",
+              fontWeight: "500",
+              fontSize: "0.875rem",
+              color: "var(--color-text-primary)",
+            }}
+          >
+            Paso 1: Sube el archivo ZIP con factura (PDF + XML)
+          </label>
+          {zipFile ? (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.75rem",
+                padding: "0.75rem",
+                backgroundColor: "var(--color-surface)",
+                borderRadius: "var(--radius-sm)",
+                border: "1px solid var(--color-primary)",
+              }}
+            >
+              <span
+                style={{
+                  padding: "0.25rem 0.5rem",
+                  backgroundColor: "var(--color-primary-light)",
+                  color: "var(--color-primary)",
+                  borderRadius: "var(--radius-sm)",
+                  fontSize: "0.75rem",
+                  fontWeight: "600",
+                }}
+              >
+                ZIP
+              </span>
+              <span
+                style={{
+                  flex: 1,
+                  fontSize: "0.875rem",
+                  color: "var(--color-text-primary)",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {zipFile.name}
+              </span>
+              <Button
+                type="button"
+                variant="danger"
+                size="sm"
+                onClick={handleRemoveZip}
+              >
+                Quitar
+              </Button>
+            </div>
+          ) : (
+            <input
+              ref={zipInputRef}
+              type="file"
+              accept=".zip,application/zip,application/x-zip-compressed"
+              onChange={handleZipChange}
+              disabled={!!(pdfFile || xmlFile)}
+              style={{
+                width: "100%",
+                padding: "0.5rem",
+                border: `1px solid ${errors.zip ? "var(--color-danger)" : "var(--color-border)"}`,
+                borderRadius: "var(--radius-sm)",
+                fontSize: "0.875rem",
+                backgroundColor: "var(--color-surface)",
+                color: "var(--color-text-primary)",
+                opacity: pdfFile || xmlFile ? 0.5 : 1,
+              }}
+            />
+          )}
+          {errors.zip && (
+            <p
+              style={{
+                margin: "0.25rem 0 0 0",
+                color: "var(--color-danger)",
+                fontSize: "0.875rem",
+              }}
+            >
+              {errors.zip}
+            </p>
+          )}
+          {isExtractingPdf && (
+            <p
+              style={{
+                margin: "0.5rem 0 0 0",
+                fontSize: "0.75rem",
+                color: "var(--color-text-muted)",
+              }}
+            >
+              Extrayendo PDF para previsualización...
+            </p>
+          )}
+          {errors.zipPreview && (
+            <p
+              style={{
+                margin: "0.25rem 0 0 0",
+                color: "var(--color-warning)",
+                fontSize: "0.75rem",
+              }}
+            >
+              {errors.zipPreview}
+            </p>
+          )}
+          <p
+            style={{
+              margin: "0.25rem 0 0 0",
+              fontSize: "0.75rem",
+              color: "var(--color-text-muted)",
+            }}
+          >
+            El ZIP debe contener exactamente 1 PDF y 1 XML.
+          </p>
+        </div>
+
+        {/* PDF preview (stacked inline on narrow screens; side panel on wide) */}
+        {showInlinePreview && <div>{pdfPreview}</div>}
+
+        {/* Supplier and Date Row */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "2fr 1fr",
+            gap: "1rem",
+          }}
+        >
+          <Select
+            label="Proveedor *"
+            value={formData.supplier_id}
+            onChange={(e) =>
+              setFormData((prev) => ({
+                ...prev,
+                supplier_id: e.target.value,
+              }))
+            }
+            error={errors.supplier_id}
+          >
+            <option value="">Seleccionar proveedor</option>
+            {suppliers.map((supplier) => (
+              <option key={supplier.id} value={supplier.id}>
+                {supplier.name}
+              </option>
+            ))}
+          </Select>
+
+          <Input
+            label="Fecha de Entrada"
+            type="date"
+            value={formData.entry_date}
+            onChange={(e) =>
+              setFormData((prev) => ({
+                ...prev,
+                entry_date: e.target.value,
+              }))
+            }
+          />
+        </div>
+
+        {/* Invoice Reference */}
+        <Input
+          label="Referencia de Factura"
+          type="text"
+          value={formData.invoice_reference}
+          onChange={(e) =>
+            setFormData((prev) => ({
+              ...prev,
+              invoice_reference: e.target.value,
+            }))
+          }
+          placeholder="Número de factura del proveedor (opcional)"
+          maxLength={255}
+        />
+
+        {/* Items Section */}
+        <div
+          style={{
+            padding: "1.5rem",
+            backgroundColor: "var(--color-bg)",
+            borderRadius: "var(--radius-sm)",
+            border: `1px solid ${errors.items ? "var(--color-danger)" : "var(--color-border)"}`,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "1rem",
+            }}
+          >
+            <h3
+              style={{
+                margin: 0,
+                fontSize: "1rem",
+                fontWeight: "600",
+                color: "var(--color-text-primary)",
+              }}
+            >
+              Productos *
+            </h3>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={handleAddItem}
+            >
+              + Agregar Producto
+            </Button>
+          </div>
+
+          {errors.items && (
+            <p
+              style={{
+                margin: "0.25rem 0 0 0",
+                color: "var(--color-danger)",
+                fontSize: "0.875rem",
+              }}
+            >
+              {errors.items}
+            </p>
+          )}
+
+          {/* Items Table */}
+          <Table>
+            <thead>
+              <tr>
+                <th style={{ minWidth: "250px" }}>Producto</th>
+                <th data-numeric style={{ width: "120px" }}>
+                  Cantidad
+                </th>
+                <th data-numeric style={{ width: "150px" }}>
+                  Costo Unit.
+                </th>
+                <th data-numeric style={{ width: "150px" }}>
+                  Total
+                </th>
+                <th style={{ width: "50px" }} />
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item, index) => {
+                const selectedCatalogItem = getCatalogItemByProductId(
+                  item.product_id,
+                );
+                return (
+                  <tr key={index}>
+                    <td>
+                      <Select
+                        value={item.product_id}
+                        onChange={(e) =>
+                          handleProductSelect(index, e.target.value)
+                        }
+                        disabled={!formData.supplier_id || loadingCatalog}
+                      >
+                        <option value="">
+                          {!formData.supplier_id
+                            ? "Primero seleccione un proveedor"
+                            : loadingCatalog
+                              ? "Cargando productos..."
+                              : catalogItems.length === 0
+                                ? "El proveedor no tiene productos"
+                                : "Seleccionar producto"}
+                        </option>
+                        {getAvailableCatalogItems(index).map(
+                          (catalogItem) => (
+                            <option
+                              key={catalogItem.product_id}
+                              value={catalogItem.product_id}
+                            >
+                              {catalogItem.product_name} -{" "}
+                              {formatCurrency(
+                                parseFloat(catalogItem.unit_cost),
+                              )}
+                            </option>
+                          ),
+                        )}
+                        {/* Keep selected product in options even if selected elsewhere */}
+                        {selectedCatalogItem &&
+                          !getAvailableCatalogItems(index).find(
+                            (c) =>
+                              c.product_id ===
+                              selectedCatalogItem.product_id,
+                          ) && (
+                            <option value={selectedCatalogItem.product_id}>
+                              {selectedCatalogItem.product_name} -{" "}
+                              {formatCurrency(
+                                parseFloat(selectedCatalogItem.unit_cost),
+                              )}
+                            </option>
+                          )}
+                      </Select>
+                    </td>
+                    <td data-numeric>
+                      <Input
+                        type="number"
+                        value={item.quantity}
+                        onChange={(e) =>
+                          handleQuantityChange(index, e.target.value)
+                        }
+                        placeholder="0"
+                        min="0.01"
+                        step="0.01"
+                        error={!!errors[`item_${index}_quantity`]}
+                        style={{ textAlign: "right" }}
+                      />
+                    </td>
+                    <td data-numeric>
+                      <Input
+                        type="number"
+                        value={item.unit_cost}
+                        onChange={(e) =>
+                          handleUnitCostChange(index, e.target.value)
+                        }
+                        placeholder="0"
+                        min="0"
+                        step="0.000001"
+                        error={!!errors[`item_${index}_unit_cost`]}
+                        style={{ textAlign: "right" }}
+                      />
+                    </td>
+                    <td data-numeric>
+                      <Input
+                        type="number"
+                        value={item.total_cost}
+                        onChange={(e) =>
+                          handleTotalCostChange(index, e.target.value)
+                        }
+                        placeholder="0"
+                        min="0"
+                        step="0.01"
+                        style={{ textAlign: "right", fontWeight: "600" }}
+                      />
+                    </td>
+                    <td style={{ textAlign: "center" }}>
+                      {items.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="danger"
+                          size="sm"
+                          onClick={() => handleRemoveItem(index)}
+                        >
+                          ×
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td
+                  colSpan={3}
+                  data-numeric
+                  style={{
+                    fontWeight: "600",
+                    borderTop: "2px solid var(--color-border)",
+                  }}
+                >
+                  Total General:
+                </td>
+                <td
+                  data-numeric
+                  style={{
+                    fontWeight: "bold",
+                    fontSize: "1.1rem",
+                    color: "var(--color-success)",
+                    borderTop: "2px solid var(--color-border)",
+                  }}
+                >
+                  {formatCurrency(calculateGrandTotal())}
+                </td>
+                <td
+                  style={{ borderTop: "2px solid var(--color-border)" }}
+                />
+              </tr>
+            </tfoot>
+          </Table>
+        </div>
+
+        {/* Notes */}
+        <Textarea
+          label="Notas"
+          value={formData.notes}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, notes: e.target.value }))
+          }
+          placeholder="Notas adicionales sobre esta entrada (opcional)"
+          maxLength={1000}
+        />
+
+        {/* Documents Section */}
+        <div
+          style={{
+            padding: "1.5rem",
+            backgroundColor: "var(--color-bg)",
+            borderRadius: "var(--radius-sm)",
+            border: "1px solid var(--color-border)",
+          }}
+        >
+          <h3
+            style={{
+              margin: "0 0 1rem 0",
+              fontSize: "1rem",
+              fontWeight: "600",
+              color: "var(--color-text-primary)",
+            }}
+          >
+            Documentos de Soporte (opcional)
+          </h3>
+
+          {/* PDF Upload */}
+          <div style={{ marginBottom: "1rem" }}>
+            <label
+              style={{
+                display: "block",
+                marginBottom: "0.5rem",
+                fontWeight: "500",
+                fontSize: "0.875rem",
+                color: "var(--color-text-primary)",
+              }}
+            >
+              Factura PDF
             </label>
-            {zipFile ? (
+            {pdfFile ? (
               <div
                 style={{
                   display: "flex",
@@ -636,20 +1082,20 @@ export default function PurchaseEntryForm({
                   padding: "0.75rem",
                   backgroundColor: "var(--color-surface)",
                   borderRadius: "var(--radius-sm)",
-                  border: "1px solid var(--color-primary)",
+                  border: "1px solid var(--color-border)",
                 }}
               >
                 <span
                   style={{
                     padding: "0.25rem 0.5rem",
-                    backgroundColor: "var(--color-primary-light)",
-                    color: "var(--color-primary)",
+                    backgroundColor: "var(--color-danger-light)",
+                    color: "var(--color-danger)",
                     borderRadius: "var(--radius-sm)",
                     fontSize: "0.75rem",
                     fontWeight: "600",
                   }}
                 >
-                  ZIP
+                  PDF
                 </span>
                 <span
                   style={{
@@ -661,740 +1107,184 @@ export default function PurchaseEntryForm({
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {zipFile.name}
+                  {pdfFile.name}
                 </span>
-                <button
+                <Button
                   type="button"
-                  onClick={handleRemoveZip}
-                  style={{
-                    padding: "0.25rem 0.5rem",
-                    backgroundColor: "transparent",
-                    color: "var(--color-danger)",
-                    border: "1px solid var(--color-danger)",
-                    borderRadius: "var(--radius-sm)",
-                    cursor: "pointer",
-                    fontSize: "0.75rem",
-                  }}
+                  variant="danger"
+                  size="sm"
+                  onClick={handleRemovePdf}
                 >
                   Quitar
-                </button>
+                </Button>
               </div>
             ) : (
               <input
-                ref={zipInputRef}
+                ref={pdfInputRef}
                 type="file"
-                accept=".zip,application/zip,application/x-zip-compressed"
-                onChange={handleZipChange}
-                disabled={!!(pdfFile || xmlFile)}
+                accept=".pdf,application/pdf"
+                onChange={handlePdfChange}
+                disabled={!!zipFile}
                 style={{
                   width: "100%",
                   padding: "0.5rem",
-                  border: `1px solid ${errors.zip ? "var(--color-danger)" : "var(--color-border)"}`,
+                  border: `1px solid ${errors.pdf ? "var(--color-danger)" : "var(--color-border)"}`,
                   borderRadius: "var(--radius-sm)",
                   fontSize: "0.875rem",
                   backgroundColor: "var(--color-surface)",
                   color: "var(--color-text-primary)",
-                  opacity: pdfFile || xmlFile ? 0.5 : 1,
+                  opacity: zipFile ? 0.5 : 1,
                 }}
               />
             )}
-            {errors.zip && <p style={errorStyle}>{errors.zip}</p>}
-            {isExtractingPdf && (
-              <p
-                style={{
-                  margin: "0.5rem 0 0 0",
-                  fontSize: "0.75rem",
-                  color: "var(--color-text-muted)",
-                }}
-              >
-                Extrayendo PDF para previsualización...
-              </p>
-            )}
-            {errors.zipPreview && (
+            {errors.pdf && (
               <p
                 style={{
                   margin: "0.25rem 0 0 0",
-                  color: "var(--color-warning, #b45309)",
-                  fontSize: "0.75rem",
-                }}
-              >
-                {errors.zipPreview}
-              </p>
-            )}
-            <p
-              style={{
-                margin: "0.25rem 0 0 0",
-                fontSize: "0.75rem",
-                color: "var(--color-text-muted)",
-              }}
-            >
-              El ZIP debe contener exactamente 1 PDF y 1 XML.
-            </p>
-          </div>
-
-          {/* Inline PDF preview for narrow screens */}
-          {showInlinePreview && (
-            <div style={{ marginBottom: "1.5rem" }}>{pdfPreview}</div>
-          )}
-
-          {/* Supplier and Date Row */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "2fr 1fr",
-              gap: "1rem",
-              marginBottom: "1.5rem",
-            }}
-          >
-            <div>
-              <label style={labelStyle}>Proveedor *</label>
-              <select
-                value={formData.supplier_id}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    supplier_id: e.target.value,
-                  }))
-                }
-                style={inputStyle(!!errors.supplier_id)}
-              >
-                <option value="">Seleccionar proveedor</option>
-                {suppliers.map((supplier) => (
-                  <option key={supplier.id} value={supplier.id}>
-                    {supplier.name}
-                  </option>
-                ))}
-              </select>
-              {errors.supplier_id && (
-                <p style={errorStyle}>{errors.supplier_id}</p>
-              )}
-            </div>
-
-            <div>
-              <label style={labelStyle}>Fecha de Entrada</label>
-              <input
-                type="date"
-                value={formData.entry_date}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    entry_date: e.target.value,
-                  }))
-                }
-                style={inputStyle(false)}
-              />
-            </div>
-          </div>
-
-          {/* Invoice Reference */}
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label style={labelStyle}>Referencia de Factura</label>
-            <input
-              type="text"
-              value={formData.invoice_reference}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  invoice_reference: e.target.value,
-                }))
-              }
-              style={inputStyle(false)}
-              placeholder="Número de factura del proveedor (opcional)"
-              maxLength={255}
-            />
-          </div>
-
-          {/* Items Section */}
-          <div
-            style={{
-              marginBottom: "1.5rem",
-              padding: "1.5rem",
-              backgroundColor: "var(--color-bg)",
-              borderRadius: "var(--radius-sm)",
-              border: `1px solid ${errors.items ? "var(--color-danger)" : "var(--color-border)"}`,
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "1rem",
-              }}
-            >
-              <h3
-                style={{
-                  margin: 0,
-                  fontSize: "1rem",
-                  fontWeight: "600",
-                  color: "var(--color-text-primary)",
-                }}
-              >
-                Productos *
-              </h3>
-              <button
-                type="button"
-                onClick={handleAddItem}
-                style={{
-                  padding: "0.5rem 1rem",
-                  backgroundColor: "var(--color-primary)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "var(--radius-sm)",
-                  cursor: "pointer",
+                  color: "var(--color-danger)",
                   fontSize: "0.875rem",
                 }}
               >
-                + Agregar Producto
-              </button>
-            </div>
-
-            {errors.items && <p style={errorStyle}>{errors.items}</p>}
-
-            {/* Items Table */}
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr>
-                    <th
-                      style={{
-                        textAlign: "left",
-                        padding: "0.5rem",
-                        color: "var(--color-text-secondary)",
-                        fontSize: "0.875rem",
-                        borderBottom: "1px solid var(--color-border)",
-                        minWidth: "250px",
-                      }}
-                    >
-                      Producto
-                    </th>
-                    <th
-                      style={{
-                        textAlign: "right",
-                        padding: "0.5rem",
-                        color: "var(--color-text-secondary)",
-                        fontSize: "0.875rem",
-                        borderBottom: "1px solid var(--color-border)",
-                        width: "120px",
-                      }}
-                    >
-                      Cantidad
-                    </th>
-                    <th
-                      style={{
-                        textAlign: "right",
-                        padding: "0.5rem",
-                        color: "var(--color-text-secondary)",
-                        fontSize: "0.875rem",
-                        borderBottom: "1px solid var(--color-border)",
-                        width: "150px",
-                      }}
-                    >
-                      Costo Unit.
-                    </th>
-                    <th
-                      style={{
-                        textAlign: "right",
-                        padding: "0.5rem",
-                        color: "var(--color-text-secondary)",
-                        fontSize: "0.875rem",
-                        borderBottom: "1px solid var(--color-border)",
-                        width: "150px",
-                      }}
-                    >
-                      Total
-                    </th>
-                    <th
-                      style={{
-                        padding: "0.5rem",
-                        borderBottom: "1px solid var(--color-border)",
-                        width: "50px",
-                      }}
-                    />
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((item, index) => {
-                    const selectedCatalogItem = getCatalogItemByProductId(
-                      item.product_id,
-                    );
-                    return (
-                      <tr key={index}>
-                        <td style={{ padding: "0.5rem" }}>
-                          <select
-                            value={item.product_id}
-                            onChange={(e) =>
-                              handleProductSelect(index, e.target.value)
-                            }
-                            disabled={!formData.supplier_id || loadingCatalog}
-                            style={{
-                              width: "100%",
-                              padding: "0.5rem",
-                              border: "1px solid var(--color-border)",
-                              borderRadius: "var(--radius-sm)",
-                              backgroundColor: "var(--color-surface)",
-                              color: "var(--color-text-primary)",
-                              fontSize: "0.875rem",
-                              opacity:
-                                !formData.supplier_id || loadingCatalog
-                                  ? 0.6
-                                  : 1,
-                            }}
-                          >
-                            <option value="">
-                              {!formData.supplier_id
-                                ? "Primero seleccione un proveedor"
-                                : loadingCatalog
-                                  ? "Cargando productos..."
-                                  : catalogItems.length === 0
-                                    ? "El proveedor no tiene productos"
-                                    : "Seleccionar producto"}
-                            </option>
-                            {getAvailableCatalogItems(index).map(
-                              (catalogItem) => (
-                                <option
-                                  key={catalogItem.product_id}
-                                  value={catalogItem.product_id}
-                                >
-                                  {catalogItem.product_name} -{" "}
-                                  {formatCurrency(
-                                    parseFloat(catalogItem.unit_cost),
-                                  )}
-                                </option>
-                              ),
-                            )}
-                            {/* Keep selected product in options even if selected elsewhere */}
-                            {selectedCatalogItem &&
-                              !getAvailableCatalogItems(index).find(
-                                (c) =>
-                                  c.product_id ===
-                                  selectedCatalogItem.product_id,
-                              ) && (
-                                <option value={selectedCatalogItem.product_id}>
-                                  {selectedCatalogItem.product_name} -{" "}
-                                  {formatCurrency(
-                                    parseFloat(selectedCatalogItem.unit_cost),
-                                  )}
-                                </option>
-                              )}
-                          </select>
-                        </td>
-                        <td style={{ padding: "0.5rem" }}>
-                          <input
-                            type="number"
-                            value={item.quantity}
-                            onChange={(e) =>
-                              handleQuantityChange(index, e.target.value)
-                            }
-                            placeholder="0"
-                            min="0.01"
-                            step="0.01"
-                            style={{
-                              width: "100%",
-                              padding: "0.5rem",
-                              border: `1px solid ${
-                                errors[`item_${index}_quantity`]
-                                  ? "var(--color-danger)"
-                                  : "var(--color-border)"
-                              }`,
-                              borderRadius: "var(--radius-sm)",
-                              backgroundColor: "var(--color-surface)",
-                              color: "var(--color-text-primary)",
-                              fontSize: "0.875rem",
-                              textAlign: "right",
-                            }}
-                          />
-                        </td>
-                        <td style={{ padding: "0.5rem" }}>
-                          <input
-                            type="number"
-                            value={item.unit_cost}
-                            onChange={(e) =>
-                              handleUnitCostChange(index, e.target.value)
-                            }
-                            placeholder="0"
-                            min="0"
-                            step="0.000001"
-                            style={{
-                              width: "100%",
-                              padding: "0.5rem",
-                              border: `1px solid ${
-                                errors[`item_${index}_unit_cost`]
-                                  ? "var(--color-danger)"
-                                  : "var(--color-border)"
-                              }`,
-                              borderRadius: "var(--radius-sm)",
-                              backgroundColor: "var(--color-surface)",
-                              color: "var(--color-text-primary)",
-                              fontSize: "0.875rem",
-                              textAlign: "right",
-                            }}
-                          />
-                        </td>
-                        <td style={{ padding: "0.5rem" }}>
-                          <input
-                            type="number"
-                            value={item.total_cost}
-                            onChange={(e) =>
-                              handleTotalCostChange(index, e.target.value)
-                            }
-                            placeholder="0"
-                            min="0"
-                            step="0.01"
-                            style={{
-                              width: "100%",
-                              padding: "0.5rem",
-                              border: "1px solid var(--color-border)",
-                              borderRadius: "var(--radius-sm)",
-                              backgroundColor: "var(--color-surface)",
-                              color: "var(--color-text-primary)",
-                              fontSize: "0.875rem",
-                              textAlign: "right",
-                              fontWeight: "600",
-                            }}
-                          />
-                        </td>
-                        <td style={{ padding: "0.5rem", textAlign: "center" }}>
-                          {items.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveItem(index)}
-                              style={{
-                                padding: "0.25rem 0.5rem",
-                                backgroundColor: "var(--color-danger)",
-                                color: "white",
-                                border: "none",
-                                borderRadius: "var(--radius-sm)",
-                                cursor: "pointer",
-                                fontSize: "0.75rem",
-                              }}
-                            >
-                              ×
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td
-                      colSpan={3}
-                      style={{
-                        padding: "0.75rem 0.5rem",
-                        textAlign: "right",
-                        fontWeight: "600",
-                        borderTop: "2px solid var(--color-border)",
-                      }}
-                    >
-                      Total General:
-                    </td>
-                    <td
-                      style={{
-                        padding: "0.75rem 0.5rem",
-                        textAlign: "right",
-                        fontWeight: "bold",
-                        fontSize: "1.1rem",
-                        color: "var(--color-success)",
-                        borderTop: "2px solid var(--color-border)",
-                      }}
-                    >
-                      {formatCurrency(calculateGrandTotal())}
-                    </td>
-                    <td
-                      style={{ borderTop: "2px solid var(--color-border)" }}
-                    />
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+                {errors.pdf}
+              </p>
+            )}
           </div>
 
-          {/* Notes */}
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label style={labelStyle}>Notas</label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, notes: e.target.value }))
-              }
+          {/* XML Upload */}
+          <div>
+            <label
               style={{
-                ...inputStyle(false),
-                minHeight: "80px",
-                resize: "vertical",
-              }}
-              placeholder="Notas adicionales sobre esta entrada (opcional)"
-              maxLength={1000}
-            />
-          </div>
-
-          {/* Documents Section */}
-          <div
-            style={{
-              marginBottom: "1.5rem",
-              padding: "1.5rem",
-              backgroundColor: "var(--color-bg)",
-              borderRadius: "var(--radius-sm)",
-              border: "1px solid var(--color-border)",
-            }}
-          >
-            <h3
-              style={{
-                margin: "0 0 1rem 0",
-                fontSize: "1rem",
-                fontWeight: "600",
+                display: "block",
+                marginBottom: "0.5rem",
+                fontWeight: "500",
+                fontSize: "0.875rem",
                 color: "var(--color-text-primary)",
               }}
             >
-              Documentos de Soporte (opcional)
-            </h3>
-
-            {/* PDF Upload */}
-            <div style={{ marginBottom: "1rem" }}>
-              <label style={{ ...labelStyle, fontSize: "0.875rem" }}>
-                Factura PDF
-              </label>
-              {pdfFile ? (
-                <div
+              Factura Electrónica XML
+            </label>
+            {xmlFile ? (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.75rem",
+                  padding: "0.75rem",
+                  backgroundColor: "var(--color-surface)",
+                  borderRadius: "var(--radius-sm)",
+                  border: "1px solid var(--color-border)",
+                }}
+              >
+                <span
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.75rem",
-                    padding: "0.75rem",
-                    backgroundColor: "var(--color-surface)",
+                    padding: "0.25rem 0.5rem",
+                    backgroundColor: "var(--color-success-light)",
+                    color: "var(--color-success)",
                     borderRadius: "var(--radius-sm)",
-                    border: "1px solid var(--color-border)",
+                    fontSize: "0.75rem",
+                    fontWeight: "600",
                   }}
                 >
-                  <span
-                    style={{
-                      padding: "0.25rem 0.5rem",
-                      backgroundColor: "var(--color-danger-light)",
-                      color: "var(--color-danger)",
-                      borderRadius: "var(--radius-sm)",
-                      fontSize: "0.75rem",
-                      fontWeight: "600",
-                    }}
-                  >
-                    PDF
-                  </span>
-                  <span
-                    style={{
-                      flex: 1,
-                      fontSize: "0.875rem",
-                      color: "var(--color-text-primary)",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {pdfFile.name}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleRemovePdf}
-                    style={{
-                      padding: "0.25rem 0.5rem",
-                      backgroundColor: "transparent",
-                      color: "var(--color-danger)",
-                      border: "1px solid var(--color-danger)",
-                      borderRadius: "var(--radius-sm)",
-                      cursor: "pointer",
-                      fontSize: "0.75rem",
-                    }}
-                  >
-                    Quitar
-                  </button>
-                </div>
-              ) : (
-                <input
-                  ref={pdfInputRef}
-                  type="file"
-                  accept=".pdf,application/pdf"
-                  onChange={handlePdfChange}
-                  disabled={!!zipFile}
+                  XML
+                </span>
+                <span
                   style={{
-                    width: "100%",
-                    padding: "0.5rem",
-                    border: `1px solid ${errors.pdf ? "var(--color-danger)" : "var(--color-border)"}`,
-                    borderRadius: "var(--radius-sm)",
+                    flex: 1,
                     fontSize: "0.875rem",
-                    backgroundColor: "var(--color-surface)",
                     color: "var(--color-text-primary)",
-                    opacity: zipFile ? 0.5 : 1,
-                  }}
-                />
-              )}
-              {errors.pdf && (
-                <p
-                  style={{
-                    margin: "0.25rem 0 0 0",
-                    color: "var(--color-danger)",
-                    fontSize: "0.875rem",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
                   }}
                 >
-                  {errors.pdf}
-                </p>
-              )}
-            </div>
-
-            {/* XML Upload */}
-            <div>
-              <label style={{ ...labelStyle, fontSize: "0.875rem" }}>
-                Factura Electrónica XML
-              </label>
-              {xmlFile ? (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.75rem",
-                    padding: "0.75rem",
-                    backgroundColor: "var(--color-surface)",
-                    borderRadius: "var(--radius-sm)",
-                    border: "1px solid var(--color-border)",
-                  }}
+                  {xmlFile.name}
+                </span>
+                <Button
+                  type="button"
+                  variant="danger"
+                  size="sm"
+                  onClick={handleRemoveXml}
                 >
-                  <span
-                    style={{
-                      padding: "0.25rem 0.5rem",
-                      backgroundColor: "var(--color-success-light)",
-                      color: "var(--color-success)",
-                      borderRadius: "var(--radius-sm)",
-                      fontSize: "0.75rem",
-                      fontWeight: "600",
-                    }}
-                  >
-                    XML
-                  </span>
-                  <span
-                    style={{
-                      flex: 1,
-                      fontSize: "0.875rem",
-                      color: "var(--color-text-primary)",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {xmlFile.name}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleRemoveXml}
-                    style={{
-                      padding: "0.25rem 0.5rem",
-                      backgroundColor: "transparent",
-                      color: "var(--color-danger)",
-                      border: "1px solid var(--color-danger)",
-                      borderRadius: "var(--radius-sm)",
-                      cursor: "pointer",
-                      fontSize: "0.75rem",
-                    }}
-                  >
-                    Quitar
-                  </button>
-                </div>
-              ) : (
-                <input
-                  ref={xmlInputRef}
-                  type="file"
-                  accept=".xml,text/xml,application/xml"
-                  onChange={handleXmlChange}
-                  disabled={!!zipFile}
-                  style={{
-                    width: "100%",
-                    padding: "0.5rem",
-                    border: `1px solid ${errors.xml ? "var(--color-danger)" : "var(--color-border)"}`,
-                    borderRadius: "var(--radius-sm)",
-                    fontSize: "0.875rem",
-                    backgroundColor: "var(--color-surface)",
-                    color: "var(--color-text-primary)",
-                    opacity: zipFile ? 0.5 : 1,
-                  }}
-                />
-              )}
-              {errors.xml && (
-                <p
-                  style={{
-                    margin: "0.25rem 0 0 0",
-                    color: "var(--color-danger)",
-                    fontSize: "0.875rem",
-                  }}
-                >
-                  {errors.xml}
-                </p>
-              )}
-            </div>
-
-            <p
-              style={{
-                margin: "0.75rem 0 0 0",
-                fontSize: "0.75rem",
-                color: "var(--color-text-muted)",
-              }}
-            >
-              Los documentos se subirán después de guardar la entrada.
-            </p>
+                  Quitar
+                </Button>
+              </div>
+            ) : (
+              <input
+                ref={xmlInputRef}
+                type="file"
+                accept=".xml,text/xml,application/xml"
+                onChange={handleXmlChange}
+                disabled={!!zipFile}
+                style={{
+                  width: "100%",
+                  padding: "0.5rem",
+                  border: `1px solid ${errors.xml ? "var(--color-danger)" : "var(--color-border)"}`,
+                  borderRadius: "var(--radius-sm)",
+                  fontSize: "0.875rem",
+                  backgroundColor: "var(--color-surface)",
+                  color: "var(--color-text-primary)",
+                  opacity: zipFile ? 0.5 : 1,
+                }}
+              />
+            )}
+            {errors.xml && (
+              <p
+                style={{
+                  margin: "0.25rem 0 0 0",
+                  color: "var(--color-danger)",
+                  fontSize: "0.875rem",
+                }}
+              >
+                {errors.xml}
+              </p>
+            )}
           </div>
 
-          {/* Buttons */}
-          <div
-            style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}
-          >
-            <button
-              type="button"
-              onClick={onCancel}
-              disabled={isLoading}
-              style={{
-                padding: "0.75rem 1.5rem",
-                backgroundColor: "var(--color-surface-hover)",
-                color: "var(--color-text-primary)",
-                border: "1px solid var(--color-border)",
-                borderRadius: "var(--radius-sm)",
-                cursor: isLoading ? "not-allowed" : "pointer",
-                fontSize: "1rem",
-                fontWeight: "500",
-                opacity: isLoading ? 0.6 : 1,
-              }}
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={isLoading}
-              style={{
-                padding: "0.75rem 1.5rem",
-                backgroundColor: "var(--color-success)",
-                color: "white",
-                border: "none",
-                borderRadius: "var(--radius-sm)",
-                cursor: isLoading ? "not-allowed" : "pointer",
-                fontSize: "1rem",
-                fontWeight: "500",
-                opacity: isLoading ? 0.6 : 1,
-              }}
-            >
-              {isLoading ? "Guardando..." : "Registrar Entrada"}
-            </button>
-          </div>
-        </form>
-
-        {/* Side PDF preview for wide screens */}
-        {showSidePreview && (
-          <div
+          <p
             style={{
-              flex: "1 1 auto",
-              minWidth: "300px",
-              position: "sticky",
-              top: 0,
-              alignSelf: "flex-start",
+              margin: "0.75rem 0 0 0",
+              fontSize: "0.75rem",
+              color: "var(--color-text-muted)",
             }}
           >
-            {pdfPreview}
-          </div>
-        )}
+            Los documentos se subirán después de guardar la entrada.
+          </p>
+        </div>
+          </form>
+
+          {showSidePreview && (
+            <div
+              style={{
+                flex: 1,
+                minWidth: 0,
+                borderLeft: "1px solid var(--color-border)",
+                padding: "22px",
+                overflowY: "auto",
+                background: "var(--color-bg)",
+              }}
+            >
+              {pdfPreview}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div
+          style={{
+            padding: "16px 22px",
+            borderTop: "1px solid var(--color-border)",
+            background: "var(--color-bg)",
+            display: "flex",
+            gap: "12px",
+            justifyContent: "flex-end",
+          }}
+        >
+          <Button variant="secondary" onClick={onCancel} disabled={isLoading}>
+            Cancelar
+          </Button>
+          <Button type="submit" form="purchase-entry-form" disabled={isLoading}>
+            {isLoading ? "Guardando..." : "Registrar Entrada"}
+          </Button>
         </div>
       </div>
     </div>

@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import type { Product } from "@/types/product";
 import type { Stock, BulkStockCreationOrUpdatingRequest } from "@/types/stock";
+import { Button, Table } from "@/components/ui";
 
 interface BulkStockTableProps {
   products: Product[];
@@ -161,74 +162,14 @@ export default function BulkStockTable({
         </div>
       )}
 
-      <div
-        style={{
-          overflowX: "auto",
-          marginBottom: "1.5rem",
-        }}
-      >
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            minWidth: "600px",
-          }}
-        >
+      <div style={{ marginBottom: "1.5rem" }}>
+        <Table style={{ minWidth: "600px" }}>
           <thead>
-            <tr
-              style={{
-                backgroundColor: "var(--color-bg)",
-                borderBottom: "1px solid var(--color-border)",
-              }}
-            >
-              <th
-                style={{
-                  padding: "0.75rem",
-                  textAlign: "left",
-                  fontWeight: "600",
-                  color: "var(--color-text-primary)",
-                  fontSize: "0.875rem",
-                  textTransform: "uppercase",
-                }}
-              >
-                Nombre del Producto
-              </th>
-              <th
-                style={{
-                  padding: "0.75rem",
-                  textAlign: "left",
-                  fontWeight: "600",
-                  color: "var(--color-text-primary)",
-                  fontSize: "0.875rem",
-                  textTransform: "uppercase",
-                }}
-              >
-                SKU
-              </th>
-              <th
-                style={{
-                  padding: "0.75rem",
-                  textAlign: "left",
-                  fontWeight: "600",
-                  color: "var(--color-text-primary)",
-                  fontSize: "0.875rem",
-                  textTransform: "uppercase",
-                }}
-              >
-                Cantidad Actual
-              </th>
-              <th
-                style={{
-                  padding: "0.75rem",
-                  textAlign: "left",
-                  fontWeight: "600",
-                  color: "var(--color-text-primary)",
-                  fontSize: "0.875rem",
-                  textTransform: "uppercase",
-                }}
-              >
-                Nueva Cantidad
-              </th>
+            <tr>
+              <th>Nombre del Producto</th>
+              <th>SKU</th>
+              <th data-numeric>Cantidad Actual</th>
+              <th data-numeric>Nueva Cantidad</th>
             </tr>
           </thead>
           <tbody>
@@ -238,43 +179,31 @@ export default function BulkStockTable({
                 <tr
                   key={row.product_id}
                   style={{
-                    borderBottom: "1px solid var(--color-border)",
-                    backgroundColor: hasChanged ? "var(--color-warning-light)" : "transparent",
-                    transition: "background-color var(--transition-normal)",
+                    backgroundColor: hasChanged
+                      ? "var(--color-warning-light)"
+                      : undefined,
                   }}
                 >
+                  <td style={{ fontWeight: 500 }}>{row.product_name}</td>
                   <td
                     style={{
-                      padding: "0.75rem",
-                      color: "var(--color-text-primary)",
-                    }}
-                  >
-                    {row.product_name}
-                  </td>
-                  <td
-                    style={{
-                      padding: "0.75rem",
                       color: "var(--color-text-secondary)",
-                      fontFamily: "monospace",
-                      fontSize: "0.9rem",
+                      fontFamily: "var(--font-mono)",
+                      fontSize: "0.85rem",
                     }}
                   >
                     {row.sku}
                   </td>
                   <td
+                    data-numeric
                     style={{
-                      padding: "0.75rem",
                       color: "var(--color-text-secondary)",
-                      fontWeight: "500",
+                      fontWeight: 500,
                     }}
                   >
                     {row.currentAmount}
                   </td>
-                  <td
-                    style={{
-                      padding: "0.75rem",
-                    }}
-                  >
+                  <td data-numeric>
                     <input
                       type="number"
                       min="0"
@@ -283,16 +212,22 @@ export default function BulkStockTable({
                         handleAmountChange(row.product_id, e.target.value)
                       }
                       style={{
-                        width: "100%",
+                        width: "120px",
                         maxWidth: "150px",
                         padding: "0.5rem",
                         border: `1px solid ${
-                          hasChanged ? "var(--color-warning)" : "var(--color-border)"
+                          hasChanged
+                            ? "var(--color-warning)"
+                            : "var(--color-border)"
                         }`,
                         borderRadius: "var(--radius-sm)",
-                        fontSize: "1rem",
+                        fontSize: "0.95rem",
+                        textAlign: "right",
+                        fontFamily: "var(--font-mono)",
                         boxSizing: "border-box",
-                        backgroundColor: hasChanged ? "var(--color-surface)" : "var(--color-bg)",
+                        backgroundColor: hasChanged
+                          ? "var(--color-surface)"
+                          : "var(--color-bg)",
                         color: "var(--color-text-primary)",
                       }}
                       placeholder="0"
@@ -302,7 +237,7 @@ export default function BulkStockTable({
               );
             })}
           </tbody>
-        </table>
+        </Table>
       </div>
 
       <div
@@ -336,43 +271,20 @@ export default function BulkStockTable({
             gap: "1rem",
           }}
         >
-          <button
+          <Button
+            variant="secondary"
             onClick={handleReset}
             disabled={submitting || !hasChanges}
-            style={{
-              padding: "0.75rem 1.5rem",
-              backgroundColor: "var(--color-surface-hover)",
-              color: "var(--color-text-primary)",
-              border: "1px solid var(--color-border)",
-              borderRadius: "var(--radius-sm)",
-              cursor: submitting || !hasChanges ? "not-allowed" : "pointer",
-              fontSize: "1rem",
-              fontWeight: "500",
-              opacity: submitting || !hasChanges ? 0.6 : 1,
-            }}
           >
             Restablecer Valores
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="primary"
             onClick={handleSubmit}
             disabled={submitting || !hasChanges || isLoading}
-            style={{
-              padding: "0.75rem 1.5rem",
-              backgroundColor: "var(--color-success)",
-              color: "white",
-              border: "none",
-              borderRadius: "var(--radius-sm)",
-              cursor:
-                submitting || !hasChanges || isLoading
-                  ? "not-allowed"
-                  : "pointer",
-              fontSize: "1rem",
-              fontWeight: "500",
-              opacity: submitting || !hasChanges || isLoading ? 0.6 : 1,
-            }}
           >
             {submitting ? "Enviando..." : "Enviar Solicitud Masiva"}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

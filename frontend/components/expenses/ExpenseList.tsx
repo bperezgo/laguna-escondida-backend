@@ -2,7 +2,9 @@
 
 import { useState, useMemo } from "react";
 import type { Expense } from "@/types/expense";
-import ExpenseCard from "./ExpenseCard";
+import { Badge, Button, Input, Table } from "@/components/ui";
+import { PermissionGate } from "@/components/permissions";
+import { PERMISSIONS } from "@/lib/permissions";
 
 interface ExpenseListProps {
   expenses: Expense[];
@@ -48,6 +50,14 @@ export default function ExpenseList({
     }).format(amount);
   };
 
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("es-CO", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
   if (isLoading) {
     return (
       <div style={{ textAlign: "center", padding: "3rem" }}>
@@ -71,26 +81,12 @@ export default function ExpenseList({
   return (
     <div>
       {/* Search */}
-      <div
-        style={{
-          marginBottom: "1.5rem",
-        }}
-      >
-        <input
+      <div style={{ marginBottom: "1.5rem" }}>
+        <Input
           type="text"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           placeholder="Buscar por descripción, referencia, proveedor, notas..."
-          style={{
-            width: "100%",
-            padding: "0.75rem",
-            border: "1px solid var(--color-border)",
-            borderRadius: "var(--radius-sm)",
-            fontSize: "1rem",
-            boxSizing: "border-box",
-            backgroundColor: "var(--color-bg)",
-            color: "var(--color-text-primary)",
-          }}
         />
       </div>
 
@@ -125,7 +121,7 @@ export default function ExpenseList({
         </span>
       </div>
 
-      {/* Expense List */}
+      {/* Expense Table */}
       {filteredExpenses.length === 0 ? (
         <div style={{ textAlign: "center", padding: "3rem" }}>
           <p style={{ fontSize: "1.1rem", color: "var(--color-text-secondary)" }}>
@@ -133,17 +129,90 @@ export default function ExpenseList({
           </p>
         </div>
       ) : (
-        <div>
-          {filteredExpenses.map((expense) => (
-            <ExpenseCard
-              key={expense.id}
-              expense={expense}
-              onViewDetail={onViewDetail}
-              onEdit={onEdit}
-              onDelete={onDelete}
-            />
-          ))}
-        </div>
+        <Table>
+          <thead>
+            <tr>
+              <th>Categoría</th>
+              <th>Descripción</th>
+              <th>Fecha</th>
+              <th>Proveedor</th>
+              <th data-numeric>Monto</th>
+              <th style={{ textAlign: "right" }}>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredExpenses.map((expense) => (
+              <tr key={expense.id}>
+                <td>
+                  <Badge tone="info" dot={false}>
+                    {expense.category_name ||
+                      expense.category_code ||
+                      "Sin categoría"}
+                  </Badge>
+                </td>
+                <td>
+                  <span style={{ color: "var(--color-text-primary)" }}>
+                    {expense.description}
+                  </span>
+                  {expense.reference && (
+                    <div
+                      style={{
+                        fontFamily: "monospace",
+                        fontSize: "0.75rem",
+                        color: "var(--color-text-muted)",
+                      }}
+                    >
+                      Ref: {expense.reference}
+                    </div>
+                  )}
+                </td>
+                <td>{formatDate(expense.expense_date)}</td>
+                <td>{expense.supplier_name || "—"}</td>
+                <td
+                  data-numeric
+                  style={{ color: "var(--color-danger)", fontWeight: 600 }}
+                >
+                  {formatCurrency(parseFloat(expense.amount))}
+                </td>
+                <td style={{ textAlign: "right" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "0.5rem",
+                      justifyContent: "flex-end",
+                    }}
+                  >
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => onViewDetail(expense)}
+                    >
+                      Ver
+                    </Button>
+                    <PermissionGate permission={PERMISSIONS.EXPENSES_UPDATE}>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => onEdit(expense)}
+                      >
+                        Editar
+                      </Button>
+                    </PermissionGate>
+                    <PermissionGate permission={PERMISSIONS.EXPENSES_DELETE}>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => onDelete(expense)}
+                      >
+                        Eliminar
+                      </Button>
+                    </PermissionGate>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
       )}
     </div>
   );

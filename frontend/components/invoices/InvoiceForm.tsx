@@ -11,6 +11,7 @@ import type {
 } from "@/types/invoice";
 import type { Product } from "@/types/product";
 import { productsApi } from "@/lib/api/products";
+import { Modal, Input, Select, Button } from "@/components/ui";
 
 interface InvoiceFormProps {
   onSubmit: (data: CreateElectronicInvoiceRequest) => Promise<void>;
@@ -417,53 +418,35 @@ export default function InvoiceForm({
   };
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: "var(--color-overlay)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1000,
-        padding: "1rem",
-        overflowY: "auto",
-      }}
-    >
-      <div
-        style={{
-          backgroundColor: "var(--color-surface)",
-          borderRadius: "var(--radius-md)",
-          padding: "2rem",
-          maxWidth: "900px",
-          width: "100%",
-          maxHeight: "95vh",
-          overflowY: "auto",
-          boxShadow: "var(--shadow-xl)",
-          margin: "auto",
-          border: "1px solid var(--color-border)",
-        }}
+    <>
+      <Modal
+        open
+        onClose={onCancel}
+        title="Crear Factura Electrónica"
+        size="lg"
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              onClick={onCancel}
+              disabled={isLoading}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" form="invoice-form" disabled={isLoading}>
+              {isLoading ? "Creando..." : "Crear Factura"}
+            </Button>
+          </>
+        }
       >
-        <h2
-          style={{
-            marginTop: 0,
-            marginBottom: "1.5rem",
-            fontSize: "1.5rem",
-            fontWeight: "bold",
-            color: "var(--color-text-primary)",
-          }}
+        <form
+          id="invoice-form"
+          onSubmit={handleSubmit}
+          style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}
         >
-          Crear Factura Electrónica
-        </h2>
-
-        <form onSubmit={handleSubmit}>
           {/* Invoice Details Section */}
           <div
             style={{
-              marginBottom: "2rem",
               paddingBottom: "1.5rem",
               borderBottom: "1px solid var(--color-border)",
             }}
@@ -480,57 +463,38 @@ export default function InvoiceForm({
               Detalles de Factura
             </h3>
 
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: "0.5rem",
-                  fontWeight: "500",
-                  color: "var(--color-text-primary)",
-                }}
-              >
-                Código de Pago *
-              </label>
-              <select
-                value={formData.payment_code}
-                onChange={(e) =>
-                  handleChange(
-                    "payment_code",
-                    e.target.value as ElectronicInvoicePaymentCode
-                  )
-                }
-                style={{
-                  width: "100%",
-                  padding: "0.75rem",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: "var(--radius-sm)",
-                  fontSize: "1rem",
-                  boxSizing: "border-box",
-                  backgroundColor: "var(--color-bg)",
-                  color: "var(--color-text-primary)",
-                }}
-              >
-                {PAYMENT_CODES.map((code) => (
-                  <option key={code.value} value={code.value}>
-                    {code.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <Select
+              label="Código de Pago *"
+              value={formData.payment_code}
+              onChange={(e) =>
+                handleChange(
+                  "payment_code",
+                  e.target.value as ElectronicInvoicePaymentCode
+                )
+              }
+            >
+              {PAYMENT_CODES.map((code) => (
+                <option key={code.value} value={code.value}>
+                  {code.label}
+                </option>
+              ))}
+            </Select>
           </div>
 
           {/* Customer Section */}
           <div
             style={{
-              marginBottom: "2rem",
               paddingBottom: "1.5rem",
               borderBottom: "1px solid var(--color-border)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "1rem",
             }}
           >
             <h3
               style={{
                 marginTop: 0,
-                marginBottom: "1rem",
+                marginBottom: 0,
                 fontSize: "1.2rem",
                 fontWeight: "600",
                 color: "var(--color-text-primary)",
@@ -553,90 +517,33 @@ export default function InvoiceForm({
                 display: "grid",
                 gridTemplateColumns: "1fr 1fr",
                 gap: "1rem",
-                marginBottom: "1rem",
               }}
             >
-              <div>
-                <label
-                  style={{
-                    display: "block",
-                    marginBottom: "0.5rem",
-                    fontWeight: "500",
-                    color: "var(--color-text-primary)",
-                  }}
-                >
-                  Número de Documento
-                </label>
-                <input
-                  type="text"
-                  value={formData.customer.id}
-                  onChange={(e) => handleChange("customer.id", e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "0.75rem",
-                    border: `1px solid ${
-                      errors["customer.id"]
-                        ? "var(--color-danger)"
-                        : "var(--color-border)"
-                    }`,
-                    borderRadius: "var(--radius-sm)",
-                    fontSize: "1rem",
-                    boxSizing: "border-box",
-                    backgroundColor: "var(--color-bg)",
-                    color: "var(--color-text-primary)",
-                  }}
-                  placeholder="Ingresa el número de documento"
-                />
-                {errors["customer.id"] && (
-                  <p
-                    style={{
-                      margin: "0.25rem 0 0 0",
-                      color: "var(--color-danger)",
-                      fontSize: "0.875rem",
-                    }}
-                  >
-                    {errors["customer.id"]}
-                  </p>
-                )}
-              </div>
+              <Input
+                label="Número de Documento"
+                type="text"
+                value={formData.customer.id}
+                onChange={(e) => handleChange("customer.id", e.target.value)}
+                error={errors["customer.id"]}
+                placeholder="Ingresa el número de documento"
+              />
 
-              <div>
-                <label
-                  style={{
-                    display: "block",
-                    marginBottom: "0.5rem",
-                    fontWeight: "500",
-                    color: "var(--color-text-primary)",
-                  }}
-                >
-                  Tipo de Documento
-                </label>
-                <select
-                  value={formData.customer.document_type}
-                  onChange={(e) =>
-                    handleChange(
-                      "customer.document_type",
-                      e.target.value as DocumentType
-                    )
-                  }
-                  style={{
-                    width: "100%",
-                    padding: "0.75rem",
-                    border: "1px solid var(--color-border)",
-                    borderRadius: "var(--radius-sm)",
-                    fontSize: "1rem",
-                    boxSizing: "border-box",
-                    backgroundColor: "var(--color-bg)",
-                    color: "var(--color-text-primary)",
-                  }}
-                >
-                  {DOCUMENT_TYPES.map((type) => (
-                    <option key={type.value} value={type.value}>
-                      {type.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <Select
+                label="Tipo de Documento"
+                value={formData.customer.document_type}
+                onChange={(e) =>
+                  handleChange(
+                    "customer.document_type",
+                    e.target.value as DocumentType
+                  )
+                }
+              >
+                {DOCUMENT_TYPES.map((type) => (
+                  <option key={type.value} value={type.value}>
+                    {type.label}
+                  </option>
+                ))}
+              </Select>
             </div>
 
             <div
@@ -646,104 +553,29 @@ export default function InvoiceForm({
                 gap: "1rem",
               }}
             >
-              <div>
-                <label
-                  style={{
-                    display: "block",
-                    marginBottom: "0.5rem",
-                    fontWeight: "500",
-                    color: "var(--color-text-primary)",
-                  }}
-                >
-                  Nombre
-                </label>
-                <input
-                  type="text"
-                  value={formData.customer.name}
-                  onChange={(e) =>
-                    handleChange("customer.name", e.target.value)
-                  }
-                  style={{
-                    width: "100%",
-                    padding: "0.75rem",
-                    border: `1px solid ${
-                      errors["customer.name"]
-                        ? "var(--color-danger)"
-                        : "var(--color-border)"
-                    }`,
-                    borderRadius: "var(--radius-sm)",
-                    fontSize: "1rem",
-                    boxSizing: "border-box",
-                    backgroundColor: "var(--color-bg)",
-                    color: "var(--color-text-primary)",
-                  }}
-                  placeholder="Ingresa el nombre del cliente"
-                />
-                {errors["customer.name"] && (
-                  <p
-                    style={{
-                      margin: "0.25rem 0 0 0",
-                      color: "var(--color-danger)",
-                      fontSize: "0.875rem",
-                    }}
-                  >
-                    {errors["customer.name"]}
-                  </p>
-                )}
-              </div>
+              <Input
+                label="Nombre"
+                type="text"
+                value={formData.customer.name}
+                onChange={(e) => handleChange("customer.name", e.target.value)}
+                error={errors["customer.name"]}
+                placeholder="Ingresa el nombre del cliente"
+              />
 
-              <div>
-                <label
-                  style={{
-                    display: "block",
-                    marginBottom: "0.5rem",
-                    fontWeight: "500",
-                    color: "var(--color-text-primary)",
-                  }}
-                >
-                  Correo Electrónico
-                </label>
-                <input
-                  type="email"
-                  value={formData.customer.email}
-                  onChange={(e) =>
-                    handleChange("customer.email", e.target.value)
-                  }
-                  style={{
-                    width: "100%",
-                    padding: "0.75rem",
-                    border: `1px solid ${
-                      errors["customer.email"]
-                        ? "var(--color-danger)"
-                        : "var(--color-border)"
-                    }`,
-                    borderRadius: "var(--radius-sm)",
-                    fontSize: "1rem",
-                    boxSizing: "border-box",
-                    backgroundColor: "var(--color-bg)",
-                    color: "var(--color-text-primary)",
-                  }}
-                  placeholder="Ingresa el correo del cliente"
-                />
-                {errors["customer.email"] && (
-                  <p
-                    style={{
-                      margin: "0.25rem 0 0 0",
-                      color: "var(--color-danger)",
-                      fontSize: "0.875rem",
-                    }}
-                  >
-                    {errors["customer.email"]}
-                  </p>
-                )}
-              </div>
+              <Input
+                label="Correo Electrónico"
+                type="email"
+                value={formData.customer.email}
+                onChange={(e) => handleChange("customer.email", e.target.value)}
+                error={errors["customer.email"]}
+                placeholder="Ingresa el correo del cliente"
+              />
             </div>
           </div>
 
           {/* Items Section */}
           <div
             style={{
-              marginBottom: "2rem",
               paddingBottom: "1.5rem",
               borderBottom: "1px solid var(--color-border)",
             }}
@@ -799,38 +631,21 @@ export default function InvoiceForm({
                   >
                     Artículo {index + 1}
                   </h4>
-                  <button
+                  <Button
                     type="button"
+                    variant="danger"
+                    size="sm"
                     onClick={() => removeItem(index)}
-                    style={{
-                      padding: "0.25rem 0.75rem",
-                      backgroundColor: "var(--color-danger)",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "var(--radius-sm)",
-                      cursor: "pointer",
-                      fontSize: "0.875rem",
-                    }}
                   >
                     Eliminar
-                  </button>
+                  </Button>
                 </div>
 
                 {/* Product Selector */}
                 <div style={{ marginBottom: "1rem", position: "relative" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      marginBottom: "0.5rem",
-                      fontWeight: "500",
-                      color: "var(--color-text-primary)",
-                      fontSize: "0.875rem",
-                    }}
-                  >
-                    Seleccionar Producto
-                  </label>
                   <div style={{ position: "relative" }}>
-                    <input
+                    <Input
+                      label="Seleccionar Producto"
                       type="text"
                       value={itemProductSearch[index] || ""}
                       onChange={(e) => {
@@ -854,16 +669,6 @@ export default function InvoiceForm({
                           : "Buscar y seleccionar un producto"
                       }
                       disabled={productsLoading}
-                      style={{
-                        width: "100%",
-                        padding: "0.5rem",
-                        border: "1px solid var(--color-border)",
-                        borderRadius: "var(--radius-sm)",
-                        fontSize: "0.875rem",
-                        boxSizing: "border-box",
-                        backgroundColor: "var(--color-surface)",
-                        color: "var(--color-text-primary)",
-                      }}
                     />
                     {!itemSelectedProduct[index] &&
                       itemProductSearch[index] !== undefined &&
@@ -964,22 +769,15 @@ export default function InvoiceForm({
                         >
                           Producto Seleccionado:
                         </div>
-                        <button
+                        <Button
                           type="button"
+                          variant="danger"
+                          size="sm"
                           onClick={() => handleClearProduct(index)}
-                          style={{
-                            padding: "0.25rem 0.5rem",
-                            backgroundColor: "var(--color-danger)",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "var(--radius-sm)",
-                            cursor: "pointer",
-                            fontSize: "0.75rem",
-                          }}
                           title="Limpiar selección de producto"
                         >
                           Limpiar
-                        </button>
+                        </Button>
                       </div>
                       <div
                         style={{
@@ -1043,219 +841,92 @@ export default function InvoiceForm({
                     marginBottom: "1rem",
                   }}
                 >
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        marginBottom: "0.5rem",
-                        fontWeight: "500",
-                        color: "var(--color-text-primary)",
-                        fontSize: "0.875rem",
-                      }}
-                    >
-                      Cantidad *
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={item.quantity || ""}
-                      onChange={(e) => {
-                        const numValue =
-                          e.target.value === ""
-                            ? 0
-                            : parseInt(e.target.value, 10) || 0;
-                        updateItem(index, "quantity", numValue);
-                        calculateItemTotal(index);
-                      }}
-                      style={{
-                        width: "100%",
-                        padding: "0.5rem",
-                        border: `1px solid ${
-                          errors[`items.${index}.quantity`]
-                            ? "var(--color-danger)"
-                            : "var(--color-border)"
-                        }`,
-                        borderRadius: "var(--radius-sm)",
-                        fontSize: "0.875rem",
-                        boxSizing: "border-box",
-                        backgroundColor: "var(--color-surface)",
-                        color: "var(--color-text-primary)",
-                      }}
-                      placeholder="0"
-                    />
-                    {errors[`items.${index}.quantity`] && (
-                      <p
-                        style={{
-                          margin: "0.25rem 0 0 0",
-                          color: "var(--color-danger)",
-                          fontSize: "0.75rem",
-                        }}
-                      >
-                        {errors[`items.${index}.quantity`]}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        marginBottom: "0.5rem",
-                        fontWeight: "500",
-                        color: "var(--color-text-primary)",
-                        fontSize: "0.875rem",
-                      }}
-                    >
-                      Precio Total con Impuestos *{" "}
-                      {itemSelectedProduct[index] && (
-                        <span
-                          style={{
-                            fontSize: "0.75rem",
-                            color: "var(--color-text-muted)",
-                            fontWeight: "normal",
-                          }}
-                        >
-                          (del producto)
-                        </span>
-                      )}
-                    </label>
-                    <input
-                      type="text"
-                      value={item.totalPriceWithTaxes}
-                      onChange={
-                        itemSelectedProduct[index]
-                          ? undefined
-                          : (e) => {
-                              updateItem(
-                                index,
-                                "totalPriceWithTaxes",
-                                e.target.value
-                              );
-                              calculateItemTotal(index);
-                            }
-                      }
-                      readOnly={!!itemSelectedProduct[index]}
-                      style={{
-                        width: "100%",
-                        padding: "0.5rem",
-                        border: `1px solid ${
-                          errors[`items.${index}.totalPriceWithTaxes`]
-                            ? "var(--color-danger)"
-                            : "var(--color-border)"
-                        }`,
-                        borderRadius: "var(--radius-sm)",
-                        fontSize: "0.875rem",
-                        boxSizing: "border-box",
-                        backgroundColor: itemSelectedProduct[index]
-                          ? "var(--color-surface-hover)"
-                          : "var(--color-surface)",
-                        color: "var(--color-text-primary)",
-                        cursor: itemSelectedProduct[index]
-                          ? "not-allowed"
-                          : "text",
-                      }}
-                      placeholder="0.00"
-                    />
-                    {errors[`items.${index}.totalPriceWithTaxes`] && (
-                      <p
-                        style={{
-                          margin: "0.25rem 0 0 0",
-                          color: "var(--color-danger)",
-                          fontSize: "0.75rem",
-                        }}
-                      >
-                        {errors[`items.${index}.totalPriceWithTaxes`]}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        marginBottom: "0.5rem",
-                        fontWeight: "500",
-                        color: "var(--color-text-primary)",
-                        fontSize: "0.875rem",
-                      }}
-                    >
-                      Total
-                    </label>
-                    <input
-                      type="text"
-                      value={item.total}
-                      readOnly
-                      style={{
-                        width: "100%",
-                        padding: "0.5rem",
-                        border: "1px solid var(--color-border)",
-                        borderRadius: "var(--radius-sm)",
-                        fontSize: "0.875rem",
-                        boxSizing: "border-box",
-                        backgroundColor: "var(--color-surface-hover)",
-                        color: "var(--color-text-primary)",
-                      }}
-                    />
-                  </div>
+                  <Input
+                    label="Cantidad *"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={item.quantity || ""}
+                    onChange={(e) => {
+                      const numValue =
+                        e.target.value === ""
+                          ? 0
+                          : parseInt(e.target.value, 10) || 0;
+                      updateItem(index, "quantity", numValue);
+                      calculateItemTotal(index);
+                    }}
+                    error={errors[`items.${index}.quantity`]}
+                    placeholder="0"
+                  />
+                  <Input
+                    label={
+                      <>
+                        Precio Total con Impuestos *{" "}
+                        {itemSelectedProduct[index] && (
+                          <span
+                            style={{
+                              fontSize: "0.75rem",
+                              color: "var(--color-text-muted)",
+                              fontWeight: "normal",
+                            }}
+                          >
+                            (del producto)
+                          </span>
+                        )}
+                      </>
+                    }
+                    type="text"
+                    value={item.totalPriceWithTaxes}
+                    onChange={
+                      itemSelectedProduct[index]
+                        ? undefined
+                        : (e) => {
+                            updateItem(
+                              index,
+                              "totalPriceWithTaxes",
+                              e.target.value
+                            );
+                            calculateItemTotal(index);
+                          }
+                    }
+                    readOnly={!!itemSelectedProduct[index]}
+                    error={errors[`items.${index}.totalPriceWithTaxes`]}
+                    placeholder="0.00"
+                  />
+                  <Input
+                    label="Total"
+                    type="text"
+                    value={item.total}
+                    readOnly
+                  />
                 </div>
                 <div style={{ marginBottom: "1rem" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      marginBottom: "0.5rem",
-                      fontWeight: "500",
-                      color: "var(--color-text-primary)",
-                      fontSize: "0.875rem",
-                    }}
-                  >
-                    Descripción *{" "}
-                    {itemSelectedProduct[index] && (
-                      <span
-                        style={{
-                          fontSize: "0.75rem",
-                          color: "var(--color-text-muted)",
-                          fontWeight: "normal",
-                        }}
-                      >
-                        (del producto)
-                      </span>
-                    )}
-                  </label>
-                  <input
+                  <Input
+                    label={
+                      <>
+                        Descripción *{" "}
+                        {itemSelectedProduct[index] && (
+                          <span
+                            style={{
+                              fontSize: "0.75rem",
+                              color: "var(--color-text-muted)",
+                              fontWeight: "normal",
+                            }}
+                          >
+                            (del producto)
+                          </span>
+                        )}
+                      </>
+                    }
                     type="text"
                     value={item.description}
                     onChange={(e) =>
                       updateItem(index, "description", e.target.value)
                     }
                     readOnly={!!itemSelectedProduct[index]}
-                    style={{
-                      width: "100%",
-                      padding: "0.5rem",
-                      border: `1px solid ${
-                        errors[`items.${index}.description`]
-                          ? "var(--color-danger)"
-                          : "var(--color-border)"
-                      }`,
-                      borderRadius: "var(--radius-sm)",
-                      fontSize: "0.875rem",
-                      boxSizing: "border-box",
-                      backgroundColor: itemSelectedProduct[index]
-                        ? "var(--color-surface-hover)"
-                        : "var(--color-surface)",
-                      color: "var(--color-text-primary)",
-                    }}
+                    error={errors[`items.${index}.description`]}
                     placeholder="Ingresa la descripción del artículo"
                   />
-                  {errors[`items.${index}.description`] && (
-                    <p
-                      style={{
-                        margin: "0.25rem 0 0 0",
-                        color: "var(--color-danger)",
-                        fontSize: "0.75rem",
-                      }}
-                    >
-                      {errors[`items.${index}.description`]}
-                    </p>
-                  )}
                 </div>
                 <div
                   style={{
@@ -1264,183 +935,104 @@ export default function InvoiceForm({
                     gap: "1rem",
                   }}
                 >
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        marginBottom: "0.5rem",
-                        fontWeight: "500",
-                        color: "var(--color-text-primary)",
-                        fontSize: "0.875rem",
-                      }}
-                    >
-                      Marca{" "}
-                      {itemSelectedProduct[index] && (
-                        <span
-                          style={{
-                            fontSize: "0.75rem",
-                            color: "var(--color-text-muted)",
-                            fontWeight: "normal",
-                          }}
-                        >
-                          (del producto)
-                        </span>
-                      )}
-                    </label>
-                    <input
-                      type="text"
-                      value={item.brand}
-                      onChange={
-                        itemSelectedProduct[index]
-                          ? undefined
-                          : (e) => updateItem(index, "brand", e.target.value)
-                      }
-                      readOnly={!!itemSelectedProduct[index]}
-                      style={{
-                        width: "100%",
-                        padding: "0.5rem",
-                        border: "1px solid var(--color-border)",
-                        borderRadius: "var(--radius-sm)",
-                        fontSize: "0.875rem",
-                        boxSizing: "border-box",
-                        backgroundColor: itemSelectedProduct[index]
-                          ? "var(--color-surface-hover)"
-                          : "var(--color-surface)",
-                        color: "var(--color-text-primary)",
-                        cursor: itemSelectedProduct[index]
-                          ? "not-allowed"
-                          : "text",
-                      }}
-                      placeholder="Ingresa la marca"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        marginBottom: "0.5rem",
-                        fontWeight: "500",
-                        color: "var(--color-text-primary)",
-                        fontSize: "0.875rem",
-                      }}
-                    >
-                      Modelo{" "}
-                      {itemSelectedProduct[index] && (
-                        <span
-                          style={{
-                            fontSize: "0.75rem",
-                            color: "var(--color-text-muted)",
-                            fontWeight: "normal",
-                          }}
-                        >
-                          (del producto)
-                        </span>
-                      )}
-                    </label>
-                    <input
-                      type="text"
-                      value={item.model}
-                      onChange={
-                        itemSelectedProduct[index]
-                          ? undefined
-                          : (e) => updateItem(index, "model", e.target.value)
-                      }
-                      readOnly={!!itemSelectedProduct[index]}
-                      style={{
-                        width: "100%",
-                        padding: "0.5rem",
-                        border: "1px solid var(--color-border)",
-                        borderRadius: "var(--radius-sm)",
-                        fontSize: "0.875rem",
-                        boxSizing: "border-box",
-                        backgroundColor: itemSelectedProduct[index]
-                          ? "var(--color-surface-hover)"
-                          : "var(--color-surface)",
-                        color: "var(--color-text-primary)",
-                        cursor: itemSelectedProduct[index]
-                          ? "not-allowed"
-                          : "text",
-                      }}
-                      placeholder="Ingresa el modelo"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        marginBottom: "0.5rem",
-                        fontWeight: "500",
-                        color: "var(--color-text-primary)",
-                        fontSize: "0.875rem",
-                      }}
-                    >
-                      Código{" "}
-                      {itemSelectedProduct[index] && (
-                        <span
-                          style={{
-                            fontSize: "0.75rem",
-                            color: "var(--color-text-muted)",
-                            fontWeight: "normal",
-                          }}
-                        >
-                          (del producto)
-                        </span>
-                      )}
-                    </label>
-                    <input
-                      type="text"
-                      value={item.code}
-                      onChange={
-                        itemSelectedProduct[index]
-                          ? undefined
-                          : (e) => updateItem(index, "code", e.target.value)
-                      }
-                      readOnly={!!itemSelectedProduct[index]}
-                      style={{
-                        width: "100%",
-                        padding: "0.5rem",
-                        border: "1px solid var(--color-border)",
-                        borderRadius: "var(--radius-sm)",
-                        fontSize: "0.875rem",
-                        boxSizing: "border-box",
-                        backgroundColor: itemSelectedProduct[index]
-                          ? "var(--color-surface-hover)"
-                          : "var(--color-surface)",
-                        color: "var(--color-text-primary)",
-                        cursor: itemSelectedProduct[index]
-                          ? "not-allowed"
-                          : "text",
-                      }}
-                      placeholder="Ingresa el código"
-                    />
-                  </div>
+                  <Input
+                    label={
+                      <>
+                        Marca{" "}
+                        {itemSelectedProduct[index] && (
+                          <span
+                            style={{
+                              fontSize: "0.75rem",
+                              color: "var(--color-text-muted)",
+                              fontWeight: "normal",
+                            }}
+                          >
+                            (del producto)
+                          </span>
+                        )}
+                      </>
+                    }
+                    type="text"
+                    value={item.brand}
+                    onChange={
+                      itemSelectedProduct[index]
+                        ? undefined
+                        : (e) => updateItem(index, "brand", e.target.value)
+                    }
+                    readOnly={!!itemSelectedProduct[index]}
+                    placeholder="Ingresa la marca"
+                  />
+                  <Input
+                    label={
+                      <>
+                        Modelo{" "}
+                        {itemSelectedProduct[index] && (
+                          <span
+                            style={{
+                              fontSize: "0.75rem",
+                              color: "var(--color-text-muted)",
+                              fontWeight: "normal",
+                            }}
+                          >
+                            (del producto)
+                          </span>
+                        )}
+                      </>
+                    }
+                    type="text"
+                    value={item.model}
+                    onChange={
+                      itemSelectedProduct[index]
+                        ? undefined
+                        : (e) => updateItem(index, "model", e.target.value)
+                    }
+                    readOnly={!!itemSelectedProduct[index]}
+                    placeholder="Ingresa el modelo"
+                  />
+                  <Input
+                    label={
+                      <>
+                        Código{" "}
+                        {itemSelectedProduct[index] && (
+                          <span
+                            style={{
+                              fontSize: "0.75rem",
+                              color: "var(--color-text-muted)",
+                              fontWeight: "normal",
+                            }}
+                          >
+                            (del producto)
+                          </span>
+                        )}
+                      </>
+                    }
+                    type="text"
+                    value={item.code}
+                    onChange={
+                      itemSelectedProduct[index]
+                        ? undefined
+                        : (e) => updateItem(index, "code", e.target.value)
+                    }
+                    readOnly={!!itemSelectedProduct[index]}
+                    placeholder="Ingresa el código"
+                  />
                 </div>
               </div>
             ))}
-            <button
+            <Button
               type="button"
+              variant="primary"
+              fullWidth
               onClick={addItem}
-              style={{
-                padding: "0.75rem 1.5rem",
-                backgroundColor: "var(--color-primary)",
-                color: "white",
-                border: "none",
-                borderRadius: "var(--radius-sm)",
-                cursor: "pointer",
-                fontSize: "1rem",
-                fontWeight: "500",
-                width: "100%",
-                marginTop: "0.5rem",
-              }}
+              style={{ marginTop: "0.5rem" }}
             >
               + Agregar Artículo
-            </button>
+            </Button>
           </div>
 
           {/* Purchase Summary */}
           <div
             style={{
-              marginBottom: "2rem",
               padding: "1.5rem",
               backgroundColor: "var(--color-surface-hover)",
               borderRadius: "var(--radius-md)",
@@ -1556,157 +1148,57 @@ export default function InvoiceForm({
               </div>
             </div>
           </div>
-
-          {/* Form Actions */}
-          <div
-            style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}
-          >
-            <button
-              type="button"
-              onClick={onCancel}
-              disabled={isLoading}
-              style={{
-                padding: "0.75rem 1.5rem",
-                backgroundColor: "var(--color-surface-hover)",
-                color: "var(--color-text-primary)",
-                border: "1px solid var(--color-border)",
-                borderRadius: "var(--radius-sm)",
-                cursor: isLoading ? "not-allowed" : "pointer",
-                fontSize: "1rem",
-                fontWeight: "500",
-                opacity: isLoading ? 0.6 : 1,
-              }}
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={isLoading}
-              style={{
-                padding: "0.75rem 1.5rem",
-                backgroundColor: "var(--color-success)",
-                color: "white",
-                border: "none",
-                borderRadius: "var(--radius-sm)",
-                cursor: isLoading ? "not-allowed" : "pointer",
-                fontSize: "1rem",
-                fontWeight: "500",
-                opacity: isLoading ? 0.6 : 1,
-              }}
-            >
-              {isLoading ? "Creando..." : "Crear Factura"}
-            </button>
-          </div>
         </form>
+      </Modal>
 
-        {/* Confirmation Modal */}
-        {showConfirmation && (
-          <div
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: "rgba(0, 0, 0, 0.6)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 1100,
-            }}
-            onClick={handleCancelConfirmation}
-          >
-            <div
+      {/* Confirmation Modal */}
+      {showConfirmation && (
+        <Modal
+          open
+          onClose={handleCancelConfirmation}
+          title="Confirmar Factura"
+          size="sm"
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                onClick={handleCancelConfirmation}
+              >
+                Cancelar
+              </Button>
+              <Button onClick={handleConfirmSubmit} disabled={isLoading}>
+                {isLoading ? "Creando..." : "Confirmar"}
+              </Button>
+            </>
+          }
+        >
+          <div style={{ textAlign: "center" }}>
+            <p
               style={{
-                backgroundColor: "var(--color-surface)",
-                borderRadius: "var(--radius-md)",
-                padding: "2rem",
-                maxWidth: "420px",
-                width: "90%",
-                boxShadow: "var(--shadow-lg, 0 10px 25px rgba(0,0,0,0.2))",
-                textAlign: "center",
+                margin: "0 0 0.5rem 0",
+                fontSize: "0.95rem",
+                color: "var(--color-text-secondary)",
               }}
-              onClick={(e) => e.stopPropagation()}
             >
-              <h3
-                style={{
-                  margin: "0 0 1rem 0",
-                  fontSize: "1.25rem",
-                  fontWeight: "bold",
-                  color: "var(--color-text-primary)",
-                }}
-              >
-                Confirmar Factura
-              </h3>
-              <p
-                style={{
-                  margin: "0 0 0.5rem 0",
-                  fontSize: "0.95rem",
-                  color: "var(--color-text-secondary)",
-                }}
-              >
-                Estás a punto de crear una factura por un valor total de:
-              </p>
-              <p
-                style={{
-                  margin: "0 0 1.5rem 0",
-                  fontSize: "2rem",
-                  fontWeight: "700",
-                  color: "var(--color-primary)",
-                }}
-              >
-                $
-                {purchaseSummary.totalAmount.toLocaleString("es-CO", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </p>
-              <div
-                style={{
-                  display: "flex",
-                  gap: "1rem",
-                  justifyContent: "center",
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={handleCancelConfirmation}
-                  style={{
-                    padding: "0.75rem 1.5rem",
-                    backgroundColor: "var(--color-surface-hover)",
-                    color: "var(--color-text-primary)",
-                    border: "1px solid var(--color-border)",
-                    borderRadius: "var(--radius-sm)",
-                    cursor: "pointer",
-                    fontSize: "1rem",
-                    fontWeight: "500",
-                  }}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmSubmit}
-                  disabled={isLoading}
-                  style={{
-                    padding: "0.75rem 1.5rem",
-                    backgroundColor: "var(--color-success)",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "var(--radius-sm)",
-                    cursor: isLoading ? "not-allowed" : "pointer",
-                    fontSize: "1rem",
-                    fontWeight: "500",
-                    opacity: isLoading ? 0.6 : 1,
-                  }}
-                >
-                  {isLoading ? "Creando..." : "Confirmar"}
-                </button>
-              </div>
-            </div>
+              Estás a punto de crear una factura por un valor total de:
+            </p>
+            <p
+              style={{
+                margin: "0",
+                fontSize: "2rem",
+                fontWeight: "700",
+                color: "var(--color-primary)",
+              }}
+            >
+              $
+              {purchaseSummary.totalAmount.toLocaleString("es-CO", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </p>
           </div>
-        )}
-      </div>
-    </div>
+        </Modal>
+      )}
+    </>
   );
 }

@@ -6,6 +6,7 @@ import type {
   SupportDocumentPaymentCode,
   ProviderDocumentType,
 } from "@/types/support-document";
+import { Modal, Input, Select, Button, Table } from "@/components/ui";
 
 interface SupportDocumentFormProps {
   onSubmit: (data: CreateSupportDocumentRequest) => Promise<void>;
@@ -215,126 +216,82 @@ export default function SupportDocumentForm({
     }
   };
 
-  return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: "var(--color-overlay)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1000,
-        padding: "1rem",
-        overflowY: "auto",
-      }}
-    >
-      <div
-        style={{
-          backgroundColor: "var(--color-surface)",
-          borderRadius: "var(--radius-md)",
-          padding: "2rem",
-          maxWidth: "900px",
-          width: "100%",
-          maxHeight: "95vh",
-          overflowY: "auto",
-          boxShadow: "var(--shadow-xl)",
-          margin: "auto",
-          border: "1px solid var(--color-border)",
-        }}
-      >
-        <h2
-          style={{
-            marginTop: 0,
-            marginBottom: "1.5rem",
-            fontSize: "1.5rem",
-            fontWeight: "bold",
-            color: "var(--color-text-primary)",
-          }}
-        >
-          Crear Documento Soporte
-        </h2>
+  const sectionHeadingStyle = {
+    marginTop: 0,
+    marginBottom: "1rem",
+    fontSize: "1.2rem",
+    fontWeight: 600,
+    color: "var(--color-text-primary)",
+  } as const;
 
-        <form onSubmit={handleSubmit}>
+  return (
+    <>
+      <Modal
+        open
+        onClose={onCancel}
+        title="Crear Documento Soporte"
+        size="lg"
+        footer={
+          <>
+            <Button variant="secondary" onClick={onCancel} disabled={isLoading}>
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              form="support-document-form"
+              disabled={isLoading}
+            >
+              {isLoading ? "Creando..." : "Crear Documento Soporte"}
+            </Button>
+          </>
+        }
+      >
+        <form
+          id="support-document-form"
+          onSubmit={handleSubmit}
+          style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}
+        >
           {/* Payment Code Section */}
           <div
             style={{
-              marginBottom: "2rem",
-              paddingBottom: "1.5rem",
+              paddingBottom: "1.25rem",
               borderBottom: "1px solid var(--color-border)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "1rem",
             }}
           >
-            <h3
-              style={{
-                marginTop: 0,
-                marginBottom: "1rem",
-                fontSize: "1.2rem",
-                fontWeight: "600",
-                color: "var(--color-text-primary)",
-              }}
-            >
-              Detalles del Documento
-            </h3>
+            <h3 style={sectionHeadingStyle}>Detalles del Documento</h3>
 
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: "0.5rem",
-                  fontWeight: "500",
-                  color: "var(--color-text-primary)",
-                }}
-              >
-                Código de Pago *
-              </label>
-              <select
-                value={formData.payment_code}
-                onChange={(e) =>
-                  handleChange(
-                    "payment_code",
-                    e.target.value as SupportDocumentPaymentCode
-                  )
-                }
-                style={{
-                  width: "100%",
-                  padding: "0.75rem",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: "var(--radius-sm)",
-                  fontSize: "1rem",
-                  boxSizing: "border-box",
-                  backgroundColor: "var(--color-bg)",
-                  color: "var(--color-text-primary)",
-                }}
-              >
-                {PAYMENT_CODES.map((code) => (
-                  <option key={code.value} value={code.value}>
-                    {code.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <Select
+              label="Código de Pago *"
+              value={formData.payment_code}
+              onChange={(e) =>
+                handleChange(
+                  "payment_code",
+                  e.target.value as SupportDocumentPaymentCode
+                )
+              }
+            >
+              {PAYMENT_CODES.map((code) => (
+                <option key={code.value} value={code.value}>
+                  {code.label}
+                </option>
+              ))}
+            </Select>
           </div>
 
           {/* Provider Section - Required */}
           <div
             style={{
-              marginBottom: "2rem",
-              paddingBottom: "1.5rem",
+              paddingBottom: "1.25rem",
               borderBottom: "1px solid var(--color-border)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "1rem",
             }}
           >
-            <h3
-              style={{
-                marginTop: 0,
-                marginBottom: "1rem",
-                fontSize: "1.2rem",
-                fontWeight: "600",
-                color: "var(--color-text-primary)",
-              }}
-            >
+            <h3 style={sectionHeadingStyle}>
               Información del Proveedor{" "}
               <span
                 style={{
@@ -352,90 +309,33 @@ export default function SupportDocumentForm({
                 display: "grid",
                 gridTemplateColumns: "1fr 1fr",
                 gap: "1rem",
-                marginBottom: "1rem",
               }}
             >
-              <div>
-                <label
-                  style={{
-                    display: "block",
-                    marginBottom: "0.5rem",
-                    fontWeight: "500",
-                    color: "var(--color-text-primary)",
-                  }}
-                >
-                  Número de Documento *
-                </label>
-                <input
-                  type="text"
-                  value={formData.provider.id}
-                  onChange={(e) => handleChange("provider.id", e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "0.75rem",
-                    border: `1px solid ${
-                      errors["provider.id"]
-                        ? "var(--color-danger)"
-                        : "var(--color-border)"
-                    }`,
-                    borderRadius: "var(--radius-sm)",
-                    fontSize: "1rem",
-                    boxSizing: "border-box",
-                    backgroundColor: "var(--color-bg)",
-                    color: "var(--color-text-primary)",
-                  }}
-                  placeholder="Ingresa el NIT o CC del proveedor"
-                />
-                {errors["provider.id"] && (
-                  <p
-                    style={{
-                      margin: "0.25rem 0 0 0",
-                      color: "var(--color-danger)",
-                      fontSize: "0.875rem",
-                    }}
-                  >
-                    {errors["provider.id"]}
-                  </p>
-                )}
-              </div>
+              <Input
+                label="Número de Documento *"
+                type="text"
+                value={formData.provider.id}
+                onChange={(e) => handleChange("provider.id", e.target.value)}
+                error={errors["provider.id"]}
+                placeholder="Ingresa el NIT o CC del proveedor"
+              />
 
-              <div>
-                <label
-                  style={{
-                    display: "block",
-                    marginBottom: "0.5rem",
-                    fontWeight: "500",
-                    color: "var(--color-text-primary)",
-                  }}
-                >
-                  Tipo de Documento *
-                </label>
-                <select
-                  value={formData.provider.document_type}
-                  onChange={(e) =>
-                    handleChange(
-                      "provider.document_type",
-                      e.target.value as ProviderDocumentType
-                    )
-                  }
-                  style={{
-                    width: "100%",
-                    padding: "0.75rem",
-                    border: "1px solid var(--color-border)",
-                    borderRadius: "var(--radius-sm)",
-                    fontSize: "1rem",
-                    boxSizing: "border-box",
-                    backgroundColor: "var(--color-bg)",
-                    color: "var(--color-text-primary)",
-                  }}
-                >
-                  {DOCUMENT_TYPES.map((type) => (
-                    <option key={type.value} value={type.value}>
-                      {type.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <Select
+                label="Tipo de Documento *"
+                value={formData.provider.document_type}
+                onChange={(e) =>
+                  handleChange(
+                    "provider.document_type",
+                    e.target.value as ProviderDocumentType
+                  )
+                }
+              >
+                {DOCUMENT_TYPES.map((type) => (
+                  <option key={type.value} value={type.value}>
+                    {type.label}
+                  </option>
+                ))}
+              </Select>
             </div>
 
             <div
@@ -445,123 +345,41 @@ export default function SupportDocumentForm({
                 gap: "1rem",
               }}
             >
-              <div>
-                <label
-                  style={{
-                    display: "block",
-                    marginBottom: "0.5rem",
-                    fontWeight: "500",
-                    color: "var(--color-text-primary)",
-                  }}
-                >
-                  Nombre *
-                </label>
-                <input
-                  type="text"
-                  value={formData.provider.name}
-                  onChange={(e) =>
-                    handleChange("provider.name", e.target.value)
-                  }
-                  style={{
-                    width: "100%",
-                    padding: "0.75rem",
-                    border: `1px solid ${
-                      errors["provider.name"]
-                        ? "var(--color-danger)"
-                        : "var(--color-border)"
-                    }`,
-                    borderRadius: "var(--radius-sm)",
-                    fontSize: "1rem",
-                    boxSizing: "border-box",
-                    backgroundColor: "var(--color-bg)",
-                    color: "var(--color-text-primary)",
-                  }}
-                  placeholder="Ingresa el nombre del proveedor"
-                />
-                {errors["provider.name"] && (
-                  <p
-                    style={{
-                      margin: "0.25rem 0 0 0",
-                      color: "var(--color-danger)",
-                      fontSize: "0.875rem",
-                    }}
-                  >
-                    {errors["provider.name"]}
-                  </p>
-                )}
-              </div>
+              <Input
+                label="Nombre *"
+                type="text"
+                value={formData.provider.name}
+                onChange={(e) => handleChange("provider.name", e.target.value)}
+                error={errors["provider.name"]}
+                placeholder="Ingresa el nombre del proveedor"
+              />
 
-              <div>
-                <label
-                  style={{
-                    display: "block",
-                    marginBottom: "0.5rem",
-                    fontWeight: "500",
-                    color: "var(--color-text-primary)",
-                  }}
-                >
-                  Correo Electrónico *
-                </label>
-                <input
-                  type="email"
-                  value={formData.provider.email}
-                  onChange={(e) =>
-                    handleChange("provider.email", e.target.value)
-                  }
-                  style={{
-                    width: "100%",
-                    padding: "0.75rem",
-                    border: `1px solid ${
-                      errors["provider.email"]
-                        ? "var(--color-danger)"
-                        : "var(--color-border)"
-                    }`,
-                    borderRadius: "var(--radius-sm)",
-                    fontSize: "1rem",
-                    boxSizing: "border-box",
-                    backgroundColor: "var(--color-bg)",
-                    color: "var(--color-text-primary)",
-                  }}
-                  placeholder="Ingresa el correo del proveedor"
-                />
-                {errors["provider.email"] && (
-                  <p
-                    style={{
-                      margin: "0.25rem 0 0 0",
-                      color: "var(--color-danger)",
-                      fontSize: "0.875rem",
-                    }}
-                  >
-                    {errors["provider.email"]}
-                  </p>
-                )}
-              </div>
+              <Input
+                label="Correo Electrónico *"
+                type="email"
+                value={formData.provider.email}
+                onChange={(e) => handleChange("provider.email", e.target.value)}
+                error={errors["provider.email"]}
+                placeholder="Ingresa el correo del proveedor"
+              />
             </div>
           </div>
 
           {/* Items Section */}
           <div
             style={{
-              marginBottom: "2rem",
-              paddingBottom: "1.5rem",
+              paddingBottom: "1.25rem",
               borderBottom: "1px solid var(--color-border)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "1rem",
             }}
           >
-            <h3
-              style={{
-                margin: 0,
-                marginBottom: "1rem",
-                fontSize: "1.2rem",
-                fontWeight: "600",
-                color: "var(--color-text-primary)",
-              }}
-            >
-              Artículos del Documento
-            </h3>
+            <h3 style={sectionHeadingStyle}>Artículos del Documento</h3>
             {errors.items && (
               <p
                 style={{
-                  margin: "0 0 1rem 0",
+                  margin: 0,
                   color: "var(--color-danger)",
                   fontSize: "0.875rem",
                 }}
@@ -569,254 +387,104 @@ export default function SupportDocumentForm({
                 {errors.items}
               </p>
             )}
-            {formData.items.map((item, index) => (
-              <div
-                key={index}
-                style={{
-                  border: "1px solid var(--color-border)",
-                  borderRadius: "var(--radius-sm)",
-                  padding: "1rem",
-                  marginBottom: "1rem",
-                  backgroundColor: "var(--color-bg)",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: "1rem",
-                  }}
-                >
-                  <h4
-                    style={{
-                      margin: 0,
-                      fontSize: "1rem",
-                      fontWeight: "600",
-                      color: "var(--color-text-primary)",
-                    }}
-                  >
-                    Artículo {index + 1}
-                  </h4>
-                  <button
-                    type="button"
-                    onClick={() => removeItem(index)}
-                    style={{
-                      padding: "0.25rem 0.75rem",
-                      backgroundColor: "var(--color-danger)",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "var(--radius-sm)",
-                      cursor: "pointer",
-                      fontSize: "0.875rem",
-                    }}
-                  >
-                    Eliminar
-                  </button>
-                </div>
-
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "100px 140px 1fr",
-                    gap: "1rem",
-                  }}
-                >
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        marginBottom: "0.5rem",
-                        fontWeight: "500",
-                        color: "var(--color-text-primary)",
-                        fontSize: "0.875rem",
-                      }}
-                    >
+            {formData.items.length > 0 && (
+              <Table>
+                <thead>
+                  <tr>
+                    <th style={{ width: "110px" }} data-numeric>
                       Cantidad *
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={item.quantity || ""}
-                      onChange={(e) => {
-                        const numValue =
-                          e.target.value === ""
-                            ? 0
-                            : parseInt(e.target.value, 10) || 0;
-                        updateItem(index, "quantity", numValue);
-                      }}
-                      style={{
-                        width: "100%",
-                        padding: "0.5rem",
-                        border: `1px solid ${
-                          errors[`items.${index}.quantity`]
-                            ? "var(--color-danger)"
-                            : "var(--color-border)"
-                        }`,
-                        borderRadius: "var(--radius-sm)",
-                        fontSize: "0.875rem",
-                        boxSizing: "border-box",
-                        backgroundColor: "var(--color-surface)",
-                        color: "var(--color-text-primary)",
-                      }}
-                      placeholder="0"
-                    />
-                    {errors[`items.${index}.quantity`] && (
-                      <p
-                        style={{
-                          margin: "0.25rem 0 0 0",
-                          color: "var(--color-danger)",
-                          fontSize: "0.75rem",
-                        }}
-                      >
-                        {errors[`items.${index}.quantity`]}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        marginBottom: "0.5rem",
-                        fontWeight: "500",
-                        color: "var(--color-text-primary)",
-                        fontSize: "0.875rem",
-                      }}
-                    >
+                    </th>
+                    <th style={{ width: "160px" }} data-numeric>
                       Precio *
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={item.price || ""}
-                      onChange={(e) => {
-                        const numValue =
-                          e.target.value === ""
-                            ? 0
-                            : parseFloat(e.target.value) || 0;
-                        updateItem(index, "price", numValue);
-                      }}
-                      style={{
-                        width: "100%",
-                        padding: "0.5rem",
-                        border: `1px solid ${
-                          errors[`items.${index}.price`]
-                            ? "var(--color-danger)"
-                            : "var(--color-border)"
-                        }`,
-                        borderRadius: "var(--radius-sm)",
-                        fontSize: "0.875rem",
-                        boxSizing: "border-box",
-                        backgroundColor: "var(--color-surface)",
-                        color: "var(--color-text-primary)",
-                      }}
-                      placeholder="0.00"
-                    />
-                    {errors[`items.${index}.price`] && (
-                      <p
-                        style={{
-                          margin: "0.25rem 0 0 0",
-                          color: "var(--color-danger)",
-                          fontSize: "0.75rem",
-                        }}
-                      >
-                        {errors[`items.${index}.price`]}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        marginBottom: "0.5rem",
-                        fontWeight: "500",
-                        color: "var(--color-text-primary)",
-                        fontSize: "0.875rem",
-                      }}
-                    >
-                      Descripción *
-                    </label>
-                    <input
-                      type="text"
-                      value={item.description}
-                      minLength={5}
-                      onChange={(e) =>
-                        updateItem(index, "description", e.target.value)
-                      }
-                      style={{
-                        width: "100%",
-                        padding: "0.5rem",
-                        border: `1px solid ${
-                          errors[`items.${index}.description`]
-                            ? "var(--color-danger)"
-                            : "var(--color-border)"
-                        }`,
-                        borderRadius: "var(--radius-sm)",
-                        fontSize: "0.875rem",
-                        boxSizing: "border-box",
-                        backgroundColor: "var(--color-surface)",
-                        color: "var(--color-text-primary)",
-                      }}
-                      placeholder="Ingresa la descripción del artículo"
-                    />
-                    {errors[`items.${index}.description`] && (
-                      <p
-                        style={{
-                          margin: "0.25rem 0 0 0",
-                          color: "var(--color-danger)",
-                          fontSize: "0.75rem",
-                        }}
-                      >
-                        {errors[`items.${index}.description`]}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-            <button
+                    </th>
+                    <th>Descripción *</th>
+                    <th style={{ width: "90px" }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {formData.items.map((item, index) => (
+                    <tr key={index}>
+                      <td data-numeric>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={item.quantity || ""}
+                          onChange={(e) => {
+                            const numValue =
+                              e.target.value === ""
+                                ? 0
+                                : parseInt(e.target.value, 10) || 0;
+                            updateItem(index, "quantity", numValue);
+                          }}
+                          error={errors[`items.${index}.quantity`]}
+                          placeholder="0"
+                        />
+                      </td>
+                      <td data-numeric>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={item.price || ""}
+                          onChange={(e) => {
+                            const numValue =
+                              e.target.value === ""
+                                ? 0
+                                : parseFloat(e.target.value) || 0;
+                            updateItem(index, "price", numValue);
+                          }}
+                          error={errors[`items.${index}.price`]}
+                          placeholder="0.00"
+                        />
+                      </td>
+                      <td>
+                        <Input
+                          type="text"
+                          value={item.description}
+                          minLength={5}
+                          onChange={(e) =>
+                            updateItem(index, "description", e.target.value)
+                          }
+                          error={errors[`items.${index}.description`]}
+                          placeholder="Ingresa la descripción del artículo"
+                        />
+                      </td>
+                      <td>
+                        <Button
+                          type="button"
+                          variant="danger"
+                          size="sm"
+                          onClick={() => removeItem(index)}
+                        >
+                          Eliminar
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+            <Button
               type="button"
+              variant="primary"
+              fullWidth
               onClick={addItem}
-              style={{
-                padding: "0.75rem 1.5rem",
-                backgroundColor: "var(--color-primary)",
-                color: "white",
-                border: "none",
-                borderRadius: "var(--radius-sm)",
-                cursor: "pointer",
-                fontSize: "1rem",
-                fontWeight: "500",
-                width: "100%",
-                marginTop: "0.5rem",
-              }}
             >
               + Agregar Artículo
-            </button>
+            </Button>
           </div>
 
           {/* Summary */}
           <div
             style={{
-              marginBottom: "2rem",
               padding: "1.5rem",
               backgroundColor: "var(--color-surface-hover)",
               borderRadius: "var(--radius-md)",
               border: "1px solid var(--color-border)",
             }}
           >
-            <h3
-              style={{
-                margin: 0,
-                marginBottom: "1rem",
-                fontSize: "1.2rem",
-                fontWeight: "600",
-                color: "var(--color-text-primary)",
-              }}
-            >
-              Resumen
-            </h3>
+            <h3 style={sectionHeadingStyle}>Resumen</h3>
             <div
               style={{
                 display: "grid",
@@ -845,7 +513,7 @@ export default function SupportDocumentForm({
                 <div
                   style={{
                     fontSize: "1.5rem",
-                    fontWeight: "700",
+                    fontWeight: 700,
                     color: "var(--color-text-primary)",
                   }}
                 >
@@ -873,7 +541,7 @@ export default function SupportDocumentForm({
                 <div
                   style={{
                     fontSize: "1.5rem",
-                    fontWeight: "700",
+                    fontWeight: 700,
                     color: "var(--color-text-primary)",
                   }}
                 >
@@ -894,7 +562,7 @@ export default function SupportDocumentForm({
                     fontSize: "0.875rem",
                     color: "var(--color-primary)",
                     marginBottom: "0.5rem",
-                    fontWeight: "500",
+                    fontWeight: 500,
                   }}
                 >
                   Total a Pagar
@@ -902,7 +570,7 @@ export default function SupportDocumentForm({
                 <div
                   style={{
                     fontSize: "1.5rem",
-                    fontWeight: "700",
+                    fontWeight: 700,
                     color: "var(--color-primary)",
                   }}
                 >
@@ -915,169 +583,72 @@ export default function SupportDocumentForm({
               </div>
             </div>
           </div>
-
-          {/* Form Actions */}
-          <div
-            style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}
-          >
-            <button
-              type="button"
-              onClick={onCancel}
-              disabled={isLoading}
-              style={{
-                padding: "0.75rem 1.5rem",
-                backgroundColor: "var(--color-surface-hover)",
-                color: "var(--color-text-primary)",
-                border: "1px solid var(--color-border)",
-                borderRadius: "var(--radius-sm)",
-                cursor: isLoading ? "not-allowed" : "pointer",
-                fontSize: "1rem",
-                fontWeight: "500",
-                opacity: isLoading ? 0.6 : 1,
-              }}
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={isLoading}
-              style={{
-                padding: "0.75rem 1.5rem",
-                backgroundColor: "var(--color-success)",
-                color: "white",
-                border: "none",
-                borderRadius: "var(--radius-sm)",
-                cursor: isLoading ? "not-allowed" : "pointer",
-                fontSize: "1rem",
-                fontWeight: "500",
-                opacity: isLoading ? 0.6 : 1,
-              }}
-            >
-              {isLoading ? "Creando..." : "Crear Documento Soporte"}
-            </button>
-          </div>
         </form>
+      </Modal>
 
-        {/* Confirmation Modal */}
-        {showConfirmation && (
-          <div
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: "rgba(0, 0, 0, 0.6)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 1100,
-            }}
-            onClick={handleCancelConfirmation}
-          >
-            <div
+      {/* Confirmation Modal */}
+      {showConfirmation && (
+        <Modal
+          open
+          onClose={handleCancelConfirmation}
+          title="Confirmar Documento Soporte"
+          size="sm"
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                onClick={handleCancelConfirmation}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                onClick={handleConfirmSubmit}
+                disabled={isLoading}
+              >
+                {isLoading ? "Creando..." : "Confirmar"}
+              </Button>
+            </>
+          }
+        >
+          <div style={{ textAlign: "center" }}>
+            <p
               style={{
-                backgroundColor: "var(--color-surface)",
-                borderRadius: "var(--radius-md)",
-                padding: "2rem",
-                maxWidth: "420px",
-                width: "90%",
-                boxShadow: "var(--shadow-lg, 0 10px 25px rgba(0,0,0,0.2))",
-                textAlign: "center",
+                margin: "0 0 0.5rem 0",
+                fontSize: "0.95rem",
+                color: "var(--color-text-secondary)",
               }}
-              onClick={(e) => e.stopPropagation()}
             >
-              <h3
-                style={{
-                  margin: "0 0 1rem 0",
-                  fontSize: "1.25rem",
-                  fontWeight: "bold",
-                  color: "var(--color-text-primary)",
-                }}
-              >
-                Confirmar Documento Soporte
-              </h3>
-              <p
-                style={{
-                  margin: "0 0 0.5rem 0",
-                  fontSize: "0.95rem",
-                  color: "var(--color-text-secondary)",
-                }}
-              >
-
-                Estás a punto de crear un documento soporte por un valor total
-                de:
-              </p>
-              <p
-                style={{
-                  margin: "0 0 0.5rem 0",
-                  fontSize: "2rem",
-                  fontWeight: "700",
-                  color: "var(--color-primary)",
-                }}
-              >
-                $
-                {purchaseSummary.totalAmount.toLocaleString("es-CO", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </p>
-              <p
-                style={{
-                  margin: "0 0 1.5rem 0",
-                  fontSize: "0.95rem",
-                  color: "var(--color-text-secondary)",
-                }}
-              >
-                Proveedor: <strong>{formData.provider.name}</strong> (
-                {formData.provider.id})
-              </p>
-              <div
-                style={{
-                  display: "flex",
-                  gap: "1rem",
-                  justifyContent: "center",
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={handleCancelConfirmation}
-                  style={{
-                    padding: "0.75rem 1.5rem",
-                    backgroundColor: "var(--color-surface-hover)",
-                    color: "var(--color-text-primary)",
-                    border: "1px solid var(--color-border)",
-                    borderRadius: "var(--radius-sm)",
-                    cursor: "pointer",
-                    fontSize: "1rem",
-                    fontWeight: "500",
-                  }}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmSubmit}
-                  disabled={isLoading}
-                  style={{
-                    padding: "0.75rem 1.5rem",
-                    backgroundColor: "var(--color-success)",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "var(--radius-sm)",
-                    cursor: isLoading ? "not-allowed" : "pointer",
-                    fontSize: "1rem",
-                    fontWeight: "500",
-                    opacity: isLoading ? 0.6 : 1,
-                  }}
-                >
-                  {isLoading ? "Creando..." : "Confirmar"}
-                </button>
-              </div>
-            </div>
+              Estás a punto de crear un documento soporte por un valor total
+              de:
+            </p>
+            <p
+              style={{
+                margin: "0 0 0.5rem 0",
+                fontSize: "2rem",
+                fontWeight: 700,
+                color: "var(--color-primary)",
+              }}
+            >
+              $
+              {purchaseSummary.totalAmount.toLocaleString("es-CO", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </p>
+            <p
+              style={{
+                margin: 0,
+                fontSize: "0.95rem",
+                color: "var(--color-text-secondary)",
+              }}
+            >
+              Proveedor: <strong>{formData.provider.name}</strong> (
+              {formData.provider.id})
+            </p>
           </div>
-        )}
-      </div>
-    </div>
+        </Modal>
+      )}
+    </>
   );
 }

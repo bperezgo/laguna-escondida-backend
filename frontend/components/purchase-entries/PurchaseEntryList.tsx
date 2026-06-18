@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import type { PurchaseEntry } from "@/types/purchaseEntry";
-import PurchaseEntryCard from "./PurchaseEntryCard";
+import { Button, Input, Table } from "@/components/ui";
 
 interface PurchaseEntryListProps {
   entries: PurchaseEntry[];
@@ -43,6 +43,14 @@ export default function PurchaseEntryList({
     }).format(amount);
   };
 
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("es-CO", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
   if (isLoading) {
     return (
       <div style={{ textAlign: "center", padding: "3rem" }}>
@@ -66,28 +74,14 @@ export default function PurchaseEntryList({
   return (
     <div>
       {/* Search */}
-      <div
-        style={{
-          marginBottom: "1.5rem",
-        }}
-      >
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Buscar por proveedor, referencia, notas..."
-          style={{
-            width: "100%",
-            padding: "0.75rem",
-            border: "1px solid var(--color-border)",
-            borderRadius: "var(--radius-sm)",
-            fontSize: "1rem",
-            boxSizing: "border-box",
-            backgroundColor: "var(--color-bg)",
-            color: "var(--color-text-primary)",
-          }}
-        />
-      </div>
+      <Input
+        placeholder="Buscar por proveedor, referencia, notas..."
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        wrapperClassName=""
+        style={{ marginBottom: "1.5rem" }}
+        type="text"
+      />
 
       {/* Results count and total */}
       <div
@@ -120,7 +114,7 @@ export default function PurchaseEntryList({
         </span>
       </div>
 
-      {/* Entry List */}
+      {/* Entry Table */}
       {filteredEntries.length === 0 ? (
         <div style={{ textAlign: "center", padding: "3rem" }}>
           <p style={{ fontSize: "1.1rem", color: "var(--color-text-secondary)" }}>
@@ -128,15 +122,54 @@ export default function PurchaseEntryList({
           </p>
         </div>
       ) : (
-        <div>
-          {filteredEntries.map((entry) => (
-            <PurchaseEntryCard
-              key={entry.id}
-              entry={entry}
-              onViewDetail={onViewDetail}
-            />
-          ))}
-        </div>
+        <Table>
+          <thead>
+            <tr>
+              <th>Proveedor</th>
+              <th>Fecha de Entrada</th>
+              <th>Referencia</th>
+              <th data-numeric>Total</th>
+              <th style={{ textAlign: "right" }}>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredEntries.map((entry) => (
+              <tr key={entry.id}>
+                <td style={{ fontWeight: 600 }}>
+                  {entry.supplier_name || "Proveedor desconocido"}
+                </td>
+                <td>{formatDate(entry.entry_date)}</td>
+                <td>
+                  {entry.invoice_reference ? (
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        fontFamily: "monospace",
+                        color: "var(--color-text-muted)",
+                      }}
+                    >
+                      {entry.invoice_reference}
+                    </span>
+                  ) : (
+                    "—"
+                  )}
+                </td>
+                <td data-numeric style={{ fontWeight: 600 }}>
+                  {formatCurrency(parseFloat(entry.total_amount))}
+                </td>
+                <td style={{ textAlign: "right" }}>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => onViewDetail(entry)}
+                  >
+                    Ver detalles
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
       )}
     </div>
   );

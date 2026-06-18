@@ -1,6 +1,7 @@
 "use client";
 
 import type { ExpenseCategoryData } from "@/types/financialSummary";
+import { Card, CardBody } from "@/components/ui";
 
 interface ExpenseCategoryBreakdownProps {
   categories: ExpenseCategoryData[];
@@ -27,15 +28,8 @@ export default function ExpenseCategoryBreakdown({
   const total = parseFloat(totalAmount) || 0;
 
   return (
-    <div
-      style={{
-        backgroundColor: "var(--color-surface)",
-        border: "1px solid var(--color-border)",
-        borderRadius: "var(--radius-md)",
-        padding: "1.25rem 1.5rem",
-        boxShadow: "var(--shadow-md)",
-      }}
-    >
+    <Card>
+      <CardBody>
       <p
         style={{
           fontSize: "0.75rem",
@@ -179,6 +173,7 @@ export default function ExpenseCategoryBreakdown({
           </div>
         </div>
       )}
-    </div>
+      </CardBody>
+    </Card>
   );
 }

@@ -3,6 +3,7 @@
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { usePermissions } from "@/lib/permissions";
+import { Card, CardBody, Input, Button } from "@/components/ui";
 
 export default function SignInForm() {
   const [username, setUsername] = useState("");
@@ -55,186 +56,88 @@ export default function SignInForm() {
         padding: "1rem",
       }}
     >
-      <div
-        style={{
-          maxWidth: "28rem",
-          width: "100%",
-        }}
-      >
-        <div>
-          <h2
+      <div style={{ maxWidth: "26rem", width: "100%" }}>
+        {/* Brand */}
+        <div style={{ textAlign: "center", marginBottom: "1.75rem" }}>
+          <h1
             style={{
-              marginTop: "1.5rem",
-              textAlign: "center",
-              fontSize: "1.875rem",
-              fontWeight: "800",
-              color: "var(--color-text-primary)",
-              marginBottom: "2rem",
+              fontSize: "1.75rem",
+              fontWeight: 800,
+              letterSpacing: "-0.02em",
+              color: "var(--color-primary)",
+              margin: 0,
             }}
           >
-            Inicia sesión en tu cuenta
-          </h2>
+            Laguna Escondida
+          </h1>
+          <p
+            style={{
+              fontSize: "0.95rem",
+              color: "var(--color-text-secondary)",
+              marginTop: "0.5rem",
+            }}
+          >
+            Inicia sesión para continuar
+          </p>
         </div>
-        <form
-          onSubmit={handleSubmit}
-          style={{
-            marginTop: "2rem",
-          }}
-        >
-          <div
-            style={{
-              borderRadius: "var(--radius-md)",
-              boxShadow: "var(--shadow-sm)",
-              backgroundColor: "var(--color-surface)",
-              border: "1px solid var(--color-border)",
-              overflow: "hidden",
-            }}
-          >
-            <div>
-              <label
-                htmlFor="username"
-                style={{
-                  position: "absolute",
-                  width: "1px",
-                  height: "1px",
-                  padding: "0",
-                  margin: "-1px",
-                  overflow: "hidden",
-                  clip: "rect(0, 0, 0, 0)",
-                  whiteSpace: "nowrap",
-                  borderWidth: "0",
-                }}
-              >
-                Usuario
-              </label>
-              <input
+
+        <Card>
+          <CardBody>
+            <form
+              onSubmit={handleSubmit}
+              style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}
+            >
+              <Input
+                label="Usuario"
                 id="username"
                 name="username"
                 type="text"
                 required
-                placeholder="Usuario"
+                placeholder="Ingresa tu usuario"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 disabled={isLoading}
-                style={{
-                  appearance: "none",
-                  position: "relative",
-                  display: "block",
-                  width: "100%",
-                  padding: "0.875rem 1rem",
-                  border: "none",
-                  borderBottom: "1px solid var(--color-border)",
-                  color: "var(--color-text-primary)",
-                  fontSize: "1rem",
-                  outline: "none",
-                  backgroundColor: "transparent",
-                }}
               />
-            </div>
-            <div>
-              <label
-                htmlFor="password"
-                style={{
-                  position: "absolute",
-                  width: "1px",
-                  height: "1px",
-                  padding: "0",
-                  margin: "-1px",
-                  overflow: "hidden",
-                  clip: "rect(0, 0, 0, 0)",
-                  whiteSpace: "nowrap",
-                  borderWidth: "0",
-                }}
-              >
-                Contraseña
-              </label>
-              <input
+
+              <Input
+                label="Contraseña"
                 id="password"
                 name="password"
                 type="password"
                 required
-                placeholder="Contraseña"
+                placeholder="Ingresa tu contraseña"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isLoading}
-                style={{
-                  appearance: "none",
-                  position: "relative",
-                  display: "block",
-                  width: "100%",
-                  padding: "0.875rem 1rem",
-                  border: "none",
-                  color: "var(--color-text-primary)",
-                  fontSize: "1rem",
-                  outline: "none",
-                  backgroundColor: "transparent",
-                }}
               />
-            </div>
-          </div>
 
-          {error && (
-            <div
-              style={{
-                marginTop: "1.5rem",
-                borderRadius: "var(--radius-md)",
-                backgroundColor: "var(--color-danger-light)",
-                padding: "1rem",
-                border: "1px solid var(--color-danger)",
-              }}
-            >
-              <div style={{ display: "flex" }}>
-                <div style={{ marginLeft: "0.75rem" }}>
-                  <h3
-                    style={{
-                      fontSize: "0.875rem",
-                      fontWeight: "500",
-                      color: "var(--color-danger)",
-                      margin: 0,
-                    }}
-                  >
-                    {error}
-                  </h3>
+              {error && (
+                <div
+                  style={{
+                    borderRadius: "var(--radius-md)",
+                    backgroundColor: "var(--color-danger-light)",
+                    border: "1px solid var(--color-danger)",
+                    color: "var(--color-danger)",
+                    padding: "0.75rem 1rem",
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                  }}
+                >
+                  {error}
                 </div>
-              </div>
-            </div>
-          )}
+              )}
 
-          <div style={{ marginTop: "1.5rem" }}>
-            <button
-              type="submit"
-              disabled={isLoading}
-              style={{
-                position: "relative",
-                width: "100%",
-                display: "flex",
-                justifyContent: "center",
-                padding: "0.875rem 1rem",
-                border: "none",
-                fontSize: "1rem",
-                fontWeight: "600",
-                borderRadius: "var(--radius-md)",
-                color: "white",
-                backgroundColor: isLoading ? "var(--color-text-muted)" : "var(--color-primary)",
-                cursor: isLoading ? "not-allowed" : "pointer",
-                opacity: isLoading ? 0.7 : 1,
-                transition: "background-color var(--transition-normal)",
-              }}
-              onMouseEnter={(e) => {
-                if (!isLoading) {
-                  e.currentTarget.style.backgroundColor = "var(--color-primary-hover)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isLoading) {
-                  e.currentTarget.style.backgroundColor = "var(--color-primary)";
-                }
-              }}
-            >
-              {isLoading ? "Iniciando sesión..." : "Iniciar sesión"}
-            </button>
-          </div>
-        </form>
+              <Button
+                type="submit"
+                variant="primary"
+                fullWidth
+                disabled={isLoading}
+              >
+                {isLoading ? "Iniciando sesión..." : "Iniciar sesión"}
+              </Button>
+            </form>
+          </CardBody>
+        </Card>
       </div>
     </div>
   );

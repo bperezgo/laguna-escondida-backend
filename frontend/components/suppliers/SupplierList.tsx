@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import type { Supplier } from "@/types/supplier";
-import SupplierCard from "./SupplierCard";
+import { Button, Input, Table } from "@/components/ui";
+import { PermissionGate } from "@/components/permissions";
+import { PERMISSIONS } from "@/lib/permissions";
 
 interface SupplierListProps {
   suppliers: Supplier[];
@@ -55,44 +57,13 @@ export default function SupplierList({
   return (
     <div>
       {/* Search */}
-      <div
-        style={{
-          marginBottom: "2rem",
-          padding: "1.5rem",
-          backgroundColor: "var(--color-surface)",
-          borderRadius: "var(--radius-md)",
-          border: "1px solid var(--color-border)",
-        }}
-      >
-        <div style={{ maxWidth: "400px" }}>
-          <label
-            style={{
-              display: "block",
-              marginBottom: "0.5rem",
-              fontWeight: "500",
-              fontSize: "0.875rem",
-              color: "var(--color-text-primary)",
-            }}
-          >
-            Buscar Proveedores
-          </label>
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar por nombre, contacto, email o teléfono..."
-            style={{
-              width: "100%",
-              padding: "0.75rem",
-              border: "1px solid var(--color-border)",
-              borderRadius: "var(--radius-sm)",
-              fontSize: "1rem",
-              boxSizing: "border-box",
-              backgroundColor: "var(--color-bg)",
-              color: "var(--color-text-primary)",
-            }}
-          />
-        </div>
+      <div style={{ maxWidth: 400, marginBottom: "1.5rem" }}>
+        <Input
+          label="Buscar Proveedores"
+          placeholder="Buscar por nombre, contacto, email o teléfono..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
       </div>
 
       {/* Results count */}
@@ -107,7 +78,7 @@ export default function SupplierList({
         {suppliers.length !== 1 ? "es" : ""}
       </div>
 
-      {/* Supplier List */}
+      {/* Supplier Table */}
       {filteredSuppliers.length === 0 ? (
         <div style={{ textAlign: "center", padding: "3rem" }}>
           <p style={{ fontSize: "1.1rem", color: "var(--color-text-secondary)" }}>
@@ -115,17 +86,105 @@ export default function SupplierList({
           </p>
         </div>
       ) : (
-        <div>
-          {filteredSuppliers.map((supplier) => (
-            <SupplierCard
-              key={supplier.id}
-              supplier={supplier}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              onViewCatalog={onViewCatalog}
-            />
-          ))}
-        </div>
+        <Table>
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Identificación</th>
+              <th>Contacto</th>
+              <th>Teléfono</th>
+              <th>Email</th>
+              <th style={{ textAlign: "right" }}>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredSuppliers.map((supplier) => {
+              const hasIdentification =
+                supplier.identification_type || supplier.identification_number;
+              const identification = [
+                supplier.identification_type,
+                supplier.identification_number,
+              ]
+                .filter(Boolean)
+                .join(" - ");
+
+              return (
+                <tr key={supplier.id}>
+                  <td style={{ fontWeight: 600, color: "var(--color-text-primary)" }}>
+                    {supplier.name}
+                  </td>
+                  <td>
+                    {hasIdentification ? (
+                      identification
+                    ) : (
+                      <span style={{ color: "var(--color-text-muted)" }}>—</span>
+                    )}
+                  </td>
+                  <td>
+                    {supplier.contact_name || (
+                      <span style={{ color: "var(--color-text-muted)" }}>—</span>
+                    )}
+                  </td>
+                  <td>
+                    {supplier.phone || (
+                      <span style={{ color: "var(--color-text-muted)" }}>—</span>
+                    )}
+                  </td>
+                  <td>
+                    {supplier.email ? (
+                      <a
+                        href={`mailto:${supplier.email}`}
+                        style={{ color: "var(--color-primary)" }}
+                      >
+                        {supplier.email}
+                      </a>
+                    ) : (
+                      <span style={{ color: "var(--color-text-muted)" }}>—</span>
+                    )}
+                  </td>
+                  <td style={{ textAlign: "right" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "0.5rem",
+                        justifyContent: "flex-end",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <PermissionGate permission={PERMISSIONS.SUPPLIER_CATALOG_READ}>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => onViewCatalog(supplier)}
+                        >
+                          Catálogo
+                        </Button>
+                      </PermissionGate>
+                      <PermissionGate permission={PERMISSIONS.SUPPLIERS_UPDATE}>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => onEdit(supplier)}
+                        >
+                          Editar
+                        </Button>
+                      </PermissionGate>
+                      <PermissionGate permission={PERMISSIONS.SUPPLIERS_DELETE}>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          onClick={() => onDelete(supplier.id)}
+                        >
+                          Eliminar
+                        </Button>
+                      </PermissionGate>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </Table>
       )}
     </div>
   );
