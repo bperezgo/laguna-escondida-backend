@@ -22,9 +22,6 @@ export default function PageHeader() {
 
   const title = getPageTitle();
 
-  // Kitchen/comandas is an always-dark display — darken the header to match.
-  const isKitchen = pathname.startsWith("/kitchen");
-
   const handleSignOut = async () => {
     try {
       await fetch("/api/auth/signout", {
@@ -43,7 +40,6 @@ export default function PageHeader() {
 
   return (
     <header
-      data-theme={isKitchen ? "dark" : undefined}
       style={{
         backgroundColor: "var(--color-surface)",
         borderBottom: "1px solid var(--color-border)",

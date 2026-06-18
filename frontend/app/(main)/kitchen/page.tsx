@@ -11,9 +11,10 @@ export default async function KitchenPage({ searchParams }: KitchenPageProps) {
   const view = params.view === "command_items" ? "command_items" : "commands";
 
   return (
-    // Kitchen/comandas is an always-dark, glanceable display (cooks).
-    // data-theme="dark" cascades the "Midnight Waters" palette to the whole subtree.
-    <div data-theme="dark" style={{ minHeight: "100vh" }}>
+    // Kitchen/comandas is a glanceable display (cooks). Per user preference it now
+    // uses the Clean Light theme like the rest of the app (token-driven, so the
+    // color-coded countdown badges still pop on the light canvas).
+    <div style={{ minHeight: "100vh" }}>
       <div
         style={{
           backgroundColor: "var(--color-bg)",

@@ -5,7 +5,14 @@ import { productsApi } from "@/lib/api/products";
 import { createOrder } from "@/lib/api/orders";
 import type { Product } from "@/types/product";
 import type { OrderProductItem } from "@/types/order";
-import { Button, Input, Select, Textarea } from "@/components/ui";
+import { Button, Input, Textarea } from "@/components/ui";
+import {
+  ProductCard,
+  OrderLineItem,
+  CategoryPills,
+  formatCOP,
+  sendIcon,
+} from "./orderTakingParts";
 
 interface CreateOrderFormProps {
   onClose: () => void;
@@ -37,6 +44,32 @@ export default function CreateOrderForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lineItemCounter, setLineItemCounter] = useState(0);
+
+  // Mobile layout: below 768px we render the Menú / Pedido tabs (Option B); the
+  // desktop two-pane POS renders unchanged above it. `mobileView` toggles the tabs.
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileView, setMobileView] = useState<"menu" | "order">("menu");
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  // Esc to close + body scroll lock (mirrors the Modal primitive)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
 
   // Fetch products on mount
   useEffect(() => {
@@ -186,15 +219,381 @@ export default function CreateOrderForm({
   };
 
   const selectedProductsArray = Array.from(selectedProducts.values());
+  const orderCount = selectedProductsArray.length;
+  const qtyInOrderFor = (productId: string) =>
+    selectedProductsArray
+      .filter((p) => p.product.id === productId)
+      .reduce((sum, p) => sum + p.quantity, 0);
+  const orderTotal = selectedProductsArray.reduce(
+    (sum, { product, quantity }) =>
+      sum + parseFloat(product.total_price_with_taxes) * quantity,
+    0,
+  );
 
+  const canSubmit = !isSubmitting && selectedProducts.size > 0;
+
+  // Identifier + descriptor fields (shared by both layouts — required for create)
+  const orderDetailsFields = (
+    <>
+      <Input
+        label="Identificador (mesa) *"
+        type="text"
+        value={temporalIdentifier}
+        onChange={(e) => setTemporalIdentifier(e.target.value)}
+        placeholder="Ej: MESA-12"
+        required
+      />
+      <Textarea
+        value={descriptor}
+        onChange={(e) => setDescriptor(e.target.value)}
+        placeholder="Descriptor (opcional): cliente, mesa..."
+        rows={2}
+      />
+    </>
+  );
+
+  // ───────────────────────────── Mobile (Option B) ─────────────────────────────
+  if (isMobile) {
+    return (
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          backgroundColor: "var(--color-overlay)",
+          display: "flex",
+          zIndex: 1000,
+        }}
+        onClick={onClose}
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            backgroundColor: "var(--color-surface)",
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+          }}
+        >
+          {/* Header */}
+          <header
+            style={{
+              flex: "none",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+              padding: "0.75rem 0.875rem",
+              borderBottom: "1px solid var(--color-border)",
+            }}
+          >
+            <button
+              type="button"
+              onClick={onClose}
+              title="Volver"
+              style={{
+                width: "38px",
+                height: "38px",
+                flex: "none",
+                borderRadius: "var(--radius-md)",
+                border: "1px solid var(--color-border)",
+                backgroundColor: "var(--color-surface)",
+                color: "var(--color-text-secondary)",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <svg
+                width="19"
+                height="19"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+            <h2
+              style={{
+                margin: 0,
+                fontSize: "1.2rem",
+                fontWeight: 800,
+                letterSpacing: "-0.01em",
+                color: "var(--color-text-primary)",
+              }}
+            >
+              Nueva Orden
+            </h2>
+          </header>
+
+          {/* Segmented control */}
+          <div
+            style={{
+              flex: "none",
+              display: "flex",
+              gap: "4px",
+              margin: "0.6rem 0.875rem",
+              padding: "4px",
+              backgroundColor: "var(--color-bg)",
+              borderRadius: "var(--radius-md)",
+            }}
+          >
+            {(["menu", "order"] as const).map((v) => {
+              const on = mobileView === v;
+              return (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setMobileView(v)}
+                  style={{
+                    flex: 1,
+                    border: "none",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    fontSize: "0.9rem",
+                    fontWeight: 700,
+                    padding: "0.55rem",
+                    borderRadius: "var(--radius-sm)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "0.4rem",
+                    backgroundColor: on ? "var(--color-surface)" : "transparent",
+                    color: on
+                      ? "var(--color-text-primary)"
+                      : "var(--color-text-secondary)",
+                    boxShadow: on ? "var(--shadow-sm)" : "none",
+                  }}
+                >
+                  {v === "menu" ? "Menú" : "Pedido"}
+                  {v === "order" && orderCount > 0 && (
+                    <span
+                      style={{
+                        backgroundColor: "var(--color-primary)",
+                        color: "white",
+                        fontSize: "0.7rem",
+                        fontWeight: 800,
+                        minWidth: "18px",
+                        height: "18px",
+                        padding: "0 5px",
+                        borderRadius: "999px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {orderCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {error && (
+            <div
+              style={{
+                flex: "none",
+                margin: "0 0.875rem 0.5rem",
+                padding: "0.625rem 0.875rem",
+                backgroundColor: "var(--color-danger-light)",
+                border: "1px solid var(--color-danger)",
+                borderRadius: "var(--radius-md)",
+                color: "var(--color-danger)",
+                fontWeight: 500,
+                fontSize: "0.85rem",
+              }}
+            >
+              {error}
+            </div>
+          )}
+
+          <form
+            onSubmit={handleSubmit}
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              minHeight: 0,
+            }}
+          >
+            {mobileView === "menu" ? (
+              <>
+                {/* Search */}
+                <div style={{ flex: "none", padding: "0 0.875rem 0.6rem" }}>
+                  <Input
+                    type="search"
+                    placeholder="Buscar producto..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                {/* Category pills */}
+                {categories.length > 0 && (
+                  <div style={{ flex: "none", padding: "0 0.875rem 0.6rem" }}>
+                    <CategoryPills
+                      categories={categories}
+                      active={selectedCategory}
+                      onChange={setSelectedCategory}
+                      compact
+                    />
+                  </div>
+                )}
+                {/* Product grid (2-col) */}
+                <div
+                  style={{
+                    flex: 1,
+                    overflowY: "auto",
+                    minHeight: 0,
+                    padding: "0 0.875rem 0.875rem",
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gridAutoRows: "min-content",
+                    gap: "0.6rem",
+                  }}
+                >
+                  {isLoading ? (
+                    <div
+                      style={{
+                        gridColumn: "1 / -1",
+                        padding: "2.5rem",
+                        textAlign: "center",
+                        color: "var(--color-text-secondary)",
+                      }}
+                    >
+                      Cargando productos...
+                    </div>
+                  ) : filteredProducts.length === 0 ? (
+                    <div
+                      style={{
+                        gridColumn: "1 / -1",
+                        padding: "2.5rem",
+                        textAlign: "center",
+                        color: "var(--color-text-secondary)",
+                      }}
+                    >
+                      No se encontraron productos
+                    </div>
+                  ) : (
+                    filteredProducts.map((product) => (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        qtyInOrder={qtyInOrderFor(product.id)}
+                        onAdd={handleProductSelect}
+                      />
+                    ))
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Order details */}
+                <div
+                  style={{
+                    flex: "none",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.75rem",
+                    padding: "0 0.875rem 0.6rem",
+                  }}
+                >
+                  {orderDetailsFields}
+                </div>
+                {/* Items */}
+                <div
+                  style={{
+                    flex: 1,
+                    overflowY: "auto",
+                    minHeight: 0,
+                    padding: "0 0.875rem",
+                  }}
+                >
+                  {orderCount === 0 ? (
+                    <div
+                      style={{
+                        padding: "2.5rem 1rem",
+                        textAlign: "center",
+                        color: "var(--color-text-muted)",
+                        fontSize: "0.9rem",
+                      }}
+                    >
+                      Toca <strong>Menú</strong> para agregar productos.
+                    </div>
+                  ) : (
+                    selectedProductsArray.map((item) => (
+                      <OrderLineItem
+                        key={item.lineItemId}
+                        item={item}
+                        onQuantityChange={handleQuantityChange}
+                        onNotesChange={handleNotesChange}
+                      />
+                    ))
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Footer: total + submit */}
+            <div
+              style={{
+                flex: "none",
+                borderTop: "1px solid var(--color-border)",
+                padding: "0.75rem 0.875rem 0.9rem",
+                backgroundColor: "var(--color-bg)",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "baseline",
+                  marginBottom: "0.6rem",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "0.95rem",
+                    fontWeight: 700,
+                    color: "var(--color-text-primary)",
+                  }}
+                >
+                  Total
+                </span>
+                <span
+                  style={{
+                    fontSize: "1.35rem",
+                    fontWeight: 800,
+                    color: "var(--color-primary)",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {formatCOP(orderTotal)}
+                </span>
+              </div>
+              <Button type="submit" fullWidth size="lg" disabled={!canSubmit} leftIcon={sendIcon}>
+                {isSubmitting ? "Creando..." : "Crear Orden"}
+              </Button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // ───────────────────────────── Desktop (two-pane POS) ─────────────────────────
   return (
     <div
       style={{
         position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
+        inset: 0,
         backgroundColor: "var(--color-overlay)",
         display: "flex",
         alignItems: "center",
@@ -205,429 +604,299 @@ export default function CreateOrderForm({
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
         style={{
           backgroundColor: "var(--color-surface)",
           borderRadius: "var(--radius-lg)",
-          maxWidth: "900px",
-          width: "100%",
-          maxHeight: "90vh",
-          overflow: "auto",
+          width: "min(1280px, 96vw)",
+          height: "92vh",
+          maxHeight: "92vh",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
           boxShadow: "var(--shadow-xl)",
           border: "1px solid var(--color-border)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div
+        <header
           style={{
-            padding: "1.5rem",
-            borderBottom: "1px solid var(--color-border)",
+            flex: "none",
             display: "flex",
-            justifyContent: "space-between",
             alignItems: "center",
-            position: "sticky",
-            top: 0,
+            gap: "0.875rem",
+            padding: "0.875rem 1.25rem",
+            borderBottom: "1px solid var(--color-border)",
             backgroundColor: "var(--color-surface)",
-            zIndex: 1,
           }}
         >
+          <button
+            type="button"
+            onClick={onClose}
+            title="Volver"
+            style={{
+              width: "42px",
+              height: "42px",
+              flex: "none",
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--color-border)",
+              backgroundColor: "var(--color-surface)",
+              color: "var(--color-text-secondary)",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
           <h2
             style={{
               margin: 0,
-              fontSize: "1.5rem",
-              fontWeight: "bold",
+              fontSize: "1.25rem",
+              fontWeight: 800,
+              letterSpacing: "-0.01em",
               color: "var(--color-text-primary)",
             }}
           >
-            Crear Nueva Orden
+            Nueva Orden
           </h2>
-          <button
-            onClick={onClose}
+        </header>
+
+        {error && (
+          <div
             style={{
-              background: "none",
-              border: "none",
-              fontSize: "1.5rem",
-              cursor: "pointer",
-              color: "var(--color-text-secondary)",
-              padding: "0.25rem",
-              lineHeight: 1,
+              flex: "none",
+              padding: "0.75rem 1.25rem",
+              backgroundColor: "var(--color-danger-light)",
+              borderBottom: "1px solid var(--color-danger)",
+              color: "var(--color-danger)",
+              fontWeight: 500,
             }}
           >
-            ×
-          </button>
-        </div>
+            {error}
+          </div>
+        )}
 
-        <form onSubmit={handleSubmit}>
-          {/* Form Body */}
-          <div style={{ padding: "1.5rem" }}>
-            {error && (
-              <div
-                style={{
-                  padding: "1rem",
-                  backgroundColor: "var(--color-danger-light)",
-                  border: "1px solid var(--color-danger)",
-                  borderRadius: "var(--radius-md)",
-                  color: "var(--color-danger)",
-                  marginBottom: "1rem",
-                }}
-              >
-                {error}
-              </div>
-            )}
-
-            {/* Temporal Identifier */}
-            <div style={{ marginBottom: "1rem" }}>
+        {/* Two-pane body */}
+        <form
+          onSubmit={handleSubmit}
+          style={{ flex: 1, display: "flex", minHeight: 0 }}
+        >
+          {/* Left: menu */}
+          <section
+            style={{
+              flex: 1,
+              minWidth: 0,
+              display: "flex",
+              flexDirection: "column",
+              padding: "1.125rem 1.25rem",
+            }}
+          >
+            {/* Search + category pills */}
+            <div style={{ flex: "none", marginBottom: "1rem" }}>
               <Input
-                label="Identificador Temporal *"
-                type="text"
-                value={temporalIdentifier}
-                onChange={(e) => setTemporalIdentifier(e.target.value)}
-                required
+                type="search"
+                placeholder="Buscar productos..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
               />
+              <div style={{ marginTop: "0.875rem" }}>
+                <CategoryPills
+                  categories={categories}
+                  active={selectedCategory}
+                  onChange={setSelectedCategory}
+                  compact={false}
+                />
+              </div>
             </div>
 
-            {/* Descriptor */}
-            <div style={{ marginBottom: "1.5rem" }}>
-              <Textarea
-                label="Descriptor (Opcional)"
-                value={descriptor}
-                onChange={(e) => setDescriptor(e.target.value)}
-                placeholder="Descripción del cliente o mesa..."
-                rows={3}
-              />
+            {/* Product grid */}
+            <div
+              style={{
+                flex: 1,
+                overflowY: "auto",
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+                gridAutoRows: "min-content",
+                gap: "1rem",
+                paddingBottom: "0.25rem",
+              }}
+            >
+              {isLoading ? (
+                <div
+                  style={{
+                    gridColumn: "1 / -1",
+                    padding: "3rem",
+                    textAlign: "center",
+                    color: "var(--color-text-secondary)",
+                  }}
+                >
+                  Cargando productos...
+                </div>
+              ) : filteredProducts.length === 0 ? (
+                <div
+                  style={{
+                    gridColumn: "1 / -1",
+                    padding: "3rem",
+                    textAlign: "center",
+                    color: "var(--color-text-secondary)",
+                  }}
+                >
+                  No se encontraron productos
+                </div>
+              ) : (
+                filteredProducts.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    qtyInOrder={qtyInOrderFor(product.id)}
+                    onAdd={handleProductSelect}
+                  />
+                ))
+              )}
             </div>
+          </section>
 
-            {/* Selected Products */}
-            {selectedProductsArray.length > 0 && (
+          {/* Right: order sidebar */}
+          <aside
+            style={{
+              width: "360px",
+              flex: "none",
+              display: "flex",
+              flexDirection: "column",
+              borderLeft: "1px solid var(--color-border)",
+              backgroundColor: "var(--color-surface)",
+              minHeight: 0,
+            }}
+          >
+            {/* Sidebar header */}
+            <div
+              style={{
+                flex: "none",
+                padding: "1.125rem 1.25rem 0.875rem",
+                borderBottom: "1px solid var(--color-border)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.75rem",
+              }}
+            >
               <div
                 style={{
-                  marginBottom: "1.5rem",
-                  padding: "1rem",
-                  backgroundColor: "var(--color-bg)",
-                  borderRadius: "var(--radius-md)",
-                  border: "1px solid var(--color-border)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
                 }}
               >
                 <h3
                   style={{
-                    margin: "0 0 1rem 0",
-                    fontSize: "1.1rem",
-                    fontWeight: "bold",
+                    margin: 0,
+                    fontSize: "1.05rem",
+                    fontWeight: 700,
                     color: "var(--color-text-primary)",
                   }}
                 >
-                  Productos Seleccionados ({selectedProductsArray.length})
+                  Pedido actual
                 </h3>
-                <div
+                <span
                   style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.75rem",
+                    fontSize: "0.8rem",
+                    color: "var(--color-text-secondary)",
                   }}
                 >
-                  {selectedProductsArray.map(
-                    ({ lineItemId, product, quantity, notes }) => (
-                      <div
-                        key={lineItemId}
-                        style={{
-                          padding: "1rem",
-                          backgroundColor: "var(--color-surface)",
-                          borderRadius: "var(--radius-md)",
-                          border: "1px solid var(--color-border)",
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            marginBottom: "0.75rem",
-                          }}
-                        >
-                          <div>
-                            <strong
-                              style={{ color: "var(--color-text-primary)" }}
-                            >
-                              {product.name}
-                            </strong>
-                            <div
-                              style={{
-                                fontSize: "0.875rem",
-                                color: "var(--color-text-secondary)",
-                              }}
-                            >
-                              ${product.total_price_with_taxes}
-                            </div>
-                          </div>
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "0.5rem",
-                            }}
-                          >
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleQuantityChange(lineItemId, quantity - 1)
-                              }
-                              style={{
-                                width: "32px",
-                                height: "32px",
-                                border: "1px solid var(--color-primary)",
-                                borderRadius: "var(--radius-sm)",
-                                backgroundColor: "transparent",
-                                color: "var(--color-primary)",
-                                cursor: "pointer",
-                                fontSize: "1.25rem",
-                                lineHeight: 1,
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                              }}
-                            >
-                              −
-                            </button>
-                            <input
-                              type="number"
-                              value={quantity}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                if (val === "") return;
-                                const parsed = parseInt(val, 10);
-                                if (!isNaN(parsed) && parsed >= 0) {
-                                  handleQuantityChange(lineItemId, parsed);
-                                }
-                              }}
-                              onBlur={(e) => {
-                                const val = e.target.value;
-                                if (val === "" || parseInt(val, 10) <= 0) {
-                                  handleQuantityChange(lineItemId, 0);
-                                }
-                              }}
-                              min="1"
-                              style={{
-                                width: "70px",
-                                textAlign: "center",
-                                fontWeight: "bold",
-                                fontSize: "1.1rem",
-                                color: "var(--color-text-primary)",
-                                border: "1px solid var(--color-border)",
-                                borderRadius: "var(--radius-sm)",
-                                padding: "0.25rem",
-                                backgroundColor: "var(--color-bg)",
-                                outline: "none",
-                                MozAppearance: "textfield",
-                              }}
-                            />
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleQuantityChange(lineItemId, quantity + 1)
-                              }
-                              style={{
-                                width: "32px",
-                                height: "32px",
-                                border: "1px solid var(--color-primary)",
-                                borderRadius: "var(--radius-sm)",
-                                backgroundColor: "transparent",
-                                color: "var(--color-primary)",
-                                cursor: "pointer",
-                                fontSize: "1.25rem",
-                                lineHeight: 1,
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                              }}
-                            >
-                              +
-                            </button>
-                          </div>
-                        </div>
-                        <input
-                          type="text"
-                          value={notes}
-                          onChange={(e) =>
-                            handleNotesChange(lineItemId, e.target.value)
-                          }
-                          placeholder="Agregar notas (opcional)..."
-                          style={{
-                            width: "100%",
-                            padding: "0.5rem",
-                            fontSize: "0.875rem",
-                            border: "1px solid var(--color-border)",
-                            borderRadius: "var(--radius-sm)",
-                            outline: "none",
-                            backgroundColor: "var(--color-bg)",
-                            color: "var(--color-text-primary)",
-                          }}
-                        />
-                      </div>
-                    )
-                  )}
-                </div>
+                  {orderCount} {orderCount === 1 ? "producto" : "productos"}
+                </span>
               </div>
-            )}
+              {orderDetailsFields}
+            </div>
 
-            {/* Product Search and Selection */}
-            <div>
-              <h3
-                style={{
-                  margin: "0 0 0.75rem 0",
-                  fontSize: "1.1rem",
-                  fontWeight: "bold",
-                  color: "var(--color-text-primary)",
-                }}
-              >
-                Agregar Productos
-              </h3>
+            {/* Items */}
+            <div
+              style={{
+                flex: 1,
+                overflowY: "auto",
+                padding: "0.5rem 1rem",
+                minHeight: 0,
+              }}
+            >
+              {orderCount === 0 ? (
+                <div
+                  style={{
+                    padding: "2.5rem 1rem",
+                    textAlign: "center",
+                    color: "var(--color-text-muted)",
+                    fontSize: "0.9rem",
+                  }}
+                >
+                  Toca un producto para agregarlo al pedido.
+                </div>
+              ) : (
+                selectedProductsArray.map((item) => (
+                  <OrderLineItem
+                    key={item.lineItemId}
+                    item={item}
+                    onQuantityChange={handleQuantityChange}
+                    onNotesChange={handleNotesChange}
+                  />
+                ))
+              )}
+            </div>
+
+            {/* Footer: total + submit */}
+            <div
+              style={{
+                flex: "none",
+                borderTop: "1px solid var(--color-border)",
+                padding: "1rem 1.25rem 1.125rem",
+                backgroundColor: "var(--color-bg)",
+              }}
+            >
               <div
                 style={{
                   display: "flex",
-                  gap: "0.75rem",
-                  marginBottom: "1rem",
-                  flexWrap: "wrap",
+                  justifyContent: "space-between",
+                  alignItems: "baseline",
+                  marginBottom: "0.875rem",
                 }}
               >
-                <div style={{ flex: "1 1 250px" }}>
-                  <Input
-                    type="search"
-                    placeholder="Buscar productos..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    aria-label="Buscar productos"
-                  />
-                </div>
-                <div style={{ flex: "0 1 200px" }}>
-                  <Select
-                    value={selectedCategory}
-                    onChange={(e) => setSelectedCategory(e.target.value)}
-                    aria-label="Filtrar por categoría"
-                  >
-                    <option value="all">Todas las categorías</option>
-                    {categories.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
+                <span
+                  style={{
+                    fontSize: "1rem",
+                    fontWeight: 700,
+                    color: "var(--color-text-primary)",
+                  }}
+                >
+                  Total
+                </span>
+                <span
+                  style={{
+                    fontSize: "1.4rem",
+                    fontWeight: 800,
+                    color: "var(--color-primary)",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {formatCOP(orderTotal)}
+                </span>
               </div>
-              <div
-                style={{
-                  maxHeight: "300px",
-                  overflowY: "auto",
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-                  gap: "0.75rem",
-                }}
-              >
-                {isLoading ? (
-                  <div
-                    style={{
-                      padding: "2rem",
-                      textAlign: "center",
-                      color: "var(--color-text-secondary)",
-                    }}
-                  >
-                    Cargando productos...
-                  </div>
-                ) : filteredProducts.length === 0 ? (
-                  <div
-                    style={{
-                      padding: "2rem",
-                      textAlign: "center",
-                      color: "var(--color-text-secondary)",
-                    }}
-                  >
-                    No se encontraron productos
-                  </div>
-                ) : (
-                  filteredProducts.map((product) => {
-                    return (
-                      <div
-                        key={product.id}
-                        onClick={() => handleProductSelect(product)}
-                        style={{
-                          padding: "1rem",
-                          border: "1px solid var(--color-border)",
-                          borderRadius: "var(--radius-md)",
-                          cursor: "pointer",
-                          backgroundColor: "var(--color-surface)",
-                          transition: "all var(--transition-normal)",
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.borderColor =
-                            "var(--color-primary)";
-                          e.currentTarget.style.backgroundColor =
-                            "var(--color-surface-hover)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.borderColor =
-                            "var(--color-border)";
-                          e.currentTarget.style.backgroundColor =
-                            "var(--color-surface)";
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontWeight: "bold",
-                            color: "var(--color-text-primary)",
-                            marginBottom: "0.25rem",
-                            fontSize: "0.95rem",
-                          }}
-                        >
-                          {product.name}
-                        </div>
-                        <div
-                          style={{
-                            fontSize: "0.8rem",
-                            color: "var(--color-text-muted)",
-                            marginBottom: "0.5rem",
-                          }}
-                        >
-                          {product.category}
-                        </div>
-                        <div
-                          style={{
-                            fontSize: "0.9rem",
-                            fontWeight: "bold",
-                            color: "var(--color-success)",
-                          }}
-                        >
-                          ${product.total_price_with_taxes}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
+              <Button type="submit" fullWidth size="lg" disabled={!canSubmit} leftIcon={sendIcon}>
+                {isSubmitting ? "Creando..." : "Crear Orden"}
+              </Button>
             </div>
-          </div>
-
-          {/* Footer */}
-          <div
-            style={{
-              padding: "1.5rem",
-              borderTop: "1px solid var(--color-border)",
-              display: "flex",
-              gap: "1rem",
-              justifyContent: "flex-end",
-              position: "sticky",
-              bottom: 0,
-              backgroundColor: "var(--color-surface)",
-            }}
-          >
-            <Button type="button" variant="secondary" onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              disabled={isSubmitting || selectedProducts.size === 0}
-            >
-              {isSubmitting ? "Creando..." : "Crear Orden"}
-            </Button>
-          </div>
+          </aside>
         </form>
       </div>
     </div>
