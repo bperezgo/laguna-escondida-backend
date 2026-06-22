@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"time"
@@ -24,6 +25,9 @@ type PurchaseEntryService struct {
 	productRepo         ports.ProductRepository
 	storageClient       ports.StorageClient
 	eventBus            pkgPorts.EventBus
+	unitOfWork          ports.UnitOfWork
+	outboxRepo          ports.SyncOutboxRepository
+	syncIdentity        dto.SyncIdentity
 	logger              *slog.Logger
 	organizationID      string
 }
@@ -35,6 +39,9 @@ func NewPurchaseEntryService(
 	productRepo ports.ProductRepository,
 	storageClient ports.StorageClient,
 	eventBus pkgPorts.EventBus,
+	unitOfWork ports.UnitOfWork,
+	outboxRepo ports.SyncOutboxRepository,
+	syncIdentity dto.SyncIdentity,
 	logger *slog.Logger,
 	organizationID string,
 ) *PurchaseEntryService {
@@ -45,6 +52,9 @@ func NewPurchaseEntryService(
 		productRepo:         productRepo,
 		storageClient:       storageClient,
 		eventBus:            eventBus,
+		unitOfWork:          unitOfWork,
+		outboxRepo:          outboxRepo,
+		syncIdentity:        syncIdentity,
 		logger:              logger,
 		organizationID:      organizationID,
 	}
@@ -74,16 +84,26 @@ func (s *PurchaseEntryService) CreatePurchaseEntry(ctx context.Context, req *dto
 		return nil, err
 	}
 
-	if err := s.purchaseEntryRepo.Create(ctx, entry); err != nil {
-		return nil, fmt.Errorf("%w: %w", domainError.ErrPurchaseEntryCreationFailed, err)
+	purchaseEntryDTO := entry.ToDTO()
+
+	// Persist the purchase entry and its sync-outbox row in one transaction (Option A):
+	// the entry and the row that replicates it to the cloud commit together.
+	if err := s.unitOfWork.Do(ctx, func(ctx context.Context) error {
+		if err := s.purchaseEntryRepo.Create(ctx, entry); err != nil {
+			return fmt.Errorf("%w: %w", domainError.ErrPurchaseEntryCreationFailed, err)
+		}
+		if err := s.appendPurchaseEntryOutbox(ctx, purchaseEntryDTO); err != nil {
+			return fmt.Errorf("%w: %w", domainError.ErrPurchaseEntryCreationFailed, err)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 
-	// Update supplier catalog with new unit costs
+	// Update supplier catalog with new unit costs (best-effort, post-commit).
 	for _, item := range req.Items {
 		s.updateSupplierCatalog(ctx, req.SupplierID, item)
 	}
-
-	purchaseEntryDTO := entry.ToDTO()
 
 	// Publish event for stock update
 	event := dto.NewPurchaseEntryCreatedEvent(purchaseEntryDTO.ID, purchaseEntryDTO.SupplierID, purchaseEntryDTO.Items)
@@ -95,6 +115,30 @@ func (s *PurchaseEntryService) CreatePurchaseEntry(ctx context.Context, req *dto
 	}
 
 	return purchaseEntryDTO, nil
+}
+
+// appendPurchaseEntryOutbox writes one create sync_outbox row for a purchase entry.
+// It must be called inside a UnitOfWork transaction. The payload is the
+// full entry snapshot (header + items), which a peer node applies as an upsert.
+func (s *PurchaseEntryService) appendPurchaseEntryOutbox(ctx context.Context, entry *dto.PurchaseEntry) error {
+	opID, err := uuid.NewV7()
+	if err != nil {
+		return fmt.Errorf("generate purchase_entry outbox op_id: %w", err)
+	}
+
+	payloadBytes, err := json.Marshal(entry)
+	if err != nil {
+		return fmt.Errorf("marshal purchase_entry sync payload: %w", err)
+	}
+
+	return s.outboxRepo.Append(ctx, &dto.SyncOutboxEntry{
+		OpID:         opID.String(),
+		OriginNodeID: s.syncIdentity.NodeID,
+		EntityType:   dto.SyncEntityPurchaseEntry,
+		EntityID:     entry.ID,
+		Operation:    dto.SyncOperationCreate,
+		Payload:      payloadBytes,
+	})
 }
 
 func (s *PurchaseEntryService) updateSupplierCatalog(ctx context.Context, supplierID string, item dto.CreatePurchaseEntryItemRequest) {

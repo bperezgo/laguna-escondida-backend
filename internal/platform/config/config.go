@@ -2,10 +2,29 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"os"
+
+	"github.com/google/uuid"
+)
+
+// Mode determines how the backend runs: as the cloud aggregate or as a
+// restaurant edge node. The wiring in cmd/main.go branches on this value.
+type Mode string
+
+const (
+	ModeCloud Mode = "cloud"
+	ModeEdge  Mode = "edge"
 )
 
 type Config struct {
+	AppMode                   Mode
+	NodeID                    string
+	NodeSyncKey               string
+	CloudSyncURL              string
+	CloudNodeID               string
+	SyncPushCron              string
+	SyncPullCron              string
 	ElectronicInvoiceURL      string
 	ElectronicInvoiceUser     string
 	ElectronicInvoicePassword string
@@ -24,6 +43,14 @@ type Config struct {
 }
 
 func NewConfig() (*Config, error) {
+	appMode := Mode(os.Getenv("APP_MODE"))
+	if appMode == "" {
+		appMode = ModeCloud
+	}
+	if appMode != ModeCloud && appMode != ModeEdge {
+		return nil, fmt.Errorf("invalid APP_MODE %q: must be %q or %q", appMode, ModeCloud, ModeEdge)
+	}
+
 	url := os.Getenv("ELECTRONIC_INVOICE_URL")
 	if url == "" {
 		return nil, errors.New("ELECTRONIC_INVOICE_URL is not set")
@@ -75,9 +102,49 @@ func NewConfig() (*Config, error) {
 	if spacesBucket == "" {
 		return nil, errors.New("SPACES_BUCKET is not set")
 	}
+	// TODO Review the best way to handle the organization id (securely) when the goal was to roll out this for different organizations
 	organizationID := os.Getenv("ORGANIZATION_ID")
 	if organizationID == "" {
 		return nil, errors.New("ORGANIZATION_ID is not set")
+	}
+
+	// NodeID is this install's sync identity (origin_node_id on outbox rows). When
+	// unset, derive a stable id from the organization + run mode so dev boots without
+	// extra config and the id survives restarts — changing it would break per-origin
+	// sync sequencing. Multi-node deployments must set NODE_ID so each install differs.
+	nodeID := os.Getenv("NODE_ID")
+	if nodeID == "" {
+		nodeID = uuid.NewSHA1(uuid.NameSpaceURL, []byte("laguna-escondida/node/"+organizationID+"/"+string(appMode))).String()
+	}
+
+	// NodeSyncKey authenticates edge nodes calling the cloud sync endpoints
+	// (NodeAuthMiddleware). Optional here so non-sync deployments boot; when unset the
+	// middleware fails closed and rejects every request. Cloud installs must set it.
+	nodeSyncKey := os.Getenv("NODE_SYNC_KEY")
+
+	// CloudSyncURL is the base URL of the cloud the edge push loop targets (e.g.
+	// http://localhost:8081). Optional: when unset (or NODE_SYNC_KEY is unset), the
+	// edge push loop stays disabled rather than failing to boot. Cloud installs ignore it.
+	cloudSyncURL := os.Getenv("CLOUD_SYNC_URL")
+
+	// CloudNodeID is the peer identity the edge advances last_pushed_seq against. Default
+	// to the cloud's derived node id for this organization (same formula as NodeID with
+	// the "cloud" mode), so a stock cloud needs no extra config; override with CLOUD_NODE_ID.
+	cloudNodeID := os.Getenv("CLOUD_NODE_ID")
+	if cloudNodeID == "" {
+		cloudNodeID = uuid.NewSHA1(uuid.NameSpaceURL, []byte("laguna-escondida/node/"+organizationID+"/cloud")).String()
+	}
+
+	// SyncPushCron is how often the edge drains its outbox to the cloud (cron expr).
+	syncPushCron := os.Getenv("SYNC_PUSH_CRON")
+	if syncPushCron == "" {
+		syncPushCron = "* * * * *"
+	}
+
+	// SyncPullCron is how often the edge pulls reference changes from the cloud (cron expr).
+	syncPullCron := os.Getenv("SYNC_PULL_CRON")
+	if syncPullCron == "" {
+		syncPullCron = "* * * * *"
 	}
 
 	invoiceURLCron := os.Getenv("INVOICE_URL_CRON")
@@ -91,6 +158,13 @@ func NewConfig() (*Config, error) {
 	}
 
 	return &Config{
+		AppMode:                   appMode,
+		NodeID:                    nodeID,
+		NodeSyncKey:               nodeSyncKey,
+		CloudSyncURL:              cloudSyncURL,
+		CloudNodeID:               cloudNodeID,
+		SyncPushCron:              syncPushCron,
+		SyncPullCron:              syncPullCron,
 		ElectronicInvoiceURL:      url,
 		ElectronicInvoiceUser:     user,
 		ElectronicInvoicePassword: password,

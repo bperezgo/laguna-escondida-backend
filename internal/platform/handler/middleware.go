@@ -51,6 +51,22 @@ func AdminAPIKeyMiddleware(cfg *config.Config) gin.HandlerFunc {
 	}
 }
 
+// NodeAuthMiddleware authenticates an edge node calling the cloud sync endpoints
+// via the X-Node-Key header. It fails closed: if no node key is configured, every
+// request is rejected.
+func NodeAuthMiddleware(cfg *config.Config) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		nodeKey := c.GetHeader("X-Node-Key")
+		if cfg.NodeSyncKey == "" || nodeKey == "" || nodeKey != cfg.NodeSyncKey {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid node key"})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
 // JWTAuthMiddleware validates the JWT token and optionally checks for required roles
 func JWTAuthMiddleware(jwtService *service.JWTService, requiredRoles ...int) gin.HandlerFunc {
 	return func(c *gin.Context) {

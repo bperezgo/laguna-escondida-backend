@@ -1,0 +1,183 @@
+# Two-node sync test rig: one CLOUD instance + one EDGE instance, each with its own
+# Postgres, on a shared network so the edge can reach the cloud at http://cloud:8080.
+#
+# This is throwaway test infrastructure (hardcoded test secrets, named volumes you can
+# wipe). It is intentionally separate from docker-compose.yml so the dev stack stays clean.
+# Reuses the existing Dockerfile unchanged — the binary branches on APP_MODE and
+# auto-runs migrations on boot, so each DB self-migrates.
+#
+# Storage note: the edge is OFFLINE-FIRST and never uses object storage (uploads,
+# invoices and support documents are online-only features). Its SPACES_* values below are
+# inert placeholders that only satisfy config validation — the S3 client is lazy and is
+# never contacted unless an upload/download runs, which the sync tests don't do. Only the
+# cloud gets a real MinIO.
+#
+#   Start:    docker compose -f docker-compose.sync.yml up --build -d
+#   Logs:     docker compose -f docker-compose.sync.yml logs -f edge
+#   Offline:  docker compose -f docker-compose.sync.yml stop cloud   (then ... start cloud)
+#   Reset:    docker compose -f docker-compose.sync.yml down -v
+#
+# See docs/playbooks/SYNC_LOCAL_TESTING.md for the full test checklist.
+
+name: laguna-sync
+
+# Shared env for both app instances. Per-service blocks below override the few
+# mode-specific values (APP_MODE, DB_HOST, storage, sync target). Both apps share
+# ORGANIZATION_ID so their sync node IDs derive consistently with no manual wiring:
+# the cloud's NodeID == the edge's derived CloudNodeID automatically.
+x-app-env: &app-env
+  PORT: "8080"
+  ORGANIZATION_ID: test-org
+  JWT_SECRET: test-jwt-secret
+  ADMIN_API_KEY: test-admin-key
+  NODE_SYNC_KEY: test-sync-key            # must match on both sides (cloud NodeAuth)
+  # Electronic-invoice API is online-only and unused by the sync tests; dummy values.
+  ELECTRONIC_INVOICE_URL: http://invoice.invalid
+  ELECTRONIC_INVOICE_USER: test
+  ELECTRONIC_INVOICE_PASSWORD: test
+  # Shared DB credentials (host differs per service).
+  DB_PORT: "5432"
+  DB_USER: postgres
+  DB_PASSWORD: postgres
+  DB_NAME: laguna_escondida
+  DB_SSLMODE: disable
+
+services:
+  # --- CLOUD side ------------------------------------------------------------
+  cloud-db:
+    image: postgres:16-alpine
+    container_name: laguna-sync-cloud-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: laguna_escondida
+    ports:
+      - "5433:5432"
+    volumes:
+      - cloud_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - laguna-sync-network
+
+  cloud:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: laguna-escondida-sync:latest
+    container_name: laguna-sync-cloud
+    environment:
+      <<: *app-env
+      APP_MODE: cloud
+      DB_HOST: cloud-db
+      SPACES_REGION: us-east-1
+      SPACES_KEY: minioadmin
+      SPACES_SECRET: minioadmin
+      SPACES_BUCKET: laguna-escondida
+      SPACES_ENDPOINT: http://minio:9000
+    ports:
+      - "8080:8080"
+    depends_on:
+      cloud-db:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - laguna-sync-network
+
+  # --- EDGE side -------------------------------------------------------------
+  edge-db:
+    image: postgres:16-alpine
+    container_name: laguna-sync-edge-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: laguna_escondida
+    ports:
+      - "5434:5432"
+    volumes:
+      - edge_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - laguna-sync-network
+
+  edge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: laguna-escondida-sync:latest
+    container_name: laguna-sync-edge
+    environment:
+      <<: *app-env
+      APP_MODE: edge
+      DB_HOST: edge-db
+      CLOUD_SYNC_URL: http://cloud:8080
+      SYNC_PUSH_CRON: "* * * * *"          # every minute (5-field cron floor)
+      SYNC_PULL_CRON: "* * * * *"
+      # Inert: edge storage is online-only. Placeholders satisfy config validation;
+      # the lazy S3 client is never contacted by the sync tests.
+      SPACES_REGION: us-east-1
+      SPACES_KEY: offline-unused
+      SPACES_SECRET: offline-unused
+      SPACES_BUCKET: offline-unused
+    ports:
+      - "8082:8080"
+    # NOTE: edge depends ONLY on its own DB, never on `cloud`. That is what lets you
+    # `stop cloud` to simulate offline while the edge keeps serving locally.
+    depends_on:
+      edge-db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - laguna-sync-network
+
+  # --- Shared object storage (CLOUD only) ------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: laguna-sync-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9100:9000"   # S3 API (host 9100 to avoid clashing with the dev compose's 9000)
+      - "9101:9001"   # web console -> http://localhost:9101 (minioadmin / minioadmin)
+    volumes:
+      - minio_data:/data
+    networks:
+      - laguna-sync-network
+
+  createbuckets:
+    image: minio/mc:latest
+    container_name: laguna-sync-createbuckets
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 minioadmin minioadmin; do
+        echo 'Waiting for MinIO to be ready...'; sleep 1;
+      done;
+      mc mb --ignore-existing local/laguna-escondida;
+      mc anonymous set download local/laguna-escondida;
+      echo 'Bucket ready.';
+      exit 0;
+      "
+    networks:
+      - laguna-sync-network
+
+volumes:
+  cloud_db_data:
+  edge_db_data:
+  minio_data:
+
+networks:
+  laguna-sync-network:
+    driver: bridge

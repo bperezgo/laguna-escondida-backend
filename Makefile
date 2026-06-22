@@ -62,3 +62,25 @@ regenerate-mocks:
 	@echo "Cleaning existing mocks..."
 	@rm -rf internal/domain/ports/mocks
 	@$(MAKE) generate-mocks
+
+# --- Local sync rig (two-node cloud + edge) --------------------------------
+# See docs/playbooks/SYNC_LOCAL_TESTING.md for the full test checklist.
+
+# Build the image and start the cloud + edge rig in the background
+sync-up:
+	@echo "Starting local sync rig (cloud + edge)..."
+	docker compose -f docker-compose.sync.yml up --build -d
+
+# Tail both app logs
+sync-logs:
+	docker compose -f docker-compose.sync.yml logs -f cloud edge
+
+# Stop the rig, keep data
+sync-down:
+	@echo "Stopping local sync rig..."
+	docker compose -f docker-compose.sync.yml down
+
+# Stop the rig and wipe both DBs + MinIO
+sync-reset:
+	@echo "Stopping local sync rig and wiping volumes..."
+	docker compose -f docker-compose.sync.yml down -v

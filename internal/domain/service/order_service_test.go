@@ -91,10 +91,22 @@ func createMockEventBus(t *testing.T) *pkgmocks.MockEventBus {
 	return mockEventBus
 }
 
+const testNodeID = "11111111-1111-1111-1111-111111111111"
+
+// createMockSyncOutboxRepository creates an outbox mock that accepts any Append.
+// CreateOrder appends one row per order (inside the unit of work), so most tests
+// only need this permissive expectation; the dedicated outbox test asserts the call.
+func createMockSyncOutboxRepository(t *testing.T) *mocks.MockSyncOutboxRepository {
+	mockOutbox := mocks.NewMockSyncOutboxRepository(t)
+	mockOutbox.EXPECT().Append(mock.Anything, mock.AnythingOfType("*dto.SyncOutboxEntry")).Return(nil).Maybe()
+	return mockOutbox
+}
+
 func createTestService(t *testing.T, productRepo ports.ProductRepository, openBillRepo ports.OpenBillRepository, billRepo ports.BillRepository, billOwnerRepo ports.BillOwnerRepository) *OrderService {
 	mockUnitOfWork := createMockUnitOfWork(t)
 	mockEventBus := createMockEventBus(t)
-	return NewOrderService(openBillRepo, productRepo, billRepo, billOwnerRepo, nil, mockUnitOfWork, mockEventBus)
+	mockOutbox := createMockSyncOutboxRepository(t)
+	return NewOrderService(openBillRepo, productRepo, billRepo, billOwnerRepo, nil, mockUnitOfWork, mockEventBus, mockOutbox, dto.SyncIdentity{NodeID: testNodeID})
 }
 
 // Success Cases
@@ -1890,9 +1902,10 @@ func TestCreateOrder_NoEventPublished_WhenNoProducts(t *testing.T) {
 	mockOpenBillRepo := mocks.NewMockOpenBillRepository(t)
 	mockUnitOfWork := createMockUnitOfWork(t)
 	mockEventBus := pkgmocks.NewMockEventBus(t)
+	mockOutbox := createMockSyncOutboxRepository(t)
 	user := createTestUser()
 
-	service := NewOrderService(mockOpenBillRepo, mockProductRepo, nil, nil, nil, mockUnitOfWork, mockEventBus)
+	service := NewOrderService(mockOpenBillRepo, mockProductRepo, nil, nil, nil, mockUnitOfWork, mockEventBus, mockOutbox, dto.SyncIdentity{NodeID: testNodeID})
 
 	req := &dto.CreateOrderRequest{
 		OpenBillID:         uuidPlaceholder0,
@@ -1909,6 +1922,139 @@ func TestCreateOrder_NoEventPublished_WhenNoProducts(t *testing.T) {
 
 	// Verify Publish was NOT called when there are no products
 	mockEventBus.AssertNotCalled(t, "Publish")
+}
+
+// TestCreateOrder_WritesOutboxRowInTransaction asserts the transactional outbox
+// (Option A): creating an order appends exactly one open_bill sync_outbox row,
+// stamped with this node's id, the create operation, and the order id.
+func TestCreateOrder_WritesOutboxRowInTransaction(t *testing.T) {
+	ctx := createTestContext()
+	mockProductRepo := mocks.NewMockProductRepository(t)
+	mockOpenBillRepo := mocks.NewMockOpenBillRepository(t)
+	mockUnitOfWork := createMockUnitOfWork(t)
+	mockEventBus := createMockEventBus(t)
+	mockOutbox := mocks.NewMockSyncOutboxRepository(t)
+	user := createTestUser()
+
+	service := NewOrderService(mockOpenBillRepo, mockProductRepo, nil, nil, nil, mockUnitOfWork, mockEventBus, mockOutbox, dto.SyncIdentity{NodeID: testNodeID})
+
+	req := &dto.CreateOrderRequest{
+		OpenBillID:         uuidPlaceholder0,
+		TemporalIdentifier: "TABLE-07",
+		Products:           []dto.OrderProductItem{},
+	}
+
+	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
+
+	var captured *dto.SyncOutboxEntry
+	mockOutbox.EXPECT().
+		Append(mock.Anything, mock.AnythingOfType("*dto.SyncOutboxEntry")).
+		Run(func(_ context.Context, entry *dto.SyncOutboxEntry) { captured = entry }).
+		Return(nil).
+		Once()
+
+	_, err := service.CreateOrder(ctx, req, user)
+	require.NoError(t, err)
+
+	require.NotNil(t, captured)
+	assert.NotEmpty(t, captured.OpID, "service must set a client-generated op_id")
+	assert.Equal(t, testNodeID, captured.OriginNodeID)
+	assert.Equal(t, dto.SyncEntityOpenBill, captured.EntityType)
+	assert.Equal(t, dto.SyncOperationCreate, captured.Operation)
+	assert.Equal(t, uuidPlaceholder0, captured.EntityID)
+	assert.NotEmpty(t, captured.Payload)
+}
+
+// TestUpdateOrder_WritesOutboxRowInTransaction asserts updating an order appends
+// exactly one open_bill outbox row with the update operation.
+func TestUpdateOrder_WritesOutboxRowInTransaction(t *testing.T) {
+	ctx := createTestContext()
+	mockProductRepo := mocks.NewMockProductRepository(t)
+	mockOpenBillRepo := mocks.NewMockOpenBillRepository(t)
+	mockUnitOfWork := createMockUnitOfWork(t)
+	mockEventBus := createMockEventBus(t)
+	mockOutbox := mocks.NewMockSyncOutboxRepository(t)
+
+	service := NewOrderService(mockOpenBillRepo, mockProductRepo, nil, nil, nil, mockUnitOfWork, mockEventBus, mockOutbox, dto.SyncIdentity{NodeID: testNodeID})
+
+	openBillID := billID1
+	existingBill := &dto.OpenBillWithProducts{
+		ID:                 openBillID,
+		TemporalIdentifier: "ORDER-123",
+		TotalAmount:        decimal.NewFromFloat(50.0),
+		Products:           []dto.OpenBillProductDetail{},
+		CreatedBy:          dto.OpenBillCreator{ID: "user-123"},
+		CreatedAt:          time.Now(),
+		UpdatedAt:          time.Now(),
+	}
+	existingAggregate := createTestOpenBillAggregate(openBillID, []*openBill.OpenBillProduct{})
+
+	req := &dto.UpdateOrderRequest{Products: []dto.OrderProductItem{}}
+
+	mockOpenBillRepo.On("FindByIDWithProducts", ctx, openBillID).Return(existingBill, nil)
+	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(existingAggregate, nil)
+	mockOpenBillRepo.On("Update", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
+
+	var captured *dto.SyncOutboxEntry
+	mockOutbox.EXPECT().
+		Append(mock.Anything, mock.AnythingOfType("*dto.SyncOutboxEntry")).
+		Run(func(_ context.Context, entry *dto.SyncOutboxEntry) { captured = entry }).
+		Return(nil).
+		Once()
+
+	_, err := service.UpdateOrder(ctx, openBillID, req)
+	require.NoError(t, err)
+
+	require.NotNil(t, captured)
+	assert.NotEmpty(t, captured.OpID, "service must set a client-generated op_id")
+	assert.Equal(t, testNodeID, captured.OriginNodeID)
+	assert.Equal(t, dto.SyncEntityOpenBill, captured.EntityType)
+	assert.Equal(t, dto.SyncOperationUpdate, captured.Operation)
+	assert.Equal(t, openBillID, captured.EntityID)
+}
+
+// TestDeleteOrder_WritesTombstoneOutboxRow asserts deleting an order appends
+// exactly one delete (tombstone) outbox row carrying just the order id.
+func TestDeleteOrder_WritesTombstoneOutboxRow(t *testing.T) {
+	ctx := context.Background()
+	mockProductRepo := mocks.NewMockProductRepository(t)
+	mockOpenBillRepo := mocks.NewMockOpenBillRepository(t)
+	mockUnitOfWork := createMockUnitOfWork(t)
+	mockEventBus := createMockEventBus(t)
+	mockOutbox := mocks.NewMockSyncOutboxRepository(t)
+
+	service := NewOrderService(mockOpenBillRepo, mockProductRepo, nil, nil, nil, mockUnitOfWork, mockEventBus, mockOutbox, dto.SyncIdentity{NodeID: testNodeID})
+
+	openBillID := openBillID1
+	openBillWithProducts := &dto.OpenBillWithProducts{
+		ID:                 openBillID,
+		TemporalIdentifier: "TABLE-01",
+		TotalAmount:        decimal.NewFromFloat(100.0),
+		Products:           []dto.OpenBillProductDetail{},
+		CreatedAt:          time.Now(),
+		UpdatedAt:          time.Now(),
+	}
+
+	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(openBillWithProducts, nil)
+	mockOpenBillRepo.On("Delete", ctx, openBillID).Return(nil)
+
+	var captured *dto.SyncOutboxEntry
+	mockOutbox.EXPECT().
+		Append(mock.Anything, mock.AnythingOfType("*dto.SyncOutboxEntry")).
+		Run(func(_ context.Context, entry *dto.SyncOutboxEntry) { captured = entry }).
+		Return(nil).
+		Once()
+
+	err := service.DeleteOrder(ctx, openBillID)
+	require.NoError(t, err)
+
+	require.NotNil(t, captured)
+	assert.NotEmpty(t, captured.OpID, "service must set a client-generated op_id")
+	assert.Equal(t, testNodeID, captured.OriginNodeID)
+	assert.Equal(t, dto.SyncEntityOpenBill, captured.EntityType)
+	assert.Equal(t, dto.SyncOperationDelete, captured.Operation)
+	assert.Equal(t, openBillID, captured.EntityID)
+	assert.JSONEq(t, `{"id":"`+openBillID+`"}`, string(captured.Payload))
 }
 
 // ============================================================================
