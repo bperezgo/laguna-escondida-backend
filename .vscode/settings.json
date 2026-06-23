@@ -1,6 +1,9 @@
 {
   "go.formatTool": "goimports",
   "editor.formatOnSave": true,
+  "go.testEnvVars": {
+    "RUN_ACCEPTANCE_TESTS": "true"
+  },
   "[go]": {
     "editor.defaultFormatter": "golang.go",
     "editor.formatOnSave": true,

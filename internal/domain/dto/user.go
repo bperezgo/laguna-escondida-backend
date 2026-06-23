@@ -30,6 +30,7 @@ type UserRole struct {
 
 type CreateUserRequest struct {
 	Username string `json:"username" validate:"required,min=3,max=255"`
+	Name     string `json:"name" validate:"required,min=1,max=255"`
 	Password string `json:"password" validate:"required,min=6"`
 	RoleIDs  []int  `json:"role_ids" validate:"required,min=1,dive,min=1"`
 }

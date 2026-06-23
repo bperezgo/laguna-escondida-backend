@@ -1,0 +1,182 @@
+package dto
+
+import (
+	"encoding/json"
+	"time"
+
+	"github.com/shopspring/decimal"
+)
+
+// SyncIdentity is this install's identity in the sync topology. NodeID stamps the
+// origin of locally-produced ops (origin_node_id on outbox rows); CloudNodeID is the
+// peer the edge tracks high-water marks against (last_pushed_seq / last_pulled_cursor).
+// It is built once from config and injected as a unit into every sync-participating
+// component, so adding a future identity field touches no constructor signatures.
+type SyncIdentity struct {
+	NodeID      string
+	CloudNodeID string
+}
+
+// SyncOperation is the kind of change an outbox entry represents. A delete is a
+// tombstone so peers soft-delete rather than treating the row as merely absent.
+type SyncOperation string
+
+const (
+	SyncOperationCreate SyncOperation = "create"
+	SyncOperationUpdate SyncOperation = "update"
+	SyncOperationDelete SyncOperation = "delete"
+)
+
+// SyncEntityType names the business table a sync entry targets, so the receiving
+// node knows what to upsert. Extend as more entities become sync-backed.
+type SyncEntityType string
+
+const (
+	SyncEntityOpenBill      SyncEntityType = "open_bill"
+	SyncEntityPurchaseEntry SyncEntityType = "purchase_entry"
+)
+
+// SyncOutboxEntry is one durable change queued for replication to a peer node.
+// It is written inside the same transaction as the business change (Option A), so
+// the change and its outbox row commit or roll back together.
+//
+// Payload is the full row snapshot as JSON; apply on the peer is a plain upsert.
+// Seq and CreatedAt are assigned by the repository on Append (DB-owned ordering),
+// and SyncedAt stays nil until a peer acknowledges the row.
+type SyncOutboxEntry struct {
+	OpID         string          `json:"op_id"`
+	OriginNodeID string          `json:"origin_node_id"`
+	EntityType   SyncEntityType  `json:"entity_type"`
+	EntityID     string          `json:"entity_id"`
+	Operation    SyncOperation   `json:"operation"`
+	Payload      json.RawMessage `json:"payload"`
+	Seq          int64           `json:"seq"`
+	CreatedAt    time.Time       `json:"created_at"`
+	SyncedAt     *time.Time      `json:"synced_at,omitempty"`
+}
+
+// SyncOutboxPendingStats summarizes this origin's not-yet-acknowledged outbox rows: how
+// many remain and the created_at of the oldest (nil when none are pending). It powers the
+// edge status endpoint's pending-ops count and sync-lag figure.
+type SyncOutboxPendingStats struct {
+	PendingCount    int
+	OldestPendingAt *time.Time
+}
+
+// EdgeSyncHealth is the data-backed half of the edge node's status: how many local
+// changes are still queued for the cloud and how many seconds behind the oldest is
+// (0 when the outbox is fully drained). Connectivity is tracked separately.
+type EdgeSyncHealth struct {
+	PendingOps     int
+	SyncLagSeconds int
+}
+
+// SyncTombstone is the minimal payload for a delete outbox entry: just the id of
+// the removed row, so a peer node can soft-delete it without a full snapshot.
+type SyncTombstone struct {
+	ID string `json:"id"`
+}
+
+// SyncPushRequest is a batch of ops an edge node sends to the cloud's
+// POST /api/sync/push. Each op is one of the sender's outbox rows.
+type SyncPushRequest struct {
+	NodeID string            `json:"node_id"`
+	Ops    []SyncOutboxEntry `json:"ops"`
+}
+
+// SyncPushResponse acknowledges the ops the cloud durably applied (or already had).
+// The sender uses AckedSeqs to advance sync_state.last_pushed_seq and stamp synced_at.
+type SyncPushResponse struct {
+	AckedOpIDs []string `json:"acked_op_ids"`
+	AckedSeqs  []int64  `json:"acked_seqs"`
+}
+
+// SyncPushResult summarizes one run of the edge push loop: how many outbox ops the
+// cloud acked and over how many batches. Used for logging, not transported.
+type SyncPushResult struct {
+	Batches   int
+	PushedOps int
+}
+
+// Pull replicates cloud-owned reference data (products, users, suppliers) down to the
+// edge. Unlike push (op-log based), pull is a cursor diff: the cloud returns rows whose
+// updated_at/deleted_at is newer than the edge's last_pulled_cursor, and the edge upserts
+// them. These payloads carry deleted_at so soft-deletes propagate, and the user payload
+// carries the password hash so the edge can authenticate offline.
+
+type ProductSyncPayload struct {
+	ID                  string          `json:"id"`
+	Name                string          `json:"name"`
+	Category            string          `json:"category"`
+	ProductType         string          `json:"product_type"`
+	UnitOfMeasure       string          `json:"unit_of_measure"`
+	Version             int             `json:"version"`
+	UnitPrice           decimal.Decimal `json:"unit_price"`
+	VAT                 decimal.Decimal `json:"vat"`
+	VATAmount           decimal.Decimal `json:"vat_amount"`
+	ICO                 decimal.Decimal `json:"ico"`
+	ICOAmount           decimal.Decimal `json:"ico_amount"`
+	Description         *string         `json:"description,omitempty"`
+	SKU                 string          `json:"sku"`
+	TotalPriceWithTaxes decimal.Decimal `json:"total_price_with_taxes"`
+	CreatedAt           time.Time       `json:"created_at"`
+	UpdatedAt           time.Time       `json:"updated_at"`
+	DeletedAt           *time.Time      `json:"deleted_at,omitempty"`
+}
+
+type SupplierSyncPayload struct {
+	ID                   string     `json:"id"`
+	Name                 string     `json:"name"`
+	IdentificationType   *string    `json:"identification_type,omitempty"`
+	IdentificationNumber *string    `json:"identification_number,omitempty"`
+	ContactName          *string    `json:"contact_name,omitempty"`
+	Phone                *string    `json:"phone,omitempty"`
+	Email                *string    `json:"email,omitempty"`
+	Notes                *string    `json:"notes,omitempty"`
+	CreatedAt            time.Time  `json:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at"`
+	DeletedAt            *time.Time `json:"deleted_at,omitempty"`
+}
+
+type UserSyncPayload struct {
+	ID        string     `json:"id"`
+	Username  string     `json:"username"`
+	Name      string     `json:"name"`
+	Password  string     `json:"password"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	DeletedAt *time.Time `json:"deleted_at,omitempty"`
+}
+
+// SyncPullResponse is the cloud's reply to GET /api/sync/pull: the reference rows that
+// changed after the requested cursor, plus the new Cursor the edge should store (the
+// max change-time across the returned rows, or the request cursor when nothing changed).
+type SyncPullResponse struct {
+	Products  []ProductSyncPayload  `json:"products"`
+	Users     []UserSyncPayload     `json:"users"`
+	Suppliers []SupplierSyncPayload `json:"suppliers"`
+	Cursor    time.Time             `json:"cursor"`
+}
+
+// SyncPullResult summarizes one run of the edge pull loop: how many rows of each entity
+// were upserted. Used for logging, not transported.
+type SyncPullResult struct {
+	Products  int
+	Users     int
+	Suppliers int
+}
+
+// OpenBillSyncPayload is the row snapshot carried in a sync_outbox entry for an
+// open_bill change. It holds the order header plus its line items so a peer node
+// can reconstruct the order with a single upsert.
+type OpenBillSyncPayload struct {
+	ID                 string             `json:"id"`
+	TemporalIdentifier string             `json:"temporal_identifier"`
+	Descriptor         *string            `json:"descriptor,omitempty"`
+	TotalAmount        decimal.Decimal    `json:"total_amount"`
+	Status             CommandStatus      `json:"status"`
+	CreatedByID        string             `json:"created_by_id"`
+	Products           []OrderProductItem `json:"products"`
+	CreatedAt          time.Time          `json:"created_at"`
+	UpdatedAt          time.Time          `json:"updated_at"`
+}

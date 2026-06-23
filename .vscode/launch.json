@@ -19,6 +19,17 @@
       "request": "attach",
       "mode": "local",
       "processId": 0
+    },
+    {
+      "name": "Debug acceptance sync tests",
+      "type": "go",
+      "request": "launch",
+      "mode": "test",
+      "program": "${workspaceFolder}/test/acceptance/sync",
+      "env": {
+        "RUN_ACCEPTANCE_TESTS": "true"
+      },
+      "args": ["-test.v"]
     }
   ]
 }

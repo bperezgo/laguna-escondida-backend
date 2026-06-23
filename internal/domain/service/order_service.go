@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -15,6 +16,7 @@ import (
 	"laguna-escondida/backend/internal/domain/ports"
 	pkgports "laguna-escondida/backend/pkg/domain/ports"
 
+	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
@@ -35,6 +37,8 @@ type OrderService struct {
 	eventBus                   pkgports.EventBus
 	userRepo                   ports.UserRepository
 	openBillProductSSENotifier ports.OpenBillProductSSENotifier
+	outboxRepo                 ports.SyncOutboxRepository
+	syncIdentity               dto.SyncIdentity
 	taxConfig                  dto.TaxConfig
 }
 
@@ -46,6 +50,8 @@ func NewOrderService(
 	invoiceService *InvoiceService,
 	unitOfWork ports.UnitOfWork,
 	eventBus pkgports.EventBus,
+	outboxRepo ports.SyncOutboxRepository,
+	syncIdentity dto.SyncIdentity,
 ) *OrderService {
 	return &OrderService{
 		openBillRepo:   openBillRepo,
@@ -56,6 +62,8 @@ func NewOrderService(
 		invoiceService: invoiceService,
 		unitOfWork:     unitOfWork,
 		eventBus:       eventBus,
+		outboxRepo:     outboxRepo,
+		syncIdentity:   syncIdentity,
 	}
 }
 
@@ -70,6 +78,8 @@ func NewOrderServiceWithSSE(
 	eventBus pkgports.EventBus,
 	userRepo ports.UserRepository,
 	openBillProductSSENotifier ports.OpenBillProductSSENotifier,
+	outboxRepo ports.SyncOutboxRepository,
+	syncIdentity dto.SyncIdentity,
 ) *OrderService {
 	return &OrderService{
 		logger:                     logger,
@@ -83,6 +93,8 @@ func NewOrderServiceWithSSE(
 		eventBus:                   eventBus,
 		userRepo:                   userRepo,
 		openBillProductSSENotifier: openBillProductSSENotifier,
+		outboxRepo:                 outboxRepo,
+		syncIdentity:               syncIdentity,
 	}
 }
 
@@ -166,11 +178,8 @@ func (s *OrderService) CreateOrder(
 		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
 	}
 
-	if err := s.openBillRepo.Create(ctx, openBillAggregate); err != nil {
-		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
-	}
-
 	openBillDTO := openBillAggregate.ToDTO()
+	openBillDTO.CreatedByID = user.ID
 
 	if len(products) > 0 {
 		productDTOs := make([]dto.Product, len(products))
@@ -180,7 +189,23 @@ func (s *OrderService) CreateOrder(
 		openBillDTO.Products = productDTOs
 	}
 
-	// Publish event for SSE notifications
+	// Persist the order and its sync-outbox row in one transaction (Option A): the
+	// business change and the row that replicates it to peers commit or roll back
+	// together, so a created order can never be lost from the sync log.
+	if err := s.unitOfWork.Do(ctx, func(ctx context.Context) error {
+		if err := s.openBillRepo.Create(ctx, openBillAggregate); err != nil {
+			return fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
+		}
+		if err := s.appendOpenBillOutbox(ctx, openBillDTO, user.ID, req.Products, dto.SyncOperationCreate); err != nil {
+			return fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	// Publish event for SSE notifications after the commit, so subscribers only ever
+	// react to an order that is durably persisted.
 	if len(req.Products) > 0 {
 		event := dto.NewOrderCreatedEvent(
 			req.OpenBillID,
@@ -194,6 +219,71 @@ func (s *OrderService) CreateOrder(
 	}
 
 	return openBillDTO, nil
+}
+
+// appendOpenBillOutbox writes one sync_outbox row describing an open_bill change.
+// It must be called inside a UnitOfWork transaction so the row commits atomically
+// with the business change (Option A). The payload is a full snapshot of the order.
+func (s *OrderService) appendOpenBillOutbox(
+	ctx context.Context,
+	openBillDTO *dto.OpenBill,
+	createdByID string,
+	items []dto.OrderProductItem,
+	operation dto.SyncOperation,
+) error {
+	opID, err := uuid.NewV7()
+	if err != nil {
+		return fmt.Errorf("generate open_bill outbox op_id: %w", err)
+	}
+
+	payload := dto.OpenBillSyncPayload{
+		ID:                 openBillDTO.ID,
+		TemporalIdentifier: openBillDTO.TemporalIdentifier,
+		Descriptor:         openBillDTO.Descriptor,
+		TotalAmount:        openBillDTO.TotalAmount,
+		Status:             openBillDTO.Status,
+		CreatedByID:        createdByID,
+		Products:           items,
+		CreatedAt:          openBillDTO.CreatedAt,
+		UpdatedAt:          openBillDTO.UpdatedAt,
+	}
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal open_bill sync payload: %w", err)
+	}
+
+	return s.outboxRepo.Append(ctx, &dto.SyncOutboxEntry{
+		OpID:         opID.String(),
+		OriginNodeID: s.syncIdentity.NodeID,
+		EntityType:   dto.SyncEntityOpenBill,
+		EntityID:     openBillDTO.ID,
+		Operation:    operation,
+		Payload:      payloadBytes,
+	})
+}
+
+// appendOpenBillDeleteOutbox writes a delete (tombstone) sync_outbox row for an
+// open_bill. It must be called inside a UnitOfWork transaction (Option A).
+func (s *OrderService) appendOpenBillDeleteOutbox(ctx context.Context, openBillID string) error {
+	opID, err := uuid.NewV7()
+	if err != nil {
+		return fmt.Errorf("generate open_bill outbox op_id: %w", err)
+	}
+
+	payloadBytes, err := json.Marshal(dto.SyncTombstone{ID: openBillID})
+	if err != nil {
+		return fmt.Errorf("marshal open_bill tombstone: %w", err)
+	}
+
+	return s.outboxRepo.Append(ctx, &dto.SyncOutboxEntry{
+		OpID:         opID.String(),
+		OriginNodeID: s.syncIdentity.NodeID,
+		EntityType:   dto.SyncEntityOpenBill,
+		EntityID:     openBillID,
+		Operation:    dto.SyncOperationDelete,
+		Payload:      payloadBytes,
+	})
 }
 
 // UpdateOrder updates an existing open order with new products and quantities
@@ -274,17 +364,27 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 	existingBillAggregate.UpdateProducts(openBillProducts, totalAmount)
 	existingBillAggregate.UpdateInfo(req.TemporalIdentifier, req.Descriptor)
 
-	if err := s.openBillRepo.Update(ctx, existingBillAggregate); err != nil {
-		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
-	}
-
 	updatedBill := existingBillAggregate.ToDTO()
+	updatedBill.CreatedByID = existingOpenBill.CreatedBy.ID
 	if len(products) > 0 {
 		productDTOs := make([]dto.Product, len(products))
 		for i, p := range products {
 			productDTOs[i] = *p
 		}
 		updatedBill.Products = productDTOs
+	}
+
+	// Persist the update and its sync-outbox row in one transaction (Option A).
+	if err := s.unitOfWork.Do(ctx, func(ctx context.Context) error {
+		if err := s.openBillRepo.Update(ctx, existingBillAggregate); err != nil {
+			return fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
+		}
+		if err := s.appendOpenBillOutbox(ctx, updatedBill, existingOpenBill.CreatedBy.ID, req.Products, dto.SyncOperationUpdate); err != nil {
+			return fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 
 	event := dto.NewOrderUpdatedEvent(
@@ -396,11 +496,20 @@ func (s *OrderService) DeleteOrder(ctx context.Context, openBillID string) error
 		return fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
 	}
 
-	if err := s.openBillRepo.Delete(ctx, openBillID); err != nil {
-		return fmt.Errorf("%w: %w", orderError.ErrOrderDeletionFailed, err)
+	// Soft-delete the order and append its tombstone outbox row in one transaction.
+	if err := s.unitOfWork.Do(ctx, func(ctx context.Context) error {
+		if err := s.openBillRepo.Delete(ctx, openBillID); err != nil {
+			return fmt.Errorf("%w: %w", orderError.ErrOrderDeletionFailed, err)
+		}
+		if err := s.appendOpenBillDeleteOutbox(ctx, openBillID); err != nil {
+			return fmt.Errorf("%w: %w", orderError.ErrOrderDeletionFailed, err)
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
 
-	// Publish event for SSE notifications
+	// Publish event for SSE notifications after the commit.
 	event := dto.NewOrderDeletedEvent(openBillID)
 	if err := s.eventBus.Publish(ctx, event); err != nil {
 		s.logger.Error("failed to publish order deleted event", zap.Error(err))

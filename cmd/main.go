@@ -13,6 +13,7 @@ import (
 
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/permissions"
+	"laguna-escondida/backend/internal/domain/ports"
 	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/cron"
@@ -22,6 +23,7 @@ import (
 	"laguna-escondida/backend/internal/platform/postgres/repository"
 	"laguna-escondida/backend/internal/platform/sse"
 	"laguna-escondida/backend/internal/platform/storage"
+	"laguna-escondida/backend/internal/platform/syncstatus"
 	"laguna-escondida/backend/pkg/eventbus"
 
 	"github.com/gin-gonic/gin"
@@ -115,6 +117,26 @@ func main() {
 
 	// Initialize services
 	unitOfWork := postgres.NewUnitOfWork(db.DB)
+	syncOutboxRepo := repository.NewSyncOutboxRepository(db.DB)
+	syncInboxRepo := repository.NewSyncInboxRepository(db.DB)
+	syncStateRepo := repository.NewSyncStateRepository(db.DB)
+	// Reference repo is both sides of pull: the cloud reads changed rows, the edge upserts.
+	syncReferenceRepo := repository.NewSyncReferenceRepository(db.DB)
+	// Entity appliers turn a received op's payload snapshot into a local upsert (or a
+	// soft-delete for a tombstone). The sync service dispatches on op.EntityType and
+	// fails closed for any entity type without a registered applier.
+	syncAppliers := map[dto.SyncEntityType]ports.SyncApplier{
+		dto.SyncEntityOpenBill:      repository.NewOpenBillSyncApplier(db.DB),
+		dto.SyncEntityPurchaseEntry: repository.NewPurchaseEntrySyncApplier(db.DB),
+	}
+	syncService := service.NewSyncService(unitOfWork, syncInboxRepo, syncAppliers, slogLogger)
+	syncReferenceService := service.NewSyncReferenceService(syncReferenceRepo, slogLogger)
+	// This install's sync identity, built once and injected as a unit into every
+	// sync-participating component (order/purchase outbox writers + push/pull loops).
+	syncIdentity := dto.SyncIdentity{NodeID: cfg.NodeID, CloudNodeID: cfg.CloudNodeID}
+	// Edge status: pending-ops/lag come from this node's unsynced outbox (a domain use
+	// case); connectivity comes from the sync scheduler via the in-memory tracker below.
+	edgeStatusService := service.NewEdgeStatusService(syncOutboxRepo, syncIdentity)
 	orderService := service.NewOrderServiceWithSSE(
 		logger,
 		openBillRepo,
@@ -126,13 +148,15 @@ func main() {
 		eventBusImpl,
 		userRepo,
 		openBillProductHub,
+		syncOutboxRepo,
+		syncIdentity,
 	)
 	productService := service.NewProductService(productRepo, supplierRepo, supplierCatalogRepo)
 	stockService := service.NewStockService(stockRepo, productRepo)
 	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, jwtService)
 	billOwnerService := service.NewBillOwnerService(billOwnerRepo)
 	supplierService := service.NewSupplierService(supplierRepo, supplierCatalogRepo, productRepo)
-	purchaseEntryService := service.NewPurchaseEntryService(purchaseEntryRepo, supplierRepo, supplierCatalogRepo, productRepo, spacesClient, eventBusImpl, slogLogger, cfg.OrganizationID)
+	purchaseEntryService := service.NewPurchaseEntryService(purchaseEntryRepo, supplierRepo, supplierCatalogRepo, productRepo, spacesClient, eventBusImpl, unitOfWork, syncOutboxRepo, syncIdentity, slogLogger, cfg.OrganizationID)
 	expenseService := service.NewExpenseService(expenseCategoryRepo, expenseRepo, supplierRepo, spacesClient, cfg.OrganizationID)
 	productIngredientService := service.NewProductIngredientService(productIngredientRepo, productRepo)
 	financialService := service.NewFinancialService(billRepo, expenseRepo, purchaseEntryRepo)
@@ -280,6 +304,11 @@ func main() {
 	financialHandler := handler.NewFinancialHandler(financialService)
 	supportDocHandler := handler.NewSupportDocumentHandler(supportDocService)
 	sseHandler := handler.NewSSEHandler(sseHub, openBillProductHub, orderService, logger)
+	// Online flips to offline if no successful pull lands within ~2.5 pull-cron intervals.
+	// In edge mode the scheduler (below) records pull outcomes into this tracker; in cloud
+	// mode it is never written and the status handler short-circuits to online.
+	syncStatusTracker := syncstatus.NewTracker(150 * time.Second)
+	edgeHandler := handler.NewEdgeHandler(cfg, edgeStatusService, syncStatusTracker)
 
 	// Setup routes
 	router := gin.Default()
@@ -292,6 +321,9 @@ func main() {
 
 	// Health check
 	router.GET("/api/health", handler.HealthCheckHandler)
+
+	// Edge/node status (mode, connectivity, sync lag, pending sync ops)
+	router.GET("/api/edge/status", edgeHandler.GetStatusHandler)
 
 	// Auth routes (no authentication required)
 	router.POST("/api/auth/signin", userHandler.SignInHandler)
@@ -405,6 +437,54 @@ func main() {
 	router.GET("/api/sse/commands/:area", handler.SSEMiddleware(), handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SSECommandsRead), sseHandler.StreamCommandsHandler)
 	router.GET("/api/sse/open-bill-products/:area", handler.SSEMiddleware(), handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SSECommandItemsRead), sseHandler.StreamOpenBillProductsHandler)
 	router.GET("/api/open-bill-products/:area/pending", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersRead), sseHandler.GetPendingOpenBillProductsHandler)
+
+	// ---------------------------------------------------------------------
+	// Mode-specific wiring seam (edge vs cloud).
+	//
+	// Single attachment point for components that only exist in one run mode.
+	// Every shared dependency is already constructed above (cfg, logger, the
+	// services, the unit of work, and the fully-routed gin engine), so later
+	// steps wire here without restructuring main:
+	//   - EDGE  (Step 8/9, §6): sync push/pull loops + pending-invoice retry.
+	//   - CLOUD (Step 7):        POST /api/sync/push + NodeAuthMiddleware.
+	// Both branches only log today so the seam is observable and lint-clean.
+	switch cfg.AppMode {
+	case config.ModeEdge:
+		logger.Info("Running in EDGE mode", zap.String("app_mode", string(cfg.AppMode)))
+		if cfg.CloudSyncURL == "" || cfg.NodeSyncKey == "" {
+			logger.Fatal("Edge sync push disabled: set CLOUD_SYNC_URL and NODE_SYNC_KEY to enable it")
+			break
+		}
+		syncPushClient := httpclient.NewSyncPushClient(httpClient, cfg.CloudSyncURL, cfg.NodeSyncKey)
+		syncPushService := service.NewSyncPushService(
+			unitOfWork, syncOutboxRepo, syncStateRepo, syncPushClient,
+			syncIdentity, 0, slogLogger,
+		)
+		syncPullClient := httpclient.NewSyncPullClient(httpClient, cfg.CloudSyncURL, cfg.NodeSyncKey)
+		syncPullService := service.NewSyncPullService(
+			unitOfWork, syncPullClient, syncReferenceRepo, syncStateRepo,
+			syncIdentity, slogLogger,
+		)
+		edgeScheduler, edgeErr := cron.NewEdgeSyncScheduler(syncPushService, syncPullService, syncStatusTracker, cfg.SyncPushCron, cfg.SyncPullCron, logger)
+		if edgeErr != nil {
+			log.Fatalf("Failed to create edge sync scheduler: %v", edgeErr)
+		}
+		if edgeErr := edgeScheduler.Start(); edgeErr != nil {
+			log.Fatalf("Failed to start edge sync scheduler: %v", edgeErr)
+		}
+		defer func() {
+			if stopErr := edgeScheduler.Stop(); stopErr != nil {
+				log.Printf("Failed to stop edge sync scheduler: %v", stopErr)
+			}
+		}()
+	case config.ModeCloud:
+		logger.Info("Running in CLOUD mode", zap.String("app_mode", string(cfg.AppMode)))
+		// Cloud is the sync aggregate: accept pushes from edge nodes and serve them the
+		// reference changes they pull. Both routes require the shared node key.
+		syncHandler := handler.NewSyncHandler(syncService, syncReferenceService)
+		router.POST("/api/sync/push", handler.NodeAuthMiddleware(cfg), syncHandler.PushHandler)
+		router.GET("/api/sync/pull", handler.NodeAuthMiddleware(cfg), syncHandler.PullHandler)
+	}
 
 	port := os.Getenv("PORT")
 	if port == "" {
