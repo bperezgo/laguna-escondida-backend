@@ -100,7 +100,7 @@ func TestSyncReferenceRepository_UpsertProducts_InsertThenSoftDelete_Integration
 
 	var updatedName string
 	var deleted *time.Time
-	db.DB.Raw("SELECT name, deleted_at FROM products WHERE id = ?", id).Row().Scan(&updatedName, &deleted)
+	require.NoError(t, db.DB.Raw("SELECT name, deleted_at FROM products WHERE id = ?", id).Row().Scan(&updatedName, &deleted))
 	assert.Equal(t, "Renamed", updatedName, "upsert updates the existing row")
 	assert.NotNil(t, deleted, "tombstone propagates the soft-delete")
 }

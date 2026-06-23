@@ -103,7 +103,7 @@ func TestSyncOutboxRepository_Append_WritesRow_Integration(t *testing.T) {
 	assert.Equal(t, int64(1), count, "exactly one row should be committed")
 
 	var operation, entityType string
-	db.DB.Raw("SELECT operation, entity_type FROM sync_outbox WHERE op_id = ?", entry.OpID).Row().Scan(&operation, &entityType)
+	require.NoError(t, db.DB.Raw("SELECT operation, entity_type FROM sync_outbox WHERE op_id = ?", entry.OpID).Row().Scan(&operation, &entityType))
 	assert.Equal(t, "create", operation)
 	assert.Equal(t, "open_bill", entityType)
 }
