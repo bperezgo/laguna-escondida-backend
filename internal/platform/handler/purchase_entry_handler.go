@@ -72,7 +72,7 @@ func (h *PurchaseEntryHandler) GetPurchaseEntryByIDHandler(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Purchase entry not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		RespondError(c, err)
 		return
 	}
 

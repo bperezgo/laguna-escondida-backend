@@ -38,7 +38,7 @@ func (h *ProductHandler) CreateProductHandler(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create product"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		RespondError(c, err)
 		return
 	}
 
@@ -71,7 +71,7 @@ func (h *ProductHandler) UpdateProductHandler(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update product"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		RespondError(c, err)
 		return
 	}
 
@@ -97,7 +97,7 @@ func (h *ProductHandler) DeleteProductHandler(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete product"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		RespondError(c, err)
 		return
 	}
 
@@ -136,7 +136,7 @@ func (h *ProductHandler) GetProductByIDHandler(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Product not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		RespondError(c, err)
 		return
 	}
 
@@ -163,7 +163,7 @@ func (h *ProductHandler) BulkCreateProductsHandler(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		RespondError(c, err)
 		return
 	}
 
@@ -230,7 +230,7 @@ func (h *ProductHandler) UpdateProductResponsibilityHandler(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update product responsibility"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		RespondError(c, err)
 		return
 	}
 
@@ -252,7 +252,7 @@ func (h *ProductHandler) DeleteProductResponsibilityHandler(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete product responsibility"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		RespondError(c, err)
 		return
 	}
 
@@ -274,7 +274,7 @@ func (h *ProductHandler) GetProductResponsibilityByIDHandler(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Product responsibility not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		RespondError(c, err)
 		return
 	}
 

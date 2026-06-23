@@ -44,7 +44,7 @@ func (h *SupportDocumentHandler) CreateSupportDocumentHandler(c *gin.Context) {
 
 	if err := h.supportDocumentService.CreateSupportDocument(c.Request.Context(), &doc); err != nil {
 		log.Printf("Error creating support document: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create support document"})
+		RespondError(c, err)
 		return
 	}
 

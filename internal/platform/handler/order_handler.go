@@ -59,7 +59,7 @@ func (h *OrderHandler) CreateOrderHandler(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create order"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		RespondError(c, err)
 		return
 	}
 
@@ -101,7 +101,7 @@ func (h *OrderHandler) UpdateOrderHandler(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update order"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		RespondError(c, err)
 		return
 	}
 
@@ -132,7 +132,7 @@ func (h *OrderHandler) PayOrderHandler(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to pay order"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		RespondError(c, err)
 		return
 	}
 
@@ -165,7 +165,7 @@ func (h *OrderHandler) GetOpenBillWithProductsHandler(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		RespondError(c, err)
 		return
 	}
 
@@ -191,7 +191,7 @@ func (h *OrderHandler) DeleteOrderHandler(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete order"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		RespondError(c, err)
 		return
 	}
 
@@ -231,7 +231,7 @@ func (h *OrderHandler) CompleteOpenBillProductHandler(c *gin.Context) {
 			c.JSON(http.StatusConflict, gin.H{"error": "Product cannot be completed from current status"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		RespondError(c, err)
 		return
 	}
 
@@ -267,7 +267,7 @@ func (h *OrderHandler) SetOpenBillProductInProgressHandler(c *gin.Context) {
 			c.JSON(http.StatusConflict, gin.H{"error": "Cannot set in progress from cancelled status"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		RespondError(c, err)
 		return
 	}
 
@@ -307,7 +307,7 @@ func (h *OrderHandler) CancelOpenBillProductHandler(c *gin.Context) {
 			c.JSON(http.StatusConflict, gin.H{"error": "Product cannot be cancelled from current status"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		RespondError(c, err)
 		return
 	}
 

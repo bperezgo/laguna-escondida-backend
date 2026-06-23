@@ -70,7 +70,7 @@ func (h *ExpenseHandler) GetCategoryByIDHandler(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Expense category not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		RespondError(c, err)
 		return
 	}
 
@@ -179,7 +179,7 @@ func (h *ExpenseHandler) GetExpenseByIDHandler(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Expense not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		RespondError(c, err)
 		return
 	}
 
@@ -305,7 +305,7 @@ func (h *ExpenseHandler) DeleteExpenseHandler(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete expense"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		RespondError(c, err)
 		return
 	}
 

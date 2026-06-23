@@ -32,7 +32,7 @@ func (h *InvoiceHandler) CreateElectronicInvoiceHandler(c *gin.Context) {
 
 	if err := h.invoiceService.CreateElectronicInvoice(c.Request.Context(), &invoice); err != nil {
 		log.Printf("Error creating electronic invoice: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create electronic invoice"})
+		RespondError(c, err)
 		return
 	}
 
