@@ -50,7 +50,7 @@ func (h *UserHandler) CreateUserHandler(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		RespondError(c, err)
 		return
 	}
 
@@ -73,7 +73,7 @@ func (h *UserHandler) SignInHandler(c *gin.Context) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid username or password"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		RespondError(c, err)
 		return
 	}
 

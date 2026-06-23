@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -30,7 +31,10 @@ func NewUserService(userRepo ports.UserRepository, roleRepo ports.RoleRepository
 
 func (s *UserService) CreateUser(ctx context.Context, req *dto.CreateUserRequest) (*dto.UserWithRoles, error) {
 	existingUser, err := s.userRepo.FindByUsername(ctx, req.Username)
-	if err == nil && existingUser != nil {
+	if err != nil && !errors.Is(err, domainError.ErrUserNotFound) {
+		return nil, fmt.Errorf("failed to check existing user: %w", err)
+	}
+	if existingUser != nil {
 		return nil, domainError.ErrUserAlreadyExists
 	}
 

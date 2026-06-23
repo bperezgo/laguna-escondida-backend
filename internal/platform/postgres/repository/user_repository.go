@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"laguna-escondida/backend/internal/domain/dto"
+	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
 
 	"gorm.io/gorm"
@@ -55,6 +56,9 @@ func (r *UserRepository) FindByUsername(ctx context.Context, username string) (*
 	if err := r.db.WithContext(ctx).
 		Where("username = ? AND deleted_at IS NULL", username).
 		First(&model).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, domainError.ErrUserNotFound
+		}
 		return nil, err
 	}
 
@@ -66,6 +70,9 @@ func (r *UserRepository) FindByID(ctx context.Context, id string) (*dto.User, er
 	if err := r.db.WithContext(ctx).
 		Where("id = ? AND deleted_at IS NULL", id).
 		First(&model).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, domainError.ErrUserNotFound
+		}
 		return nil, err
 	}
 

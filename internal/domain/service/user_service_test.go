@@ -48,7 +48,7 @@ func TestCreateUser_Success(t *testing.T) {
 		createTestRole(2, "manager"),
 	}
 
-	userRepo.On("FindByUsername", ctx, req.Username).Return(nil, errors.New("not found"))
+	userRepo.On("FindByUsername", ctx, req.Username).Return(nil, domainError.ErrUserNotFound)
 	roleRepo.On("FindByIDs", ctx, req.RoleIDs).Return(roles, nil)
 	userRepo.On("Create", ctx, mock.AnythingOfType("*dto.User")).Run(func(args mock.Arguments) {
 		user, ok := args.Get(1).(*dto.User)
@@ -102,6 +102,31 @@ func TestCreateUser_UserAlreadyExists(t *testing.T) {
 	userRoleRepo.AssertNotCalled(t, "Create")
 }
 
+func TestCreateUser_FindByUsernameError(t *testing.T) {
+	ctx := context.Background()
+	service, userRepo, roleRepo, userRoleRepo := createTestUserService(t)
+
+	req := &dto.CreateUserRequest{
+		Username: "testuser",
+		Name:     "Test User",
+		Password: "password123",
+		RoleIDs:  []int{1},
+	}
+
+	userRepo.On("FindByUsername", ctx, req.Username).Return(nil, errors.New("connection refused"))
+
+	result, err := service.CreateUser(ctx, req)
+
+	assert.Nil(t, result)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to check existing user")
+	assert.False(t, errors.Is(err, domainError.ErrUserAlreadyExists))
+
+	roleRepo.AssertNotCalled(t, "FindByIDs")
+	userRepo.AssertNotCalled(t, "Create")
+	userRoleRepo.AssertNotCalled(t, "Create")
+}
+
 func TestCreateUser_MissingName(t *testing.T) {
 	ctx := context.Background()
 	service, userRepo, roleRepo, userRoleRepo := createTestUserService(t)
@@ -117,7 +142,7 @@ func TestCreateUser_MissingName(t *testing.T) {
 		createTestRole(1, "admin"),
 	}
 
-	userRepo.On("FindByUsername", ctx, req.Username).Return(nil, errors.New("not found"))
+	userRepo.On("FindByUsername", ctx, req.Username).Return(nil, domainError.ErrUserNotFound)
 	roleRepo.On("FindByIDs", ctx, req.RoleIDs).Return(roles, nil)
 
 	result, err := service.CreateUser(ctx, req)
@@ -141,7 +166,7 @@ func TestCreateUser_RoleNotFound(t *testing.T) {
 		RoleIDs:  []int{999},
 	}
 
-	userRepo.On("FindByUsername", ctx, req.Username).Return(nil, errors.New("not found"))
+	userRepo.On("FindByUsername", ctx, req.Username).Return(nil, domainError.ErrUserNotFound)
 	roleRepo.On("FindByIDs", ctx, req.RoleIDs).Return(nil, errors.New("role not found"))
 
 	result, err := service.CreateUser(ctx, req)
@@ -169,7 +194,7 @@ func TestCreateUser_InvalidRoleIDs(t *testing.T) {
 		createTestRole(1, "admin"),
 	}
 
-	userRepo.On("FindByUsername", ctx, req.Username).Return(nil, errors.New("not found"))
+	userRepo.On("FindByUsername", ctx, req.Username).Return(nil, domainError.ErrUserNotFound)
 	roleRepo.On("FindByIDs", ctx, req.RoleIDs).Return(roles, nil)
 
 	result, err := service.CreateUser(ctx, req)
@@ -197,7 +222,7 @@ func TestCreateUser_UserCreationFailed(t *testing.T) {
 		createTestRole(1, "admin"),
 	}
 
-	userRepo.On("FindByUsername", ctx, req.Username).Return(nil, errors.New("not found"))
+	userRepo.On("FindByUsername", ctx, req.Username).Return(nil, domainError.ErrUserNotFound)
 	roleRepo.On("FindByIDs", ctx, req.RoleIDs).Return(roles, nil)
 	userRepo.On("Create", ctx, mock.AnythingOfType("*dto.User")).Return(errors.New("database error"))
 
@@ -226,7 +251,7 @@ func TestCreateUser_UserRoleAssignmentFailed(t *testing.T) {
 		createTestRole(1, "admin"),
 	}
 
-	userRepo.On("FindByUsername", ctx, req.Username).Return(nil, errors.New("not found"))
+	userRepo.On("FindByUsername", ctx, req.Username).Return(nil, domainError.ErrUserNotFound)
 	roleRepo.On("FindByIDs", ctx, req.RoleIDs).Return(roles, nil)
 	userRepo.On("Create", ctx, mock.AnythingOfType("*dto.User")).Run(func(args mock.Arguments) {
 		user, ok := args.Get(1).(*dto.User)
