@@ -65,6 +65,18 @@ Authorization: Bearer <your_jwt_token>
 - [Products](api/products.md) - Manage products and ingredients
 - [Expenses](api/expenses.md) - Track non-product expenses (rent, services, investments, etc.)
 
+## Playbooks & Engineering Docs
+
+Deeper engineering context lives in [`playbooks/`](playbooks/). For the offline-first
+sync engine (cloud ↔ edge replication), start here to reload context:
+
+- [Sync Acceptance Spec](playbooks/SYNC_ACCEPTANCE_SPEC.md) — **read first.** What the sync
+  engine must guarantee and why, as a catalog of invariants traceable to the tests and the
+  manual playbook. This is the document to read after time away to remember what needs testing.
+- [Local Sync Testing](playbooks/SYNC_LOCAL_TESTING.md) — manual two-node (cloud + edge) rig
+  and the step-by-step checklist to verify sync by hand.
+- [Architecture](playbooks/ARCHITECTURE.md) — system architecture overview.
+
 ## Data Types
 
 | Type      | Description                   | Example                                  |

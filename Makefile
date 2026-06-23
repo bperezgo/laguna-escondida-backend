@@ -22,6 +22,14 @@ test-ci:
 	@echo "Running tests for CI..."
 	gotestsum --format standard-verbose --junitfile test-report.xml -- ./... -race -coverprofile=coverage.out
 
+# Tier-1 sync acceptance tests (in-process two-node rig). Needs a local Postgres reachable
+# via DB_HOST/DB_PORT/DB_USER/DB_PASSWORD (defaults: localhost:5432/postgres/postgres); it
+# creates and migrates throwaway laguna_accept_cloud / laguna_accept_edge databases.
+# See docs/playbooks/SYNC_ACCEPTANCE_SPEC.md.
+test-acceptance:
+	@echo "Running sync acceptance tests (Tier-1)..."
+	RUN_ACCEPTANCE_TESTS=true go test ./test/acceptance/... -count=1 -v
+
 lint:
 	@echo "Running linter"
 	golangci-lint run --timeout=5m
