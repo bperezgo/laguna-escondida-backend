@@ -115,12 +115,55 @@ func TestSyncReferenceRepository_UpsertUsers_Integration(t *testing.T) {
 
 	now := time.Now()
 	require.NoError(t, repo.UpsertUsers(ctx, []dto.UserSyncPayload{{
-		ID: id, Username: "synced-" + id[:8], Name: "Synced", Password: "hash", CreatedAt: now, UpdatedAt: now,
+		ID: id, Username: "synced-" + id[:8], Name: "Synced", Password: "hash",
+		RoleIDs: []int{1, 2}, CreatedAt: now, UpdatedAt: now,
 	}}))
 
 	var password string
 	db.DB.Raw("SELECT password FROM users WHERE id = ?", id).Scan(&password)
 	assert.Equal(t, "hash", password, "password hash syncs so the edge can authenticate offline")
+	assert.ElementsMatch(t, []int{1, 2}, userRoleIDs(t, db, id), "role assignments sync alongside the user")
+
+	// Re-upsert with a different role set: the replace drops role 1, adds role 3, keeps 2.
+	require.NoError(t, repo.UpsertUsers(ctx, []dto.UserSyncPayload{{
+		ID: id, Username: "synced-" + id[:8], Name: "Synced", Password: "hash",
+		RoleIDs: []int{2, 3}, CreatedAt: now, UpdatedAt: now,
+	}}))
+	assert.ElementsMatch(t, []int{2, 3}, userRoleIDs(t, db, id), "re-upsert replaces roles, propagating revocations")
+}
+
+func TestSyncReferenceRepository_FindChangedUsers_IncludesRoles_Integration(t *testing.T) {
+	db := newApplierTestDB(t)
+	repo := NewSyncReferenceRepository(db.DB)
+
+	userID := seedUser(t, db)
+	require.NoError(t, db.DB.Create([]userRoleModel{
+		{UserID: userID, RoleID: 1},
+		{UserID: userID, RoleID: 3},
+	}).Error)
+	ctx := context.Background()
+
+	users, err := repo.FindChangedUsers(ctx, time.Time{})
+	require.NoError(t, err)
+	var seeded *dto.UserSyncPayload
+	for i := range users {
+		if users[i].ID == userID {
+			seeded = &users[i]
+			break
+		}
+	}
+	require.NotNil(t, seeded, "seeded user is returned for a beginning-of-time cursor")
+	assert.ElementsMatch(t, []int{1, 3}, seeded.RoleIDs, "the user payload carries its role ids for the edge")
+}
+
+func userRoleIDs(t *testing.T, db *Database, userID string) []int {
+	t.Helper()
+	var ids []int
+	require.NoError(t, db.DB.Table("user_roles").
+		Where("user_id = ?", userID).
+		Order("role_id").
+		Pluck("role_id", &ids).Error)
+	return ids
 }
 
 func TestSyncReferenceRepository_UpsertSuppliers_Integration(t *testing.T) {

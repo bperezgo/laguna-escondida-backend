@@ -138,11 +138,17 @@ type SupplierSyncPayload struct {
 	DeletedAt            *time.Time `json:"deleted_at,omitempty"`
 }
 
+// UserSyncPayload carries a user down to the edge plus its role assignments. RoleIDs are
+// the role ids from user_roles; the roles table itself is seeded identically by migration
+// on both nodes (role ids are stable cross-node constants — see permissions), so only the
+// per-user assignment needs to travel. The edge replaces a user's user_roles with this set
+// on upsert, so revocations propagate as long as the user row is re-synced.
 type UserSyncPayload struct {
 	ID        string     `json:"id"`
 	Username  string     `json:"username"`
 	Name      string     `json:"name"`
 	Password  string     `json:"password"`
+	RoleIDs   []int      `json:"role_ids"`
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
 	DeletedAt *time.Time `json:"deleted_at,omitempty"`

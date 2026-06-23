@@ -71,6 +71,15 @@ func (r *SyncReferenceRepository) FindChangedUsers(ctx context.Context, since ti
 		return nil, fmt.Errorf("query changed users: %w", err)
 	}
 
+	userIDs := make([]string, len(models))
+	for i, m := range models {
+		userIDs[i] = m.ID
+	}
+	rolesByUser, err := r.roleIDsByUser(db, userIDs)
+	if err != nil {
+		return nil, err
+	}
+
 	out := make([]dto.UserSyncPayload, len(models))
 	for i, m := range models {
 		out[i] = dto.UserSyncPayload{
@@ -78,12 +87,33 @@ func (r *SyncReferenceRepository) FindChangedUsers(ctx context.Context, since ti
 			Username:  m.Username,
 			Name:      m.Name,
 			Password:  m.Password,
+			RoleIDs:   rolesByUser[m.ID],
 			CreatedAt: m.CreatedAt,
 			UpdatedAt: m.UpdatedAt,
 			DeletedAt: m.DeletedAt,
 		}
 	}
 	return out, nil
+}
+
+// roleIDsByUser fetches the role assignments for the given users in one query and groups
+// them by user id, so FindChangedUsers can attach each user's roles without an N+1.
+func (r *SyncReferenceRepository) roleIDsByUser(db *gorm.DB, userIDs []string) (map[string][]int, error) {
+	byUser := make(map[string][]int)
+	if len(userIDs) == 0 {
+		return byUser, nil
+	}
+
+	var rows []userRoleModel
+	if err := db.Where("user_id IN ?", userIDs).
+		Order("user_id, role_id").
+		Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("query user roles: %w", err)
+	}
+	for _, row := range rows {
+		byUser[row.UserID] = append(byUser[row.UserID], row.RoleID)
+	}
+	return byUser, nil
 }
 
 func (r *SyncReferenceRepository) FindChangedSuppliers(ctx context.Context, since time.Time) ([]dto.SupplierSyncPayload, error) {
@@ -181,6 +211,36 @@ func (r *SyncReferenceRepository) UpsertUsers(ctx context.Context, users []dto.U
 		}),
 	}).Create(&models).Error; err != nil {
 		return fmt.Errorf("upsert users: %w", err)
+	}
+
+	return r.replaceUserRoles(db, users)
+}
+
+// replaceUserRoles rewrites the user_roles of every user in the batch to match the cloud
+// snapshot: it clears the existing assignments for those users and reinserts the payload's
+// RoleIDs. Replace (not insert-only) means a role removed in the cloud disappears on the
+// edge too. Runs in the caller's pull transaction, so it commits with the user upsert.
+func (r *SyncReferenceRepository) replaceUserRoles(db *gorm.DB, users []dto.UserSyncPayload) error {
+	userIDs := make([]string, len(users))
+	for i, u := range users {
+		userIDs[i] = u.ID
+	}
+
+	if err := db.Where("user_id IN ?", userIDs).Delete(&userRoleModel{}).Error; err != nil {
+		return fmt.Errorf("clear user roles: %w", err)
+	}
+
+	var assignments []userRoleModel
+	for _, u := range users {
+		for _, roleID := range u.RoleIDs {
+			assignments = append(assignments, userRoleModel{UserID: u.ID, RoleID: roleID})
+		}
+	}
+	if len(assignments) == 0 {
+		return nil
+	}
+	if err := db.Create(&assignments).Error; err != nil {
+		return fmt.Errorf("insert user roles: %w", err)
 	}
 	return nil
 }
