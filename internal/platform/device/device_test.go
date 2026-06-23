@@ -1,6 +1,7 @@
 package device
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -79,6 +80,24 @@ func TestFileTransport_WritesSequentialFiles(t *testing.T) {
 	first, err := os.ReadFile(files[0])
 	require.NoError(t, err)
 	assert.Equal(t, "hello", string(first))
+}
+
+func TestNewReceiptPrinterFromConfig_FileEndToEnd(t *testing.T) {
+	dir := t.TempDir()
+	p, err := NewReceiptPrinterFromConfig(Config{
+		Transport: "file", Target: dir, WidthMM: 80, Codepage: "CP850", Cut: "partial",
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, p.Print(context.Background(), testTicket()))
+
+	files, err := filepath.Glob(filepath.Join(dir, "ticket-*.escpos"))
+	require.NoError(t, err)
+	require.Len(t, files, 1)
+
+	b, err := os.ReadFile(files[0])
+	require.NoError(t, err)
+	assert.True(t, bytes.HasPrefix(b, []byte{0x1B, '@'}), "rendered file starts with ESC @")
 }
 
 func TestNewTransport_Selection(t *testing.T) {
