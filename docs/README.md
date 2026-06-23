@@ -59,6 +59,7 @@ Authorization: Bearer <your_jwt_token>
 ## API Sections
 
 - [Authentication](api/auth.md) - User authentication, permissions, and current user info
+- [Users](api/users.md) - Create users (admin only)
 - [Suppliers](api/suppliers.md) - Manage supplier/vendor information
 - [Supplier Catalog](api/supplier-catalog.md) - Link products to suppliers with pricing
 - [Purchase Entries](api/purchase-entries.md) - Record goods received from suppliers

@@ -10,6 +10,12 @@ Set your base URL:
 export BASE_URL="http://localhost:8080/api"
 ```
 
+For admin-only endpoints (e.g. creating users), set the admin API key:
+
+```bash
+export ADMIN_API_KEY="your_admin_api_key"
+```
+
 ---
 
 ## Authentication
@@ -36,6 +42,26 @@ export TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 ```bash
 curl -X GET "$BASE_URL/auth/me" \
   -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+## Users
+
+### Create User (admin only)
+
+Uses the admin API key via the `X-API-Key` header, not a JWT. `name` is required.
+
+```bash
+curl -X POST "$BASE_URL/users" \
+  -H "X-API-Key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "john_doe",
+    "name": "John Doe",
+    "password": "securepassword123",
+    "role_ids": [2, 3]
+  }'
 ```
 
 ---
