@@ -10,6 +10,7 @@ type UserErrorCode string
 const (
 	CodeInvalidRequest        UserErrorCode = "USER_INVALID_REQUEST"
 	CodeMissingUsername       UserErrorCode = "USER_MISSING_USERNAME"
+	CodeMissingName           UserErrorCode = "USER_MISSING_NAME"
 	CodeMissingPassword       UserErrorCode = "USER_MISSING_PASSWORD"        //nolint:gosec // G101: This is an error code, not a credential
 	CodeInvalidPassword       UserErrorCode = "USER_INVALID_PASSWORD"        //nolint:gosec // G101: This is an error code, not a credential
 	CodePasswordHashingFailed UserErrorCode = "USER_PASSWORD_HASHING_FAILED" //nolint:gosec // G101: This is an error code, not a credential
@@ -23,6 +24,11 @@ func NewInvalidRequestError(message string) *baseError.BaseError {
 // NewMissingUsernameError creates an error for missing username
 func NewMissingUsernameError() *baseError.BaseError {
 	return baseError.NewBaseError(baseError.ErrorCode(CodeMissingUsername), "username is required")
+}
+
+// NewMissingNameError creates an error for missing name
+func NewMissingNameError() *baseError.BaseError {
+	return baseError.NewBaseError(baseError.ErrorCode(CodeMissingName), "name is required")
 }
 
 // NewMissingPasswordError creates an error for missing password

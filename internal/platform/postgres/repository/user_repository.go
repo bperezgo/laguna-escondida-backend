@@ -21,7 +21,7 @@ func NewUserRepository(db *gorm.DB) ports.UserRepository {
 type userModel struct {
 	ID        string     `gorm:"type:uuid;primaryKey"`
 	Username  string     `gorm:"type:varchar(255);not null;uniqueIndex"`
-	Name      string     `gorm:"type:varchar(255);not null;default:'undefined'"`
+	Name      string     `gorm:"type:varchar(255);not null"`
 	Password  string     `gorm:"type:varchar(255);not null"`
 	CreatedAt time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
 	UpdatedAt time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`

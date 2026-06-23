@@ -13,6 +13,7 @@ import (
 type Aggregate struct {
 	id        string
 	username  string
+	name      string
 	password  string
 	createdAt time.Time
 	updatedAt time.Time
@@ -25,6 +26,10 @@ func NewAggregateFromCreateUserRequest(req *dto.CreateUserRequest) (*Aggregate, 
 
 	if req.Username == "" {
 		return nil, userError.NewMissingUsernameError()
+	}
+
+	if req.Name == "" {
+		return nil, userError.NewMissingNameError()
 	}
 
 	if req.Password == "" {
@@ -44,6 +49,7 @@ func NewAggregateFromCreateUserRequest(req *dto.CreateUserRequest) (*Aggregate, 
 	return &Aggregate{
 		id:        uuid.Must(uuid.NewV7()).String(),
 		username:  req.Username,
+		name:      req.Name,
 		password:  string(hashedPassword),
 		createdAt: now,
 		updatedAt: now,
@@ -54,6 +60,7 @@ func (a *Aggregate) ToDTO() *dto.User {
 	return &dto.User{
 		ID:        a.id,
 		Username:  a.username,
+		Name:      a.name,
 		Password:  a.password,
 		CreatedAt: a.createdAt,
 		UpdatedAt: a.updatedAt,
@@ -71,6 +78,7 @@ func NewAggregateFromDTO(user *dto.User) *Aggregate {
 	return &Aggregate{
 		id:        user.ID,
 		username:  user.Username,
+		name:      user.Name,
 		password:  user.Password,
 		createdAt: user.CreatedAt,
 		updatedAt: user.UpdatedAt,

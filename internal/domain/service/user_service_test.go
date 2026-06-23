@@ -38,6 +38,7 @@ func TestCreateUser_Success(t *testing.T) {
 
 	req := &dto.CreateUserRequest{
 		Username: "testuser",
+		Name:     "Test User",
 		Password: "password123",
 		RoleIDs:  []int{1, 2},
 	}
@@ -79,6 +80,7 @@ func TestCreateUser_UserAlreadyExists(t *testing.T) {
 
 	req := &dto.CreateUserRequest{
 		Username: "existinguser",
+		Name:     "Existing User",
 		Password: "password123",
 		RoleIDs:  []int{1},
 	}
@@ -100,12 +102,41 @@ func TestCreateUser_UserAlreadyExists(t *testing.T) {
 	userRoleRepo.AssertNotCalled(t, "Create")
 }
 
+func TestCreateUser_MissingName(t *testing.T) {
+	ctx := context.Background()
+	service, userRepo, roleRepo, userRoleRepo := createTestUserService(t)
+
+	req := &dto.CreateUserRequest{
+		Username: "testuser",
+		Name:     "",
+		Password: "password123",
+		RoleIDs:  []int{1},
+	}
+
+	roles := []*dto.Role{
+		createTestRole(1, "admin"),
+	}
+
+	userRepo.On("FindByUsername", ctx, req.Username).Return(nil, errors.New("not found"))
+	roleRepo.On("FindByIDs", ctx, req.RoleIDs).Return(roles, nil)
+
+	result, err := service.CreateUser(ctx, req)
+
+	assert.Nil(t, result)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "name is required")
+
+	userRepo.AssertNotCalled(t, "Create")
+	userRoleRepo.AssertNotCalled(t, "Create")
+}
+
 func TestCreateUser_RoleNotFound(t *testing.T) {
 	ctx := context.Background()
 	service, userRepo, roleRepo, userRoleRepo := createTestUserService(t)
 
 	req := &dto.CreateUserRequest{
 		Username: "testuser",
+		Name:     "Test User",
 		Password: "password123",
 		RoleIDs:  []int{999},
 	}
@@ -129,6 +160,7 @@ func TestCreateUser_InvalidRoleIDs(t *testing.T) {
 
 	req := &dto.CreateUserRequest{
 		Username: "testuser",
+		Name:     "Test User",
 		Password: "password123",
 		RoleIDs:  []int{1, 2},
 	}
@@ -156,6 +188,7 @@ func TestCreateUser_UserCreationFailed(t *testing.T) {
 
 	req := &dto.CreateUserRequest{
 		Username: "testuser",
+		Name:     "Test User",
 		Password: "password123",
 		RoleIDs:  []int{1},
 	}
@@ -184,6 +217,7 @@ func TestCreateUser_UserRoleAssignmentFailed(t *testing.T) {
 
 	req := &dto.CreateUserRequest{
 		Username: "testuser",
+		Name:     "Test User",
 		Password: "password123",
 		RoleIDs:  []int{1},
 	}
