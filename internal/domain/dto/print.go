@@ -5,5 +5,5 @@ package dto
 // sends layout or computed totals.
 type PrintTicketRequest struct {
 	OpenBillID string `json:"open_bill_id" validate:"required,uuid"`
-	Copies     int    `json:"copies" validate:"omitempty,min=1"`
+	Copies     int    `json:"copies" validate:"omitempty,min=1,max=10"`
 }

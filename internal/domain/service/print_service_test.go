@@ -105,6 +105,23 @@ func TestPrintTicket_MultipleCopies(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestPrintTicket_CopiesCappedAtMax(t *testing.T) {
+	ctx := context.Background()
+	repo := mocks.NewMockOpenBillRepository(t)
+	printer := mocks.NewMockReceiptPrinter(t)
+
+	bill := printTestOpenBill([]dto.OpenBillProductDetail{
+		printTestProductDetail("Cerveza", 1, 8000, 1520, 0, nil),
+	})
+	repo.EXPECT().FindByIDWithProducts(mock.Anything, printOpenBillID).Return(bill, nil)
+	printer.EXPECT().Print(mock.Anything, mock.Anything).Return(nil).Times(maxTicketCopies)
+
+	svc := newPrintTestService(repo, printer)
+	err := svc.PrintTicket(ctx, &dto.PrintTicketRequest{OpenBillID: printOpenBillID, Copies: 999})
+
+	require.NoError(t, err)
+}
+
 // Error Cases
 
 func TestPrintTicket_BillNotFound(t *testing.T) {

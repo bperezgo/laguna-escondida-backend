@@ -11,6 +11,12 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+// maxTicketCopies caps how many copies a single request may print. The realistic
+// need is small (merchant + customer copy, or one per payer on a split bill), so
+// this bound only exists to stop a malformed or abusive request from tying up the
+// printer spooling indefinitely.
+const maxTicketCopies = 10
+
 // PrintService orchestrates printing a receipt ("cuenta") for an open bill. It
 // loads the authoritative bill, maps it to a transport-agnostic dto.Ticket, and
 // hands it to the ReceiptPrinter. It holds no ESC/POS or byte knowledge.
@@ -33,13 +39,11 @@ func NewPrintService(
 }
 
 // PrintTicket loads the open bill, builds the ticket and prints it Copies times
-// (default 1). A missing bill is reported as ErrOpenBillNotFound and a printer
-// failure as ErrTicketPrintFailed, both wrapping the underlying error.
+// (default 1, capped at maxTicketCopies). A missing bill is reported as
+// ErrOpenBillNotFound and a printer failure as ErrTicketPrintFailed, both
+// wrapping the underlying error.
 func (s *PrintService) PrintTicket(ctx context.Context, req *dto.PrintTicketRequest) error {
-	copies := req.Copies
-	if copies < 1 {
-		copies = 1
-	}
+	copies := min(max(req.Copies, 1), maxTicketCopies)
 
 	bill, err := s.openBillRepo.FindByIDWithProducts(ctx, req.OpenBillID)
 	if err != nil {
@@ -48,7 +52,7 @@ func (s *PrintService) PrintTicket(ctx context.Context, req *dto.PrintTicketRequ
 
 	ticket := s.buildTicket(bill)
 
-	for i := 0; i < copies; i++ {
+	for range copies {
 		if err := s.printer.Print(ctx, ticket); err != nil {
 			return fmt.Errorf("%w: %w", domainError.ErrTicketPrintFailed, err)
 		}

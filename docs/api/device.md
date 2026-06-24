@@ -33,7 +33,7 @@ the backend owns.
 | Field          | Type   | Required | Description                                        |
 | -------------- | ------ | -------- | -------------------------------------------------- |
 | `open_bill_id` | string | Yes      | UUID of the open bill to print                     |
-| `copies`       | int    | No       | Number of copies to print (default `1`, min `1`)   |
+| `copies`       | int    | No       | Number of copies to print (default `1`, min `1`, max `10`). Values above the max are clamped to `10`. |
 
 ### Example Request
 

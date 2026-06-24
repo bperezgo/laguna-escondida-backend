@@ -46,7 +46,7 @@ func (h *DeviceHandler) PrintTicketHandler(c *gin.Context) {
 			})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+		RespondError(c, err)
 		return
 	}
 
