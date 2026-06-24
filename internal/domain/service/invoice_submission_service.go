@@ -170,7 +170,7 @@ func invoiceBackoff(attempts int) time.Duration {
 	if attempts > 16 {
 		return invoiceBackoffMax
 	}
-	d := invoiceBackoffBase << uint(attempts)
+	d := invoiceBackoffBase << attempts
 	if d > invoiceBackoffMax {
 		return invoiceBackoffMax
 	}

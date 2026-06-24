@@ -17,6 +17,7 @@ import (
 	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/cron"
+	"laguna-escondida/backend/internal/platform/device"
 	"laguna-escondida/backend/internal/platform/handler"
 	"laguna-escondida/backend/internal/platform/httpclient"
 	"laguna-escondida/backend/internal/platform/postgres"
@@ -466,6 +467,33 @@ func main() {
 	switch cfg.AppMode {
 	case config.ModeEdge:
 		logger.Info("Running in EDGE mode", zap.String("app_mode", string(cfg.AppMode)))
+
+		// Ticket printing (POST /api/device/print) — edge only. Build the printer
+		// transport from PRINTER_* config; if it fails (e.g. windows transport on a
+		// non-windows host, or an unreachable target), log and skip the route so the
+		// node still boots and the frontend falls back to browser printing.
+		deviceCfg := device.Config{
+			Transport: cfg.PrinterTransport,
+			Target:    cfg.PrinterTarget,
+			WidthMM:   cfg.PrinterWidthMM,
+			Codepage:  cfg.PrinterCodepage,
+			Cut:       cfg.PrinterCut,
+		}
+		if receiptPrinter, printerErr := device.NewReceiptPrinterFromConfig(deviceCfg); printerErr != nil {
+			logger.Error("Ticket printing disabled: failed to init printer transport", zap.Error(printerErr))
+		} else {
+			printService := service.NewPrintService(openBillRepo, receiptPrinter, dto.TicketBusinessInfo{
+				Name:        cfg.BusinessName,
+				NIT:         cfg.BusinessNIT,
+				Address:     cfg.BusinessAddress,
+				Footer:      cfg.TicketFooter,
+				LegalNotice: cfg.TicketLegalNotice,
+			})
+			deviceHandler := handler.NewDeviceHandler(printService)
+			router.POST("/api/device/print", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersRead), deviceHandler.PrintTicketHandler)
+			logger.Info("Ticket printing enabled", zap.String("transport", deviceCfg.Transport))
+		}
+
 		if cfg.CloudSyncURL == "" || cfg.NodeSyncKey == "" {
 			logger.Fatal("Edge sync push disabled: set CLOUD_SYNC_URL and NODE_SYNC_KEY to enable it")
 			break

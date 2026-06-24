@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/google/uuid"
 )
@@ -41,6 +42,19 @@ type Config struct {
 	InvoiceURLCron            string
 	SupportDocumentURLCron    string
 	InvoiceSubmitCron         string
+
+	// Edge ticket printing (POST /api/device/print). All optional so cloud and
+	// non-printing edge installs boot unchanged.
+	PrinterTransport  string
+	PrinterTarget     string
+	PrinterWidthMM    int
+	PrinterCodepage   string
+	PrinterCut        string
+	BusinessName      string
+	BusinessNIT       string
+	BusinessAddress   string
+	TicketFooter      string
+	TicketLegalNotice string
 }
 
 func NewConfig() (*Config, error) {
@@ -166,6 +180,29 @@ func NewConfig() (*Config, error) {
 	if invoiceSubmitCron == "" {
 		invoiceSubmitCron = "* * * * *"
 	}
+	// Edge ticket printing. The route is only wired in edge mode (cmd/main.go), so
+	// these stay optional with dev-friendly defaults (write ESC/POS to a file).
+	printerTransport := os.Getenv("PRINTER_TRANSPORT")
+	if printerTransport == "" {
+		printerTransport = "file"
+	}
+	printerTarget := os.Getenv("PRINTER_TARGET")
+	printerWidthMM := 80
+	if v := os.Getenv("PRINTER_WIDTH_MM"); v != "" {
+		parsed, err := strconv.Atoi(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid PRINTER_WIDTH_MM %q: %w", v, err)
+		}
+		printerWidthMM = parsed
+	}
+	printerCodepage := os.Getenv("PRINTER_CODEPAGE")
+	if printerCodepage == "" {
+		printerCodepage = "CP850"
+	}
+	printerCut := os.Getenv("PRINTER_CUT")
+	if printerCut == "" {
+		printerCut = "partial"
+	}
 
 	return &Config{
 		AppMode:                   appMode,
@@ -191,5 +228,15 @@ func NewConfig() (*Config, error) {
 		InvoiceURLCron:            invoiceURLCron,
 		SupportDocumentURLCron:    supportDocumentURLCron,
 		InvoiceSubmitCron:         invoiceSubmitCron,
+		PrinterTransport:          printerTransport,
+		PrinterTarget:             printerTarget,
+		PrinterWidthMM:            printerWidthMM,
+		PrinterCodepage:           printerCodepage,
+		PrinterCut:                printerCut,
+		BusinessName:              os.Getenv("BUSINESS_NAME"),
+		BusinessNIT:               os.Getenv("BUSINESS_NIT"),
+		BusinessAddress:           os.Getenv("BUSINESS_ADDRESS"),
+		TicketFooter:              os.Getenv("TICKET_FOOTER"),
+		TicketLegalNotice:         os.Getenv("TICKET_LEGAL_NOTICE"),
 	}, nil
 }

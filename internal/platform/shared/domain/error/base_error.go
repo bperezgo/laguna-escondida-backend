@@ -13,7 +13,7 @@ type ErrorCode string
 type BaseError struct {
 	code    ErrorCode
 	message string
-	field   interface{}
+	field   any
 	stack   []string
 	cause   error
 }
@@ -29,7 +29,7 @@ func NewBaseError(code ErrorCode, message string) *BaseError {
 }
 
 // NewBaseErrorWithField creates a new BaseError with the given code, message, and field value
-func NewBaseErrorWithField(code ErrorCode, message string, fieldValue interface{}) *BaseError {
+func NewBaseErrorWithField(code ErrorCode, message string, fieldValue any) *BaseError {
 	return &BaseError{
 		code:    code,
 		message: message,
@@ -57,7 +57,7 @@ func Wrap(err error, code ErrorCode, message string) *BaseError {
 }
 
 // WrapWithField wraps an existing error with a new BaseError and field value context
-func WrapWithField(err error, code ErrorCode, message string, fieldValue interface{}) *BaseError {
+func WrapWithField(err error, code ErrorCode, message string, fieldValue any) *BaseError {
 	baseErr := &BaseError{
 		code:    code,
 		message: message,
@@ -113,7 +113,7 @@ func (e *BaseError) GetFullStack() string {
 }
 
 // GetFieldValue returns the field value that caused the error
-func (e *BaseError) GetFieldValue() interface{} {
+func (e *BaseError) GetFieldValue() any {
 	return e.field
 }
 

@@ -630,3 +630,30 @@ curl -X GET "$BASE_URL/suppliers" \
 curl -s -o /dev/null -w "%{http_code}" -X GET "$BASE_URL/suppliers" \
   -H "Authorization: Bearer $TOKEN"
 ```
+
+---
+
+## Device (Ticket Printing)
+
+> Edge mode only (`APP_MODE=edge`). See `docs/api/device.md`.
+
+### Print a ticket for an open bill
+
+```bash
+curl -X POST "$BASE_URL/device/print" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "open_bill_id": "550e8400-e29b-41d4-a716-446655440099",
+    "copies": 1
+  }'
+```
+
+### Print two copies
+
+```bash
+curl -X POST "$BASE_URL/device/print" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "open_bill_id": "550e8400-e29b-41d4-a716-446655440099", "copies": 2 }'
+```
