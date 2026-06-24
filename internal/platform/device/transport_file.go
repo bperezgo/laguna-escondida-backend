@@ -20,7 +20,7 @@ func newFileTransport(dir string) (Transport, error) {
 	if dir == "" {
 		dir = "."
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return nil, fmt.Errorf("device: file transport: %w", err)
 	}
 	return &fileTransport{dir: dir}, nil
@@ -29,7 +29,7 @@ func newFileTransport(dir string) (Transport, error) {
 func (t *fileTransport) Write(_ context.Context, p []byte) error {
 	n := t.seq.Add(1)
 	name := filepath.Join(t.dir, fmt.Sprintf("ticket-%04d.escpos", n))
-	if err := os.WriteFile(name, p, 0o644); err != nil {
+	if err := os.WriteFile(name, p, 0o600); err != nil {
 		return fmt.Errorf("device: file transport write %s: %w", name, err)
 	}
 	return nil

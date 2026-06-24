@@ -58,11 +58,11 @@ func assertGolden(t *testing.T, name string, opts Options) {
 
 	golden := filepath.Join("testdata", name)
 	if *update {
-		require.NoError(t, os.MkdirAll("testdata", 0o755))
-		require.NoError(t, os.WriteFile(golden, got, 0o644))
+		require.NoError(t, os.MkdirAll("testdata", 0o750))
+		require.NoError(t, os.WriteFile(golden, got, 0o600))
 	}
 
-	want, err := os.ReadFile(golden)
+	want, err := os.ReadFile(golden) //nolint:gosec // G304: golden path is built from in-test constant names
 	require.NoErrorf(t, err, "missing golden %s (run: go test ./... -run Golden -update)", golden)
 	assert.Equalf(t, want, got, "rendered bytes differ from %s (run -update to refresh)", golden)
 }
