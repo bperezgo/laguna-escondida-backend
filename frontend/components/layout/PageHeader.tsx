@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, usePathname } from "next/navigation";
+import ConnectivityBadge from "@/components/layout/ConnectivityBadge";
 
 export default function PageHeader() {
   const router = useRouter();
@@ -109,6 +110,8 @@ export default function PageHeader() {
             {title}
           </h1>
         </div>
+
+        <ConnectivityBadge />
 
         <button
           onClick={handleSignOut}

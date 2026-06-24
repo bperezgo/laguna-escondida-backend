@@ -50,6 +50,16 @@ export const invoicesApi = {
   },
 
   /**
+   * Manually re-submit an invoice to the cloud (for failed / pending states).
+   * ⚠ Confirm the backend exposes this endpoint.
+   */
+  async retry(id: string): Promise<void> {
+    return apiRequest<void>(`/invoices/${id}/retry`, {
+      method: "POST",
+    });
+  },
+
+  /**
    * Export invoices as CSV file
    */
   async exportCSV(filters?: InvoiceFilters): Promise<void> {

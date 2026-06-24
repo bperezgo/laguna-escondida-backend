@@ -73,6 +73,17 @@ export interface InvoiceFilters {
   national_identification?: string;
 }
 
+/**
+ * Cloud-submission lifecycle of an electronic invoice. When offline the edge
+ * node prints now and queues the document; the status flips once submitted.
+ *
+ * ⚠ Confirm the backend exposes this field on the list item.
+ */
+export type InvoiceSubmissionStatus =
+  | "pending_submission"
+  | "submitted"
+  | "failed";
+
 export interface InvoiceListItem {
   id: string;
   total_amount: number;
@@ -85,6 +96,8 @@ export interface InvoiceListItem {
   tascode: string;
   customer_id: string | null;
   created_at: string;
+  /** Optional — present once the backend reports submission lifecycle. */
+  submission_status?: InvoiceSubmissionStatus;
 }
 
 export interface InvoiceListResponse {

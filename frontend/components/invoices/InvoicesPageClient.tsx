@@ -6,11 +6,22 @@ import type {
   CreateElectronicInvoiceRequest,
   InvoiceListItem,
   InvoiceFilters,
+  InvoiceSubmissionStatus,
 } from "@/types/invoice";
 import InvoiceForm from "@/components/invoices/InvoiceForm";
 import { PermissionGate } from "@/components/permissions";
 import { PERMISSIONS } from "@/lib/permissions";
-import { Button, Input, Table } from "@/components/ui";
+import { Badge, Button, Input, Table } from "@/components/ui";
+import type { BadgeTone } from "@/components/ui";
+
+const SUBMISSION_STATUS: Record<
+  InvoiceSubmissionStatus,
+  { label: string; tone: BadgeTone }
+> = {
+  pending_submission: { label: "Pendiente de envío", tone: "warning" },
+  submitted: { label: "Enviada", tone: "success" },
+  failed: { label: "Fallida", tone: "danger" },
+};
 
 export default function InvoicesPageClient() {
   const [showForm, setShowForm] = useState<boolean>(false);
@@ -18,6 +29,7 @@ export default function InvoicesPageClient() {
   const [exportLoading, setExportLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   const [success, setSuccess] = useState<string>("");
+  const [retryingId, setRetryingId] = useState<string | null>(null);
 
   // Invoice list state
   const [invoices, setInvoices] = useState<InvoiceListItem[]>([]);
@@ -166,6 +178,26 @@ export default function InvoicesPageClient() {
   // Handle document click - open PDF in new tab
   const handleDocumentClick = (url: string) => {
     window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  // Manually re-submit an invoice that is pending or failed
+  const handleRetry = async (id: string) => {
+    try {
+      setRetryingId(id);
+      setError("");
+      setSuccess("");
+      await invoicesApi.retry(id);
+      setSuccess("Reenvío de factura en proceso");
+      setTimeout(() => setSuccess(""), 3000);
+      fetchInvoices();
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Error al reenviar la factura";
+      setError(errorMessage);
+      console.error("Error retrying invoice submission:", err);
+    } finally {
+      setRetryingId(null);
+    }
   };
 
   // Format date and time
@@ -410,6 +442,7 @@ export default function InvoicesPageClient() {
               <thead>
                 <tr>
                   <th>Fecha de Creación</th>
+                  <th>Estado</th>
                   <th>CUFE</th>
                   <th>Tascode</th>
                   <th data-numeric>Total</th>
@@ -421,9 +454,49 @@ export default function InvoicesPageClient() {
                 </tr>
               </thead>
               <tbody>
-                {invoices.map((invoice) => (
+                {invoices.map((invoice) => {
+                  const submission = invoice.submission_status
+                    ? SUBMISSION_STATUS[invoice.submission_status]
+                    : null;
+                  const canRetry =
+                    invoice.submission_status === "failed" ||
+                    invoice.submission_status === "pending_submission";
+                  return (
                   <tr key={invoice.id}>
                     <td>{formatDateTime(invoice.created_at)}</td>
+                    <td>
+                      {submission ? (
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.5rem",
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <Badge tone={submission.tone}>
+                            {submission.label}
+                          </Badge>
+                          {canRetry && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRetry(invoice.id)}
+                              disabled={retryingId === invoice.id}
+                              title="Reintentar envío"
+                            >
+                              {retryingId === invoice.id
+                                ? "Reenviando..."
+                                : "Reintentar"}
+                            </Button>
+                          )}
+                        </div>
+                      ) : (
+                        <span style={{ color: "var(--color-text-muted)" }}>
+                          —
+                        </span>
+                      )}
+                    </td>
                     <td
                       style={{
                         fontSize: "0.75rem",
@@ -503,7 +576,8 @@ export default function InvoicesPageClient() {
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </Table>
 

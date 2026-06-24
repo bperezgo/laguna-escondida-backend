@@ -1,13 +1,20 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { payOrder } from "@/lib/api/orders";
 import { printTicket } from "@/lib/api/device";
 import { getBillOwnerById } from "@/lib/api/billOwners";
 import { generateInvoicePrintHTML } from "@/lib/templates/invoicePrint";
+import { useEdgeStatus } from "@/lib/edge/context";
 import type { OpenBillWithProducts } from "@/types/order";
 import type { PaymentType, PayOrderRequest } from "@/types/billOwner";
 import { Button, Input, Modal, Select } from "@/components/ui";
+
+// Card payment types require internet (cleared by the bank in real time).
+const CARD_PAYMENT_TYPES: PaymentType[] = ["credit_card", "debit_card"];
+const isCardPaymentType = (type: PaymentType) =>
+  CARD_PAYMENT_TYPES.includes(type);
+const DEFAULT_PAYMENT_TYPE: PaymentType = "transfer_debit_bank";
 
 interface PaymentModalProps {
   openBill: OpenBillWithProducts;
@@ -21,6 +28,7 @@ export default function PaymentModal({
   onSuccess,
 }: PaymentModalProps) {
   const printRef = useRef<HTMLDivElement>(null);
+  const { isOffline } = useEdgeStatus();
   const [isPaying, setIsPaying] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,8 +46,16 @@ export default function PaymentModal({
 
   // Payment type
   const [paymentType, setPaymentType] = useState<PaymentType>(
-    "transfer_debit_bank",
+    DEFAULT_PAYMENT_TYPE,
   );
+
+  // If we go offline while a card type is selected, reset to a usable default so
+  // submit can't fire on a disabled option.
+  useEffect(() => {
+    if (isOffline && isCardPaymentType(paymentType)) {
+      setPaymentType(DEFAULT_PAYMENT_TYPE);
+    }
+  }, [isOffline, paymentType]);
 
   // Group products by product ID (consolidate duplicates)
   const groupedProducts = () => {
@@ -165,6 +181,14 @@ export default function PaymentModal({
   };
 
   const handlePayment = async () => {
+    // Defense in depth: never submit a card payment while offline.
+    if (isOffline && isCardPaymentType(paymentType)) {
+      setError(
+        "No se puede pagar con tarjeta sin conexión. Selecciona efectivo o transferencia.",
+      );
+      return;
+    }
+
     setIsPaying(true);
     setError(null);
     try {
@@ -308,8 +332,12 @@ export default function PaymentModal({
           disabled={isPaying}
         >
           <option value="cash">Efectivo</option>
-          <option value="credit_card">Tarjeta de Crédito</option>
-          <option value="debit_card">Tarjeta de Débito</option>
+          <option value="credit_card" disabled={isOffline}>
+            Tarjeta de Crédito{isOffline ? " (no disponible sin conexión)" : ""}
+          </option>
+          <option value="debit_card" disabled={isOffline}>
+            Tarjeta de Débito{isOffline ? " (no disponible sin conexión)" : ""}
+          </option>
           <option value="transfer_debit_bank">
             Transferencia Débito Bancaria
           </option>
@@ -320,6 +348,18 @@ export default function PaymentModal({
             Transferencia Débito Interbancaria
           </option>
         </Select>
+        {isOffline && (
+          <p
+            style={{
+              margin: "0.5rem 0 0 0",
+              fontSize: "0.8125rem",
+              color: "var(--color-warning-text)",
+            }}
+          >
+            Tarjeta no disponible — sin conexión. El cliente puede pagar por
+            transferencia desde su teléfono.
+          </p>
+        )}
       </div>
 
       {/* Customer Search */}
