@@ -10,27 +10,39 @@ import (
 )
 
 type Scheduler struct {
-	scheduler              gocron.Scheduler
-	invoiceService         *service.InvoiceService
-	supportDocumentService *service.SupportDocumentService
-	invoiceCron            string
-	supportDocumentCron    string
-	logger                 *zap.Logger
+	scheduler                gocron.Scheduler
+	invoiceService           *service.InvoiceService
+	supportDocumentService   *service.SupportDocumentService
+	invoiceSubmissionService *service.InvoiceSubmissionService
+	invoiceCron              string
+	supportDocumentCron      string
+	invoiceSubmitCron        string
+	logger                   *zap.Logger
 }
 
-func NewScheduler(invoiceService *service.InvoiceService, supportDocumentService *service.SupportDocumentService, invoiceCron string, supportDocumentCron string, logger *zap.Logger) (*Scheduler, error) {
+func NewScheduler(
+	invoiceService *service.InvoiceService,
+	supportDocumentService *service.SupportDocumentService,
+	invoiceSubmissionService *service.InvoiceSubmissionService,
+	invoiceCron string,
+	supportDocumentCron string,
+	invoiceSubmitCron string,
+	logger *zap.Logger,
+) (*Scheduler, error) {
 	scheduler, err := gocron.NewScheduler()
 	if err != nil {
 		return nil, err
 	}
 
 	return &Scheduler{
-		scheduler:              scheduler,
-		invoiceService:         invoiceService,
-		supportDocumentService: supportDocumentService,
-		invoiceCron:            invoiceCron,
-		supportDocumentCron:    supportDocumentCron,
-		logger:                 logger,
+		scheduler:                scheduler,
+		invoiceService:           invoiceService,
+		supportDocumentService:   supportDocumentService,
+		invoiceSubmissionService: invoiceSubmissionService,
+		invoiceCron:              invoiceCron,
+		supportDocumentCron:      supportDocumentCron,
+		invoiceSubmitCron:        invoiceSubmitCron,
+		logger:                   logger,
 	}, nil
 }
 
@@ -70,7 +82,30 @@ func (s *Scheduler) registerJobs() error {
 	}
 
 	s.logger.Info("Registered cron job: updateMissingSupportDocumentURLs", zap.String("cron", s.supportDocumentCron))
+
+	_, err = s.scheduler.NewJob(
+		gocron.CronJob(s.invoiceSubmitCron, false),
+		gocron.NewTask(s.submitPendingInvoicesJob),
+	)
+	if err != nil {
+		s.logger.Error("Failed to register submitPendingInvoices cron job", zap.Error(err))
+		return err
+	}
+
+	s.logger.Info("Registered cron job: submitPendingInvoices", zap.String("cron", s.invoiceSubmitCron))
 	return nil
+}
+
+func (s *Scheduler) submitPendingInvoicesJob() {
+	s.logger.Info("Cron job started: submitPendingInvoices")
+
+	ctx := context.Background()
+	if err := s.invoiceSubmissionService.SubmitDue(ctx); err != nil {
+		s.logger.Error("Cron job submitPendingInvoices failed", zap.Error(err))
+		return
+	}
+
+	s.logger.Info("Cron job submitPendingInvoices completed")
 }
 
 func (s *Scheduler) updateMissingDocumentURLsJob() {

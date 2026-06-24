@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"laguna-escondida/backend/internal/domain/aggregate/bill"
@@ -17,16 +18,14 @@ import (
 )
 
 type BillRepository struct {
-	db                      *gorm.DB
-	electronicInvoiceClient ports.ElectronicInvoiceClient
-	config                  *config.Config
+	db     *gorm.DB
+	config *config.Config
 }
 
-func NewBillRepository(db *gorm.DB, electronicInvoiceClient ports.ElectronicInvoiceClient, cfg *config.Config) ports.BillRepository {
+func NewBillRepository(db *gorm.DB, cfg *config.Config) ports.BillRepository {
 	return &BillRepository{
-		db:                      db,
-		electronicInvoiceClient: electronicInvoiceClient,
-		config:                  cfg,
+		db:     db,
+		config: cfg,
 	}
 }
 
@@ -41,6 +40,11 @@ func (r *BillRepository) GetNextConsecutive(ctx context.Context, prefix string) 
 	return lastConsecutive, nil
 }
 
+// Create persists the finalized bill and enqueues its electronic-invoice submission in one
+// transaction. It deliberately does NOT call the fiscal provider: that is an external HTTP
+// call and must not hold a DB transaction open nor block closing the order when offline. The
+// reserved prefix+consecutive and the full provider request are captured in pending_invoices
+// so the background submitter can issue (and idempotently retry) the exact same invoice later.
 func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, products []*dto.Product) error {
 	consecutive, err := r.GetNextConsecutive(ctx, constants.InvoicePrefix)
 	if err != nil {
@@ -54,9 +58,20 @@ func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, produ
 		billOwnerID = &billDTO.Customer.DocumentNumber
 	}
 
-	var response *dto.CreateElectronicInvoiceResponse
+	req := &dto.CreateElectronicInvoiceRequest{
+		Prefix:      r.config.ElectronicInvoicePrefix,
+		Consecutive: consecutive,
+		PaymentCode: bill.PaymentCode(),
+		Bill:        billDTO,
+		Products:    products,
+	}
+	requestPayload, err := json.Marshal(req)
+	if err != nil {
+		return err
+	}
+
 	db := postgres.GetTxOrDB(ctx, r.db)
-	err = db.Transaction(func(tx *gorm.DB) error {
+	return db.Transaction(func(tx *gorm.DB) error {
 		billModel := &billModel{
 			ID:             billDTO.ID,
 			BillOwnerID:    billOwnerID,
@@ -111,39 +126,31 @@ func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, produ
 			}
 		}
 
-		req := &dto.CreateElectronicInvoiceRequest{
-			Prefix:      r.config.ElectronicInvoicePrefix,
-			Consecutive: consecutive,
-			PaymentCode: bill.PaymentCode(),
-			Bill:        billDTO,
-			Products:    products,
+		pending := &pendingInvoiceModel{
+			BillID:         billDTO.ID,
+			Prefix:         req.Prefix,
+			Consecutive:    consecutive,
+			RequestPayload: string(requestPayload),
+			Status:         string(dto.PendingInvoiceStatusPending),
 		}
-
-		response, err = r.electronicInvoiceClient.Create(ctx, req)
-		if err != nil {
+		if err = tx.Create(pending).Error; err != nil {
 			return err
 		}
 
 		return nil
 	})
+}
 
-	if err != nil {
-		return err
-	}
-
-	if response != nil {
-		db := postgres.GetTxOrDB(ctx, r.db)
-		if err := db.Model(&billModel{}).
-			Where("id = ?", billDTO.ID).
-			Updates(map[string]any{
-				"cufe":    response.CUFE,
-				"tascode": response.Tascode,
-			}).Error; err != nil {
-			return err
-		}
-	}
-
-	return nil
+// SetInvoiceResult records the CUFE/Tascode returned by the fiscal provider once the queued
+// invoice is submitted by the background submitter.
+func (r *BillRepository) SetInvoiceResult(ctx context.Context, billID string, cufe string, tascode string) error {
+	db := postgres.GetTxOrDB(ctx, r.db)
+	return db.Model(&billModel{}).
+		Where("id = ?", billID).
+		Updates(map[string]any{
+			"cufe":    cufe,
+			"tascode": tascode,
+		}).Error
 }
 
 func (r *BillRepository) FindByID(ctx context.Context, id string) (*dto.Bill, error) {

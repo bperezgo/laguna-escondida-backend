@@ -93,7 +93,8 @@ func main() {
 	expenseRepo := repository.NewExpenseRepository(db.DB)
 	productIngredientRepo := repository.NewProductIngredientRepository(db.DB)
 	electronicInvoiceClient := httpclient.NewElectronicInvoiceClient(cfg, httpClient)
-	billRepo := repository.NewBillRepository(db.DB, electronicInvoiceClient, cfg)
+	billRepo := repository.NewBillRepository(db.DB, cfg)
+	pendingInvoiceRepo := repository.NewPendingInvoiceRepository(db.DB)
 	invoiceService := service.NewInvoiceService(electronicInvoiceClient, productRepo, billRepo, spacesClient, cfg.OrganizationID)
 
 	// Initialize SSE Hubs
@@ -128,6 +129,7 @@ func main() {
 	syncAppliers := map[dto.SyncEntityType]ports.SyncApplier{
 		dto.SyncEntityOpenBill:      repository.NewOpenBillSyncApplier(db.DB),
 		dto.SyncEntityPurchaseEntry: repository.NewPurchaseEntrySyncApplier(db.DB),
+		dto.SyncEntityBill:          repository.NewBillSyncApplier(db.DB),
 	}
 	syncService := service.NewSyncService(unitOfWork, syncInboxRepo, syncAppliers, slogLogger)
 	syncReferenceService := service.NewSyncReferenceService(syncReferenceRepo, slogLogger)
@@ -162,6 +164,19 @@ func main() {
 	financialService := service.NewFinancialService(billRepo, expenseRepo, purchaseEntryRepo)
 	supportDocRepo := repository.NewSupportDocumentRepository(db.DB, electronicInvoiceClient, cfg)
 	supportDocService := service.NewSupportDocumentService(electronicInvoiceClient, supportDocRepo, spacesClient, cfg.OrganizationID)
+	// Drains the pending_invoices queue: issues queued electronic invoices to the fiscal
+	// provider out-of-band (so paying an order never blocks on it), stores the CUFE on the
+	// bill, and replicates that result to the cloud. Runs in both modes — the queue only ever
+	// has rows on the node that took the payment.
+	invoiceSubmissionService := service.NewInvoiceSubmissionService(
+		pendingInvoiceRepo,
+		billRepo,
+		electronicInvoiceClient,
+		unitOfWork,
+		syncOutboxRepo,
+		syncIdentity,
+		logger,
+	)
 
 	// Initialize Event Subscriber
 	eventSubscriber, err := eventbus.NewGoChannelEventSubscriber(eventBusImpl.PubSub(), watermillLogger)
@@ -277,7 +292,7 @@ func main() {
 	}()
 
 	// Initialize and start cron scheduler
-	cronScheduler, err := cron.NewScheduler(invoiceService, supportDocService, cfg.InvoiceURLCron, cfg.SupportDocumentURLCron, logger)
+	cronScheduler, err := cron.NewScheduler(invoiceService, supportDocService, invoiceSubmissionService, cfg.InvoiceURLCron, cfg.SupportDocumentURLCron, cfg.InvoiceSubmitCron, logger)
 	if err != nil {
 		log.Fatalf("Failed to create cron scheduler: %v", err)
 	}

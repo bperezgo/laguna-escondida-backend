@@ -30,7 +30,7 @@ x-app-env: &app-env
   ORGANIZATION_ID: test-org
   JWT_SECRET: test-jwt-secret
   ADMIN_API_KEY: test-admin-key
-  NODE_SYNC_KEY: test-sync-key            # must match on both sides (cloud NodeAuth)
+  NODE_SYNC_KEY: test-sync-key # must match on both sides (cloud NodeAuth)
   # Electronic-invoice API is online-only and unused by the sync tests; dummy values.
   ELECTRONIC_INVOICE_URL: http://invoice.invalid
   ELECTRONIC_INVOICE_USER: test
@@ -56,7 +56,7 @@ services:
     volumes:
       - cloud_db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -102,7 +102,7 @@ services:
     volumes:
       - edge_db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -120,7 +120,7 @@ services:
       APP_MODE: edge
       DB_HOST: edge-db
       CLOUD_SYNC_URL: http://cloud:8080
-      SYNC_PUSH_CRON: "* * * * *"          # every minute (5-field cron floor)
+      SYNC_PUSH_CRON: "* * * * *" # every minute (5-field cron floor)
       SYNC_PULL_CRON: "* * * * *"
       # Inert: edge storage is online-only. Placeholders satisfy config validation;
       # the lazy S3 client is never contacted by the sync tests.
@@ -148,8 +148,8 @@ services:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     ports:
-      - "9100:9000"   # S3 API (host 9100 to avoid clashing with the dev compose's 9000)
-      - "9101:9001"   # web console -> http://localhost:9101 (minioadmin / minioadmin)
+      - "9100:9000" # S3 API (host 9100 to avoid clashing with the dev compose's 9000)
+      - "9101:9001" # web console -> http://localhost:9101 (minioadmin / minioadmin)
     volumes:
       - minio_data:/data
     networks:
@@ -161,15 +161,9 @@ services:
     depends_on:
       - minio
     entrypoint: >
-      /bin/sh -c "
-      until mc alias set local http://minio:9000 minioadmin minioadmin; do
+      /bin/sh -c " until mc alias set local http://minio:9000 minioadmin minioadmin; do
         echo 'Waiting for MinIO to be ready...'; sleep 1;
-      done;
-      mc mb --ignore-existing local/laguna-escondida;
-      mc anonymous set download local/laguna-escondida;
-      echo 'Bucket ready.';
-      exit 0;
-      "
+      done; mc mb --ignore-existing local/laguna-escondida; mc anonymous set download local/laguna-escondida; echo 'Bucket ready.'; exit 0; "
     networks:
       - laguna-sync-network
 

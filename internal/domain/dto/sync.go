@@ -34,6 +34,7 @@ type SyncEntityType string
 const (
 	SyncEntityOpenBill      SyncEntityType = "open_bill"
 	SyncEntityPurchaseEntry SyncEntityType = "purchase_entry"
+	SyncEntityBill          SyncEntityType = "bill"
 )
 
 // SyncOutboxEntry is one durable change queued for replication to a peer node.
@@ -170,6 +171,35 @@ type SyncPullResult struct {
 	Products  int
 	Users     int
 	Suppliers int
+}
+
+// BillSyncProduct is one finalized line item carried in a bill sync payload: just the
+// product id and quantity, enough for a peer to rebuild bill_products (the product's
+// price/tax detail is cloud-owned reference data, already replicated separately).
+type BillSyncProduct struct {
+	ProductID string `json:"product_id"`
+	Quantity  int    `json:"quantity"`
+}
+
+// BillSyncPayload is the row snapshot carried in a sync_outbox entry for a finalized
+// bill, replicated restaurant → cloud. A create carries the header amounts, the embedded
+// customer (so the peer can upsert bill_owner), and the line items; CUFE/Tascode are nil
+// until the invoice is submitted. The later submission emits an update whose CUFE/Tascode
+// are populated — bills are append-only, so the update path only touches those columns.
+type BillSyncPayload struct {
+	ID             string            `json:"id"`
+	Customer       *Customer         `json:"customer,omitempty"`
+	TotalAmount    decimal.Decimal   `json:"total_amount"`
+	DiscountAmount decimal.Decimal   `json:"discount_amount"`
+	VAT            decimal.Decimal   `json:"vat"`
+	ICO            decimal.Decimal   `json:"ico"`
+	Tip            decimal.Decimal   `json:"tip"`
+	CUFE           *string           `json:"cufe,omitempty"`
+	Tascode        *string           `json:"tascode,omitempty"`
+	DocumentURL    *string           `json:"document_url,omitempty"`
+	Products       []BillSyncProduct `json:"products,omitempty"`
+	CreatedAt      time.Time         `json:"created_at"`
+	UpdatedAt      time.Time         `json:"updated_at"`
 }
 
 // OpenBillSyncPayload is the row snapshot carried in a sync_outbox entry for an

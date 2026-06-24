@@ -40,6 +40,7 @@ type Config struct {
 	OrganizationID            string
 	InvoiceURLCron            string
 	SupportDocumentURLCron    string
+	InvoiceSubmitCron         string
 }
 
 func NewConfig() (*Config, error) {
@@ -157,6 +158,15 @@ func NewConfig() (*Config, error) {
 		supportDocumentURLCron = "30 * * * *"
 	}
 
+	// InvoiceSubmitCron is how often the background submitter drains the pending_invoices
+	// queue (issues queued electronic invoices to the fiscal provider). Default: every minute,
+	// so an invoice is issued shortly after the order is paid once the provider is reachable.
+	// Per-row backoff (next_attempt_at), not this cron, throttles retries of a failing invoice.
+	invoiceSubmitCron := os.Getenv("INVOICE_SUBMIT_CRON")
+	if invoiceSubmitCron == "" {
+		invoiceSubmitCron = "* * * * *"
+	}
+
 	return &Config{
 		AppMode:                   appMode,
 		NodeID:                    nodeID,
@@ -180,5 +190,6 @@ func NewConfig() (*Config, error) {
 		OrganizationID:            organizationID,
 		InvoiceURLCron:            invoiceURLCron,
 		SupportDocumentURLCron:    supportDocumentURLCron,
+		InvoiceSubmitCron:         invoiceSubmitCron,
 	}, nil
 }

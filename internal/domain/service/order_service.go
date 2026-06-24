@@ -435,13 +435,71 @@ func (s *OrderService) PayOrder(ctx context.Context, payOrderCommand command.Pay
 			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
 		}
 
-		// It is better to leave this execution to the end, because internally it calls the invoice provider
-		// And if it fails, it will be hard to compensate that operation.
+		// Persist the finalized bill and enqueue its electronic invoice. This no longer calls
+		// the fiscal provider inline (that is an external HTTP call drained asynchronously by
+		// the submitter), so paying an order succeeds even when the provider is unreachable.
 		if err := s.billRepo.Create(txCtx, billAggregate, productDTOs); err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
 		}
 
+		// Replicate the pay outcome to the cloud (Option A, same transaction): the open_bill
+		// is gone (tombstone) and a finalized bill now exists. The bill snapshot is the same
+		// deterministic DTO the repository persisted. The bill's CUFE syncs later via an update
+		// outbox row written when the submitter issues the invoice.
+		if err := s.appendOpenBillDeleteOutbox(txCtx, payOrderCommand.OpenBillID); err != nil {
+			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
+		}
+		if err := s.appendBillCreateOutbox(txCtx, billAggregate.ToDTO()); err != nil {
+			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
+		}
+
 		return nil
+	})
+}
+
+// appendBillCreateOutbox writes one sync_outbox row replicating a finalized bill to the
+// cloud. It must be called inside a UnitOfWork transaction (Option A). CUFE/Tascode are nil
+// here — they are filled in by a later update outbox row once the invoice is submitted.
+func (s *OrderService) appendBillCreateOutbox(ctx context.Context, billDTO *dto.Bill) error {
+	opID, err := uuid.NewV7()
+	if err != nil {
+		return fmt.Errorf("generate bill outbox op_id: %w", err)
+	}
+
+	items := make([]dto.BillSyncProduct, 0, len(billDTO.Products))
+	for _, p := range billDTO.Products {
+		items = append(items, dto.BillSyncProduct{
+			ProductID: p.ProductID,
+			Quantity:  p.Quantity,
+		})
+	}
+
+	payload := dto.BillSyncPayload{
+		ID:             billDTO.ID,
+		Customer:       billDTO.Customer,
+		TotalAmount:    billDTO.TotalAmount,
+		DiscountAmount: billDTO.DiscountAmount,
+		VAT:            billDTO.VAT,
+		ICO:            billDTO.ICO,
+		Tip:            billDTO.Tip,
+		DocumentURL:    billDTO.DocumentURL,
+		Products:       items,
+		CreatedAt:      billDTO.CreatedAt,
+		UpdatedAt:      billDTO.UpdatedAt,
+	}
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal bill sync payload: %w", err)
+	}
+
+	return s.outboxRepo.Append(ctx, &dto.SyncOutboxEntry{
+		OpID:         opID.String(),
+		OriginNodeID: s.syncIdentity.NodeID,
+		EntityType:   dto.SyncEntityBill,
+		EntityID:     billDTO.ID,
+		Operation:    dto.SyncOperationCreate,
+		Payload:      payloadBytes,
 	})
 }
 
