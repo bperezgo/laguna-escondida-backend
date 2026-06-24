@@ -33,6 +33,18 @@ export default function PaymentModal({
   const [isPrinting, setIsPrinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Printing only works from a computer (browser print / edge printer), so the
+  // "Imprimir Cuenta" button is hidden on the waitress phone (<768px) where it
+  // would just be dead weight crowding the footer.
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
   // Customer search and form
   const [customerId, setCustomerId] = useState("");
   const [isSearching, setIsSearching] = useState(false);

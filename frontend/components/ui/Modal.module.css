@@ -78,6 +78,7 @@
   border-top: 1px solid var(--color-border);
   background: var(--color-bg);
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   justify-content: flex-end;
 }
