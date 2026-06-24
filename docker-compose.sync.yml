@@ -25,17 +25,26 @@ name: laguna-sync
 # mode-specific values (APP_MODE, DB_HOST, storage, sync target). Both apps share
 # ORGANIZATION_ID so their sync node IDs derive consistently with no manual wiring:
 # the cloud's NodeID == the edge's derived CloudNodeID automatically.
+#
+# App-level values use ${VAR:-default}: Compose auto-loads .env from the repo root
+# (or use `--env-file`, or a shell var, which wins over .env) and falls back to the
+# test default when unset — so you can point at a real invoice provider without
+# editing this file. DB creds and PORT are left literal on purpose: they are pinned
+# to the postgres containers (POSTGRES_*) and the `ports:` mappings below, so
+# overriding only the app side would silently break connections.
 x-app-env: &app-env
   PORT: "8080"
-  ORGANIZATION_ID: test-org
-  JWT_SECRET: test-jwt-secret
-  ADMIN_API_KEY: test-admin-key
-  NODE_SYNC_KEY: test-sync-key # must match on both sides (cloud NodeAuth)
-  # Electronic-invoice API is online-only and unused by the sync tests; dummy values.
-  ELECTRONIC_INVOICE_URL: http://invoice.invalid
-  ELECTRONIC_INVOICE_USER: test
-  ELECTRONIC_INVOICE_PASSWORD: test
-  # Shared DB credentials (host differs per service).
+  ORGANIZATION_ID: "${ORGANIZATION_ID:-test-org}"
+  JWT_SECRET: "${JWT_SECRET:-test-jwt-secret}"
+  ADMIN_API_KEY: "${ADMIN_API_KEY:-test-admin-key}"
+  NODE_SYNC_KEY: "${NODE_SYNC_KEY:-test-sync-key}" # must match on both sides (cloud NodeAuth)
+  # Electronic-invoice API. Defaults are inert dummies (the sync tests never call it);
+  # set these in .env to exercise real submission against a provider.
+  ELECTRONIC_INVOICE_URL: "${ELECTRONIC_INVOICE_URL:-http://invoice.invalid}"
+  ELECTRONIC_INVOICE_USER: "${ELECTRONIC_INVOICE_USER:-test}"
+  ELECTRONIC_INVOICE_PASSWORD: "${ELECTRONIC_INVOICE_PASSWORD:-test}"
+  # Shared DB credentials (host differs per service). Literal: must match the
+  # POSTGRES_* values the cloud-db / edge-db containers initialize with.
   DB_PORT: "5432"
   DB_USER: postgres
   DB_PASSWORD: postgres
