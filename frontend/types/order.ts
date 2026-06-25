@@ -59,6 +59,16 @@ export interface OpenBillListResponse {
   total?: number;
 }
 
+// Device ticket printing (edge node only — POST /api/device/print)
+export interface PrintTicketRequest {
+  open_bill_id: string;
+  copies?: number;
+}
+
+export interface PrintTicketResponse {
+  printed: boolean;
+}
+
 // Order Product Item for creating orders
 export interface OrderProductItem {
   open_bill_product_id: string;

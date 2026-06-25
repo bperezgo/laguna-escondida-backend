@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { payOrder } from "@/lib/api/orders";
+import { printTicket } from "@/lib/api/device";
 import { getBillOwnerById } from "@/lib/api/billOwners";
 import { generateInvoicePrintHTML } from "@/lib/templates/invoicePrint";
 import type { OpenBillWithProducts } from "@/types/order";
@@ -21,6 +22,7 @@ export default function PaymentModal({
 }: PaymentModalProps) {
   const printRef = useRef<HTMLDivElement>(null);
   const [isPaying, setIsPaying] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Customer search and form
@@ -88,7 +90,9 @@ export default function PaymentModal({
   const consolidated = groupedProducts();
   const { subtotal, totalVAT, totalICO, total } = calculateTotals();
 
-  const handlePrint = () => {
+  // Browser fallback: opens a print window with the rendered HTML. Used when the
+  // edge printer endpoint is unavailable (e.g. cloud mode, or printer offline).
+  const browserPrint = () => {
     const printContent = printRef.current;
     if (!printContent) return;
 
@@ -109,6 +113,22 @@ export default function PaymentModal({
       printWindow.print();
       printWindow.close();
     }, 250);
+  };
+
+  // Print on the edge node's physical receipt printer via POST /api/device/print.
+  // Falls back to browser printing if the endpoint is unavailable or the printer
+  // cannot be reached.
+  const handlePrint = async () => {
+    if (isPrinting) return;
+    setIsPrinting(true);
+    try {
+      await printTicket({ open_bill_id: openBill.id });
+    } catch (err) {
+      console.error("Edge print failed, falling back to browser print:", err);
+      browserPrint();
+    } finally {
+      setIsPrinting(false);
+    }
   };
 
   const handleSearchCustomer = async () => {
@@ -209,7 +229,7 @@ export default function PaymentModal({
           <Button
             variant="secondary"
             onClick={handlePrint}
-            disabled={isPaying}
+            disabled={isPaying || isPrinting}
             leftIcon={
               <svg
                 width="16"
@@ -227,7 +247,7 @@ export default function PaymentModal({
               </svg>
             }
           >
-            Imprimir Cuenta
+            {isPrinting ? "Imprimiendo..." : "Imprimir Cuenta"}
           </Button>
           <Button onClick={handlePayment} disabled={isPaying}>
             {isPaying ? "Procesando..." : "Pagar y Cerrar Cuenta"}

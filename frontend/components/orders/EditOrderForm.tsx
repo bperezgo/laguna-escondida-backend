@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { productsApi } from "@/lib/api/products";
 import { updateOrder } from "@/lib/api/orders";
+import { printTicket } from "@/lib/api/device";
 import { generateInvoicePrintHTML } from "@/lib/templates/invoicePrint";
 import { PermissionGate } from "@/components/permissions";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -48,6 +49,7 @@ export default function EditOrderForm({
     openBill.temporal_identifier,
   );
   const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProducts, setSelectedProducts] = useState<
     Map<string, ProductWithQuantity>
@@ -274,7 +276,9 @@ export default function EditOrderForm({
     return { subtotal, totalVAT, totalICO, total: subtotal + totalVAT + totalICO };
   }, [openBill.products]);
 
-  const handlePrint = () => {
+  // Browser fallback: opens a print window with the rendered HTML. Used when the
+  // edge printer endpoint is unavailable (e.g. cloud mode, or printer offline).
+  const browserPrint = () => {
     const printContentEl = printRef.current;
     if (!printContentEl) return;
     const printWindow = window.open("", "_blank");
@@ -291,6 +295,22 @@ export default function EditOrderForm({
       printWindow.print();
       printWindow.close();
     }, 250);
+  };
+
+  // Print on the edge node's physical receipt printer via POST /api/device/print.
+  // Falls back to browser printing if the endpoint is unavailable or the printer
+  // cannot be reached.
+  const handlePrint = async () => {
+    if (isPrinting) return;
+    setIsPrinting(true);
+    try {
+      await printTicket({ open_bill_id: openBill.id });
+    } catch (err) {
+      console.error("Edge print failed, falling back to browser print:", err);
+      browserPrint();
+    } finally {
+      setIsPrinting(false);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -767,8 +787,9 @@ export default function EditOrderForm({
                     variant="secondary"
                     size="sm"
                     onClick={handlePrint}
+                    disabled={isPrinting}
                   >
-                    Imprimir
+                    {isPrinting ? "Imprimiendo..." : "Imprimir"}
                   </Button>
                   {onPayClick && (
                     <PermissionGate permission={PERMISSIONS.ORDERS_UPDATE}>
@@ -963,6 +984,7 @@ export default function EditOrderForm({
               variant="secondary"
               size="sm"
               onClick={handlePrint}
+              disabled={isPrinting}
               leftIcon={
                 <svg
                   width="15"
@@ -980,7 +1002,7 @@ export default function EditOrderForm({
                 </svg>
               }
             >
-              Imprimir
+              {isPrinting ? "Imprimiendo..." : "Imprimir"}
             </Button>
             {onPayClick && (
               <PermissionGate permission={PERMISSIONS.ORDERS_UPDATE}>
