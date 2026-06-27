@@ -20,8 +20,14 @@ import (
 const (
 	escByte byte = 0x1B
 	gsByte  byte = 0x1D
+	fsByte  byte = 0x1C
 	lfByte  byte = 0x0A
 )
+
+// intlUSA selects the USA international character set (ESC R 0). Many thermal
+// printers power up in the China set, which remaps byte 0x24 from '$' to the
+// yuan sign '¥'; selecting USA keeps 0x24 as '$' for Colombian pesos / dollars.
+const intlUSA byte = 0x00
 
 // Codepage selects the device character table and the matching transcoding used
 // for accented characters (á, é, í, ó, ú, ñ, ¡, ¿).
@@ -83,6 +89,8 @@ func Render(ticket *dto.Ticket, opts Options) ([]byte, error) {
 	w := &writer{cm: cm, width: opts.width()}
 
 	w.raw(escByte, '@')             // initialize
+	w.raw(fsByte, '.')              // cancel Kanji mode: render high bytes as single-byte CP850 (accents, ñ)
+	w.raw(escByte, 'R', intlUSA)    // select international character set (USA): keep 0x24 as '$'
 	w.raw(escByte, 't', cpSelector) // select character table
 
 	// Header — centered, business name doubled.
