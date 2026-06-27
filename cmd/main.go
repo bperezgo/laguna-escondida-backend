@@ -21,6 +21,7 @@ import (
 	"laguna-escondida/backend/internal/platform/handler"
 	"laguna-escondida/backend/internal/platform/httpclient"
 	"laguna-escondida/backend/internal/platform/postgres"
+	"laguna-escondida/backend/internal/platform/postgres/migrations"
 	"laguna-escondida/backend/internal/platform/postgres/repository"
 	"laguna-escondida/backend/internal/platform/sse"
 	"laguna-escondida/backend/internal/platform/storage"
@@ -30,7 +31,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 )
@@ -577,17 +578,13 @@ func main() {
 
 func runMigrations(dsn string) (err error) {
 	migrationURL := convertDSNToURL(dsn)
-	migrationsPath, err := getMigrationsPath()
+
+	source, err := iofs.New(migrations.FS, ".")
 	if err != nil {
-		return fmt.Errorf("failed to locate migrations directory: %w", err)
+		return fmt.Errorf("failed to open embedded migrations: %w", err)
 	}
 
-	log.Printf("Using migrations from: %s", migrationsPath)
-
-	m, err := migrate.New(
-		migrationsPath,
-		migrationURL,
-	)
+	m, err := migrate.NewWithSourceInstance("iofs", source, migrationURL)
 	if err != nil {
 		return fmt.Errorf("failed to create migrate instance: %w", err)
 	}
@@ -609,26 +606,6 @@ func runMigrations(dsn string) (err error) {
 	}
 
 	return nil
-}
-
-func getMigrationsPath() (string, error) {
-	// Get current working directory
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", fmt.Errorf("failed to get current directory: %w", err)
-	}
-
-	// Try relative path from current directory (works for both local and Docker)
-	relativePath := "internal/platform/postgres/migrations"
-	fullPath := fmt.Sprintf("%s/%s", cwd, relativePath)
-
-	// Check if migrations directory exists
-	if _, err := os.Stat(fullPath); err == nil {
-		return fmt.Sprintf("file://%s", fullPath), nil
-	}
-
-	// If not found, return error with helpful message
-	return "", fmt.Errorf("migrations directory not found at %s", fullPath)
 }
 
 func convertDSNToURL(dsn string) string {

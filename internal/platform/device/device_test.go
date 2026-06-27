@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 
@@ -112,8 +113,12 @@ func TestNewTransport_Selection(t *testing.T) {
 	_, err = NewTransport(Config{Transport: "tcp"})
 	assert.Error(t, err, "tcp requires a target")
 
-	_, err = NewTransport(Config{Transport: "windows", Target: "POS-80"})
-	assert.Error(t, err, "windows transport not available on this platform")
+	_, errWin := NewTransport(Config{Transport: "windows", Target: "POS-80"})
+	if runtime.GOOS == "windows" {
+		require.NoError(t, errWin, "windows transport is available on windows")
+	} else {
+		assert.Error(t, errWin, "windows transport unavailable off windows")
+	}
 
 	_, err = NewTransport(Config{Transport: "serial", Target: "COM3"})
 	assert.Error(t, err, "serial not implemented yet")
