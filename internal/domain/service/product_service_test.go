@@ -483,9 +483,10 @@ func TestListProducts_Success(t *testing.T) {
 		createTestProductDTO("product-2", "Product 2", "Category B", 1, 200.0, 0.38, 0.12),
 	}
 
-	mockRepo.On("FindAll", ctx).Return(products, nil)
+	filter := dto.ListProductsRequest{}
+	mockRepo.On("FindAll", ctx, filter).Return(products, nil)
 
-	result, err := service.ListProducts(ctx)
+	result, err := service.ListProducts(ctx, filter)
 
 	require.NoError(t, err)
 	assert.NotNil(t, result)
@@ -495,13 +496,36 @@ func TestListProducts_Success(t *testing.T) {
 
 }
 
+func TestListProducts_FilterByProductType(t *testing.T) {
+	ctx := context.Background()
+	service, mockRepo := createTestProductService(t)
+
+	products := []*dto.Product{
+		createTestProductDTO("product-1", "Product 1", "Category A", 1, 100.0, 0.19, 0.08),
+	}
+
+	filter := dto.ListProductsRequest{
+		ProductTypes: []dto.ProductType{dto.ProductTypeSellable, dto.ProductTypeBoth},
+	}
+	mockRepo.On("FindAll", ctx, filter).Return(products, nil)
+
+	result, err := service.ListProducts(ctx, filter)
+
+	require.NoError(t, err)
+	assert.Len(t, result, 1)
+	assert.Equal(t, products[0].ID, result[0].ID)
+	mockRepo.AssertCalled(t, "FindAll", ctx, filter)
+
+}
+
 func TestListProducts_EmptyList(t *testing.T) {
 	ctx := context.Background()
 	service, mockRepo := createTestProductService(t)
 
-	mockRepo.On("FindAll", ctx).Return([]*dto.Product{}, nil)
+	filter := dto.ListProductsRequest{}
+	mockRepo.On("FindAll", ctx, filter).Return([]*dto.Product{}, nil)
 
-	result, err := service.ListProducts(ctx)
+	result, err := service.ListProducts(ctx, filter)
 
 	require.NoError(t, err)
 	assert.NotNil(t, result)
@@ -514,9 +538,10 @@ func TestListProducts_RepositoryError(t *testing.T) {
 	ctx := context.Background()
 	service, mockRepo := createTestProductService(t)
 
-	mockRepo.On("FindAll", ctx).Return(nil, errors.New("database error"))
+	filter := dto.ListProductsRequest{}
+	mockRepo.On("FindAll", ctx, filter).Return(nil, errors.New("database error"))
 
-	result, err := service.ListProducts(ctx)
+	result, err := service.ListProducts(ctx, filter)
 
 	require.Error(t, err)
 	assert.Nil(t, result)

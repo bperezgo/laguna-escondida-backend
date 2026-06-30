@@ -241,11 +241,19 @@ POST /api/products/bulk
 
 ## List Products
 
-Returns all products.
+Returns all products, optionally filtered by product type.
 
 ```
 GET /api/products
 ```
+
+### Query Parameters
+
+| Parameter      | Type   | Required | Description                                                                                                                         |
+| -------------- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `product_type` | string | No       | Comma-separated list of product types to include. Valid values: `SELLABLE`, `INGREDIENT`, `COMPOSITE`, `BOTH`. Unknown values match no products. When omitted, all products are returned. |
+
+**Example:** `GET /api/products?product_type=SELLABLE,BOTH` — returns only products usable in order creation (sellable directly or both sellable and ingredient).
 
 ### Example Response (200 OK)
 

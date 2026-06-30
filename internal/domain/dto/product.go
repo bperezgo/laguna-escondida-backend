@@ -76,6 +76,12 @@ type ProductListResponse struct {
 	Total    *int       `json:"total,omitempty"`
 }
 
+// ListProductsRequest holds the optional filters for listing products.
+// An empty ProductTypes slice means no product_type filtering is applied.
+type ListProductsRequest struct {
+	ProductTypes []ProductType `json:"product_types,omitempty"`
+}
+
 type CreateProductResponsibilityRequest struct {
 	ProductName string `json:"product_name" validate:"required,min=1,max=255"`
 	Area        string `json:"area" validate:"required,min=1,max=255"`

@@ -226,9 +226,9 @@ func (_c *MockProductRepository_DeletePreparationResponsibility_Call) RunAndRetu
 	return _c
 }
 
-// FindAll provides a mock function with given fields: ctx
-func (_m *MockProductRepository) FindAll(ctx context.Context) ([]*dto.Product, error) {
-	ret := _m.Called(ctx)
+// FindAll provides a mock function with given fields: ctx, filter
+func (_m *MockProductRepository) FindAll(ctx context.Context, filter dto.ListProductsRequest) ([]*dto.Product, error) {
+	ret := _m.Called(ctx, filter)
 
 	if len(ret) == 0 {
 		panic("no return value specified for FindAll")
@@ -236,19 +236,19 @@ func (_m *MockProductRepository) FindAll(ctx context.Context) ([]*dto.Product, e
 
 	var r0 []*dto.Product
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context) ([]*dto.Product, error)); ok {
-		return rf(ctx)
+	if rf, ok := ret.Get(0).(func(context.Context, dto.ListProductsRequest) ([]*dto.Product, error)); ok {
+		return rf(ctx, filter)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context) []*dto.Product); ok {
-		r0 = rf(ctx)
+	if rf, ok := ret.Get(0).(func(context.Context, dto.ListProductsRequest) []*dto.Product); ok {
+		r0 = rf(ctx, filter)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]*dto.Product)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
-		r1 = rf(ctx)
+	if rf, ok := ret.Get(1).(func(context.Context, dto.ListProductsRequest) error); ok {
+		r1 = rf(ctx, filter)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -263,13 +263,14 @@ type MockProductRepository_FindAll_Call struct {
 
 // FindAll is a helper method to define mock.On call
 //   - ctx context.Context
-func (_e *MockProductRepository_Expecter) FindAll(ctx interface{}) *MockProductRepository_FindAll_Call {
-	return &MockProductRepository_FindAll_Call{Call: _e.mock.On("FindAll", ctx)}
+//   - filter dto.ListProductsRequest
+func (_e *MockProductRepository_Expecter) FindAll(ctx interface{}, filter interface{}) *MockProductRepository_FindAll_Call {
+	return &MockProductRepository_FindAll_Call{Call: _e.mock.On("FindAll", ctx, filter)}
 }
 
-func (_c *MockProductRepository_FindAll_Call) Run(run func(ctx context.Context)) *MockProductRepository_FindAll_Call {
+func (_c *MockProductRepository_FindAll_Call) Run(run func(ctx context.Context, filter dto.ListProductsRequest)) *MockProductRepository_FindAll_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context))
+		run(args[0].(context.Context), args[1].(dto.ListProductsRequest))
 	})
 	return _c
 }
@@ -279,7 +280,7 @@ func (_c *MockProductRepository_FindAll_Call) Return(_a0 []*dto.Product, _a1 err
 	return _c
 }
 
-func (_c *MockProductRepository_FindAll_Call) RunAndReturn(run func(context.Context) ([]*dto.Product, error)) *MockProductRepository_FindAll_Call {
+func (_c *MockProductRepository_FindAll_Call) RunAndReturn(run func(context.Context, dto.ListProductsRequest) ([]*dto.Product, error)) *MockProductRepository_FindAll_Call {
 	_c.Call.Return(run)
 	return _c
 }

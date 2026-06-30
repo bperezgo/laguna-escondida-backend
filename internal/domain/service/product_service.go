@@ -83,9 +83,9 @@ func (s *ProductService) DeleteProduct(ctx context.Context, id string) error {
 	return nil
 }
 
-// ListProducts returns all non-deleted products
-func (s *ProductService) ListProducts(ctx context.Context) ([]*dto.Product, error) {
-	products, err := s.productRepo.FindAll(ctx)
+// ListProducts returns all non-deleted products, optionally filtered by product type
+func (s *ProductService) ListProducts(ctx context.Context, filter dto.ListProductsRequest) ([]*dto.Product, error) {
+	products, err := s.productRepo.FindAll(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list products: %w", err)
 	}

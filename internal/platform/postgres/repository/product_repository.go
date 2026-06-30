@@ -167,9 +167,19 @@ func (r *ProductRepository) Delete(ctx context.Context, id string) error {
 		}).Error
 }
 
-func (r *ProductRepository) FindAll(ctx context.Context) ([]*dto.Product, error) {
+func (r *ProductRepository) FindAll(ctx context.Context, filter dto.ListProductsRequest) ([]*dto.Product, error) {
+	query := r.db.WithContext(ctx).Where("deleted_at IS NULL")
+
+	if len(filter.ProductTypes) > 0 {
+		productTypes := make([]string, len(filter.ProductTypes))
+		for i, productType := range filter.ProductTypes {
+			productTypes[i] = string(productType)
+		}
+		query = query.Where("product_type IN ?", productTypes)
+	}
+
 	var models []productModel
-	if err := r.db.WithContext(ctx).Where("deleted_at IS NULL").Find(&models).Error; err != nil {
+	if err := query.Find(&models).Error; err != nil {
 		return nil, err
 	}
 

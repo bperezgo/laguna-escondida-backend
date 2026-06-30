@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strings"
 
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
@@ -11,6 +12,28 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+// parseProductTypes parses a comma-separated product_type query param
+// (e.g. "SELLABLE,BOTH") into a slice of product types. Empty entries are
+// dropped and surrounding whitespace is trimmed. Unknown values are passed
+// through and simply match no products.
+func parseProductTypes(raw string) []dto.ProductType {
+	if raw == "" {
+		return nil
+	}
+
+	parts := strings.Split(raw, ",")
+	productTypes := make([]dto.ProductType, 0, len(parts))
+	for _, part := range parts {
+		value := strings.TrimSpace(part)
+		if value == "" {
+			continue
+		}
+		productTypes = append(productTypes, dto.ProductType(value))
+	}
+
+	return productTypes
+}
 
 type ProductHandler struct {
 	productService *service.ProductService
@@ -105,7 +128,11 @@ func (h *ProductHandler) DeleteProductHandler(c *gin.Context) {
 }
 
 func (h *ProductHandler) ListProductsHandler(c *gin.Context) {
-	products, err := h.productService.ListProducts(c.Request.Context())
+	filter := dto.ListProductsRequest{
+		ProductTypes: parseProductTypes(c.Query("product_type")),
+	}
+
+	products, err := h.productService.ListProducts(c.Request.Context(), filter)
 	if err != nil {
 		log.Printf("Error listing products: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list products"})

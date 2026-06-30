@@ -400,6 +400,13 @@ curl -X GET "$BASE_URL/products" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
+### List Products filtered by type (for order creation)
+
+```bash
+curl -X GET "$BASE_URL/products?product_type=SELLABLE,BOTH" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
 ### Get Product
 
 ```bash

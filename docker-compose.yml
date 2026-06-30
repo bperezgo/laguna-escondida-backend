@@ -11,7 +11,7 @@ services:
     volumes:
       - ./postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -47,18 +47,11 @@ services:
       SPACES_SECRET: ${SPACES_SECRET:-minioadmin}
       SPACES_BUCKET: ${SPACES_BUCKET:-laguna-escondida}
     entrypoint: >
-      /bin/sh -c "
-      until mc alias set local http://minio:9000 \"$$SPACES_KEY\" \"$$SPACES_SECRET\"; do
+      /bin/sh -c " until mc alias set local http://minio:9000 \"$$SPACES_KEY\" \"$$SPACES_SECRET\"; do
         echo 'Waiting for MinIO to be ready...'; sleep 1;
-      done;
-      mc mb --ignore-existing local/\"$$SPACES_BUCKET\";
-      mc anonymous set download local/\"$$SPACES_BUCKET\";
-      echo 'Bucket ready.';
-      exit 0;
-      "
+      done; mc mb --ignore-existing local/\"$$SPACES_BUCKET\"; mc anonymous set download local/\"$$SPACES_BUCKET\"; echo 'Bucket ready.'; exit 0; "
     networks:
       - laguna-network
-
   # backend:
   #   build:
   #     context: .
