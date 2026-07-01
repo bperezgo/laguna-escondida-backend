@@ -6,7 +6,8 @@ import { updateOrder } from "@/lib/api/orders";
 import { printTicket } from "@/lib/api/device";
 import { generateInvoicePrintHTML } from "@/lib/templates/invoicePrint";
 import { PermissionGate } from "@/components/permissions";
-import { PERMISSIONS } from "@/lib/permissions";
+import { PERMISSIONS, usePermissions } from "@/lib/permissions";
+import { canOverrideItemLock, isItemPastGrace } from "@/lib/orders/itemLock";
 import { Button, Input, Textarea } from "@/components/ui";
 import {
   ProductCard,
@@ -34,6 +35,12 @@ interface ProductWithQuantity {
   quantity: number;
   notes: string;
   status?: OpenBillProductStatus;
+  /**
+   * The item's own creation time (ISO 8601), for persisted items only. Left
+   * undefined for items the waitress adds in the current session — those are
+   * always freely editable. Drives the 5-minute edit lock.
+   */
+  createdAt?: string;
 }
 
 /**
@@ -84,6 +91,26 @@ export default function EditOrderForm({
   const [baselineSignature, setBaselineSignature] = useState<string | null>(
     null,
   );
+
+  // Who's editing — admins/managers bypass the per-item edit lock entirely.
+  const { user } = usePermissions();
+  const canOverride = canOverrideItemLock(user);
+
+  // A ticking "now" so a line locks the instant it crosses the 5-minute window,
+  // even while the waitress just sits in an open modal. 30s granularity is
+  // plenty for a 5-minute rule.
+  const [now, setNow] = useState<number>(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // A persisted line past its grace window is locked for non-managers. Session
+  // items (no createdAt) are never locked. Uses a fresh clock at mutation time.
+  const isLineLocked = (
+    item: ProductWithQuantity,
+    atMs: number = Date.now(),
+  ): boolean => !canOverride && isItemPastGrace(item.createdAt, atMs);
 
   // Mobile layout: below 768px we render the Menú / Pedido tabs (Option B); the
   // desktop two-pane POS renders unchanged above it. `mobileView` toggles the tabs.
@@ -138,9 +165,19 @@ export default function EditOrderForm({
               quantity: orderProduct.quantity,
               notes: orderProduct.notes || "",
               status: orderProduct.status,
+              createdAt: orderProduct.created_at,
             });
           }
         });
+        if (
+          openBill.products.length > 0 &&
+          !openBill.products.some((p) => p.created_at)
+        ) {
+          // The 5-minute item lock silently no-ops without per-item timestamps.
+          console.warn(
+            "[EditOrderForm] Open bill products have no `created_at`; the item edit lock cannot apply. Ensure GET /orders/:id returns created_at per product.",
+          );
+        }
         setSelectedProducts(initialSelectedProducts);
         setLineItemCounter(counter);
         setBaselineSignature(
@@ -204,6 +241,8 @@ export default function EditOrderForm({
   };
 
   const handleQuantityChange = (lineItemId: string, newQuantity: number) => {
+    const target = selectedProducts.get(lineItemId);
+    if (target && isLineLocked(target)) return;
     if (newQuantity <= 0) {
       setSelectedProducts((prev) => {
         const newMap = new Map(prev);
@@ -226,6 +265,8 @@ export default function EditOrderForm({
   };
 
   const handleNotesChange = (lineItemId: string, notes: string) => {
+    const target = selectedProducts.get(lineItemId);
+    if (target && isLineLocked(target)) return;
     setSelectedProducts((prev) => {
       const newMap = new Map(prev);
       const existing = newMap.get(lineItemId);
@@ -829,6 +870,7 @@ export default function EditOrderForm({
                       <OrderLineItem
                         key={item.lineItemId}
                         item={item}
+                        locked={isLineLocked(item, now)}
                         onQuantityChange={handleQuantityChange}
                         onNotesChange={handleNotesChange}
                       />
@@ -1308,6 +1350,7 @@ export default function EditOrderForm({
                   <OrderLineItem
                     key={item.lineItemId}
                     item={item}
+                    locked={isLineLocked(item, now)}
                     onQuantityChange={handleQuantityChange}
                     onNotesChange={handleNotesChange}
                   />

@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Input } from "@/components/ui";
 import type { Product } from "@/types/product";
 import type { OpenBillProductStatus } from "@/types/commandItem";
@@ -173,17 +173,39 @@ export interface OrderLineItemData {
 }
 
 // ── A single order line item: stepper + name/meta + notes ──
+// `locked` freezes the line (old item, waitress can't remove/reduce it — only a
+// manager can). The stepper and notes go read-only and a lock chip is shown.
 export function OrderLineItem({
   item,
   onQuantityChange,
   onNotesChange,
+  locked = false,
 }: {
   item: OrderLineItemData;
   onQuantityChange: (lineItemId: string, quantity: number) => void;
   onNotesChange: (lineItemId: string, notes: string) => void;
+  locked?: boolean;
 }) {
   const { lineItemId, product, quantity, notes, status } = item;
   const lineTotal = parseFloat(product.total_price_with_taxes) * quantity;
+
+  const stepButtonStyle = (disabled: boolean): CSSProperties => ({
+    width: "30px",
+    height: "30px",
+    borderRadius: "var(--radius-sm)",
+    border: "1px solid var(--color-border-strong)",
+    backgroundColor: "var(--color-surface)",
+    color: "var(--color-text-primary)",
+    fontSize: "1.1rem",
+    fontWeight: 700,
+    lineHeight: 1,
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.45 : 1,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  });
+
   return (
     <div
       style={{
@@ -191,6 +213,7 @@ export function OrderLineItem({
         gap: "0.6rem",
         padding: "0.75rem 0.25rem",
         borderBottom: "1px solid var(--color-border)",
+        opacity: locked ? 0.85 : 1,
       }}
     >
       {/* Stepper */}
@@ -204,28 +227,16 @@ export function OrderLineItem({
       >
         <button
           type="button"
+          disabled={locked}
           onClick={() => onQuantityChange(lineItemId, quantity - 1)}
-          style={{
-            width: "30px",
-            height: "30px",
-            borderRadius: "var(--radius-sm)",
-            border: "1px solid var(--color-border-strong)",
-            backgroundColor: "var(--color-surface)",
-            color: "var(--color-text-primary)",
-            fontSize: "1.1rem",
-            fontWeight: 700,
-            lineHeight: 1,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
+          style={stepButtonStyle(locked)}
         >
           −
         </button>
         <input
           type="number"
           value={quantity}
+          disabled={locked}
           onChange={(e) => {
             const val = e.target.value;
             if (val === "") return;
@@ -256,22 +267,9 @@ export function OrderLineItem({
         />
         <button
           type="button"
+          disabled={locked}
           onClick={() => onQuantityChange(lineItemId, quantity + 1)}
-          style={{
-            width: "30px",
-            height: "30px",
-            borderRadius: "var(--radius-sm)",
-            border: "1px solid var(--color-border-strong)",
-            backgroundColor: "var(--color-surface)",
-            color: "var(--color-text-primary)",
-            fontSize: "1.1rem",
-            fontWeight: 700,
-            lineHeight: 1,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
+          style={stepButtonStyle(locked)}
         >
           +
         </button>
@@ -313,6 +311,40 @@ export function OrderLineItem({
               {STATUS_CONFIG[status].label}
             </span>
           )}
+          {locked && (
+            <span
+              title="Ítem antiguo: solo un administrador o gerente puede modificarlo"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.2rem",
+                fontSize: "0.65rem",
+                fontWeight: 700,
+                padding: "0.1rem 0.4rem",
+                borderRadius: "var(--radius-sm)",
+                backgroundColor: "var(--color-neutral-bg)",
+                color: "var(--color-text-muted)",
+                textTransform: "uppercase",
+                letterSpacing: "0.03em",
+              }}
+            >
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="3" y="11" width="18" height="11" rx="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              Bloqueado
+            </span>
+          )}
         </div>
         <div
           style={{
@@ -329,6 +361,7 @@ export function OrderLineItem({
           <Input
             type="text"
             value={notes}
+            disabled={locked}
             onChange={(e) => onNotesChange(lineItemId, e.target.value)}
             placeholder="Notas (opcional)..."
           />

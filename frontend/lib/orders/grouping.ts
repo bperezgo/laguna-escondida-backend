@@ -32,6 +32,18 @@ export function isMyBill(bill: OpenBill, user: AuthUser | null): boolean {
 }
 
 /**
+ * Whether the user holds a managerial role (admin/manager, either spelling).
+ * Single source of truth for "is this a supervisor" — used both to default to
+ * the "Todas" view and to bypass the per-item edit lock in the order editor.
+ */
+export function isManagerialUser(user: AuthUser | null): boolean {
+  if (!user) return false;
+  return (user.roles ?? []).some((role) =>
+    ALL_ORDERS_ROLE_NAMES.has(role.name.trim().toLowerCase()),
+  );
+}
+
+/**
  * Whether this user should default to the "Todas" (all orders) view. Waitresses
  * default to "Mis órdenes"; admin/manager default to the whole floor.
  *
@@ -42,9 +54,7 @@ export function isMyBill(bill: OpenBill, user: AuthUser | null): boolean {
 export function canDefaultToAllOrders(user: AuthUser | null): boolean {
   if (!user) return false;
   if (user.permissions?.includes("orders:read_all")) return true;
-  return (user.roles ?? []).some((role) =>
-    ALL_ORDERS_ROLE_NAMES.has(role.name.trim().toLowerCase()),
-  );
+  return isManagerialUser(user);
 }
 
 /** Search predicate: match by table identifier OR waitress name. */

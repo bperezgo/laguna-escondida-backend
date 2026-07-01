@@ -48,6 +48,13 @@ export interface OpenBillProduct {
   quantity: number;
   notes?: string | null;
   status: OpenBillProductStatus;
+  /**
+   * When this line item was created (ISO 8601). The backend records it (it's in
+   * the kitchen SSE feed, `OpenBillProductFromSSE.created_at`); when GET
+   * /orders/:id includes it, the order editor uses it to lock old items after a
+   * grace window. Optional because responses may omit it.
+   */
+  created_at?: string;
 }
 
 export interface OpenBillWithProducts extends OpenBill {
