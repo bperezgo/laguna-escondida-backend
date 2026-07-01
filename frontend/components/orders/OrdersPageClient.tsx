@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import OpenBillCard from "./OpenBillCard";
 import OpenBillSearch from "./OpenBillSearch";
+import OrderViewToggle from "./OrderViewToggle";
+import WaitressOrderGroup from "./WaitressOrderGroup";
 import CreateOrderForm from "./CreateOrderForm";
 import EditOrderForm from "./EditOrderForm";
 import PaymentModal from "./PaymentModal";
@@ -13,7 +15,15 @@ import {
 } from "@/lib/api/orders";
 import type { OpenBill, OpenBillWithProducts } from "@/types/order";
 import { PermissionGate } from "@/components/permissions";
-import { PERMISSIONS } from "@/lib/permissions";
+import { PERMISSIONS, usePermissions } from "@/lib/permissions";
+import {
+  type OrderViewMode,
+  billMatchesQuery,
+  canDefaultToAllOrders,
+  groupBillsByWaitress,
+  isMyBill,
+  sortBillsByIdentifier,
+} from "@/lib/orders/grouping";
 import { Button } from "@/components/ui";
 
 export default function OrdersPageClient() {
@@ -29,6 +39,22 @@ export default function OrdersPageClient() {
     null
   );
   const [isLoadingBill, setIsLoadingBill] = useState(false);
+  const [viewMode, setViewMode] = useState<OrderViewMode>("mine");
+
+  const { user } = usePermissions();
+  const defaultViewApplied = useRef(false);
+
+  // Pick the initial view once the user resolves: admin/manager land on the
+  // whole floor ("Todas"), everyone else on their own orders ("Mis órdenes").
+  // Runs once so it never overrides a manual toggle.
+  useEffect(() => {
+    if (!defaultViewApplied.current && user) {
+      defaultViewApplied.current = true;
+      if (canDefaultToAllOrders(user)) {
+        setViewMode("all");
+      }
+    }
+  }, [user]);
 
   const fetchOpenBills = async () => {
     setIsLoading(true);
@@ -50,23 +76,31 @@ export default function OrdersPageClient() {
     fetchOpenBills();
   }, []);
 
-  // Filter open bills based on search query (by temporal_identifier)
-  const filteredOpenBills = useMemo(() => {
-    let bills = openBills;
+  // Bills matching the search query (by table identifier OR waitress name).
+  const searchedBills = useMemo(
+    () => openBills.filter((bill) => billMatchesQuery(bill, searchQuery)),
+    [openBills, searchQuery]
+  );
 
-    // Filter by search query if provided
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      bills = bills.filter((bill) =>
-        bill.temporal_identifier.toLowerCase().includes(query)
-      );
-    }
+  // "Mis órdenes" view: my bills only, sorted by identifier.
+  const myBills = useMemo(
+    () => sortBillsByIdentifier(searchedBills.filter((bill) => isMyBill(bill, user))),
+    [searchedBills, user]
+  );
 
-    // Sort by temporal_identifier
-    return [...bills].sort((a, b) =>
-      a.temporal_identifier.localeCompare(b.temporal_identifier)
-    );
-  }, [openBills, searchQuery]);
+  // "Todas" view: sections per waitress, my section pinned first.
+  const waitressGroups = useMemo(
+    () => groupBillsByWaitress(searchedBills, user),
+    [searchedBills, user]
+  );
+
+  // Overview counts for the toggle (independent of the active search).
+  const totalMineCount = useMemo(
+    () => openBills.filter((bill) => isMyBill(bill, user)).length,
+    [openBills, user]
+  );
+
+  const visibleBills = viewMode === "mine" ? myBills : searchedBills;
 
   const handleCreateSuccess = () => {
     fetchOpenBills();
@@ -160,6 +194,16 @@ export default function OrdersPageClient() {
           </PermissionGate>
         </div>
 
+        {/* View toggle: my orders vs. the whole floor */}
+        <div style={{ marginBottom: "1rem" }}>
+          <OrderViewToggle
+            value={viewMode}
+            onChange={setViewMode}
+            mineCount={totalMineCount}
+            allCount={openBills.length}
+          />
+        </div>
+
         {/* Search Bar */}
         <OpenBillSearch
           searchQuery={searchQuery}
@@ -209,10 +253,10 @@ export default function OrdersPageClient() {
           </div>
         )}
 
-        {/* Open Bills Grid */}
+        {/* Open Bills */}
         {!isLoading && (
           <>
-            {filteredOpenBills.length === 0 ? (
+            {visibleBills.length === 0 ? (
               <div
                 style={{
                   textAlign: "center",
@@ -239,7 +283,9 @@ export default function OrdersPageClient() {
                 >
                   {searchQuery
                     ? "No se encontraron cuentas coincidentes"
-                    : "Aún no hay cuentas abiertas"}
+                    : viewMode === "mine"
+                      ? "No tienes órdenes abiertas"
+                      : "Aún no hay cuentas abiertas"}
                 </h3>
                 <p
                   style={{
@@ -262,28 +308,41 @@ export default function OrdersPageClient() {
                     fontSize: "0.95rem",
                   }}
                 >
-                  Mostrando {filteredOpenBills.length}{" "}
-                  {filteredOpenBills.length === 1 ? "cuenta" : "cuentas"}
-                  {searchQuery && ` matching "${searchQuery}"`}
+                  Mostrando {visibleBills.length}{" "}
+                  {visibleBills.length === 1 ? "cuenta" : "cuentas"}
+                  {searchQuery && ` que coinciden con "${searchQuery}"`}
                 </div>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns:
-                      "repeat(auto-fill, minmax(min(320px, 100%), 1fr))",
-                    gap: "1.25rem",
-                  }}
-                >
-                  {filteredOpenBills.map((bill) => (
-                    <OpenBillCard
-                      key={bill.id}
-                      openBill={bill}
-                      onClick={() => handleBillClick(bill)}
-                      onPayClick={() => handlePayClick(bill)}
-                      onRemoveClick={() => handleRemoveClick(bill)}
+                {viewMode === "mine" ? (
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fill, minmax(min(320px, 100%), 1fr))",
+                      gap: "1.25rem",
+                    }}
+                  >
+                    {myBills.map((bill) => (
+                      <OpenBillCard
+                        key={bill.id}
+                        openBill={bill}
+                        isMine
+                        onClick={() => handleBillClick(bill)}
+                        onPayClick={() => handlePayClick(bill)}
+                        onRemoveClick={() => handleRemoveClick(bill)}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  waitressGroups.map((group) => (
+                    <WaitressOrderGroup
+                      key={group.key}
+                      group={group}
+                      onBillClick={handleBillClick}
+                      onPayClick={handlePayClick}
+                      onRemoveClick={handleRemoveClick}
                     />
-                  ))}
-                </div>
+                  ))
+                )}
               </>
             )}
           </>

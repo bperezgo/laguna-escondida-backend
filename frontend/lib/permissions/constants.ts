@@ -8,6 +8,7 @@ export const PERMISSIONS = {
   ORDERS_CREATE: "orders:create",
   ORDERS_UPDATE: "orders:update",
   ORDERS_DELETE: "orders:delete",
+  ORDERS_PAY: "orders:pay",
 
   // Products
   PRODUCTS_READ: "products:read",

@@ -20,7 +20,7 @@ export default function OpenBillSearch({
     <div style={{ marginBottom: "1.5rem", width: "100%" }}>
       <Input
         type="search"
-        placeholder="Buscar por identificador temporal..."
+        placeholder="Buscar por identificador o mesero..."
         value={searchQuery}
         onChange={handleChange}
         aria-label="Buscar cuentas abiertas"

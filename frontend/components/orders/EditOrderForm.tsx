@@ -793,7 +793,7 @@ export default function EditOrderForm({
                     {isPrinting ? "Imprimiendo..." : "Imprimir"}
                   </Button>
                   {onPayClick && (
-                    <PermissionGate permission={PERMISSIONS.ORDERS_UPDATE}>
+                    <PermissionGate permission={PERMISSIONS.ORDERS_PAY}>
                       <Button
                         type="button"
                         size="sm"
@@ -1006,7 +1006,7 @@ export default function EditOrderForm({
               {isPrinting ? "Imprimiendo..." : "Imprimir"}
             </Button>
             {onPayClick && (
-              <PermissionGate permission={PERMISSIONS.ORDERS_UPDATE}>
+              <PermissionGate permission={PERMISSIONS.ORDERS_PAY}>
                 <Button
                   type="button"
                   size="sm"

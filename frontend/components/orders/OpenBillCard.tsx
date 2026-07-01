@@ -7,6 +7,7 @@ import { Badge, Button, Card } from "@/components/ui";
 
 interface OpenBillCardProps {
   openBill: OpenBill;
+  isMine?: boolean;
   onClick?: () => void;
   onPayClick?: () => void;
   onRemoveClick?: () => void;
@@ -14,6 +15,7 @@ interface OpenBillCardProps {
 
 export default function OpenBillCard({
   openBill,
+  isMine = false,
   onClick,
   onPayClick,
   onRemoveClick,
@@ -38,13 +40,24 @@ export default function OpenBillCard({
         display: "flex",
         flexDirection: "column",
         gap: "1rem",
+        ...(isMine
+          ? {
+              outline: "2px solid var(--color-primary)",
+              outlineOffset: "-2px",
+            }
+          : {}),
       }}
     >
       {/* Temporal identifier */}
-      <div>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
         <Badge tone="info" dot={false}>
           {openBill.temporal_identifier}
         </Badge>
+        {isMine && (
+          <Badge tone="success" dot={false}>
+            Tú
+          </Badge>
+        )}
       </div>
 
       {/* Descriptor */}
@@ -158,7 +171,7 @@ export default function OpenBillCard({
             </PermissionGate>
           )}
           {onPayClick && (
-            <PermissionGate permission={PERMISSIONS.ORDERS_UPDATE}>
+            <PermissionGate permission={PERMISSIONS.ORDERS_PAY}>
               <Button
                 variant="primary"
                 size="lg"
