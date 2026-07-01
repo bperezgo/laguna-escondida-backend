@@ -36,6 +36,25 @@ interface ProductWithQuantity {
   status?: OpenBillProductStatus;
 }
 
+/**
+ * A stable, order-independent fingerprint of the editable state (identifier,
+ * descriptor, and every line's product/quantity/notes). We compare the live
+ * fingerprint against the one captured at load/last-save to know whether the
+ * waitress has actually changed anything — which drives the update button's
+ * gray→green colour.
+ */
+function orderSignature(
+  identifier: string,
+  descriptor: string,
+  items: ProductWithQuantity[],
+): string {
+  const lines = items
+    .map((i) => `${i.product.id}|${i.quantity}|${i.notes.trim()}`)
+    .sort()
+    .join("§");
+  return `${identifier.trim()}¦${(descriptor || "").trim()}¦${lines}`;
+}
+
 export default function EditOrderForm({
   openBill,
   onClose,
@@ -60,6 +79,11 @@ export default function EditOrderForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lineItemCounter, setLineItemCounter] = useState(0);
+  // Fingerprint of the order as last saved (or as loaded). `null` until the
+  // products finish loading so the button stays gray during the initial fetch.
+  const [baselineSignature, setBaselineSignature] = useState<string | null>(
+    null,
+  );
 
   // Mobile layout: below 768px we render the Menú / Pedido tabs (Option B); the
   // desktop two-pane POS renders unchanged above it. `mobileView` toggles the tabs.
@@ -119,6 +143,13 @@ export default function EditOrderForm({
         });
         setSelectedProducts(initialSelectedProducts);
         setLineItemCounter(counter);
+        setBaselineSignature(
+          orderSignature(
+            openBill.temporal_identifier,
+            openBill.descriptor || "",
+            Array.from(initialSelectedProducts.values()),
+          ),
+        );
       } catch (err) {
         console.error("Error fetching products:", err);
         setError("Failed to load products");
@@ -230,8 +261,17 @@ export default function EditOrderForm({
         products: orderProducts,
       });
 
+      // Keep the modal open so the waitress doesn't lose their place hunting for
+      // the order they just touched. Re-baseline to the just-saved state so the
+      // button drops back to gray until they change something else.
+      setBaselineSignature(
+        orderSignature(
+          temporalIdentifier,
+          descriptor,
+          Array.from(selectedProducts.values()),
+        ),
+      );
       onSuccess();
-      onClose();
     } catch (err) {
       console.error("Error updating order:", err);
       setError(err instanceof Error ? err.message : "Failed to update order");
@@ -242,6 +282,29 @@ export default function EditOrderForm({
 
   const selectedProductsArray = Array.from(selectedProducts.values());
   const orderCount = selectedProductsArray.length;
+
+  // Has the waitress changed anything since load / last save? Drives the update
+  // button colour: gray when nothing's changed, green once there are edits.
+  const currentSignature = useMemo(
+    () => orderSignature(temporalIdentifier, descriptor, selectedProductsArray),
+    [temporalIdentifier, descriptor, selectedProductsArray],
+  );
+  const isDirty =
+    baselineSignature !== null && currentSignature !== baselineSignature;
+
+  // Gray (pristine) vs green (has edits). Inline styles override the Button's
+  // primary variant background.
+  const updateButtonStyle: React.CSSProperties = isDirty
+    ? {
+        backgroundColor: "var(--color-success)",
+        borderColor: "var(--color-success)",
+        color: "#fff",
+      }
+    : {
+        backgroundColor: "var(--color-neutral-bg)",
+        borderColor: "var(--color-border)",
+        color: "var(--color-text-muted)",
+      };
   const qtyInOrderFor = (productId: string) =>
     selectedProductsArray
       .filter((p) => p.product.id === productId)
@@ -868,6 +931,7 @@ export default function EditOrderForm({
                 size="lg"
                 disabled={isSubmitting}
                 leftIcon={sendIcon}
+                style={updateButtonStyle}
               >
                 {isSubmitting ? "Actualizando..." : "Actualizar Orden"}
               </Button>
@@ -1294,6 +1358,7 @@ export default function EditOrderForm({
                 size="lg"
                 disabled={isSubmitting}
                 leftIcon={sendIcon}
+                style={updateButtonStyle}
               >
                 {isSubmitting ? "Actualizando..." : "Actualizar Orden"}
               </Button>

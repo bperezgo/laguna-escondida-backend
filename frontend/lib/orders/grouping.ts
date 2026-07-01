@@ -56,10 +56,14 @@ export function billMatchesQuery(bill: OpenBill, query: string): boolean {
   return identifier.includes(q) || waitress.includes(q);
 }
 
-/** Preserve the existing intra-view ordering (by table identifier). */
-export function sortBillsByIdentifier(bills: OpenBill[]): OpenBill[] {
-  return [...bills].sort((a, b) =>
-    a.temporal_identifier.localeCompare(b.temporal_identifier),
+/**
+ * Intra-view ordering: most recent first (created_at DESC), so a freshly
+ * created order shows up at the top of the page instead of the bottom.
+ */
+export function sortBillsByRecency(bills: OpenBill[]): OpenBill[] {
+  return [...bills].sort(
+    (a, b) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
 }
 
@@ -107,7 +111,7 @@ export function groupBillsByWaitress(
 
   const groups = Array.from(byKey.values());
   for (const group of groups) {
-    group.bills = sortBillsByIdentifier(group.bills);
+    group.bills = sortBillsByRecency(group.bills);
     group.count = group.bills.length;
   }
 

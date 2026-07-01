@@ -22,7 +22,7 @@ import {
   canDefaultToAllOrders,
   groupBillsByWaitress,
   isMyBill,
-  sortBillsByIdentifier,
+  sortBillsByRecency,
 } from "@/lib/orders/grouping";
 import { Button } from "@/components/ui";
 
@@ -84,7 +84,7 @@ export default function OrdersPageClient() {
 
   // "Mis órdenes" view: my bills only, sorted by identifier.
   const myBills = useMemo(
-    () => sortBillsByIdentifier(searchedBills.filter((bill) => isMyBill(bill, user))),
+    () => sortBillsByRecency(searchedBills.filter((bill) => isMyBill(bill, user))),
     [searchedBills, user]
   );
 
