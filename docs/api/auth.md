@@ -56,6 +56,7 @@ Authenticates a user and returns a JWT token with user information and permissio
     "orders:create",
     "orders:update",
     "orders:delete",
+    "orders:pay",
     "products:read",
     "products:create",
     "expenses:read",
@@ -112,6 +113,7 @@ Returns the currently authenticated user's information including roles and permi
     "orders:create",
     "orders:update",
     "orders:delete",
+    "orders:pay",
     "products:read",
     "products:create",
     "expenses:read",
@@ -174,6 +176,7 @@ Permissions follow the `resource:action` format. Available permissions include:
 - `orders:create` - Create new orders
 - `orders:update` - Update existing orders
 - `orders:delete` - Delete orders
+- `orders:pay` - Pay and close an order (manager/admin only)
 
 ### Products
 - `products:read` - View products

@@ -9,6 +9,7 @@ const (
 	OrdersCreate Permission = "orders:create"
 	OrdersUpdate Permission = "orders:update"
 	OrdersDelete Permission = "orders:delete"
+	OrdersPay    Permission = "orders:pay"
 )
 
 // Product permissions
@@ -114,7 +115,7 @@ const (
 func AllPermissions() []Permission {
 	return []Permission{
 		// Orders
-		OrdersRead, OrdersCreate, OrdersUpdate, OrdersDelete,
+		OrdersRead, OrdersCreate, OrdersUpdate, OrdersDelete, OrdersPay,
 		// Products
 		ProductsRead, ProductsCreate, ProductsUpdate, ProductsDelete,
 		// Stock

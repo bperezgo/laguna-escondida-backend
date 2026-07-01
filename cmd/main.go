@@ -362,7 +362,7 @@ func main() {
 	router.GET("/api/orders/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersRead), orderHandler.GetOpenBillWithProductsHandler)
 	router.PUT("/api/orders/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersUpdate), orderHandler.UpdateOrderHandler)
 	router.DELETE("/api/orders/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersDelete), orderHandler.DeleteOrderHandler)
-	router.POST("/api/orders/pay-order", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersUpdate), orderHandler.PayOrderHandler)
+	router.POST("/api/orders/pay-order", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersPay), orderHandler.PayOrderHandler)
 
 	// Order product status routes
 	router.PATCH("/api/orders/:id/products/:open_bill_product_id/complete", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersUpdate), orderHandler.CompleteOpenBillProductHandler)

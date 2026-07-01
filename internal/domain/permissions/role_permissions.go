@@ -26,7 +26,7 @@ var RolePermissions = map[int][]Permission{
 	RoleAdmin: AllPermissions(),
 	RoleManager: {
 		// Orders - full access
-		OrdersRead, OrdersCreate, OrdersUpdate, OrdersDelete,
+		OrdersRead, OrdersCreate, OrdersUpdate, OrdersDelete, OrdersPay,
 		// Products - full access
 		ProductsRead, ProductsCreate, ProductsUpdate, ProductsDelete,
 		// Stock - full access
