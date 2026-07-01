@@ -196,6 +196,7 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 		Status     string
 		Area       *string
 		Priority   int
+		CreatedAt  time.Time
 		// Product fields
 		ProductName                string
 		ProductCategory            string
@@ -227,6 +228,7 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 			open_bills_products.status,
 			open_bills_products.area,
 			open_bills_products.priority,
+			open_bills_products.created_at,
 			products.name as product_name,
 			products.category as product_category,
 			products.version as product_version,
@@ -273,11 +275,12 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 				CreatedAt:           pr.ProductCreatedAt,
 				UpdatedAt:           pr.ProductUpdatedAt,
 			},
-			Quantity: pr.Quantity,
-			Notes:    pr.Notes,
-			Status:   dto.CommandStatus(pr.Status),
-			Area:     pr.Area,
-			Priority: pr.Priority,
+			Quantity:  pr.Quantity,
+			Notes:     pr.Notes,
+			Status:    dto.CommandStatus(pr.Status),
+			Area:      pr.Area,
+			Priority:  pr.Priority,
+			CreatedAt: pr.CreatedAt,
 		}
 	}
 
@@ -638,6 +641,7 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 		Status     string
 		Area       *string
 		Priority   int
+		CreatedAt  time.Time
 		// Product fields
 		ProductName                string
 		ProductCategory            string
@@ -667,6 +671,7 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 			open_bills_products.status,
 			open_bills_products.area,
 			open_bills_products.priority,
+			open_bills_products.created_at,
 			products.name as product_name,
 			products.category as product_category,
 			products.version as product_version,
@@ -709,11 +714,12 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 				CreatedAt:           pr.ProductCreatedAt,
 				UpdatedAt:           pr.ProductUpdatedAt,
 			},
-			Quantity: pr.Quantity,
-			Notes:    pr.Notes,
-			Status:   dto.CommandStatus(pr.Status),
-			Area:     pr.Area,
-			Priority: pr.Priority,
+			Quantity:  pr.Quantity,
+			Notes:     pr.Notes,
+			Status:    dto.CommandStatus(pr.Status),
+			Area:      pr.Area,
+			Priority:  pr.Priority,
+			CreatedAt: pr.CreatedAt,
 		}
 	}
 
