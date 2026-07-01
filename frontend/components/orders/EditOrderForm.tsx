@@ -93,7 +93,8 @@ export default function EditOrderForm({
     const fetchProducts = async () => {
       setIsLoading(true);
       try {
-        const fetchedProducts = await productsApi.getAll();
+        // Only show products that can be sold to customers
+        const fetchedProducts = await productsApi.getAll("SELLABLE");
         setProducts(fetchedProducts);
 
         // Pre-populate selected products from the order

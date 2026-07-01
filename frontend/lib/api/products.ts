@@ -1,12 +1,19 @@
 import { apiRequest } from './config';
-import type { Product, CreateProductRequest, UpdateProductRequest, ProductListResponse } from '@/types/product';
+import type { Product, ProductType, CreateProductRequest, UpdateProductRequest, ProductListResponse } from '@/types/product';
 
 export const productsApi = {
   /**
-   * Get all products
+   * Get all products, optionally filtered by product type.
+   * Pass one or more types (e.g. "SELLABLE" or ["SELLABLE", "BOTH"]) to
+   * restrict the result to products of those types.
    */
-  async getAll(): Promise<Product[]> {
-    const response = await apiRequest<ProductListResponse>('/products');
+  async getAll(productType?: ProductType | ProductType[]): Promise<Product[]> {
+    let endpoint = '/products';
+    if (productType) {
+      const types = Array.isArray(productType) ? productType : [productType];
+      endpoint += `?product_type=${encodeURIComponent(types.join(','))}`;
+    }
+    const response = await apiRequest<ProductListResponse>(endpoint);
     return response.products || [];
   },
 

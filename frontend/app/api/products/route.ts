@@ -11,9 +11,13 @@ import type {
   ProductListResponse,
 } from "@/types/product";
 
-// GET /api/products - Get all products
-export async function GET() {
-  const response = await serverApiRequest<ProductListResponse>("/products");
+// GET /api/products - Get all products (optionally filtered by ?product_type=)
+export async function GET(request: NextRequest) {
+  const productType = request.nextUrl.searchParams.get("product_type");
+  const endpoint = productType
+    ? `/products?product_type=${encodeURIComponent(productType)}`
+    : "/products";
+  const response = await serverApiRequest<ProductListResponse>(endpoint);
   if (!response.ok) {
     return NextResponse.json(
       { error: "Failed to fetch products" },
