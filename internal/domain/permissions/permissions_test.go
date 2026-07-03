@@ -53,3 +53,8 @@ func TestPermissionConstants(t *testing.T) {
 		})
 	}
 }
+
+func TestOrdersCompleteProductConstant(t *testing.T) {
+	assert.Equal(t, "orders:complete-product", string(OrdersCompleteProduct))
+	assert.Contains(t, AllPermissions(), OrdersCompleteProduct)
+}

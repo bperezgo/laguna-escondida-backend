@@ -199,3 +199,18 @@ func TestRoleConstants(t *testing.T) {
 	assert.Equal(t, 4, RoleCooker)
 	assert.Equal(t, 5, RoleAccountant)
 }
+
+// TestOrdersCompleteProductPermission verifies the kitchen preparation flow:
+// cookers, managers and admins can complete/in-progress products; servers and
+// accountants cannot. Cancelling still requires orders:update (not held by cookers).
+func TestOrdersCompleteProductPermission(t *testing.T) {
+	assert.True(t, HasPermission([]int{RoleCooker}, OrdersCompleteProduct), "cooker should be able to complete/in-progress products")
+	assert.True(t, HasPermission([]int{RoleManager}, OrdersCompleteProduct), "manager should be able to complete/in-progress products")
+	assert.True(t, HasPermission([]int{RoleAdmin}, OrdersCompleteProduct), "admin should be able to complete/in-progress products")
+	assert.False(t, HasPermission([]int{RoleServer}, OrdersCompleteProduct), "server should NOT have the complete-product permission")
+	assert.False(t, HasPermission([]int{RoleAccountant}, OrdersCompleteProduct), "accountant should NOT have the complete-product permission")
+
+	// Cancelling a product stays on orders:update.
+	assert.False(t, HasPermission([]int{RoleCooker}, OrdersUpdate), "cooker should NOT be able to cancel (orders:update)")
+	assert.True(t, HasPermission([]int{RoleServer}, OrdersUpdate), "server should be able to cancel (orders:update)")
+}

@@ -17,6 +17,8 @@ Manages open orders (open bills) — active tabs that can contain products befor
 | PATCH  | `/api/orders/:id/products/:open_bill_product_id/cancel`      | Cancel a product in the order  |
 
 > **Note:** Paying an order (`POST /api/orders/pay-order`) requires the `orders:pay` permission, which is granted only to **manager** and **admin** roles. Servers can create, update, and cancel product lines, but cannot pay/close a bill.
+>
+> **Note:** Marking a product **completed** or **in-progress** requires the `orders:complete-product` permission (the kitchen preparation flow), granted to **cooker**, **manager**, and **admin** roles. **Cancelling** a product requires `orders:update` (server, manager, admin) — cookers cannot cancel product lines.
 
 ---
 
@@ -256,6 +258,8 @@ Soft-deletes an order.
 
 Marks a product in the order as completed.
 
+**Required permission:** `orders:complete-product` (cooker, manager, admin)
+
 ### Path Parameters
 
 | Param                | Type   | Description              |
@@ -279,6 +283,8 @@ Marks a product in the order as completed.
 
 Marks a product as in-progress.
 
+**Required permission:** `orders:complete-product` (cooker, manager, admin)
+
 ### Path Parameters
 
 | Param                | Type   | Description              |
@@ -301,6 +307,8 @@ Marks a product as in-progress.
 `PATCH /api/orders/:id/products/:open_bill_product_id/cancel`
 
 Cancels a product in the order.
+
+**Required permission:** `orders:update` (server, manager, admin)
 
 ### Path Parameters
 

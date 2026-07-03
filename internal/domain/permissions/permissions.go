@@ -10,6 +10,10 @@ const (
 	OrdersUpdate Permission = "orders:update"
 	OrdersDelete Permission = "orders:delete"
 	OrdersPay    Permission = "orders:pay"
+	// OrdersCompleteProduct gates the kitchen preparation flow for a product line:
+	// marking an open bill product as in-progress and completed. Cancelling a
+	// product still requires OrdersUpdate.
+	OrdersCompleteProduct Permission = "orders:complete-product"
 )
 
 // Product permissions
@@ -115,7 +119,7 @@ const (
 func AllPermissions() []Permission {
 	return []Permission{
 		// Orders
-		OrdersRead, OrdersCreate, OrdersUpdate, OrdersDelete, OrdersPay,
+		OrdersRead, OrdersCreate, OrdersUpdate, OrdersDelete, OrdersPay, OrdersCompleteProduct,
 		// Products
 		ProductsRead, ProductsCreate, ProductsUpdate, ProductsDelete,
 		// Stock

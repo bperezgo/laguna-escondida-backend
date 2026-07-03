@@ -26,7 +26,7 @@ var RolePermissions = map[int][]Permission{
 	RoleAdmin: AllPermissions(),
 	RoleManager: {
 		// Orders - full access
-		OrdersRead, OrdersCreate, OrdersUpdate, OrdersDelete, OrdersPay,
+		OrdersRead, OrdersCreate, OrdersUpdate, OrdersDelete, OrdersPay, OrdersCompleteProduct,
 		// Products - full access
 		ProductsRead, ProductsCreate, ProductsUpdate, ProductsDelete,
 		// Stock - full access
@@ -53,8 +53,8 @@ var RolePermissions = map[int][]Permission{
 		SSECommandsRead, SSECommandItemsRead,
 	},
 	RoleCooker: {
-		// Orders - can view orders
-		OrdersRead,
+		// Orders - can view orders and update product prep status (in-progress / completed)
+		OrdersRead, OrdersCompleteProduct,
 		// Products - can view products
 		ProductsRead,
 		// Commands - can view and update commands (mark as done)
