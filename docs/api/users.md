@@ -40,7 +40,7 @@ Creates a new user, hashes the password, and assigns the given roles. All fields
 
 | ID | Name      |
 | -- | --------- |
-| 1  | waitress  |
+| 1  | server    |
 | 2  | admin     |
 | 3  | manager   |
 | 4  | cooker    |

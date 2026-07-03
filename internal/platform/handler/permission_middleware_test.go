@@ -99,7 +99,7 @@ func TestRequirePermission_InvalidRoleData(t *testing.T) {
 func TestRequireAnyPermission_HasFirstPermission(t *testing.T) {
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
-		c.Set("role_ids", []int{permissions.RoleWaitress})
+		c.Set("role_ids", []int{permissions.RoleServer})
 		c.Next()
 	})
 	router.GET("/test", RequireAnyPermission(permissions.OrdersRead, permissions.ExpensesRead), func(c *gin.Context) {
@@ -180,7 +180,7 @@ func TestRequireAnyPermission_InvalidRoleData(t *testing.T) {
 func TestRequirePermission_MultipleRoles(t *testing.T) {
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
-		c.Set("role_ids", []int{permissions.RoleWaitress, permissions.RoleAccountant})
+		c.Set("role_ids", []int{permissions.RoleServer, permissions.RoleAccountant})
 		c.Next()
 	})
 	router.GET("/test", RequirePermission(permissions.ExpensesRead), func(c *gin.Context) {

@@ -766,7 +766,7 @@ const (
 // Role → Permission mapping
 var rolePermissions = map[int][]Permission{
     1: {OrdersCreate, OrdersRead, OrdersUpdate, OrdersDelete, ProductsCreate, ...}, // Admin
-    2: {OrdersCreate, OrdersRead, ...},                                               // Waiter
+    2: {OrdersCreate, OrdersRead, ...},                                               // Server
     3: {OrdersRead, ...},                                                              // Kitchen
 }
 

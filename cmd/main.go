@@ -667,7 +667,11 @@ func getDSN() string {
 	dbname := getEnv("DB_NAME", "laguna_escondida")
 	sslmode := getEnv("DB_SSLMODE", "disable")
 
-	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+	// TimeZone=UTC pins the connection's session timezone so timestamptz values
+	// are read back and serialized in UTC (…Z) consistently, regardless of the
+	// host's local timezone. (convertDSNToURL ignores this key, so the migrator
+	// URL is unaffected.)
+	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s TimeZone=UTC",
 		host, port, user, password, dbname, sslmode)
 }
 

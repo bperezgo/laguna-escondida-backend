@@ -42,7 +42,7 @@ Authenticates a user and returns a JWT token with user information and permissio
   "roles": [
     {
       "id": 1,
-      "name": "waitress",
+      "name": "server",
       "created_at": "2024-01-01T00:00:00Z"
     },
     {
@@ -99,7 +99,7 @@ Returns the currently authenticated user's information including roles and permi
   "roles": [
     {
       "id": 1,
-      "name": "waitress",
+      "name": "server",
       "created_at": "2024-01-01T00:00:00Z"
     },
     {
@@ -221,7 +221,7 @@ Permissions follow the `resource:action` format. Available permissions include:
 | ---------- | -------------------------------------------------- |
 | admin      | Full access to all resources and operations        |
 | manager    | Access to most operations except user management   |
-| waitress   | Order and product operations, real-time updates    |
+| server     | Order and product operations, real-time updates    |
 | cooker     | Read-only order/product access, command updates    |
 | accountant | Financial operations (expenses, invoices, entries) |
 

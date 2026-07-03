@@ -16,7 +16,7 @@ Manages open orders (open bills) — active tabs that can contain products befor
 | PATCH  | `/api/orders/:id/products/:open_bill_product_id/in-progress` | Mark product as in-progress    |
 | PATCH  | `/api/orders/:id/products/:open_bill_product_id/cancel`      | Cancel a product in the order  |
 
-> **Note:** Paying an order (`POST /api/orders/pay-order`) requires the `orders:pay` permission, which is granted only to **manager** and **admin** roles. Waitresses can create, update, and cancel product lines, but cannot pay/close a bill.
+> **Note:** Paying an order (`POST /api/orders/pay-order`) requires the `orders:pay` permission, which is granted only to **manager** and **admin** roles. Servers can create, update, and cancel product lines, but cannot pay/close a bill.
 
 ---
 

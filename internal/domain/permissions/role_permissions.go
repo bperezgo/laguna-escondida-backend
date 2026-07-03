@@ -2,7 +2,7 @@ package permissions
 
 // Role constants matching database IDs from migration 000014
 const (
-	RoleWaitress   = 1
+	RoleServer     = 1
 	RoleAdmin      = 2
 	RoleManager    = 3
 	RoleCooker     = 4
@@ -11,7 +11,7 @@ const (
 
 // RolePermissions maps role IDs to their permissions
 var RolePermissions = map[int][]Permission{
-	RoleWaitress: {
+	RoleServer: {
 		// Orders - can view and create orders
 		OrdersRead, OrdersCreate, OrdersUpdate,
 		// Products - can view products

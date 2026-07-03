@@ -14,8 +14,8 @@ func TestGetPermissionsForRoles_SingleRole(t *testing.T) {
 		expectedNotContain []Permission
 	}{
 		{
-			name:               "Waitress permissions",
-			roleID:             RoleWaitress,
+			name:               "Server permissions",
+			roleID:             RoleServer,
 			expectedContains:   []Permission{OrdersRead, OrdersCreate, ProductsRead, CommandsRead},
 			expectedNotContain: []Permission{ExpensesRead, SuppliersCreate, StockCreate},
 		},
@@ -62,10 +62,10 @@ func TestGetPermissionsForRoles_Admin(t *testing.T) {
 }
 
 func TestGetPermissionsForRoles_MultipleRoles(t *testing.T) {
-	perms := GetPermissionsForRoles([]int{RoleWaitress, RoleAccountant})
+	perms := GetPermissionsForRoles([]int{RoleServer, RoleAccountant})
 
-	assert.Contains(t, perms, OrdersRead, "Should have waitress permission")
-	assert.Contains(t, perms, OrdersCreate, "Should have waitress permission")
+	assert.Contains(t, perms, OrdersRead, "Should have server permission")
+	assert.Contains(t, perms, OrdersCreate, "Should have server permission")
 	assert.Contains(t, perms, ExpensesRead, "Should have accountant permission")
 	assert.Contains(t, perms, PurchaseEntriesCreate, "Should have accountant permission")
 }
@@ -83,7 +83,7 @@ func TestGetPermissionsForRoles_EmptyRoles(t *testing.T) {
 }
 
 func TestGetPermissionsForRoles_UniquePermissions(t *testing.T) {
-	perms := GetPermissionsForRoles([]int{RoleWaitress, RoleManager})
+	perms := GetPermissionsForRoles([]int{RoleServer, RoleManager})
 
 	permSet := make(map[Permission]bool)
 	for _, p := range perms {
@@ -100,14 +100,14 @@ func TestHasPermission_Success(t *testing.T) {
 		expected   bool
 	}{
 		{
-			name:       "Waitress has OrdersRead",
-			roleIDs:    []int{RoleWaitress},
+			name:       "Server has OrdersRead",
+			roleIDs:    []int{RoleServer},
 			permission: OrdersRead,
 			expected:   true,
 		},
 		{
-			name:       "Waitress does not have ExpensesRead",
-			roleIDs:    []int{RoleWaitress},
+			name:       "Server does not have ExpensesRead",
+			roleIDs:    []int{RoleServer},
 			permission: ExpensesRead,
 			expected:   false,
 		},
@@ -154,7 +154,7 @@ func TestHasAnyPermission(t *testing.T) {
 	}{
 		{
 			name:        "Has first permission",
-			roleIDs:     []int{RoleWaitress},
+			roleIDs:     []int{RoleServer},
 			permissions: []Permission{OrdersRead, ExpensesRead},
 			expected:    true,
 		},
@@ -193,7 +193,7 @@ func TestHasAnyPermission(t *testing.T) {
 }
 
 func TestRoleConstants(t *testing.T) {
-	assert.Equal(t, 1, RoleWaitress)
+	assert.Equal(t, 1, RoleServer)
 	assert.Equal(t, 2, RoleAdmin)
 	assert.Equal(t, 3, RoleManager)
 	assert.Equal(t, 4, RoleCooker)
