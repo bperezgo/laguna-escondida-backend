@@ -53,3 +53,27 @@ export function getCountdownColor(remainingMs: number): {
     return { bg: "var(--color-success-light)", text: "var(--color-success)" };
   }
 }
+
+/**
+ * Ambient row styling for a kitchen line so an urgent/near-due item is spottable
+ * without scanning each badge. Returns a faint background tint + a solid left-accent
+ * color (a stripe that scans down the column). Only near-due/urgent lines are tinted;
+ * healthy lines return `null` so they stay neutral and the eye is drawn to what needs
+ * attention. Thresholds mirror getCountdownColor. Escalation: <10min amber, <5min red,
+ * overdue red (stronger). Don't call for completed lines — struck lines aren't urgent.
+ */
+export function getCountdownRowStyle(remainingMs: number): {
+  background: string;
+  accent: string;
+} | null {
+  const minutes = remainingMs / 1000 / 60;
+
+  if (remainingMs <= 0) {
+    return { background: "var(--color-danger-light)", accent: "var(--color-danger)" };
+  } else if (minutes < 5) {
+    return { background: "var(--color-danger-tint)", accent: "var(--color-danger)" };
+  } else if (minutes < 10) {
+    return { background: "var(--color-warning-tint)", accent: "var(--color-warning)" };
+  }
+  return null;
+}

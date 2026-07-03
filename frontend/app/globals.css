@@ -25,10 +25,14 @@
   --color-danger: #dc2626;
   --color-danger-hover: #b91c1c;
   --color-danger-light: rgba(220, 38, 38, 0.12);
+  /* Even fainter than -light: ambient row tint for near-due/urgent kitchen lines,
+     kept below the badge's 0.12 so the badge chip still reads on top. */
+  --color-danger-tint: rgba(220, 38, 38, 0.07);
 
   --color-warning: #b45309;
   --color-warning-hover: #92400e;
   --color-warning-light: rgba(180, 83, 9, 0.12);
+  --color-warning-tint: rgba(180, 83, 9, 0.07);
 
   /* Status badge pairs (soft bg + readable text) — for pills/badges */
   --color-success-bg: #dcfce7;
@@ -122,10 +126,12 @@
   --color-danger: #ef4444;
   --color-danger-hover: #dc2626;
   --color-danger-light: rgba(239, 68, 68, 0.15);
+  --color-danger-tint: rgba(239, 68, 68, 0.1);
 
   --color-warning: #f59e0b;
   --color-warning-hover: #d97706;
   --color-warning-light: rgba(245, 158, 11, 0.15);
+  --color-warning-tint: rgba(245, 158, 11, 0.1);
 
   /* Status badge pairs */
   --color-success-bg: rgba(34, 197, 94, 0.15);

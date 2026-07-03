@@ -7,6 +7,7 @@ import {
   calculateRemainingMs,
   formatCountdown,
   getCountdownColor,
+  getCountdownRowStyle,
 } from "@/lib/kitchen/countdown";
 
 interface CommandCardProps {
@@ -203,6 +204,11 @@ export default function CommandCard({
             now
           );
           const countdownColors = getCountdownColor(remainingMs);
+          // Ambient urgency for the whole line: solid left stripe + faint tint so a
+          // near-due/urgent item is spottable without reading each badge. Skipped for
+          // struck (done) lines. Healthy lines get a transparent stripe of the same
+          // width so nothing shifts as a line crosses a threshold.
+          const rowStyle = isDone ? null : getCountdownRowStyle(remainingMs);
           return (
             <div
               key={item.id || index}
@@ -210,14 +216,13 @@ export default function CommandCard({
                 display: "flex",
                 flexDirection: "column",
                 gap: "0.25rem",
-                paddingBottom:
-                  index < command.items.length - 1 ? "0.75rem" : 0,
-                borderBottom:
-                  index < command.items.length - 1
-                    ? "1px dashed var(--color-border)"
-                    : "none",
+                padding: "0.5rem 0.625rem",
+                borderRadius: "var(--radius-sm)",
+                borderLeft: `4px solid ${rowStyle?.accent ?? "transparent"}`,
+                backgroundColor: rowStyle?.background ?? "transparent",
                 opacity: isDone ? 0.55 : 1,
-                transition: "opacity 0.2s ease",
+                transition:
+                  "background-color 0.3s ease, border-color 0.3s ease, opacity 0.2s ease",
               }}
             >
               <div
