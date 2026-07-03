@@ -4,21 +4,13 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import CommandItemCard from "./CommandItemCard";
 import { completeOpenBillProduct } from "@/lib/api/openBillProducts";
 import type { OpenBillProductFromSSE } from "@/types/commandItem";
+import { calculateRemainingMs } from "@/lib/kitchen/countdown";
+import { useNow } from "@/lib/kitchen/useNow";
 
 const PINNED_STORAGE_KEY = "pinned-command-items";
-const COUNTDOWN_CONSTANT = 30;
-
-function calculateRemainingMs(priority: number, createdAt: string): number {
-  const totalMinutes = COUNTDOWN_CONSTANT / (priority + 1);
-  const totalMs = totalMinutes * 60 * 1000;
-  // created_at is a proper timestamptz instant (serialized as ...Z), so parse
-  // it directly — no manual UTC offset. Date.now() is also an absolute instant.
-  const createdTime = new Date(createdAt).getTime();
-  const elapsed = Date.now() - createdTime;
-  return totalMs - elapsed;
-}
 
 export default function KitchenCommandItemsView() {
+  const now = useNow();
   const [items, setItems] = useState<OpenBillProductFromSSE[]>([]);
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
   const [isConnecting, setIsConnecting] = useState(true);
@@ -259,8 +251,8 @@ export default function KitchenCommandItemsView() {
     });
 
     const sortByCountdown = (a: OpenBillProductFromSSE, b: OpenBillProductFromSSE) => {
-      const aRemaining = calculateRemainingMs(a.priority, a.created_at);
-      const bRemaining = calculateRemainingMs(b.priority, b.created_at);
+      const aRemaining = calculateRemainingMs(a.priority, a.created_at, now);
+      const bRemaining = calculateRemainingMs(b.priority, b.created_at, now);
       return aRemaining - bRemaining;
     };
 
@@ -268,7 +260,7 @@ export default function KitchenCommandItemsView() {
     pending.sort(sortByCountdown);
 
     return { pinnedItems: pinned, pendingItems: pending };
-  }, [items, pinnedIds]);
+  }, [items, pinnedIds, now]);
 
   const totalItems = items.length;
 
@@ -489,6 +481,7 @@ export default function KitchenCommandItemsView() {
                   onComplete={handleComplete}
                   onTogglePin={handleTogglePin}
                   isCompleting={completingIds.has(item.open_bill_product_id)}
+                  now={now}
                 />
               ))}
             </div>
@@ -527,6 +520,7 @@ export default function KitchenCommandItemsView() {
                   onComplete={handleComplete}
                   onTogglePin={handleTogglePin}
                   isCompleting={completingIds.has(item.open_bill_product_id)}
+                  now={now}
                 />
               ))}
             </div>

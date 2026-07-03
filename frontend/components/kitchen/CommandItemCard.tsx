@@ -1,9 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
 import type { OpenBillProductFromSSE } from "@/types/commandItem";
 import { PermissionGate } from "@/components/permissions";
 import { PERMISSIONS } from "@/lib/permissions";
+import {
+  calculateRemainingMs,
+  formatCountdown,
+  getCountdownColor,
+} from "@/lib/kitchen/countdown";
 
 interface CommandItemCardProps {
   item: OpenBillProductFromSSE;
@@ -11,47 +15,8 @@ interface CommandItemCardProps {
   onComplete: (openBillProductId: string) => void;
   onTogglePin: (openBillProductId: string) => void;
   isCompleting: boolean;
-}
-
-const COUNTDOWN_CONSTANT = 30; // 30 minutes base
-
-function calculateRemainingMs(priority: number, createdAt: string): number {
-  const totalMinutes = COUNTDOWN_CONSTANT / (priority + 1);
-  const totalMs = totalMinutes * 60 * 1000;
-  // created_at is a proper timestamptz instant (serialized as ...Z), so parse
-  // it directly — no manual UTC offset. Date.now() is also an absolute instant.
-  const createdTime = new Date(createdAt).getTime();
-  const elapsed = Date.now() - createdTime;
-  return totalMs - elapsed;
-}
-
-function formatCountdown(remainingMs: number): string {
-  if (remainingMs <= 0) {
-    return "¡URGENTE!";
-  }
-
-  const totalSeconds = Math.floor(remainingMs / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-}
-
-function getCountdownColor(remainingMs: number): {
-  bg: string;
-  text: string;
-} {
-  const minutes = remainingMs / 1000 / 60;
-
-  if (remainingMs <= 0) {
-    return { bg: "var(--color-danger)", text: "white" };
-  } else if (minutes < 5) {
-    return { bg: "var(--color-danger-light)", text: "var(--color-danger)" };
-  } else if (minutes < 10) {
-    return { bg: "var(--color-warning-light)", text: "var(--color-warning)" };
-  } else {
-    return { bg: "var(--color-success-light)", text: "var(--color-success)" };
-  }
+  /** Shared clock from the parent view — see useNow(). Drives the countdown. */
+  now: number;
 }
 
 export default function CommandItemCard({
@@ -60,21 +25,9 @@ export default function CommandItemCard({
   onComplete,
   onTogglePin,
   isCompleting,
+  now,
 }: CommandItemCardProps) {
-  const [remainingMs, setRemainingMs] = useState(() =>
-    calculateRemainingMs(item.priority, item.created_at)
-  );
-
-  const updateCountdown = useCallback(() => {
-    setRemainingMs(calculateRemainingMs(item.priority, item.created_at));
-  }, [item.priority, item.created_at]);
-
-  useEffect(() => {
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 1000);
-    return () => clearInterval(interval);
-  }, [updateCountdown]);
-
+  const remainingMs = calculateRemainingMs(item.priority, item.created_at, now);
   const countdownColors = getCountdownColor(remainingMs);
   const createdDate = new Date(item.created_at);
   const timeString = createdDate.toLocaleTimeString("es-MX", {

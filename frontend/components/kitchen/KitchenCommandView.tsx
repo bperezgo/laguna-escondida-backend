@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import CommandCard from "./CommandCard";
 import { completeOpenBillProduct } from "@/lib/api/openBillProducts";
 import type { OpenBillProductFromSSE } from "@/types/commandItem";
+import { useNow } from "@/lib/kitchen/useNow";
 
 // Grouped command structure for display (derived from open bill products)
 export interface GroupedCommand {
@@ -18,11 +19,15 @@ export interface GroupedCommand {
     product_name: string;
     quantity: number;
     notes?: string | null;
+    // Per-line countdown inputs (see lib/kitchen/countdown).
+    priority: number;
+    created_at: string;
   }[];
   created_at: string;
 }
 
 export default function KitchenCommandView() {
+  const now = useNow();
   const [products, setProducts] = useState<OpenBillProductFromSSE[]>([]);
   const [isConnecting, setIsConnecting] = useState(true);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -64,6 +69,8 @@ export default function KitchenCommandView() {
           product_name: p.product_name,
           quantity: p.quantity,
           notes: p.notes,
+          priority: p.priority,
+          created_at: p.created_at,
         })),
         created_at: firstProduct.created_at,
       });
@@ -413,6 +420,7 @@ export default function KitchenCommandView() {
                 command={command}
                 onComplete={handleComplete}
                 isCompleting={completingIds.has(command.id)}
+                now={now}
               />
             ))}
           </div>

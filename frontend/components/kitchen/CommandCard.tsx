@@ -3,17 +3,25 @@
 import type { GroupedCommand } from "./KitchenCommandView";
 import { PermissionGate } from "@/components/permissions";
 import { PERMISSIONS } from "@/lib/permissions";
+import {
+  calculateRemainingMs,
+  formatCountdown,
+  getCountdownColor,
+} from "@/lib/kitchen/countdown";
 
 interface CommandCardProps {
   command: GroupedCommand;
   onComplete: (id: string) => void;
   isCompleting?: boolean;
+  /** Shared clock from the parent view — see useNow(). Drives per-line countdowns. */
+  now: number;
 }
 
 export default function CommandCard({
   command,
   onComplete,
   isCompleting = false,
+  now,
 }: CommandCardProps) {
   // Format time to UTC-5 (America/Bogota or America/Lima timezone)
   const formatTime = (dateString: string) => {
@@ -152,7 +160,14 @@ export default function CommandCard({
           gap: "0.75rem",
         }}
       >
-        {command.items.map((item, index) => (
+        {command.items.map((item, index) => {
+          const remainingMs = calculateRemainingMs(
+            item.priority,
+            item.created_at,
+            now
+          );
+          const countdownColors = getCountdownColor(remainingMs);
+          return (
           <div
             key={item.id || index}
             style={{
@@ -171,6 +186,7 @@ export default function CommandCard({
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
+                gap: "0.5rem",
               }}
             >
               <span
@@ -178,9 +194,27 @@ export default function CommandCard({
                   fontSize: "1.1rem",
                   fontWeight: "600",
                   color: "var(--color-text-primary)",
+                  flex: 1,
+                  minWidth: 0,
                 }}
               >
                 {item.product_name}
+              </span>
+              <span
+                style={{
+                  fontSize: "1rem",
+                  fontWeight: "bold",
+                  fontFamily: "monospace",
+                  color: countdownColors.text,
+                  backgroundColor: countdownColors.bg,
+                  padding: "0.25rem 0.5rem",
+                  borderRadius: "var(--radius-sm)",
+                  minWidth: "3.75rem",
+                  textAlign: "center",
+                }}
+                title="Tiempo restante"
+              >
+                {formatCountdown(remainingMs)}
               </span>
               <span
                 style={{
@@ -212,7 +246,8 @@ export default function CommandCard({
               </div>
             )}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Complete button - only show for pending commands */}
