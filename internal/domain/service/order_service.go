@@ -813,6 +813,23 @@ func (s *OrderService) HandleOrderUpdatedSSE(ctx context.Context, event dto.Orde
 		}
 	}
 
+	// Stamp each live SSE payload with the line's real created_at from the DB.
+	// OrderUpdatedEvent doesn't carry per-line timestamps, so without this the
+	// payload's CreatedAt defaults to Go's zero time (0001-01-01); the kitchen
+	// countdown then reads a huge elapsed and every added/modified line renders as
+	// "¡URGENTE!" until a refresh reloads the snapshot. Reading created_at here (the
+	// same column FindPendingByArea returns) keeps the live payload in agreement
+	// with the refresh path. Mirrors the create-path fix in HandleOrderCreatedSSE.
+	createdAtMap := make(map[string]time.Time)
+	if openBillWithProducts, err := s.openBillRepo.FindByIDWithProducts(ctx, event.OpenBillID); err != nil {
+		s.logger.Error("failed to load open bill for created_at stamping",
+			zap.String("open_bill_id", event.OpenBillID), zap.Error(err))
+	} else {
+		for _, p := range openBillWithProducts.Products {
+			createdAtMap[p.OpenBillProductID] = p.CreatedAt
+		}
+	}
+
 	// Cancel removed products
 	for openBillProductID, product := range previousMap {
 		if _, exists := currentMap[openBillProductID]; !exists {
@@ -861,6 +878,7 @@ func (s *OrderService) HandleOrderUpdatedSSE(ctx context.Context, event dto.Orde
 				Status:             string(dto.CommandStatusCreated),
 				TemporalIdentifier: event.TemporalIdentifier,
 				Priority:           responsibility.Priority,
+				CreatedAt:          createdAtMap[openBillProductID],
 				CreatedByName:      createdByName,
 			}
 
@@ -885,6 +903,7 @@ func (s *OrderService) HandleOrderUpdatedSSE(ctx context.Context, event dto.Orde
 					Status:             string(dto.CommandStatusCreated),
 					TemporalIdentifier: event.TemporalIdentifier,
 					Priority:           responsibility.Priority,
+					CreatedAt:          createdAtMap[openBillProductID],
 					CreatedByName:      createdByName,
 				}
 
