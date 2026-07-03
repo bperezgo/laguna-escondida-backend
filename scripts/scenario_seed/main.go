@@ -1,13 +1,13 @@
-// Command scenario_seed builds a multi-waitress / multi-order initial state so the
+// Command scenario_seed builds a multi-server / multi-order initial state so the
 // frontend can be exercised against a realistic-looking floor.
 //
 // What it does (all against the running API, no DB access):
-//  1. Creates N random waitresses via POST /api/users (X-API-Key, role waitress).
-//  2. Signs each one in to obtain her own JWT.
+//  1. Creates N random servers via POST /api/users (X-API-Key, role server).
+//  2. Signs each one in to obtain their own JWT.
 //  3. Fetches the sellable product pool (SELLABLE only) once.
-//  4. As each waitress, creates several orders so every order's `created_by`
-//     is that waitress (orders are owned by their creator — there is no
-//     waitress_id field to fake).
+//  4. As each server, creates several orders so every order's `created_by`
+//     is that server (orders are owned by their creator — there is no
+//     server_id field to fake).
 //
 // Every line item is left in its freshly-created state.
 //
@@ -26,10 +26,10 @@
 // Tunable via env vars (all optional, sensible defaults shown):
 //
 //	API_URL=http://localhost:8080
-//	NUM_WAITRESSES=8
-//	MIN_ORDERS=8  MAX_ORDERS=10        # orders per waitress (inclusive range)
+//	NUM_SERVERS=8
+//	MIN_ORDERS=8  MAX_ORDERS=10        # orders per server (inclusive range)
 //	MIN_ITEMS=1   MAX_ITEMS=5          # line items per order (inclusive range)
-//	WAITRESS_PASSWORD=password123      # shared password for the generated users
+//	SERVER_PASSWORD=password123      # shared password for the generated users
 package main
 
 import (
@@ -48,10 +48,10 @@ import (
 	"github.com/google/uuid"
 )
 
-const waitressRoleID = 1
+const serverRoleID = 1
 
 // firstNames / lastNames feed random, Colombian-style display names for the
-// generated waitresses. Usernames get a random suffix so the script is safe to
+// generated servers. Usernames get a random suffix so the script is safe to
 // re-run (POST /api/users returns 409 on a duplicate username).
 var firstNames = []string{
 	"Maria", "Camila", "Valentina", "Daniela", "Sofia", "Andrea", "Paula",
@@ -71,14 +71,14 @@ var noteSamples = []string{
 }
 
 type config struct {
-	apiURL        string
-	adminAPIKey   string
-	numWaitresses int
-	minOrders     int
-	maxOrders     int
-	minItems      int
-	maxItems      int
-	password      string
+	apiURL      string
+	adminAPIKey string
+	numServers  int
+	minOrders   int
+	maxOrders   int
+	minItems    int
+	maxItems    int
+	password    string
 }
 
 type createUserRequest struct {
@@ -121,7 +121,7 @@ type createOrderRequest struct {
 	Products           []orderProductItem `json:"products"`
 }
 
-type waitress struct {
+type server struct {
 	name     string
 	username string
 	password string
@@ -133,15 +133,15 @@ func main() {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	log.Printf("Target API: %s", cfg.apiURL)
-	log.Printf("Creating %d waitresses, %d-%d orders each, %d-%d items per order",
-		cfg.numWaitresses, cfg.minOrders, cfg.maxOrders, cfg.minItems, cfg.maxItems)
+	log.Printf("Creating %d servers, %d-%d orders each, %d-%d items per order",
+		cfg.numServers, cfg.minOrders, cfg.maxOrders, cfg.minItems, cfg.maxItems)
 
-	waitresses := createWaitresses(cfg, rng)
-	if len(waitresses) == 0 {
-		log.Fatal("No waitresses could be created; aborting")
+	servers := createServers(cfg, rng)
+	if len(servers) == 0 {
+		log.Fatal("No servers could be created; aborting")
 	}
 
-	products := fetchSellableProducts(cfg, waitresses[0].token)
+	products := fetchSellableProducts(cfg, servers[0].token)
 	if len(products) == 0 {
 		log.Fatal("No sellable products found. Run scripts/products_seed first.")
 	}
@@ -149,8 +149,8 @@ func main() {
 
 	totalOrders := 0
 	totalErrors := 0
-	for i := range waitresses {
-		w := &waitresses[i]
+	for i := range servers {
+		w := &servers[i]
 		numOrders := randRange(rng, cfg.minOrders, cfg.maxOrders)
 		created := 0
 		for o := range numOrders {
@@ -166,7 +166,7 @@ func main() {
 		log.Printf("[OK] %s (%s): %d/%d orders created", w.name, w.username, created, numOrders)
 	}
 
-	printSummary(cfg, waitresses, totalOrders, totalErrors)
+	printSummary(cfg, servers, totalOrders, totalErrors)
 }
 
 func loadConfig() config {
@@ -176,20 +176,20 @@ func loadConfig() config {
 	}
 
 	return config{
-		apiURL:        envOr("API_URL", "http://localhost:8080"),
-		adminAPIKey:   adminAPIKey,
-		numWaitresses: envInt("NUM_WAITRESSES", 8),
-		minOrders:     envInt("MIN_ORDERS", 8),
-		maxOrders:     envInt("MAX_ORDERS", 10),
-		minItems:      envInt("MIN_ITEMS", 1),
-		maxItems:      envInt("MAX_ITEMS", 5),
-		password:      envOr("WAITRESS_PASSWORD", "password123"),
+		apiURL:      envOr("API_URL", "http://localhost:8080"),
+		adminAPIKey: adminAPIKey,
+		numServers:  envInt("NUM_SERVERS", 8),
+		minOrders:   envInt("MIN_ORDERS", 8),
+		maxOrders:   envInt("MAX_ORDERS", 10),
+		minItems:    envInt("MIN_ITEMS", 1),
+		maxItems:    envInt("MAX_ITEMS", 5),
+		password:    envOr("SERVER_PASSWORD", "password123"),
 	}
 }
 
-func createWaitresses(cfg config, rng *rand.Rand) []waitress {
-	result := make([]waitress, 0, cfg.numWaitresses)
-	for range cfg.numWaitresses {
+func createServers(cfg config, rng *rand.Rand) []server {
+	result := make([]server, 0, cfg.numServers)
+	for range cfg.numServers {
 		name := fmt.Sprintf("%s %s",
 			firstNames[rng.Intn(len(firstNames))],
 			lastNames[rng.Intn(len(lastNames))],
@@ -200,18 +200,18 @@ func createWaitresses(cfg config, rng *rand.Rand) []waitress {
 		)
 
 		if err := createUser(cfg, name, username); err != nil {
-			log.Printf("[ERROR] create waitress %s - %v", username, err)
+			log.Printf("[ERROR] create server %s - %v", username, err)
 			continue
 		}
 
 		token, err := login(cfg.apiURL, username, cfg.password)
 		if err != nil {
-			log.Printf("[ERROR] login waitress %s - %v", username, err)
+			log.Printf("[ERROR] login server %s - %v", username, err)
 			continue
 		}
 
-		log.Printf("[OK] waitress ready: %s (%s)", name, username)
-		result = append(result, waitress{name: name, username: username, password: cfg.password, token: token})
+		log.Printf("[OK] server ready: %s (%s)", name, username)
+		result = append(result, server{name: name, username: username, password: cfg.password, token: token})
 	}
 	return result
 }
@@ -251,7 +251,7 @@ func createUser(cfg config, name, username string) error {
 		Username: username,
 		Name:     name,
 		Password: cfg.password,
-		RoleIDs:  []int{waitressRoleID},
+		RoleIDs:  []int{serverRoleID},
 	}
 	body, err := json.Marshal(req)
 	if err != nil {
@@ -358,16 +358,16 @@ func doExpectCreated(httpReq *http.Request) error {
 	return nil
 }
 
-func printSummary(cfg config, waitresses []waitress, totalOrders, totalErrors int) {
+func printSummary(cfg config, servers []server, totalOrders, totalErrors int) {
 	log.Println("\n========== SUMMARY ==========")
 	log.Printf("API: %s", cfg.apiURL)
-	log.Printf("Waitresses created: %d", len(waitresses))
+	log.Printf("Servers created: %d", len(servers))
 	log.Printf("Orders created: %d", totalOrders)
 	if totalErrors > 0 {
 		log.Printf("Errors: %d", totalErrors)
 	}
 	log.Println("Login credentials (all share the same password):")
-	for _, w := range waitresses {
+	for _, w := range servers {
 		log.Printf("  - %-22s password: %s   (%s)", w.username, w.password, w.name)
 	}
 	log.Println("=============================")
