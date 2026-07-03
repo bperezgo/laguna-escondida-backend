@@ -282,32 +282,6 @@ export default function KitchenCommandView() {
     }
   };
 
-  // "Completar todo": strike every still-pending line at once. The flash effect
-  // then handles the "✓ Lista" state and removal.
-  const handleCompleteAll = async (groupId: string) => {
-    const command = commands.find((cmd) => cmd.id === groupId);
-    if (!command) return;
-
-    const pending = command.items.filter((item) => item.status !== "completed");
-    if (pending.length === 0) return;
-
-    markBusy(groupId, true);
-    pending.forEach((item) => setProductStatus(item.id, "completed"));
-
-    try {
-      await Promise.all(
-        pending.map((item) =>
-          completeOpenBillProduct(item.open_bill_id, item.id)
-        )
-      );
-    } catch (error) {
-      pending.forEach((item) => setProductStatus(item.id, "created")); // revert
-      showError(error, "Error al marcar como completado");
-    } finally {
-      markBusy(groupId, false);
-    }
-  };
-
   // When every line of a comanda is struck, flash "✓ Lista" then drop the card.
   // If an undo reopens a line mid-flash, cancel the removal.
   useEffect(() => {
@@ -535,11 +509,9 @@ export default function KitchenCommandView() {
               <CommandCard
                 key={command.id}
                 command={command}
-                onComplete={handleCompleteAll}
                 onCompleteLine={handleCompleteLine}
                 onUndoLine={handleUndoLine}
                 completingIds={completingIds}
-                isCompleting={completingIds.has(command.id)}
                 isReady={readyGroups.has(command.id)}
                 now={now}
               />

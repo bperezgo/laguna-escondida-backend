@@ -11,15 +11,12 @@ import {
 
 interface CommandCardProps {
   command: GroupedCommand;
-  /** Complete every still-pending line at once ("Completar todo"). */
-  onComplete: (id: string) => void;
   /** Strike a single line. */
   onCompleteLine: (openBillId: string, productId: string) => void;
   /** Undo a struck line. */
   onUndoLine: (openBillId: string, productId: string) => void;
-  /** IDs (line or group) with an in-flight request. */
+  /** Line IDs with an in-flight request. */
   completingIds: Set<string>;
-  isCompleting?: boolean;
   /** All lines struck — flashing "✓ Lista" before the card leaves the board. */
   isReady?: boolean;
   /** Shared clock from the parent view — see useNow(). Drives per-line countdowns. */
@@ -28,11 +25,9 @@ interface CommandCardProps {
 
 export default function CommandCard({
   command,
-  onComplete,
   onCompleteLine,
   onUndoLine,
   completingIds,
-  isCompleting = false,
   isReady = false,
   now,
 }: CommandCardProps) {
@@ -78,7 +73,6 @@ export default function CommandCard({
   };
 
   const statusStyle = getStatusColor(command.status);
-  const hasPending = command.items.some((item) => item.status !== "completed");
 
   return (
     <div
@@ -354,65 +348,6 @@ export default function CommandCard({
           );
         })}
       </div>
-
-      {/* Complete-all shortcut — only while the comanda still has pending lines */}
-      {hasPending && (
-        <PermissionGate permission={PERMISSIONS.COMMANDS_UPDATE}>
-          <button
-            onClick={() => onComplete(command.id)}
-            disabled={isCompleting}
-            style={{
-              width: "100%",
-              padding: "1rem",
-              fontSize: "1.1rem",
-              fontWeight: "bold",
-              backgroundColor: isCompleting
-                ? "var(--color-surface-active)"
-                : "var(--color-success)",
-              color: isCompleting ? "var(--color-text-muted)" : "white",
-              border: "none",
-              borderRadius: "var(--radius-md)",
-              cursor: isCompleting ? "not-allowed" : "pointer",
-              transition: "all var(--transition-normal)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "0.5rem",
-            }}
-            onMouseEnter={(e) => {
-              if (!isCompleting) {
-                e.currentTarget.style.backgroundColor =
-                  "var(--color-success-hover)";
-                e.currentTarget.style.transform = "scale(1.02)";
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!isCompleting) {
-                e.currentTarget.style.backgroundColor = "var(--color-success)";
-                e.currentTarget.style.transform = "scale(1)";
-              }
-            }}
-          >
-            {isCompleting ? (
-              <>
-                <div
-                  style={{
-                    width: "20px",
-                    height: "20px",
-                    border: "3px solid var(--color-text-muted)",
-                    borderTop: "3px solid var(--color-text-secondary)",
-                    borderRadius: "50%",
-                    animation: "spin 1s linear infinite",
-                  }}
-                />
-                Marcando...
-              </>
-            ) : (
-              <>✓ Completar todo</>
-            )}
-          </button>
-        </PermissionGate>
-      )}
     </div>
   );
 }
