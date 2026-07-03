@@ -14,4 +14,7 @@ type OpenBillProductSSE struct {
 	Priority           int       `json:"priority"`
 	CreatedAt          time.Time `json:"created_at"`
 	CreatedByName      string    `json:"created_by_name"`
+	// CompletedAt is only populated by the completed/ready feed (from updated_at);
+	// nil on the live pending feed.
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
 }

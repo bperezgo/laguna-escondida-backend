@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"laguna-escondida/backend/internal/domain/aggregate/bill"
 	"laguna-escondida/backend/internal/domain/aggregate/customer"
@@ -211,6 +212,7 @@ func (s *OrderService) CreateOrder(
 			req.OpenBillID,
 			req.TemporalIdentifier,
 			user.ID,
+			openBillDTO.CreatedAt,
 			req.Products,
 		)
 		if err := s.eventBus.Publish(ctx, event); err != nil {
@@ -602,6 +604,25 @@ func (s *OrderService) CompleteOpenBillProduct(ctx context.Context, openBillID, 
 	return nil
 }
 
+// UncompleteOpenBillProduct reverts a completed product back to "created" (undo a
+// kitchen strike-through) and reopens the bill header if it had been auto-completed.
+func (s *OrderService) UncompleteOpenBillProduct(ctx context.Context, openBillID, openBillProductID string) error {
+	aggregate, err := s.openBillRepo.FindAggregateByID(ctx, openBillID)
+	if err != nil {
+		return fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
+	}
+
+	if err := aggregate.UncompleteProduct(openBillProductID); err != nil {
+		return err
+	}
+
+	if err := s.openBillRepo.UpdateProductStatus(ctx, aggregate); err != nil {
+		return fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
+	}
+
+	return nil
+}
+
 // SetOpenBillProductInProgress marks a product as in_progress (fails if product is cancelled)
 func (s *OrderService) SetOpenBillProductInProgress(ctx context.Context, openBillID, openBillProductID string) error {
 	aggregate, err := s.openBillRepo.FindAggregateByID(ctx, openBillID)
@@ -713,7 +734,11 @@ func (s *OrderService) HandleOrderCreatedSSE(ctx context.Context, event dto.Orde
 			Status:             string(dto.CommandStatusCreated),
 			TemporalIdentifier: event.TemporalIdentifier,
 			Priority:           responsibility.Priority,
-			CreatedByName:      createdByName,
+			// Stamp the live payload with the order's real creation instant so the
+			// kitchen countdown starts correctly. Without this it defaults to Go's
+			// zero time and the line shows "¡URGENTE!" until a refresh.
+			CreatedAt:     event.CreatedAt,
+			CreatedByName: createdByName,
 		}
 
 		s.logger.Info("Notifying SSE clients",
@@ -913,4 +938,11 @@ func (s *OrderService) HandleOrderDeletedSSE(ctx context.Context, event dto.Orde
 // GetPendingOpenBillProductsByArea returns all pending open bill products for a specific area (for initial SSE connection)
 func (s *OrderService) GetPendingOpenBillProductsByArea(ctx context.Context, area string) ([]*dto.OpenBillProductSSE, error) {
 	return s.openBillRepo.FindPendingByArea(ctx, area)
+}
+
+// GetCompletedOpenBillProductsByArea returns the completed lines of comandas that
+// are fully done for an area, completed within [from, to) (for the "Comandas Listas"
+// review view).
+func (s *OrderService) GetCompletedOpenBillProductsByArea(ctx context.Context, area string, from, to time.Time) ([]*dto.OpenBillProductSSE, error) {
+	return s.openBillRepo.FindCompletedByAreaBetween(ctx, area, from, to)
 }

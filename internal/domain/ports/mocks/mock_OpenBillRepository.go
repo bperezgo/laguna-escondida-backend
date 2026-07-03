@@ -7,6 +7,8 @@ import (
 	open_bill "laguna-escondida/backend/internal/domain/aggregate/open_bill"
 	dto "laguna-escondida/backend/internal/domain/dto"
 
+	time "time"
+
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -348,6 +350,67 @@ func (_c *MockOpenBillRepository_FindByIDWithProducts_Call) Return(_a0 *dto.Open
 }
 
 func (_c *MockOpenBillRepository_FindByIDWithProducts_Call) RunAndReturn(run func(context.Context, string) (*dto.OpenBillWithProducts, error)) *MockOpenBillRepository_FindByIDWithProducts_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// FindCompletedByAreaBetween provides a mock function with given fields: ctx, area, from, to
+func (_m *MockOpenBillRepository) FindCompletedByAreaBetween(ctx context.Context, area string, from time.Time, to time.Time) ([]*dto.OpenBillProductSSE, error) {
+	ret := _m.Called(ctx, area, from, to)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindCompletedByAreaBetween")
+	}
+
+	var r0 []*dto.OpenBillProductSSE
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, time.Time, time.Time) ([]*dto.OpenBillProductSSE, error)); ok {
+		return rf(ctx, area, from, to)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, time.Time, time.Time) []*dto.OpenBillProductSSE); ok {
+		r0 = rf(ctx, area, from, to)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*dto.OpenBillProductSSE)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, time.Time, time.Time) error); ok {
+		r1 = rf(ctx, area, from, to)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOpenBillRepository_FindCompletedByAreaBetween_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindCompletedByAreaBetween'
+type MockOpenBillRepository_FindCompletedByAreaBetween_Call struct {
+	*mock.Call
+}
+
+// FindCompletedByAreaBetween is a helper method to define mock.On call
+//   - ctx context.Context
+//   - area string
+//   - from time.Time
+//   - to time.Time
+func (_e *MockOpenBillRepository_Expecter) FindCompletedByAreaBetween(ctx interface{}, area interface{}, from interface{}, to interface{}) *MockOpenBillRepository_FindCompletedByAreaBetween_Call {
+	return &MockOpenBillRepository_FindCompletedByAreaBetween_Call{Call: _e.mock.On("FindCompletedByAreaBetween", ctx, area, from, to)}
+}
+
+func (_c *MockOpenBillRepository_FindCompletedByAreaBetween_Call) Run(run func(ctx context.Context, area string, from time.Time, to time.Time)) *MockOpenBillRepository_FindCompletedByAreaBetween_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(time.Time), args[3].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockOpenBillRepository_FindCompletedByAreaBetween_Call) Return(_a0 []*dto.OpenBillProductSSE, _a1 error) *MockOpenBillRepository_FindCompletedByAreaBetween_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOpenBillRepository_FindCompletedByAreaBetween_Call) RunAndReturn(run func(context.Context, string, time.Time, time.Time) ([]*dto.OpenBillProductSSE, error)) *MockOpenBillRepository_FindCompletedByAreaBetween_Call {
 	_c.Call.Return(run)
 	return _c
 }

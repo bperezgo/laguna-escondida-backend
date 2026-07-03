@@ -142,6 +142,22 @@ func (p *OpenBillProduct) Complete() error {
 	return nil
 }
 
+// Uncomplete reverts a completed product back to "created" (undo a strike-through
+// in the kitchen). Only a completed product can be uncompleted.
+func (p *OpenBillProduct) Uncomplete() error {
+	if !p.status.IsCompleted() {
+		return openBillError.ErrProductNotCompleted
+	}
+
+	status, err := shared.NewCommandStatus(dto.CommandStatusCreated)
+	if err != nil {
+		return err
+	}
+
+	p.status = status
+	return nil
+}
+
 func (p *OpenBillProduct) Cancel() error {
 	if p.status.IsCancelled() {
 		return openBillError.ErrProductAlreadyCancelled

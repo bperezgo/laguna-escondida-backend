@@ -186,6 +186,31 @@ func (a *Aggregate) CompleteProduct(openBillProductID string) error {
 	return nil
 }
 
+func (a *Aggregate) UncompleteProduct(openBillProductID string) error {
+	product := a.GetProduct(openBillProductID)
+	if product == nil {
+		return openBillError.ErrOpenBillProductNotFound
+	}
+
+	if err := product.Uncomplete(); err != nil {
+		return err
+	}
+
+	// A product back in "created" means the bill can no longer be completed or
+	// cancelled — reopen the header if it had been auto-finalized (e.g. undo
+	// during the "Lista" flash, after the last line had just completed it).
+	if !a.status.IsCreated() {
+		status, err := shared.NewCommandStatus(dto.CommandStatusCreated)
+		if err != nil {
+			return err
+		}
+		a.status = status
+	}
+
+	a.updatedAt = time.Now()
+	return nil
+}
+
 func (a *Aggregate) CancelProduct(openBillProductID string) error {
 	product := a.GetProduct(openBillProductID)
 	if product == nil {

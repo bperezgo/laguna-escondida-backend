@@ -844,7 +844,22 @@ func (r *OpenBillRepository) FindPendingByArea(ctx context.Context, area string)
 		Joins("INNER JOIN open_bills ON open_bills_products.open_bill_id = open_bills.id AND open_bills.deleted_at IS NULL").
 		Joins("INNER JOIN products ON open_bills_products.product_id = products.id AND products.deleted_at IS NULL").
 		Joins("INNER JOIN users ON open_bills.created_by = users.id AND users.deleted_at IS NULL").
-		Where("open_bills_products.area = ? AND open_bills_products.status = ? AND open_bills_products.deleted_at IS NULL", area, "created").
+		// Stream every non-cancelled line of any comanda that still has >=1
+		// unfinished line in this area. This keeps completed lines on the kitchen
+		// board (rendered struck-through) until the whole comanda is done, so
+		// strike-through state survives reload / reconnect. When the last pending
+		// line is completed, the EXISTS fails for all the comanda's lines at once
+		// and the whole card drops from the feed.
+		Where(`open_bills_products.area = ?
+			AND open_bills_products.status IN ('created', 'in_progress', 'completed')
+			AND open_bills_products.deleted_at IS NULL
+			AND EXISTS (
+				SELECT 1 FROM open_bills_products p2
+				WHERE p2.open_bill_id = open_bills_products.open_bill_id
+					AND p2.area = open_bills_products.area
+					AND p2.status IN ('created', 'in_progress')
+					AND p2.deleted_at IS NULL
+			)`, area).
 		Order("open_bills_products.priority DESC, open_bills_products.created_at ASC").
 		Scan(&results).Error
 
@@ -866,6 +881,89 @@ func (r *OpenBillRepository) FindPendingByArea(ctx context.Context, area string)
 			Priority:           r.Priority,
 			CreatedAt:          r.CreatedAt,
 			CreatedByName:      r.CreatedByName,
+		}
+	}
+
+	return sseProducts, nil
+}
+
+// FindCompletedByAreaBetween returns the completed lines of comandas that are fully
+// done for the given area (no pending line left) and whose completion (updated_at)
+// falls within [from, to). Powers the read-only "Comandas Listas" review view.
+func (r *OpenBillRepository) FindCompletedByAreaBetween(ctx context.Context, area string, from, to time.Time) ([]*dto.OpenBillProductSSE, error) {
+	db := postgres.GetTxOrDB(ctx, r.db)
+
+	type result struct {
+		OpenBillProductID  string
+		OpenBillID         string
+		ProductName        string
+		Quantity           int
+		Notes              *string
+		Area               string
+		Status             string
+		TemporalIdentifier string
+		Priority           int
+		CreatedAt          time.Time
+		CompletedAt        time.Time
+		CreatedByName      string
+	}
+
+	var results []result
+	err := db.Table("open_bills_products").
+		Select(`
+			open_bills_products.id as open_bill_product_id,
+			open_bills_products.open_bill_id,
+			products.name as product_name,
+			open_bills_products.quantity,
+			open_bills_products.notes,
+			open_bills_products.area,
+			open_bills_products.status,
+			open_bills.temporal_identifier,
+			open_bills_products.priority,
+			open_bills_products.created_at,
+			open_bills_products.updated_at as completed_at,
+			users.name as created_by_name
+		`).
+		Joins("INNER JOIN open_bills ON open_bills_products.open_bill_id = open_bills.id AND open_bills.deleted_at IS NULL").
+		Joins("INNER JOIN products ON open_bills_products.product_id = products.id AND products.deleted_at IS NULL").
+		Joins("INNER JOIN users ON open_bills.created_by = users.id AND users.deleted_at IS NULL").
+		// Completed lines of comandas that no longer have any pending line in this
+		// area (the inverse of the live board's EXISTS), completed within the window.
+		Where(`open_bills_products.area = ?
+			AND open_bills_products.status = 'completed'
+			AND open_bills_products.deleted_at IS NULL
+			AND open_bills_products.updated_at >= ?
+			AND open_bills_products.updated_at < ?
+			AND NOT EXISTS (
+				SELECT 1 FROM open_bills_products p2
+				WHERE p2.open_bill_id = open_bills_products.open_bill_id
+					AND p2.area = open_bills_products.area
+					AND p2.status IN ('created', 'in_progress')
+					AND p2.deleted_at IS NULL
+			)`, area, from, to).
+		Order("open_bills_products.updated_at DESC, open_bills_products.created_at ASC").
+		Scan(&results).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	sseProducts := make([]*dto.OpenBillProductSSE, len(results))
+	for i, res := range results {
+		completedAt := res.CompletedAt
+		sseProducts[i] = &dto.OpenBillProductSSE{
+			OpenBillProductID:  res.OpenBillProductID,
+			OpenBillID:         res.OpenBillID,
+			ProductName:        res.ProductName,
+			Quantity:           res.Quantity,
+			Notes:              res.Notes,
+			Area:               res.Area,
+			Status:             res.Status,
+			TemporalIdentifier: res.TemporalIdentifier,
+			Priority:           res.Priority,
+			CreatedAt:          res.CreatedAt,
+			CompletedAt:        &completedAt,
+			CreatedByName:      res.CreatedByName,
 		}
 	}
 

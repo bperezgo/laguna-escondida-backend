@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"time"
 
 	openBill "laguna-escondida/backend/internal/domain/aggregate/open_bill"
 	"laguna-escondida/backend/internal/domain/dto"
@@ -18,4 +19,5 @@ type OpenBillRepository interface {
 	Delete(ctx context.Context, openBillID string) error
 	GetProductPreparationResponsibilities(ctx context.Context, productIDs []string) ([]dto.ProductPreparationResponsibilityWithProduct, error)
 	FindPendingByArea(ctx context.Context, area string) ([]*dto.OpenBillProductSSE, error)
+	FindCompletedByAreaBetween(ctx context.Context, area string, from, to time.Time) ([]*dto.OpenBillProductSSE, error)
 }

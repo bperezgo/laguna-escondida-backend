@@ -11,6 +11,7 @@ var (
 	// OpenBillProduct status errors
 	ErrOpenBillProductNotFound          = errors.New("OPEN_BILL_PRODUCT_NOT_FOUND: open_bill_product not found")
 	ErrProductAlreadyCompleted          = errors.New("OPEN_BILL_PRODUCT_ALREADY_COMPLETED: product is already completed")
+	ErrProductNotCompleted              = errors.New("OPEN_BILL_PRODUCT_NOT_COMPLETED: product is not completed")
 	ErrProductAlreadyCancelled          = errors.New("OPEN_BILL_PRODUCT_ALREADY_CANCELLED: product is already cancelled")
 	ErrCannotCompleteProduct            = errors.New("OPEN_BILL_PRODUCT_CANNOT_COMPLETE: product cannot be completed from current status")
 	ErrCannotCancelProduct              = errors.New("OPEN_BILL_PRODUCT_CANNOT_CANCEL: product cannot be cancelled from current status")

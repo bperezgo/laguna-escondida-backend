@@ -238,6 +238,42 @@ func (h *OrderHandler) CompleteOpenBillProductHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Product completed successfully"})
 }
 
+func (h *OrderHandler) UncompleteOpenBillProductHandler(c *gin.Context) {
+	openBillID := c.Param("id")
+	if openBillID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Order ID is required"})
+		return
+	}
+
+	openBillProductID := c.Param("open_bill_product_id")
+	if openBillProductID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Product ID is required"})
+		return
+	}
+
+	err := h.orderService.UncompleteOpenBillProduct(c.Request.Context(), openBillID, openBillProductID)
+	if err != nil {
+		log.Printf("Error uncompleting open bill product: %v", err)
+
+		if errors.Is(err, orderError.ErrOrderNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
+			return
+		}
+		if errors.Is(err, openBillError.ErrOpenBillProductNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Product not found in order"})
+			return
+		}
+		if errors.Is(err, openBillError.ErrProductNotCompleted) {
+			c.JSON(http.StatusConflict, gin.H{"error": "Product is not completed"})
+			return
+		}
+		RespondError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Product uncompleted successfully"})
+}
+
 func (h *OrderHandler) SetOpenBillProductInProgressHandler(c *gin.Context) {
 	openBillID := c.Param("id")
 	if openBillID == "" {

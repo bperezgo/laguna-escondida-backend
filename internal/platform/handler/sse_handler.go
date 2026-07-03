@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/platform/sse"
@@ -12,6 +13,18 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
+
+// businessDayRange returns [start, end) of "today" in the restaurant's local time
+// (America/Bogota, fixed UTC-5, no DST) as UTC instants, for timestamptz comparison.
+func businessDayRange() (time.Time, time.Time) {
+	loc, err := time.LoadLocation("America/Bogota")
+	if err != nil {
+		loc = time.FixedZone("America/Bogota", -5*60*60)
+	}
+	nowLocal := time.Now().In(loc)
+	startLocal := time.Date(nowLocal.Year(), nowLocal.Month(), nowLocal.Day(), 0, 0, 0, 0, loc)
+	return startLocal.UTC(), startLocal.Add(24 * time.Hour).UTC()
+}
 
 type SSEHandler struct {
 	hub                *sse.Hub
@@ -112,6 +125,27 @@ func (h *SSEHandler) GetPendingOpenBillProductsHandler(c *gin.Context) {
 	products, err := h.orderService.GetPendingOpenBillProductsByArea(ctx, area)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get pending open bill products"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"products": products})
+}
+
+// GetCompletedOpenBillProductsHandler returns today's fully-completed comandas for an
+// area (read-only "Comandas Listas" review view). "Today" = local business day (Bogota).
+func (h *SSEHandler) GetCompletedOpenBillProductsHandler(c *gin.Context) {
+	area := c.Param("area")
+	if area == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Area is required"})
+		return
+	}
+
+	from, to := businessDayRange()
+
+	ctx := c.Request.Context()
+	products, err := h.orderService.GetCompletedOpenBillProductsByArea(ctx, area, from, to)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get completed open bill products"})
 		return
 	}
 

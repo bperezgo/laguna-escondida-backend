@@ -23,6 +23,12 @@ type OrderCreatedEvent struct {
 	OpenBillID         string                     `json:"open_bill_id"`
 	TemporalIdentifier string                     `json:"temporal_identifier"`
 	CreatedByID        string                     `json:"created_by_id"`
+	// CreatedAt is the order's creation instant. It is exported (unlike BaseEvent's
+	// unexported occurredAt, which does NOT survive the JSON round-trip through the
+	// event bus) so the SSE consumer can stamp the live "created" payload with a real
+	// timestamp — otherwise the kitchen countdown starts from Go's zero time and every
+	// new line renders as "¡URGENTE!" until a refresh reloads the DB snapshot.
+	CreatedAt          time.Time                  `json:"created_at"`
 	Products           []OrderCreatedEventProduct `json:"products"`
 }
 
@@ -30,6 +36,7 @@ func NewOrderCreatedEvent(
 	openBillID string,
 	temporalIdentifier string,
 	createdByID string,
+	createdAt time.Time,
 	products []OrderProductItem,
 ) OrderCreatedEvent {
 	eventProducts := make([]OrderCreatedEventProduct, len(products))
@@ -42,6 +49,7 @@ func NewOrderCreatedEvent(
 		OpenBillID:         openBillID,
 		TemporalIdentifier: temporalIdentifier,
 		CreatedByID:        createdByID,
+		CreatedAt:          createdAt,
 		Products:           eventProducts,
 	}
 }
@@ -55,6 +63,7 @@ func (e OrderCreatedEvent) Data() []byte {
 		OpenBillID         string                     `json:"open_bill_id"`
 		TemporalIdentifier string                     `json:"temporal_identifier"`
 		CreatedByID        string                     `json:"created_by_id"`
+		CreatedAt          time.Time                  `json:"created_at"`
 		Products           []OrderCreatedEventProduct `json:"products"`
 	}{
 		EventID:            e.EventID(),
@@ -64,6 +73,7 @@ func (e OrderCreatedEvent) Data() []byte {
 		OpenBillID:         e.OpenBillID,
 		TemporalIdentifier: e.TemporalIdentifier,
 		CreatedByID:        e.CreatedByID,
+		CreatedAt:          e.CreatedAt,
 		Products:           e.Products,
 	}
 	data, _ := json.Marshal(payload)
