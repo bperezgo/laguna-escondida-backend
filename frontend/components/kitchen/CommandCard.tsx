@@ -198,6 +198,9 @@ export default function CommandCard({
         {command.items.map((item, index) => {
           const isDone = item.status === "completed";
           const isBusy = completingIds.has(item.id);
+          // x1 is the common default; multi-quantity is where dispatch mistakes
+          // happen, so make >1 pop harder (larger + a ring).
+          const isMultiple = item.quantity > 1;
           const remainingMs = calculateRemainingMs(
             item.priority,
             item.created_at,
@@ -283,15 +286,20 @@ export default function CommandCard({
 
                 <span
                   style={{
-                    fontSize: "1.25rem",
+                    fontSize: isMultiple ? "1.6rem" : "1.4rem",
                     fontWeight: "bold",
-                    color: "var(--color-primary)",
-                    backgroundColor: "var(--color-primary-light)",
+                    lineHeight: 1.1,
+                    color: "white",
+                    backgroundColor: "var(--color-primary)",
                     padding: "0.25rem 0.75rem",
                     borderRadius: "var(--radius-sm)",
                     minWidth: "3rem",
                     textAlign: "center",
+                    boxShadow: isMultiple
+                      ? "0 0 0 3px var(--color-primary-light)"
+                      : "none",
                   }}
+                  title={`Cantidad: ${item.quantity}`}
                 >
                   x{item.quantity}
                 </span>
