@@ -2,9 +2,18 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import CommandCard from "./CommandCard";
-import { completeOpenBillProduct } from "@/lib/api/openBillProducts";
-import type { OpenBillProductFromSSE } from "@/types/commandItem";
+import {
+  completeOpenBillProduct,
+  uncompleteOpenBillProduct,
+} from "@/lib/api/openBillProducts";
+import type {
+  OpenBillProductFromSSE,
+  OpenBillProductStatus,
+} from "@/types/commandItem";
 import { useNow } from "@/lib/kitchen/useNow";
+
+// How long a fully-completed comanda flashes "✓ Lista" before it leaves the board.
+const READY_FLASH_MS = 3000;
 
 // Grouped command structure for display (derived from open bill products)
 export interface GroupedCommand {
@@ -22,6 +31,8 @@ export interface GroupedCommand {
     // Per-line countdown inputs (see lib/kitchen/countdown).
     priority: number;
     created_at: string;
+    // Per-line status drives the strike-through (completed = struck).
+    status: OpenBillProductStatus;
   }[];
   created_at: string;
 }
@@ -32,6 +43,11 @@ export default function KitchenCommandView() {
   const [isConnecting, setIsConnecting] = useState(true);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [completingIds, setCompletingIds] = useState<Set<string>>(new Set());
+  // Comandas whose last line was just struck: flashing "✓ Lista" before removal.
+  const [readyGroups, setReadyGroups] = useState<Set<string>>(new Set());
+  const readyTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
+    new Map()
+  );
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -56,13 +72,19 @@ export default function KitchenCommandView() {
       );
 
       const firstProduct = groupProducts[0];
-      
+
+      // The comanda is "completed" only once every line is struck; until then it
+      // stays on the board so cooks see the whole ticket and its progress.
+      const allCompleted = groupProducts.every(
+        (p) => p.status === "completed"
+      );
+
       grouped.push({
         id: temporalId,
         temporal_identifier: temporalId,
         created_by_name: firstProduct.created_by_name,
         area: firstProduct.area,
-        status: "created", // Groups are always "created" since we only show pending products
+        status: allCompleted ? "completed" : "created",
         items: groupProducts.map((p) => ({
           id: p.open_bill_product_id,
           open_bill_id: p.open_bill_id,
@@ -71,6 +93,7 @@ export default function KitchenCommandView() {
           notes: p.notes,
           priority: p.priority,
           created_at: p.created_at,
+          status: p.status,
         })),
         created_at: firstProduct.created_at,
       });
@@ -133,26 +156,30 @@ export default function KitchenCommandView() {
       const handleUpdatedProduct = (event: MessageEvent) => {
         try {
           const product: OpenBillProductFromSSE = JSON.parse(event.data);
-          
-          // If the product is completed or cancelled, remove it from the list
-          if (product.status === "completed" || product.status === "cancelled") {
+
+          // Cancelled lines leave the board. Completed lines STAY (rendered
+          // struck-through) so the comanda keeps showing its progress until every
+          // line is done.
+          if (product.status === "cancelled") {
             setProducts((prev) =>
-              prev.filter((p) => p.open_bill_product_id !== product.open_bill_product_id)
+              prev.filter(
+                (p) => p.open_bill_product_id !== product.open_bill_product_id
+              )
             );
-          } else {
-            // Otherwise, update the product in place
-            setProducts((prev) => {
-              const existingIndex = prev.findIndex(
-                (p) => p.open_bill_product_id === product.open_bill_product_id
-              );
-              if (existingIndex >= 0) {
-                const updated = [...prev];
-                updated[existingIndex] = product;
-                return updated;
-              }
-              return prev;
-            });
+            return;
           }
+
+          setProducts((prev) => {
+            const existingIndex = prev.findIndex(
+              (p) => p.open_bill_product_id === product.open_bill_product_id
+            );
+            if (existingIndex >= 0) {
+              const updated = [...prev];
+              updated[existingIndex] = product;
+              return updated;
+            }
+            return prev;
+          });
         } catch (error) {
           console.error("Error parsing open_bill_product.updated event:", error);
         }
@@ -200,41 +227,131 @@ export default function KitchenCommandView() {
     };
   }, []);
 
-  const handleComplete = async (groupId: string) => {
-    // Find the command group to get all product IDs
+  // Optimistically set a line's status in local state (instant strike / un-strike).
+  const setProductStatus = (
+    productId: string,
+    status: OpenBillProductStatus
+  ) => {
+    setProducts((prev) =>
+      prev.map((p) =>
+        p.open_bill_product_id === productId ? { ...p, status } : p
+      )
+    );
+  };
+
+  const markBusy = (id: string, busy: boolean) => {
+    setCompletingIds((prev) => {
+      const updated = new Set(prev);
+      if (busy) updated.add(id);
+      else updated.delete(id);
+      return updated;
+    });
+  };
+
+  const showError = (error: unknown, fallback: string) => {
+    console.error(fallback, error);
+    setConnectionError(error instanceof Error ? error.message : fallback);
+    setTimeout(() => setConnectionError(null), 3000);
+  };
+
+  // Strike a single line. Stays visible (struck) until the whole comanda is done.
+  const handleCompleteLine = async (openBillId: string, productId: string) => {
+    markBusy(productId, true);
+    setProductStatus(productId, "completed"); // optimistic strike
+    try {
+      await completeOpenBillProduct(openBillId, productId);
+    } catch (error) {
+      setProductStatus(productId, "created"); // revert
+      showError(error, "Error al marcar como completado");
+    } finally {
+      markBusy(productId, false);
+    }
+  };
+
+  // Undo a strike: revert a completed line back to pending.
+  const handleUndoLine = async (openBillId: string, productId: string) => {
+    markBusy(productId, true);
+    setProductStatus(productId, "created"); // optimistic un-strike
+    try {
+      await uncompleteOpenBillProduct(openBillId, productId);
+    } catch (error) {
+      setProductStatus(productId, "completed"); // revert
+      showError(error, "Error al deshacer");
+    } finally {
+      markBusy(productId, false);
+    }
+  };
+
+  // "Completar todo": strike every still-pending line at once. The flash effect
+  // then handles the "✓ Lista" state and removal.
+  const handleCompleteAll = async (groupId: string) => {
     const command = commands.find((cmd) => cmd.id === groupId);
     if (!command) return;
 
-    setCompletingIds((prev) => new Set(prev).add(groupId));
+    const pending = command.items.filter((item) => item.status !== "completed");
+    if (pending.length === 0) return;
 
-    const productIds = command.items.map((item) => item.id);
+    markBusy(groupId, true);
+    pending.forEach((item) => setProductStatus(item.id, "completed"));
 
     try {
-      // Complete all products in the group
       await Promise.all(
-        command.items.map((item) => completeOpenBillProduct(item.open_bill_id, item.id))
-      );
-      
-      // Remove all products in this group from state
-      setProducts((prev) =>
-        prev.filter((p) => !productIds.includes(p.open_bill_product_id))
+        pending.map((item) =>
+          completeOpenBillProduct(item.open_bill_id, item.id)
+        )
       );
     } catch (error) {
-      console.error("Error completing command group:", error);
-      setConnectionError(
-        error instanceof Error
-          ? error.message
-          : "Error al marcar como completado"
-      );
-      setTimeout(() => setConnectionError(null), 3000);
+      pending.forEach((item) => setProductStatus(item.id, "created")); // revert
+      showError(error, "Error al marcar como completado");
     } finally {
-      setCompletingIds((prev) => {
-        const updated = new Set(prev);
-        updated.delete(groupId);
-        return updated;
-      });
+      markBusy(groupId, false);
     }
   };
+
+  // When every line of a comanda is struck, flash "✓ Lista" then drop the card.
+  // If an undo reopens a line mid-flash, cancel the removal.
+  useEffect(() => {
+    const timers = readyTimersRef.current;
+
+    commands.forEach((command) => {
+      const allCompleted =
+        command.items.length > 0 &&
+        command.items.every((item) => item.status === "completed");
+
+      if (allCompleted && !timers.has(command.id)) {
+        setReadyGroups((prev) => new Set(prev).add(command.id));
+        const timer = setTimeout(() => {
+          setProducts((prev) =>
+            prev.filter((p) => p.temporal_identifier !== command.id)
+          );
+          timers.delete(command.id);
+          setReadyGroups((prev) => {
+            const next = new Set(prev);
+            next.delete(command.id);
+            return next;
+          });
+        }, READY_FLASH_MS);
+        timers.set(command.id, timer);
+      } else if (!allCompleted && timers.has(command.id)) {
+        clearTimeout(timers.get(command.id)!);
+        timers.delete(command.id);
+        setReadyGroups((prev) => {
+          const next = new Set(prev);
+          next.delete(command.id);
+          return next;
+        });
+      }
+    });
+  }, [commands]);
+
+  // Clear any pending flash timers on unmount.
+  useEffect(() => {
+    const timers = readyTimersRef.current;
+    return () => {
+      timers.forEach((timer) => clearTimeout(timer));
+      timers.clear();
+    };
+  }, []);
 
   return (
     <div
@@ -418,8 +535,12 @@ export default function KitchenCommandView() {
               <CommandCard
                 key={command.id}
                 command={command}
-                onComplete={handleComplete}
+                onComplete={handleCompleteAll}
+                onCompleteLine={handleCompleteLine}
+                onUndoLine={handleUndoLine}
+                completingIds={completingIds}
                 isCompleting={completingIds.has(command.id)}
+                isReady={readyGroups.has(command.id)}
                 now={now}
               />
             ))}

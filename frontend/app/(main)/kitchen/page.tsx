@@ -1,6 +1,7 @@
-import KitchenTabs from "@/components/kitchen/KitchenTabs";
+import KitchenTabs, { type KitchenView } from "@/components/kitchen/KitchenTabs";
 import KitchenCommandView from "@/components/kitchen/KitchenCommandView";
 import KitchenCommandItemsView from "@/components/kitchen/KitchenCommandItemsView";
+import KitchenReadyView from "@/components/kitchen/KitchenReadyView";
 
 interface KitchenPageProps {
   searchParams: Promise<{ view?: string }>;
@@ -8,7 +9,12 @@ interface KitchenPageProps {
 
 export default async function KitchenPage({ searchParams }: KitchenPageProps) {
   const params = await searchParams;
-  const view = params.view === "command_items" ? "command_items" : "commands";
+  const view: KitchenView =
+    params.view === "command_items"
+      ? "command_items"
+      : params.view === "ready"
+      ? "ready"
+      : "commands";
 
   return (
     // Kitchen/comandas is a glanceable display (cooks). Per user preference it now
@@ -32,8 +38,10 @@ export default async function KitchenPage({ searchParams }: KitchenPageProps) {
       </div>
       {view === "commands" ? (
         <KitchenCommandView />
-      ) : (
+      ) : view === "command_items" ? (
         <KitchenCommandItemsView />
+      ) : (
+        <KitchenReadyView />
       )}
     </div>
   );

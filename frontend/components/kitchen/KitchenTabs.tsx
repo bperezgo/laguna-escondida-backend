@@ -2,14 +2,22 @@
 
 import { useRouter } from "next/navigation";
 
+export type KitchenView = "commands" | "command_items" | "ready";
+
 interface KitchenTabsProps {
-  currentView: "commands" | "command_items";
+  currentView: KitchenView;
 }
+
+const TABS: { view: KitchenView; label: string }[] = [
+  { view: "commands", label: "Comandas" },
+  { view: "command_items", label: "Comandas Individuales" },
+  { view: "ready", label: "Comandas Listas" },
+];
 
 export default function KitchenTabs({ currentView }: KitchenTabsProps) {
   const router = useRouter();
 
-  const handleTabChange = (newView: "commands" | "command_items") => {
+  const handleTabChange = (newView: KitchenView) => {
     if (newView === currentView) return;
     const params = new URLSearchParams();
     params.set("view", newView);
@@ -26,53 +34,33 @@ export default function KitchenTabs({ currentView }: KitchenTabsProps) {
         paddingBottom: "0",
       }}
     >
-      <button
-        onClick={() => handleTabChange("commands")}
-        style={{
-          padding: "0.75rem 1.5rem",
-          fontSize: "1rem",
-          fontWeight: "600",
-          backgroundColor: "transparent",
-          color:
-            currentView === "commands"
-              ? "var(--color-primary)"
-              : "var(--color-text-secondary)",
-          border: "none",
-          borderBottom:
-            currentView === "commands"
-              ? "3px solid var(--color-primary)"
-              : "3px solid transparent",
-          cursor: "pointer",
-          transition: "all 0.2s ease",
-          marginBottom: "-2px",
-        }}
-      >
-        Comandas
-      </button>
-      <button
-        onClick={() => handleTabChange("command_items")}
-        style={{
-          padding: "0.75rem 1.5rem",
-          fontSize: "1rem",
-          fontWeight: "600",
-          backgroundColor: "transparent",
-          color:
-            currentView === "command_items"
-              ? "var(--color-primary)"
-              : "var(--color-text-secondary)",
-          border: "none",
-          borderBottom:
-            currentView === "command_items"
-              ? "3px solid var(--color-primary)"
-              : "3px solid transparent",
-          cursor: "pointer",
-          transition: "all 0.2s ease",
-          marginBottom: "-2px",
-        }}
-      >
-        Comandas Individuales
-      </button>
+      {TABS.map((tab) => {
+        const active = currentView === tab.view;
+        return (
+          <button
+            key={tab.view}
+            onClick={() => handleTabChange(tab.view)}
+            style={{
+              padding: "0.75rem 1.5rem",
+              fontSize: "1rem",
+              fontWeight: "600",
+              backgroundColor: "transparent",
+              color: active
+                ? "var(--color-primary)"
+                : "var(--color-text-secondary)",
+              border: "none",
+              borderBottom: active
+                ? "3px solid var(--color-primary)"
+                : "3px solid transparent",
+              cursor: "pointer",
+              transition: "all 0.2s ease",
+              marginBottom: "-2px",
+            }}
+          >
+            {tab.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
-

@@ -16,6 +16,8 @@ export interface OpenBillProductFromSSE {
   priority: number;
   created_at: string;
   created_by_name: string;
+  // Only present on the completed/ready feed (GET .../completed).
+  completed_at?: string | null;
 }
 
 /**

@@ -71,6 +71,13 @@ export default function KitchenCommandItemsView() {
         try {
           const item: OpenBillProductFromSSE = JSON.parse(event.data);
 
+          // The kitchen feed now includes completed lines (struck-through in the
+          // grouped "Comandas" view). The individual view only shows pending work,
+          // so ignore any finalized lines that arrive in the snapshot.
+          if (item.status === "completed" || item.status === "cancelled") {
+            return;
+          }
+
           setItems((prev) => {
             const existingIndex = prev.findIndex(
               (i) => i.open_bill_product_id === item.open_bill_product_id
