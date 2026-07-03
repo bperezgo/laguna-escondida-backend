@@ -130,7 +130,7 @@ type server struct {
 
 func main() {
 	cfg := loadConfig()
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rng := rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec // seed data for local scenarios, not security-sensitive
 
 	log.Printf("Target API: %s", cfg.apiURL)
 	log.Printf("Creating %d servers, %d-%d orders each, %d-%d items per order",

@@ -20,16 +20,16 @@ type OrderCreatedEventProduct struct {
 
 type OrderCreatedEvent struct {
 	event.BaseEvent
-	OpenBillID         string                     `json:"open_bill_id"`
-	TemporalIdentifier string                     `json:"temporal_identifier"`
-	CreatedByID        string                     `json:"created_by_id"`
+	OpenBillID         string `json:"open_bill_id"`
+	TemporalIdentifier string `json:"temporal_identifier"`
+	CreatedByID        string `json:"created_by_id"`
 	// CreatedAt is the order's creation instant. It is exported (unlike BaseEvent's
 	// unexported occurredAt, which does NOT survive the JSON round-trip through the
 	// event bus) so the SSE consumer can stamp the live "created" payload with a real
 	// timestamp — otherwise the kitchen countdown starts from Go's zero time and every
 	// new line renders as "¡URGENTE!" until a refresh reloads the DB snapshot.
-	CreatedAt          time.Time                  `json:"created_at"`
-	Products           []OrderCreatedEventProduct `json:"products"`
+	CreatedAt time.Time                  `json:"created_at"`
+	Products  []OrderCreatedEventProduct `json:"products"`
 }
 
 func NewOrderCreatedEvent(
