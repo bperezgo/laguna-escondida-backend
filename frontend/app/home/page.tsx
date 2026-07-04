@@ -76,6 +76,13 @@ const navItems = [
     permission: PERMISSIONS.FINANCIAL_SUMMARY_READ,
     accent: "var(--color-success)",
   },
+  {
+    href: "/users",
+    title: "Usuarios",
+    description: "Crear y administrar usuarios del sistema",
+    permission: PERMISSIONS.USERS_READ,
+    accent: "var(--color-primary)",
+  },
 ];
 
 export default function HomePage() {
