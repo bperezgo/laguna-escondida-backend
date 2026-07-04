@@ -434,8 +434,8 @@ func (r *rig) openBillOutboxEntry(createdByID, productID string) (entry *dto.Syn
 		TotalAmount:        decimal.NewFromInt(5000),
 		Status:             dto.CommandStatusCreated,
 		CreatedByID:        createdByID,
-		Products: []dto.OrderProductItem{
-			{OpenBillProductID: uuid.NewString(), ProductID: productID, Quantity: 1},
+		Products: []dto.OpenBillSyncProduct{
+			{OpenBillProductID: uuid.NewString(), ProductID: productID, Quantity: 1, Status: dto.CommandStatusCreated},
 		},
 		CreatedAt: now,
 		UpdatedAt: now,

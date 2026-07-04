@@ -206,13 +206,27 @@ type BillSyncPayload struct {
 // open_bill change. It holds the order header plus its line items so a peer node
 // can reconstruct the order with a single upsert.
 type OpenBillSyncPayload struct {
-	ID                 string             `json:"id"`
-	TemporalIdentifier string             `json:"temporal_identifier"`
-	Descriptor         *string            `json:"descriptor,omitempty"`
-	TotalAmount        decimal.Decimal    `json:"total_amount"`
-	Status             CommandStatus      `json:"status"`
-	CreatedByID        string             `json:"created_by_id"`
-	Products           []OrderProductItem `json:"products"`
-	CreatedAt          time.Time          `json:"created_at"`
-	UpdatedAt          time.Time          `json:"updated_at"`
+	ID                 string                `json:"id"`
+	TemporalIdentifier string                `json:"temporal_identifier"`
+	Descriptor         *string               `json:"descriptor,omitempty"`
+	TotalAmount        decimal.Decimal       `json:"total_amount"`
+	Status             CommandStatus         `json:"status"`
+	CreatedByID        string                `json:"created_by_id"`
+	Products           []OpenBillSyncProduct `json:"products"`
+	CreatedAt          time.Time             `json:"created_at"`
+	UpdatedAt          time.Time             `json:"updated_at"`
+}
+
+// OpenBillSyncProduct is a line item inside an OpenBillSyncPayload. Beyond identity
+// and quantity it carries the kitchen status/area/priority so a peer node reconstructs
+// the exact line state (created / in_progress / completed / cancelled) instead of
+// falling back to column defaults.
+type OpenBillSyncProduct struct {
+	OpenBillProductID string        `json:"open_bill_product_id"`
+	ProductID         string        `json:"product_id"`
+	Quantity          int           `json:"quantity"`
+	Notes             *string       `json:"notes,omitempty"`
+	Status            CommandStatus `json:"status"`
+	Area              *string       `json:"area,omitempty"`
+	Priority          int           `json:"priority"`
 }

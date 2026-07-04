@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -2137,4 +2138,118 @@ func TestDeleteOrder_DeleteFails(t *testing.T) {
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, orderError.ErrOrderDeletionFailed)
+}
+
+// ============================================================================
+// Product status-transition sync (Complete/Uncomplete/InProgress/Cancel)
+//
+// These transitions previously stayed local — the service persisted the status
+// but appended no sync_outbox row, so the cloud never saw completions or
+// cancellations. Each test asserts the transition now emits one open_bill update
+// outbox row whose snapshot carries the new product status.
+// ============================================================================
+
+// newStatusSyncService wires an OrderService with an outbox mock the caller can
+// inspect, for the status-transition sync tests.
+func newStatusSyncService(t *testing.T) (*OrderService, *mocks.MockOpenBillRepository, *mocks.MockSyncOutboxRepository) {
+	mockOpenBillRepo := mocks.NewMockOpenBillRepository(t)
+	mockUnitOfWork := createMockUnitOfWork(t)
+	mockEventBus := createMockEventBus(t)
+	mockOutbox := mocks.NewMockSyncOutboxRepository(t)
+	service := NewOrderService(mockOpenBillRepo, nil, nil, nil, nil, mockUnitOfWork, mockEventBus, mockOutbox, dto.SyncIdentity{NodeID: testNodeID})
+	return service, mockOpenBillRepo, mockOutbox
+}
+
+// buildStatusAggregate returns an aggregate holding a single product in the given
+// status, plus the open_bill and product ids used to drive the transition.
+func buildStatusAggregate(t *testing.T, productStatus dto.CommandStatus) (*openBill.Aggregate, string, string) {
+	t.Helper()
+	openBillProductID := uuidPlaceholder2
+	area := "kitchen"
+	product, err := openBill.NewOpenBillProductFromRepository(openBillProductID, uuidPlaceholder1, 1, nil, productStatus, &area, 2)
+	require.NoError(t, err)
+	aggregate := createTestOpenBillAggregate(openBillID1, []*openBill.OpenBillProduct{product})
+	return aggregate, openBillID1, openBillProductID
+}
+
+func decodeOpenBillPayload(t *testing.T, entry *dto.SyncOutboxEntry) dto.OpenBillSyncPayload {
+	t.Helper()
+	var payload dto.OpenBillSyncPayload
+	require.NoError(t, json.Unmarshal(entry.Payload, &payload))
+	return payload
+}
+
+// captureStatusOutbox runs a status-transition method and returns the single
+// open_bill update outbox row it appended.
+func captureStatusOutbox(
+	t *testing.T,
+	from dto.CommandStatus,
+	transition func(service *OrderService, ctx context.Context, openBillID, productID string) error,
+) *dto.SyncOutboxEntry {
+	t.Helper()
+	ctx := createTestContext()
+	service, mockOpenBillRepo, mockOutbox := newStatusSyncService(t)
+	aggregate, openBillID, productID := buildStatusAggregate(t, from)
+
+	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(aggregate, nil)
+	mockOpenBillRepo.On("UpdateProductStatus", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
+
+	var captured *dto.SyncOutboxEntry
+	mockOutbox.EXPECT().
+		Append(mock.Anything, mock.AnythingOfType("*dto.SyncOutboxEntry")).
+		Run(func(_ context.Context, entry *dto.SyncOutboxEntry) { captured = entry }).
+		Return(nil).
+		Once()
+
+	require.NoError(t, transition(service, ctx, openBillID, productID))
+
+	require.NotNil(t, captured, "status transition must append an outbox row")
+	assert.Equal(t, dto.SyncEntityOpenBill, captured.EntityType)
+	assert.Equal(t, dto.SyncOperationUpdate, captured.Operation)
+	assert.Equal(t, openBillID, captured.EntityID)
+	return captured
+}
+
+func TestCompleteOpenBillProduct_SyncsStatusToOutbox(t *testing.T) {
+	captured := captureStatusOutbox(t, dto.CommandStatusCreated,
+		func(s *OrderService, ctx context.Context, openBillID, productID string) error {
+			return s.CompleteOpenBillProduct(ctx, openBillID, productID)
+		})
+
+	payload := decodeOpenBillPayload(t, captured)
+	require.Len(t, payload.Products, 1)
+	assert.Equal(t, dto.CommandStatusCompleted, payload.Products[0].Status)
+}
+
+func TestCancelOpenBillProduct_SyncsStatusToOutbox(t *testing.T) {
+	captured := captureStatusOutbox(t, dto.CommandStatusCreated,
+		func(s *OrderService, ctx context.Context, openBillID, productID string) error {
+			return s.CancelOpenBillProduct(ctx, openBillID, productID)
+		})
+
+	payload := decodeOpenBillPayload(t, captured)
+	require.Len(t, payload.Products, 1)
+	assert.Equal(t, dto.CommandStatusCancelled, payload.Products[0].Status)
+}
+
+func TestUncompleteOpenBillProduct_SyncsStatusToOutbox(t *testing.T) {
+	captured := captureStatusOutbox(t, dto.CommandStatusCompleted,
+		func(s *OrderService, ctx context.Context, openBillID, productID string) error {
+			return s.UncompleteOpenBillProduct(ctx, openBillID, productID)
+		})
+
+	payload := decodeOpenBillPayload(t, captured)
+	require.Len(t, payload.Products, 1)
+	assert.Equal(t, dto.CommandStatusCreated, payload.Products[0].Status)
+}
+
+func TestSetOpenBillProductInProgress_SyncsStatusToOutbox(t *testing.T) {
+	captured := captureStatusOutbox(t, dto.CommandStatusCreated,
+		func(s *OrderService, ctx context.Context, openBillID, productID string) error {
+			return s.SetOpenBillProductInProgress(ctx, openBillID, productID)
+		})
+
+	payload := decodeOpenBillPayload(t, captured)
+	require.Len(t, payload.Products, 1)
+	assert.Equal(t, dto.CommandStatusInProgress, payload.Products[0].Status)
 }

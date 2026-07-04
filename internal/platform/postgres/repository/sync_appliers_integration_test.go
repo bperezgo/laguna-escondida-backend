@@ -172,8 +172,8 @@ func TestOpenBillSyncApplier_Apply_Create_Integration(t *testing.T) {
 		TotalAmount:        decimal.NewFromInt(20),
 		Status:             dto.CommandStatusCreated,
 		CreatedByID:        userID,
-		Products: []dto.OrderProductItem{
-			{OpenBillProductID: openBillProductID, ProductID: productID, Quantity: 2},
+		Products: []dto.OpenBillSyncProduct{
+			{OpenBillProductID: openBillProductID, ProductID: productID, Quantity: 2, Status: dto.CommandStatusCancelled, Priority: 3},
 		},
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -188,6 +188,16 @@ func TestOpenBillSyncApplier_Apply_Create_Integration(t *testing.T) {
 	var quantity int
 	db.DB.Raw("SELECT quantity FROM open_bills_products WHERE id = ? AND deleted_at IS NULL", openBillProductID).Scan(&quantity)
 	assert.Equal(t, 2, quantity, "line item upserted with snapshot quantity")
+
+	// Status/priority ride in the snapshot, so the peer reproduces them exactly instead
+	// of falling back to the DB default ('completed'). This is the core sync-bug fix.
+	var status string
+	db.DB.Raw("SELECT status FROM open_bills_products WHERE id = ? AND deleted_at IS NULL", openBillProductID).Scan(&status)
+	assert.Equal(t, string(dto.CommandStatusCancelled), status, "line item status replicated from snapshot, not defaulted")
+
+	var priority int
+	db.DB.Raw("SELECT priority FROM open_bills_products WHERE id = ? AND deleted_at IS NULL", openBillProductID).Scan(&priority)
+	assert.Equal(t, 3, priority, "line item priority replicated from snapshot")
 
 	// Re-applying the same snapshot is an upsert: state is unchanged, still one row.
 	require.NoError(t, applier.Apply(context.Background(), openBillOp(t, dto.SyncOperationCreate, marshalOpenBillPayload(t, payload))))
@@ -216,23 +226,28 @@ func TestOpenBillSyncApplier_Apply_Update_ReconcilesProducts_Integration(t *test
 	create := dto.OpenBillSyncPayload{
 		ID: billID, TemporalIdentifier: uuid.NewString(), TotalAmount: decimal.NewFromInt(10),
 		Status: dto.CommandStatusCreated, CreatedByID: userID,
-		Products: []dto.OrderProductItem{
-			{OpenBillProductID: itemA, ProductID: productA, Quantity: 1},
-			{OpenBillProductID: itemB, ProductID: productB, Quantity: 1},
+		Products: []dto.OpenBillSyncProduct{
+			{OpenBillProductID: itemA, ProductID: productA, Quantity: 1, Status: dto.CommandStatusCreated},
+			{OpenBillProductID: itemB, ProductID: productB, Quantity: 1, Status: dto.CommandStatusCreated},
 		},
 		CreatedAt: now, UpdatedAt: now,
 	}
 	require.NoError(t, applier.Apply(context.Background(), openBillOp(t, dto.SyncOperationCreate, marshalOpenBillPayload(t, create))))
 
-	// Update drops itemB and bumps itemA's quantity.
+	// Update drops itemB, bumps itemA's quantity, and marks itemA completed — the exact
+	// shape of a kitchen status transition replicating via an update op.
 	update := create
-	update.Products = []dto.OrderProductItem{{OpenBillProductID: itemA, ProductID: productA, Quantity: 5}}
+	update.Products = []dto.OpenBillSyncProduct{{OpenBillProductID: itemA, ProductID: productA, Quantity: 5, Status: dto.CommandStatusCompleted}}
 	update.TotalAmount = decimal.NewFromInt(50)
 	require.NoError(t, applier.Apply(context.Background(), openBillOp(t, dto.SyncOperationUpdate, marshalOpenBillPayload(t, update))))
 
 	var qtyA int
 	db.DB.Raw("SELECT quantity FROM open_bills_products WHERE id = ? AND deleted_at IS NULL", itemA).Scan(&qtyA)
 	assert.Equal(t, 5, qtyA, "kept item quantity updated from snapshot")
+
+	var statusA string
+	db.DB.Raw("SELECT status FROM open_bills_products WHERE id = ? AND deleted_at IS NULL", itemA).Scan(&statusA)
+	assert.Equal(t, string(dto.CommandStatusCompleted), statusA, "status transition replicated on update")
 
 	var liveB int64
 	db.DB.Raw("SELECT COUNT(*) FROM open_bills_products WHERE id = ? AND deleted_at IS NULL", itemB).Scan(&liveB)
@@ -257,7 +272,7 @@ func TestOpenBillSyncApplier_Apply_DeleteTombstone_Integration(t *testing.T) {
 	create := dto.OpenBillSyncPayload{
 		ID: billID, TemporalIdentifier: uuid.NewString(), TotalAmount: decimal.NewFromInt(10),
 		Status: dto.CommandStatusCreated, CreatedByID: userID,
-		Products:  []dto.OrderProductItem{{OpenBillProductID: openBillProductID, ProductID: productID, Quantity: 1}},
+		Products:  []dto.OpenBillSyncProduct{{OpenBillProductID: openBillProductID, ProductID: productID, Quantity: 1, Status: dto.CommandStatusCreated}},
 		CreatedAt: now, UpdatedAt: now,
 	}
 	require.NoError(t, applier.Apply(context.Background(), openBillOp(t, dto.SyncOperationCreate, marshalOpenBillPayload(t, create))))

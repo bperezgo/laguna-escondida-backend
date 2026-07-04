@@ -197,7 +197,7 @@ func (s *OrderService) CreateOrder(
 		if err := s.openBillRepo.Create(ctx, openBillAggregate); err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
 		}
-		if err := s.appendOpenBillOutbox(ctx, openBillDTO, user.ID, req.Products, dto.SyncOperationCreate); err != nil {
+		if err := s.appendOpenBillOutbox(ctx, openBillDTO, user.ID, openBillSyncProducts(openBillAggregate), dto.SyncOperationCreate); err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
 		}
 		return nil
@@ -223,6 +223,26 @@ func (s *OrderService) CreateOrder(
 	return openBillDTO, nil
 }
 
+// openBillSyncProducts snapshots an aggregate's line items — including each product's
+// kitchen status/area/priority — for an open_bill sync payload, so status transitions
+// (complete/cancel/in_progress) replicate to peers, not just header/quantity changes.
+func openBillSyncProducts(aggregate *openBill.Aggregate) []dto.OpenBillSyncProduct {
+	products := aggregate.Products()
+	items := make([]dto.OpenBillSyncProduct, 0, len(products))
+	for _, p := range products {
+		items = append(items, dto.OpenBillSyncProduct{
+			OpenBillProductID: p.ID(),
+			ProductID:         p.ProductID(),
+			Quantity:          p.Quantity(),
+			Notes:             p.Notes(),
+			Status:            p.Status(),
+			Area:              p.Area(),
+			Priority:          p.Priority(),
+		})
+	}
+	return items
+}
+
 // appendOpenBillOutbox writes one sync_outbox row describing an open_bill change.
 // It must be called inside a UnitOfWork transaction so the row commits atomically
 // with the business change (Option A). The payload is a full snapshot of the order.
@@ -230,7 +250,7 @@ func (s *OrderService) appendOpenBillOutbox(
 	ctx context.Context,
 	openBillDTO *dto.OpenBill,
 	createdByID string,
-	items []dto.OrderProductItem,
+	products []dto.OpenBillSyncProduct,
 	operation dto.SyncOperation,
 ) error {
 	opID, err := uuid.NewV7()
@@ -245,7 +265,7 @@ func (s *OrderService) appendOpenBillOutbox(
 		TotalAmount:        openBillDTO.TotalAmount,
 		Status:             openBillDTO.Status,
 		CreatedByID:        createdByID,
-		Products:           items,
+		Products:           products,
 		CreatedAt:          openBillDTO.CreatedAt,
 		UpdatedAt:          openBillDTO.UpdatedAt,
 	}
@@ -381,7 +401,7 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 		if err := s.openBillRepo.Update(ctx, existingBillAggregate); err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
 		}
-		if err := s.appendOpenBillOutbox(ctx, updatedBill, existingOpenBill.CreatedBy.ID, req.Products, dto.SyncOperationUpdate); err != nil {
+		if err := s.appendOpenBillOutbox(ctx, updatedBill, existingOpenBill.CreatedBy.ID, openBillSyncProducts(existingBillAggregate), dto.SyncOperationUpdate); err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
 		}
 		return nil
@@ -578,6 +598,24 @@ func (s *OrderService) DeleteOrder(ctx context.Context, openBillID string) error
 	return nil
 }
 
+// persistAndSyncStatus persists an open_bill product-status transition and replicates
+// it to peers in one transaction (Option A): the local status write and the sync_outbox
+// snapshot commit together, so kitchen completions/cancellations never stay local.
+func (s *OrderService) persistAndSyncStatus(ctx context.Context, aggregate *openBill.Aggregate) error {
+	openBillDTO := aggregate.ToDTO()
+	openBillDTO.CreatedByID = aggregate.CreatedByID()
+
+	return s.unitOfWork.Do(ctx, func(ctx context.Context) error {
+		if err := s.openBillRepo.UpdateProductStatus(ctx, aggregate); err != nil {
+			return fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
+		}
+		if err := s.appendOpenBillOutbox(ctx, openBillDTO, aggregate.CreatedByID(), openBillSyncProducts(aggregate), dto.SyncOperationUpdate); err != nil {
+			return fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
+		}
+		return nil
+	})
+}
+
 // CompleteOpenBillProduct marks a product as completed and updates open_bill status if all products are finalized
 func (s *OrderService) CompleteOpenBillProduct(ctx context.Context, openBillID, openBillProductID string) error {
 	aggregate, err := s.openBillRepo.FindAggregateByID(ctx, openBillID)
@@ -597,11 +635,7 @@ func (s *OrderService) CompleteOpenBillProduct(ctx context.Context, openBillID, 
 		return err
 	}
 
-	if err := s.openBillRepo.UpdateProductStatus(ctx, aggregate); err != nil {
-		return fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
-	}
-
-	return nil
+	return s.persistAndSyncStatus(ctx, aggregate)
 }
 
 // UncompleteOpenBillProduct reverts a completed product back to "created" (undo a
@@ -616,11 +650,7 @@ func (s *OrderService) UncompleteOpenBillProduct(ctx context.Context, openBillID
 		return err
 	}
 
-	if err := s.openBillRepo.UpdateProductStatus(ctx, aggregate); err != nil {
-		return fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
-	}
-
-	return nil
+	return s.persistAndSyncStatus(ctx, aggregate)
 }
 
 // SetOpenBillProductInProgress marks a product as in_progress (fails if product is cancelled)
@@ -634,11 +664,7 @@ func (s *OrderService) SetOpenBillProductInProgress(ctx context.Context, openBil
 		return err
 	}
 
-	if err := s.openBillRepo.UpdateProductStatus(ctx, aggregate); err != nil {
-		return fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
-	}
-
-	return nil
+	return s.persistAndSyncStatus(ctx, aggregate)
 }
 
 // CancelOpenBillProduct marks a product as cancelled and updates open_bill status if all products are cancelled
@@ -660,11 +686,7 @@ func (s *OrderService) CancelOpenBillProduct(ctx context.Context, openBillID, op
 		return err
 	}
 
-	if err := s.openBillRepo.UpdateProductStatus(ctx, aggregate); err != nil {
-		return fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
-	}
-
-	return nil
+	return s.persistAndSyncStatus(ctx, aggregate)
 }
 
 // HandleOrderCreatedSSE notifies frontend via SSE when products with preparation areas are created

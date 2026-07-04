@@ -94,8 +94,8 @@ func (a *OpenBillSyncApplier) applyUpsert(ctx context.Context, op *dto.SyncOutbo
 
 // reconcileProducts upserts every line item in the snapshot and soft-deletes any
 // existing product no longer present, so the local order matches the peer's snapshot.
-// status/area/priority are not in the snapshot, so they are left untouched on update
-// and fall back to DB defaults on insert (product-status sub-ops sync separately).
+// status/area/priority ride in the snapshot, so a peer's kitchen state (completed,
+// cancelled, in_progress) is reproduced exactly rather than falling back to DB defaults.
 func (a *OpenBillSyncApplier) reconcileProducts(db *gorm.DB, payload *dto.OpenBillSyncPayload) error {
 	keepIDs := make([]string, 0, len(payload.Products))
 	for _, item := range payload.Products {
@@ -105,13 +105,16 @@ func (a *OpenBillSyncApplier) reconcileProducts(db *gorm.DB, payload *dto.OpenBi
 			ProductID:  item.ProductID,
 			Quantity:   item.Quantity,
 			Notes:      item.Notes,
+			Status:     string(item.Status),
+			Area:       item.Area,
+			Priority:   item.Priority,
 			CreatedAt:  payload.CreatedAt,
 			UpdatedAt:  payload.UpdatedAt,
 		}
 		if err := db.Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "id"}},
 			DoUpdates: clause.AssignmentColumns([]string{
-				"open_bill_id", "product_id", "quantity", "notes", "updated_at", "deleted_at",
+				"open_bill_id", "product_id", "quantity", "notes", "status", "area", "priority", "updated_at", "deleted_at",
 			}),
 		}).Create(product).Error; err != nil {
 			return fmt.Errorf("upsert open_bill product: %w", err)
