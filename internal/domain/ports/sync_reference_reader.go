@@ -14,4 +14,5 @@ type SyncReferenceReader interface {
 	FindChangedProducts(ctx context.Context, since time.Time) ([]dto.ProductSyncPayload, error)
 	FindChangedUsers(ctx context.Context, since time.Time) ([]dto.UserSyncPayload, error)
 	FindChangedSuppliers(ctx context.Context, since time.Time) ([]dto.SupplierSyncPayload, error)
+	FindChangedProductResponsibilities(ctx context.Context, since time.Time) ([]dto.ProductResponsibilitySyncPayload, error)
 }

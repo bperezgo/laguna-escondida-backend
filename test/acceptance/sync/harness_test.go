@@ -315,6 +315,11 @@ func (r *rig) seedCloudUsers(users ...dto.UserSyncPayload) {
 	require.NoError(r.t, r.cloudRef.UpsertUsers(r.ctx, users), "seed cloud users")
 }
 
+func (r *rig) seedCloudProductResponsibilities(responsibilities ...dto.ProductResponsibilitySyncPayload) {
+	r.t.Helper()
+	require.NoError(r.t, r.cloudRef.UpsertProductResponsibilities(r.ctx, responsibilities), "seed cloud product responsibilities")
+}
+
 // ---------------------------------------------------------------------------
 // Reading replicated edge reference data.
 // ---------------------------------------------------------------------------
@@ -341,6 +346,18 @@ func (r *rig) edgeUserByID(id string) (dto.UserSyncPayload, bool) {
 		}
 	}
 	return dto.UserSyncPayload{}, false
+}
+
+func (r *rig) edgeProductResponsibilityByID(id string) (dto.ProductResponsibilitySyncPayload, bool) {
+	r.t.Helper()
+	rows, err := r.edgeRef.FindChangedProductResponsibilities(r.ctx, time.Time{})
+	require.NoError(r.t, err, "read edge product responsibilities")
+	for _, resp := range rows {
+		if resp.ID == id {
+			return resp, true
+		}
+	}
+	return dto.ProductResponsibilitySyncPayload{}, false
 }
 
 func (r *rig) edgePulledCursor() *time.Time {
@@ -408,6 +425,17 @@ func newProduct(sku, name string, changedAt time.Time) dto.ProductSyncPayload {
 		TotalPriceWithTaxes: decimal.NewFromInt(5000),
 		CreatedAt:           changedAt,
 		UpdatedAt:           changedAt,
+	}
+}
+
+func newProductResponsibility(productID, area string, priority int, changedAt time.Time) dto.ProductResponsibilitySyncPayload {
+	return dto.ProductResponsibilitySyncPayload{
+		ID:        uuid.NewString(),
+		ProductID: productID,
+		Area:      area,
+		Priority:  priority,
+		CreatedAt: changedAt,
+		UpdatedAt: changedAt,
 	}
 }
 

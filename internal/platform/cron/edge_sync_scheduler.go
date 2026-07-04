@@ -104,11 +104,12 @@ func (s *EdgeSyncScheduler) pullJob() {
 		return
 	}
 	s.tracker.RecordSuccess()
-	if result.Products+result.Users+result.Suppliers > 0 {
+	if result.Products+result.Users+result.Suppliers+result.ProductResponsibilities > 0 {
 		s.logger.Info("Edge sync pull job completed",
 			zap.Int("products", result.Products),
 			zap.Int("users", result.Users),
 			zap.Int("suppliers", result.Suppliers),
+			zap.Int("product_responsibilities", result.ProductResponsibilities),
 		)
 	}
 }

@@ -32,10 +32,11 @@ func TestPullChanges_FirstPull_AppliesAndAdvances(t *testing.T) {
 
 	cursor := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
 	resp := &dto.SyncPullResponse{
-		Products:  []dto.ProductSyncPayload{{ID: "p1"}, {ID: "p2"}},
-		Users:     []dto.UserSyncPayload{{ID: "u1"}},
-		Suppliers: []dto.SupplierSyncPayload{{ID: "s1"}},
-		Cursor:    cursor,
+		Products:                []dto.ProductSyncPayload{{ID: "p1"}, {ID: "p2"}},
+		Users:                   []dto.UserSyncPayload{{ID: "u1"}},
+		Suppliers:               []dto.SupplierSyncPayload{{ID: "s1"}},
+		ProductResponsibilities: []dto.ProductResponsibilitySyncPayload{{ID: "pr1"}},
+		Cursor:                  cursor,
 	}
 
 	var pulledSince time.Time
@@ -44,6 +45,7 @@ func TestPullChanges_FirstPull_AppliesAndAdvances(t *testing.T) {
 		Return(resp, nil).Once()
 
 	writer.EXPECT().UpsertProducts(mock.Anything, resp.Products).Return(nil).Once()
+	writer.EXPECT().UpsertProductResponsibilities(mock.Anything, resp.ProductResponsibilities).Return(nil).Once()
 	writer.EXPECT().UpsertUsers(mock.Anything, resp.Users).Return(nil).Once()
 	writer.EXPECT().UpsertSuppliers(mock.Anything, resp.Suppliers).Return(nil).Once()
 	state.EXPECT().AdvancePulledCursor(mock.Anything, testCloudNodeID, cursor).Return(nil).Once()
@@ -54,6 +56,7 @@ func TestPullChanges_FirstPull_AppliesAndAdvances(t *testing.T) {
 	assert.Equal(t, 2, result.Products)
 	assert.Equal(t, 1, result.Users)
 	assert.Equal(t, 1, result.Suppliers)
+	assert.Equal(t, 1, result.ProductResponsibilities)
 }
 
 func TestPullChanges_UsesStoredCursor(t *testing.T) {
@@ -73,6 +76,7 @@ func TestPullChanges_UsesStoredCursor(t *testing.T) {
 		Run(func(_ context.Context, since time.Time) { pulledSince = since }).
 		Return(resp, nil).Once()
 	writer.EXPECT().UpsertProducts(mock.Anything, mock.Anything).Return(nil).Once()
+	writer.EXPECT().UpsertProductResponsibilities(mock.Anything, mock.Anything).Return(nil).Once()
 	writer.EXPECT().UpsertUsers(mock.Anything, mock.Anything).Return(nil).Once()
 	writer.EXPECT().UpsertSuppliers(mock.Anything, mock.Anything).Return(nil).Once()
 	state.EXPECT().AdvancePulledCursor(mock.Anything, testCloudNodeID, newCursor).Return(nil).Once()
@@ -96,12 +100,13 @@ func TestPullChanges_NoChanges_DoesNotAdvanceCursor(t *testing.T) {
 	resp := &dto.SyncPullResponse{Cursor: stored} // nothing changed: cursor == since
 	client.EXPECT().Pull(mock.Anything, mock.Anything).Return(resp, nil).Once()
 	writer.EXPECT().UpsertProducts(mock.Anything, mock.Anything).Return(nil).Once()
+	writer.EXPECT().UpsertProductResponsibilities(mock.Anything, mock.Anything).Return(nil).Once()
 	writer.EXPECT().UpsertUsers(mock.Anything, mock.Anything).Return(nil).Once()
 	writer.EXPECT().UpsertSuppliers(mock.Anything, mock.Anything).Return(nil).Once()
 
 	result, err := newPullService(t, client, writer, state).PullChanges(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 0, result.Products+result.Users+result.Suppliers)
+	assert.Equal(t, 0, result.Products+result.Users+result.Suppliers+result.ProductResponsibilities)
 	state.AssertNotCalled(t, "AdvancePulledCursor", mock.Anything, mock.Anything, mock.Anything)
 }
 

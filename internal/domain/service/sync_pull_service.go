@@ -62,6 +62,10 @@ func (s *SyncPullService) PullChanges(ctx context.Context) (*dto.SyncPullResult,
 		if err := s.writer.UpsertProducts(ctx, resp.Products); err != nil {
 			return fmt.Errorf("upsert products: %w", err)
 		}
+		// Responsibilities reference products via FK, so they must land after products.
+		if err := s.writer.UpsertProductResponsibilities(ctx, resp.ProductResponsibilities); err != nil {
+			return fmt.Errorf("upsert product responsibilities: %w", err)
+		}
 		if err := s.writer.UpsertUsers(ctx, resp.Users); err != nil {
 			return fmt.Errorf("upsert users: %w", err)
 		}
@@ -80,8 +84,9 @@ func (s *SyncPullService) PullChanges(ctx context.Context) (*dto.SyncPullResult,
 	}
 
 	return &dto.SyncPullResult{
-		Products:  len(resp.Products),
-		Users:     len(resp.Users),
-		Suppliers: len(resp.Suppliers),
+		Products:                len(resp.Products),
+		Users:                   len(resp.Users),
+		Suppliers:               len(resp.Suppliers),
+		ProductResponsibilities: len(resp.ProductResponsibilities),
 	}, nil
 }

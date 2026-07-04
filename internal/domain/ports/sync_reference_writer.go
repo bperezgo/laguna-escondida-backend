@@ -13,4 +13,5 @@ type SyncReferenceWriter interface {
 	UpsertProducts(ctx context.Context, products []dto.ProductSyncPayload) error
 	UpsertUsers(ctx context.Context, users []dto.UserSyncPayload) error
 	UpsertSuppliers(ctx context.Context, suppliers []dto.SupplierSyncPayload) error
+	UpsertProductResponsibilities(ctx context.Context, responsibilities []dto.ProductResponsibilitySyncPayload) error
 }

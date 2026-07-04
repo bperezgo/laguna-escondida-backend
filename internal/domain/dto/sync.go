@@ -139,6 +139,21 @@ type SupplierSyncPayload struct {
 	DeletedAt            *time.Time `json:"deleted_at,omitempty"`
 }
 
+// ProductResponsibilitySyncPayload carries one product_preparation_responsibilities row
+// down to the edge: which product goes to which preparation area and at what priority.
+// It replicates as its own reference entity (not embedded in the product) because these
+// rows are created/updated/soft-deleted independently, without bumping the product's
+// updated_at — so a responsibility-only change would be lost if it rode on the product.
+type ProductResponsibilitySyncPayload struct {
+	ID        string     `json:"id"`
+	ProductID string     `json:"product_id"`
+	Area      string     `json:"area"`
+	Priority  int        `json:"priority"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	DeletedAt *time.Time `json:"deleted_at,omitempty"`
+}
+
 // UserSyncPayload carries a user down to the edge plus its role assignments. RoleIDs are
 // the role ids from user_roles; the roles table itself is seeded identically by migration
 // on both nodes (role ids are stable cross-node constants — see permissions), so only the
@@ -159,18 +174,20 @@ type UserSyncPayload struct {
 // changed after the requested cursor, plus the new Cursor the edge should store (the
 // max change-time across the returned rows, or the request cursor when nothing changed).
 type SyncPullResponse struct {
-	Products  []ProductSyncPayload  `json:"products"`
-	Users     []UserSyncPayload     `json:"users"`
-	Suppliers []SupplierSyncPayload `json:"suppliers"`
-	Cursor    time.Time             `json:"cursor"`
+	Products                []ProductSyncPayload               `json:"products"`
+	Users                   []UserSyncPayload                  `json:"users"`
+	Suppliers               []SupplierSyncPayload              `json:"suppliers"`
+	ProductResponsibilities []ProductResponsibilitySyncPayload `json:"product_responsibilities"`
+	Cursor                  time.Time                          `json:"cursor"`
 }
 
 // SyncPullResult summarizes one run of the edge pull loop: how many rows of each entity
 // were upserted. Used for logging, not transported.
 type SyncPullResult struct {
-	Products  int
-	Users     int
-	Suppliers int
+	Products                int
+	Users                   int
+	Suppliers               int
+	ProductResponsibilities int
 }
 
 // BillSyncProduct is one finalized line item carried in a bill sync payload: just the

@@ -24,6 +24,65 @@ func (_m *MockSyncReferenceReader) EXPECT() *MockSyncReferenceReader_Expecter {
 	return &MockSyncReferenceReader_Expecter{mock: &_m.Mock}
 }
 
+// FindChangedProductResponsibilities provides a mock function with given fields: ctx, since
+func (_m *MockSyncReferenceReader) FindChangedProductResponsibilities(ctx context.Context, since time.Time) ([]dto.ProductResponsibilitySyncPayload, error) {
+	ret := _m.Called(ctx, since)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindChangedProductResponsibilities")
+	}
+
+	var r0 []dto.ProductResponsibilitySyncPayload
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time) ([]dto.ProductResponsibilitySyncPayload, error)); ok {
+		return rf(ctx, since)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time) []dto.ProductResponsibilitySyncPayload); ok {
+		r0 = rf(ctx, since)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]dto.ProductResponsibilitySyncPayload)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, time.Time) error); ok {
+		r1 = rf(ctx, since)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockSyncReferenceReader_FindChangedProductResponsibilities_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindChangedProductResponsibilities'
+type MockSyncReferenceReader_FindChangedProductResponsibilities_Call struct {
+	*mock.Call
+}
+
+// FindChangedProductResponsibilities is a helper method to define mock.On call
+//   - ctx context.Context
+//   - since time.Time
+func (_e *MockSyncReferenceReader_Expecter) FindChangedProductResponsibilities(ctx interface{}, since interface{}) *MockSyncReferenceReader_FindChangedProductResponsibilities_Call {
+	return &MockSyncReferenceReader_FindChangedProductResponsibilities_Call{Call: _e.mock.On("FindChangedProductResponsibilities", ctx, since)}
+}
+
+func (_c *MockSyncReferenceReader_FindChangedProductResponsibilities_Call) Run(run func(ctx context.Context, since time.Time)) *MockSyncReferenceReader_FindChangedProductResponsibilities_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockSyncReferenceReader_FindChangedProductResponsibilities_Call) Return(_a0 []dto.ProductResponsibilitySyncPayload, _a1 error) *MockSyncReferenceReader_FindChangedProductResponsibilities_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockSyncReferenceReader_FindChangedProductResponsibilities_Call) RunAndReturn(run func(context.Context, time.Time) ([]dto.ProductResponsibilitySyncPayload, error)) *MockSyncReferenceReader_FindChangedProductResponsibilities_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // FindChangedProducts provides a mock function with given fields: ctx, since
 func (_m *MockSyncReferenceReader) FindChangedProducts(ctx context.Context, since time.Time) ([]dto.ProductSyncPayload, error) {
 	ret := _m.Called(ctx, since)

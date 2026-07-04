@@ -22,6 +22,53 @@ func (_m *MockSyncReferenceWriter) EXPECT() *MockSyncReferenceWriter_Expecter {
 	return &MockSyncReferenceWriter_Expecter{mock: &_m.Mock}
 }
 
+// UpsertProductResponsibilities provides a mock function with given fields: ctx, responsibilities
+func (_m *MockSyncReferenceWriter) UpsertProductResponsibilities(ctx context.Context, responsibilities []dto.ProductResponsibilitySyncPayload) error {
+	ret := _m.Called(ctx, responsibilities)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpsertProductResponsibilities")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, []dto.ProductResponsibilitySyncPayload) error); ok {
+		r0 = rf(ctx, responsibilities)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockSyncReferenceWriter_UpsertProductResponsibilities_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpsertProductResponsibilities'
+type MockSyncReferenceWriter_UpsertProductResponsibilities_Call struct {
+	*mock.Call
+}
+
+// UpsertProductResponsibilities is a helper method to define mock.On call
+//   - ctx context.Context
+//   - responsibilities []dto.ProductResponsibilitySyncPayload
+func (_e *MockSyncReferenceWriter_Expecter) UpsertProductResponsibilities(ctx interface{}, responsibilities interface{}) *MockSyncReferenceWriter_UpsertProductResponsibilities_Call {
+	return &MockSyncReferenceWriter_UpsertProductResponsibilities_Call{Call: _e.mock.On("UpsertProductResponsibilities", ctx, responsibilities)}
+}
+
+func (_c *MockSyncReferenceWriter_UpsertProductResponsibilities_Call) Run(run func(ctx context.Context, responsibilities []dto.ProductResponsibilitySyncPayload)) *MockSyncReferenceWriter_UpsertProductResponsibilities_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]dto.ProductResponsibilitySyncPayload))
+	})
+	return _c
+}
+
+func (_c *MockSyncReferenceWriter_UpsertProductResponsibilities_Call) Return(_a0 error) *MockSyncReferenceWriter_UpsertProductResponsibilities_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockSyncReferenceWriter_UpsertProductResponsibilities_Call) RunAndReturn(run func(context.Context, []dto.ProductResponsibilitySyncPayload) error) *MockSyncReferenceWriter_UpsertProductResponsibilities_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // UpsertProducts provides a mock function with given fields: ctx, products
 func (_m *MockSyncReferenceWriter) UpsertProducts(ctx context.Context, products []dto.ProductSyncPayload) error {
 	ret := _m.Called(ctx, products)

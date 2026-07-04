@@ -109,6 +109,67 @@ func TestSync_Pull_CursorDoesNotRewindOnNoOp(t *testing.T) {
 	assert.True(t, before.Equal(*after), "cursor unchanged: %s == %s", before, after)
 }
 
+// SYNC-INV-03/04 — product_preparation_responsibilities is a reference entity like any
+// other: a new row replicates to the edge, and a later responsibility-only change (the
+// product row untouched) is still caught. These rows carry their own updated_at, so the
+// cursor diff must track them independently of the product they belong to.
+func TestSync_Pull_ReplicatesProductResponsibility(t *testing.T) {
+	r := newRig(t)
+	t0 := time.Now().UTC().Truncate(time.Microsecond)
+	p := newProduct("SKU-RESP-1", "Cerveza", t0)
+	r.seedCloudProducts(p)
+
+	resp := newProductResponsibility(p.ID, "bar", 1, t0)
+	r.seedCloudProductResponsibilities(resp)
+
+	res := r.pull()
+	assert.Equal(t, 1, res.ProductResponsibilities, "one responsibility pulled")
+	got, ok := r.edgeProductResponsibilityByID(resp.ID)
+	require.True(t, ok, "responsibility replicated to edge")
+	assert.Equal(t, p.ID, got.ProductID)
+	assert.Equal(t, "bar", got.Area)
+	assert.Equal(t, 1, got.Priority)
+
+	// Responsibility-only change: bump the responsibility, leave the product row untouched.
+	resp.Area = "kitchen"
+	resp.Priority = 2
+	resp.UpdatedAt = t0.Add(time.Second)
+	r.seedCloudProductResponsibilities(resp)
+
+	second := r.pull()
+	assert.Equal(t, 1, second.ProductResponsibilities, "responsibility-only change is pulled")
+	assert.Equal(t, 0, second.Products, "the product row itself did not change")
+	got, ok = r.edgeProductResponsibilityByID(resp.ID)
+	require.True(t, ok)
+	assert.Equal(t, "kitchen", got.Area)
+	assert.Equal(t, 2, got.Priority)
+}
+
+// SYNC-INV-05 — removing a responsibility on the cloud (soft-delete) propagates: the edge
+// row gets deleted_at set rather than being resurrected on the next pull.
+func TestSync_Pull_ReplicatesResponsibilityTombstone(t *testing.T) {
+	r := newRig(t)
+	t0 := time.Now().UTC().Truncate(time.Microsecond)
+	p := newProduct("SKU-RESP-DEL-1", "Cerveza", t0)
+	r.seedCloudProducts(p)
+
+	resp := newProductResponsibility(p.ID, "bar", 1, t0)
+	r.seedCloudProductResponsibilities(resp)
+	r.pull()
+
+	deletedAt := t0.Add(time.Second)
+	resp.DeletedAt = &deletedAt
+	resp.UpdatedAt = deletedAt
+	r.seedCloudProductResponsibilities(resp)
+	r.pull()
+
+	got, ok := r.edgeProductResponsibilityByID(resp.ID)
+	require.True(t, ok, "row still present (soft-delete, not removed)")
+	require.NotNil(t, got.DeletedAt, "edge row carries deleted_at")
+	assert.WithinDuration(t, deletedAt, *got.DeletedAt, time.Millisecond)
+	assert.Equal(t, int64(1), r.edgeCount("product_preparation_responsibilities", "id = ?", resp.ID))
+}
+
 // SYNC-INV-08 — pull is incremental: a second pull fetches only rows changed after the
 // stored cursor, not the whole table again.
 func TestSync_Pull_SecondPullIsIncremental(t *testing.T) {

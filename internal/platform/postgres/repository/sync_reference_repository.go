@@ -143,6 +143,29 @@ func (r *SyncReferenceRepository) FindChangedSuppliers(ctx context.Context, sinc
 	return out, nil
 }
 
+func (r *SyncReferenceRepository) FindChangedProductResponsibilities(ctx context.Context, since time.Time) ([]dto.ProductResponsibilitySyncPayload, error) {
+	db := postgres.GetTxOrDB(ctx, r.db)
+
+	var models []productResponsibilityModel
+	if err := changedFilter(db, since).Find(&models).Error; err != nil {
+		return nil, fmt.Errorf("query changed product responsibilities: %w", err)
+	}
+
+	out := make([]dto.ProductResponsibilitySyncPayload, len(models))
+	for i, m := range models {
+		out[i] = dto.ProductResponsibilitySyncPayload{
+			ID:        m.ID,
+			ProductID: m.ProductID,
+			Area:      m.Area,
+			Priority:  m.Priority,
+			CreatedAt: m.CreatedAt,
+			UpdatedAt: m.UpdatedAt,
+			DeletedAt: m.DeletedAt,
+		}
+	}
+	return out, nil
+}
+
 func (r *SyncReferenceRepository) UpsertProducts(ctx context.Context, products []dto.ProductSyncPayload) error {
 	if len(products) == 0 {
 		return nil
@@ -276,6 +299,36 @@ func (r *SyncReferenceRepository) UpsertSuppliers(ctx context.Context, suppliers
 		}),
 	}).Create(&models).Error; err != nil {
 		return fmt.Errorf("upsert suppliers: %w", err)
+	}
+	return nil
+}
+
+func (r *SyncReferenceRepository) UpsertProductResponsibilities(ctx context.Context, responsibilities []dto.ProductResponsibilitySyncPayload) error {
+	if len(responsibilities) == 0 {
+		return nil
+	}
+	db := postgres.GetTxOrDB(ctx, r.db)
+
+	models := make([]productResponsibilityModel, len(responsibilities))
+	for i, resp := range responsibilities {
+		models[i] = productResponsibilityModel{
+			ID:        resp.ID,
+			ProductID: resp.ProductID,
+			Area:      resp.Area,
+			Priority:  resp.Priority,
+			CreatedAt: resp.CreatedAt,
+			UpdatedAt: resp.UpdatedAt,
+			DeletedAt: resp.DeletedAt,
+		}
+	}
+
+	if err := db.Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "id"}},
+		DoUpdates: clause.AssignmentColumns([]string{
+			"product_id", "area", "priority", "updated_at", "deleted_at",
+		}),
+	}).Create(&models).Error; err != nil {
+		return fmt.Errorf("upsert product responsibilities: %w", err)
 	}
 	return nil
 }
