@@ -15,8 +15,28 @@ type Aggregate struct {
 	username  string
 	name      string
 	password  string
+	active    bool
 	createdAt time.Time
 	updatedAt time.Time
+}
+
+// HashPassword validates and bcrypt-hashes a plaintext password. It is the single
+// place password rules live, shared by user creation and admin password resets.
+func HashPassword(plainPassword string) (string, error) {
+	if plainPassword == "" {
+		return "", userError.NewMissingPasswordError()
+	}
+
+	if len(plainPassword) < 6 {
+		return "", userError.NewInvalidPasswordError("password must be at least 6 characters")
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(plainPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return "", userError.NewPasswordHashingFailedError(err)
+	}
+
+	return string(hashedPassword), nil
 }
 
 func NewAggregateFromCreateUserRequest(req *dto.CreateUserRequest) (*Aggregate, error) {
@@ -32,17 +52,9 @@ func NewAggregateFromCreateUserRequest(req *dto.CreateUserRequest) (*Aggregate, 
 		return nil, userError.NewMissingNameError()
 	}
 
-	if req.Password == "" {
-		return nil, userError.NewMissingPasswordError()
-	}
-
-	if len(req.Password) < 6 {
-		return nil, userError.NewInvalidPasswordError("password must be at least 6 characters")
-	}
-
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	hashedPassword, err := HashPassword(req.Password)
 	if err != nil {
-		return nil, userError.NewPasswordHashingFailedError(err)
+		return nil, err
 	}
 
 	now := time.Now()
@@ -50,7 +62,8 @@ func NewAggregateFromCreateUserRequest(req *dto.CreateUserRequest) (*Aggregate, 
 		id:        uuid.Must(uuid.NewV7()).String(),
 		username:  req.Username,
 		name:      req.Name,
-		password:  string(hashedPassword),
+		password:  hashedPassword,
+		active:    true,
 		createdAt: now,
 		updatedAt: now,
 	}, nil
@@ -62,6 +75,7 @@ func (a *Aggregate) ToDTO() *dto.User {
 		Username:  a.username,
 		Name:      a.name,
 		Password:  a.password,
+		Active:    a.active,
 		CreatedAt: a.createdAt,
 		UpdatedAt: a.updatedAt,
 	}
@@ -80,6 +94,7 @@ func NewAggregateFromDTO(user *dto.User) *Aggregate {
 		username:  user.Username,
 		name:      user.Name,
 		password:  user.Password,
+		active:    user.Active,
 		createdAt: user.CreatedAt,
 		updatedAt: user.UpdatedAt,
 	}

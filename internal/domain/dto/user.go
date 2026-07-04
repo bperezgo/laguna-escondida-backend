@@ -11,6 +11,7 @@ type User struct {
 	Username  string    `json:"username"`
 	Name      string    `json:"name"`
 	Password  string    `json:"-"` // Never serialize password
+	Active    bool      `json:"active"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -35,8 +36,26 @@ type CreateUserRequest struct {
 	RoleIDs  []int  `json:"role_ids" validate:"required,min=1,dive,min=1"`
 }
 
+type UpdateUserRequest struct {
+	Name    *string `json:"name" validate:"omitempty,min=1,max=255"`
+	RoleIDs []int   `json:"role_ids" validate:"omitempty,min=1,dive,min=1"`
+	Active  *bool   `json:"active"`
+}
+
+type ResetPasswordRequest struct {
+	Password string `json:"password" validate:"required,min=6"`
+}
+
 type UserWithRoles struct {
 	User  *User   `json:"user"`
+	Roles []*Role `json:"roles"`
+}
+
+type UsersListResponse struct {
+	Users []*UserWithRoles `json:"users"`
+}
+
+type RolesListResponse struct {
 	Roles []*Role `json:"roles"`
 }
 

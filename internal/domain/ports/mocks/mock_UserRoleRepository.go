@@ -22,6 +22,63 @@ func (_m *MockUserRoleRepository) EXPECT() *MockUserRoleRepository_Expecter {
 	return &MockUserRoleRepository_Expecter{mock: &_m.Mock}
 }
 
+// CountUsersByRoleID provides a mock function with given fields: ctx, roleID
+func (_m *MockUserRoleRepository) CountUsersByRoleID(ctx context.Context, roleID int) (int, error) {
+	ret := _m.Called(ctx, roleID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CountUsersByRoleID")
+	}
+
+	var r0 int
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int) (int, error)); ok {
+		return rf(ctx, roleID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int) int); ok {
+		r0 = rf(ctx, roleID)
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int) error); ok {
+		r1 = rf(ctx, roleID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockUserRoleRepository_CountUsersByRoleID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CountUsersByRoleID'
+type MockUserRoleRepository_CountUsersByRoleID_Call struct {
+	*mock.Call
+}
+
+// CountUsersByRoleID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - roleID int
+func (_e *MockUserRoleRepository_Expecter) CountUsersByRoleID(ctx interface{}, roleID interface{}) *MockUserRoleRepository_CountUsersByRoleID_Call {
+	return &MockUserRoleRepository_CountUsersByRoleID_Call{Call: _e.mock.On("CountUsersByRoleID", ctx, roleID)}
+}
+
+func (_c *MockUserRoleRepository_CountUsersByRoleID_Call) Run(run func(ctx context.Context, roleID int)) *MockUserRoleRepository_CountUsersByRoleID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int))
+	})
+	return _c
+}
+
+func (_c *MockUserRoleRepository_CountUsersByRoleID_Call) Return(_a0 int, _a1 error) *MockUserRoleRepository_CountUsersByRoleID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockUserRoleRepository_CountUsersByRoleID_Call) RunAndReturn(run func(context.Context, int) (int, error)) *MockUserRoleRepository_CountUsersByRoleID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Create provides a mock function with given fields: ctx, userRole
 func (_m *MockUserRoleRepository) Create(ctx context.Context, userRole *dto.UserRole) error {
 	ret := _m.Called(ctx, userRole)
@@ -65,6 +122,53 @@ func (_c *MockUserRoleRepository_Create_Call) Return(_a0 error) *MockUserRoleRep
 }
 
 func (_c *MockUserRoleRepository_Create_Call) RunAndReturn(run func(context.Context, *dto.UserRole) error) *MockUserRoleRepository_Create_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// DeleteByUserID provides a mock function with given fields: ctx, userID
+func (_m *MockUserRoleRepository) DeleteByUserID(ctx context.Context, userID string) error {
+	ret := _m.Called(ctx, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteByUserID")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
+		r0 = rf(ctx, userID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockUserRoleRepository_DeleteByUserID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteByUserID'
+type MockUserRoleRepository_DeleteByUserID_Call struct {
+	*mock.Call
+}
+
+// DeleteByUserID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+func (_e *MockUserRoleRepository_Expecter) DeleteByUserID(ctx interface{}, userID interface{}) *MockUserRoleRepository_DeleteByUserID_Call {
+	return &MockUserRoleRepository_DeleteByUserID_Call{Call: _e.mock.On("DeleteByUserID", ctx, userID)}
+}
+
+func (_c *MockUserRoleRepository_DeleteByUserID_Call) Run(run func(ctx context.Context, userID string)) *MockUserRoleRepository_DeleteByUserID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockUserRoleRepository_DeleteByUserID_Call) Return(_a0 error) *MockUserRoleRepository_DeleteByUserID_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockUserRoleRepository_DeleteByUserID_Call) RunAndReturn(run func(context.Context, string) error) *MockUserRoleRepository_DeleteByUserID_Call {
 	_c.Call.Return(run)
 	return _c
 }

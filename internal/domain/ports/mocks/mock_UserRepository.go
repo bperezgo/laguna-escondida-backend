@@ -69,6 +69,64 @@ func (_c *MockUserRepository_Create_Call) RunAndReturn(run func(context.Context,
 	return _c
 }
 
+// FindAll provides a mock function with given fields: ctx
+func (_m *MockUserRepository) FindAll(ctx context.Context) ([]*dto.User, error) {
+	ret := _m.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindAll")
+	}
+
+	var r0 []*dto.User
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context) ([]*dto.User, error)); ok {
+		return rf(ctx)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context) []*dto.User); ok {
+		r0 = rf(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*dto.User)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockUserRepository_FindAll_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindAll'
+type MockUserRepository_FindAll_Call struct {
+	*mock.Call
+}
+
+// FindAll is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *MockUserRepository_Expecter) FindAll(ctx interface{}) *MockUserRepository_FindAll_Call {
+	return &MockUserRepository_FindAll_Call{Call: _e.mock.On("FindAll", ctx)}
+}
+
+func (_c *MockUserRepository_FindAll_Call) Run(run func(ctx context.Context)) *MockUserRepository_FindAll_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context))
+	})
+	return _c
+}
+
+func (_c *MockUserRepository_FindAll_Call) Return(_a0 []*dto.User, _a1 error) *MockUserRepository_FindAll_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockUserRepository_FindAll_Call) RunAndReturn(run func(context.Context) ([]*dto.User, error)) *MockUserRepository_FindAll_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // FindByID provides a mock function with given fields: ctx, id
 func (_m *MockUserRepository) FindByID(ctx context.Context, id string) (*dto.User, error) {
 	ret := _m.Called(ctx, id)
@@ -183,6 +241,148 @@ func (_c *MockUserRepository_FindByUsername_Call) Return(_a0 *dto.User, _a1 erro
 }
 
 func (_c *MockUserRepository_FindByUsername_Call) RunAndReturn(run func(context.Context, string) (*dto.User, error)) *MockUserRepository_FindByUsername_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SoftDelete provides a mock function with given fields: ctx, id
+func (_m *MockUserRepository) SoftDelete(ctx context.Context, id string) error {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SoftDelete")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
+		r0 = rf(ctx, id)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockUserRepository_SoftDelete_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SoftDelete'
+type MockUserRepository_SoftDelete_Call struct {
+	*mock.Call
+}
+
+// SoftDelete is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+func (_e *MockUserRepository_Expecter) SoftDelete(ctx interface{}, id interface{}) *MockUserRepository_SoftDelete_Call {
+	return &MockUserRepository_SoftDelete_Call{Call: _e.mock.On("SoftDelete", ctx, id)}
+}
+
+func (_c *MockUserRepository_SoftDelete_Call) Run(run func(ctx context.Context, id string)) *MockUserRepository_SoftDelete_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockUserRepository_SoftDelete_Call) Return(_a0 error) *MockUserRepository_SoftDelete_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockUserRepository_SoftDelete_Call) RunAndReturn(run func(context.Context, string) error) *MockUserRepository_SoftDelete_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// Update provides a mock function with given fields: ctx, user
+func (_m *MockUserRepository) Update(ctx context.Context, user *dto.User) error {
+	ret := _m.Called(ctx, user)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Update")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *dto.User) error); ok {
+		r0 = rf(ctx, user)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockUserRepository_Update_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Update'
+type MockUserRepository_Update_Call struct {
+	*mock.Call
+}
+
+// Update is a helper method to define mock.On call
+//   - ctx context.Context
+//   - user *dto.User
+func (_e *MockUserRepository_Expecter) Update(ctx interface{}, user interface{}) *MockUserRepository_Update_Call {
+	return &MockUserRepository_Update_Call{Call: _e.mock.On("Update", ctx, user)}
+}
+
+func (_c *MockUserRepository_Update_Call) Run(run func(ctx context.Context, user *dto.User)) *MockUserRepository_Update_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*dto.User))
+	})
+	return _c
+}
+
+func (_c *MockUserRepository_Update_Call) Return(_a0 error) *MockUserRepository_Update_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockUserRepository_Update_Call) RunAndReturn(run func(context.Context, *dto.User) error) *MockUserRepository_Update_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdatePassword provides a mock function with given fields: ctx, id, hashedPassword
+func (_m *MockUserRepository) UpdatePassword(ctx context.Context, id string, hashedPassword string) error {
+	ret := _m.Called(ctx, id, hashedPassword)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdatePassword")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) error); ok {
+		r0 = rf(ctx, id, hashedPassword)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockUserRepository_UpdatePassword_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdatePassword'
+type MockUserRepository_UpdatePassword_Call struct {
+	*mock.Call
+}
+
+// UpdatePassword is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+//   - hashedPassword string
+func (_e *MockUserRepository_Expecter) UpdatePassword(ctx interface{}, id interface{}, hashedPassword interface{}) *MockUserRepository_UpdatePassword_Call {
+	return &MockUserRepository_UpdatePassword_Call{Call: _e.mock.On("UpdatePassword", ctx, id, hashedPassword)}
+}
+
+func (_c *MockUserRepository_UpdatePassword_Call) Run(run func(ctx context.Context, id string, hashedPassword string)) *MockUserRepository_UpdatePassword_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockUserRepository_UpdatePassword_Call) Return(_a0 error) *MockUserRepository_UpdatePassword_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockUserRepository_UpdatePassword_Call) RunAndReturn(run func(context.Context, string, string) error) *MockUserRepository_UpdatePassword_Call {
 	_c.Call.Return(run)
 	return _c
 }

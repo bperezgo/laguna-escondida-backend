@@ -59,6 +59,22 @@ func (r *RoleRepository) FindByIDs(ctx context.Context, ids []int) ([]*dto.Role,
 	return roles, nil
 }
 
+func (r *RoleRepository) FindAll(ctx context.Context) ([]*dto.Role, error) {
+	var models []roleModel
+	if err := r.db.WithContext(ctx).
+		Order("id ASC").
+		Find(&models).Error; err != nil {
+		return nil, err
+	}
+
+	roles := make([]*dto.Role, len(models))
+	for i := range models {
+		roles[i] = r.toDTO(&models[i])
+	}
+
+	return roles, nil
+}
+
 func (r *RoleRepository) FindByName(ctx context.Context, name string) (*dto.Role, error) {
 	var model roleModel
 	if err := r.db.WithContext(ctx).

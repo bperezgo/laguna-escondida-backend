@@ -6,6 +6,7 @@ import (
 
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
+	"laguna-escondida/backend/internal/platform/postgres"
 
 	"gorm.io/gorm"
 )
@@ -30,18 +31,20 @@ func (userRoleModel) TableName() string {
 }
 
 func (r *UserRoleRepository) Create(ctx context.Context, userRole *dto.UserRole) error {
+	db := postgres.GetTxOrDB(ctx, r.db)
 	model := &userRoleModel{
 		UserID:    userRole.UserID,
 		RoleID:    userRole.RoleID,
 		CreatedAt: userRole.CreatedAt,
 	}
 
-	return r.db.WithContext(ctx).Create(model).Error
+	return db.WithContext(ctx).Create(model).Error
 }
 
 func (r *UserRoleRepository) FindByUserID(ctx context.Context, userID string) ([]*dto.UserRole, error) {
+	db := postgres.GetTxOrDB(ctx, r.db)
 	var models []userRoleModel
-	if err := r.db.WithContext(ctx).
+	if err := db.WithContext(ctx).
 		Where("user_id = ?", userID).
 		Find(&models).Error; err != nil {
 		return nil, err
@@ -56,8 +59,9 @@ func (r *UserRoleRepository) FindByUserID(ctx context.Context, userID string) ([
 }
 
 func (r *UserRoleRepository) FindRolesByUserID(ctx context.Context, userID string) ([]*dto.Role, error) {
+	db := postgres.GetTxOrDB(ctx, r.db)
 	var models []roleModel
-	if err := r.db.WithContext(ctx).
+	if err := db.WithContext(ctx).
 		Table("roles").
 		Joins("INNER JOIN user_roles ON roles.id = user_roles.role_id").
 		Where("user_roles.user_id = ?", userID).
@@ -71,6 +75,28 @@ func (r *UserRoleRepository) FindRolesByUserID(ctx context.Context, userID strin
 	}
 
 	return roles, nil
+}
+
+func (r *UserRoleRepository) DeleteByUserID(ctx context.Context, userID string) error {
+	db := postgres.GetTxOrDB(ctx, r.db)
+	return db.WithContext(ctx).
+		Where("user_id = ?", userID).
+		Delete(&userRoleModel{}).Error
+}
+
+// CountUsersByRoleID counts active, non-deleted users that hold the given role.
+func (r *UserRoleRepository) CountUsersByRoleID(ctx context.Context, roleID int) (int, error) {
+	db := postgres.GetTxOrDB(ctx, r.db)
+	var count int64
+	if err := db.WithContext(ctx).
+		Table("user_roles").
+		Joins("INNER JOIN users ON users.id = user_roles.user_id").
+		Where("user_roles.role_id = ? AND users.deleted_at IS NULL AND users.active = ?", roleID, true).
+		Count(&count).Error; err != nil {
+		return 0, err
+	}
+
+	return int(count), nil
 }
 
 func (r *UserRoleRepository) toDTO(model *userRoleModel) *dto.UserRole {

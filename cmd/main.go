@@ -157,7 +157,7 @@ func main() {
 	)
 	productService := service.NewProductService(productRepo, supplierRepo, supplierCatalogRepo)
 	stockService := service.NewStockService(stockRepo, productRepo)
-	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, jwtService)
+	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, jwtService, unitOfWork)
 	billOwnerService := service.NewBillOwnerService(billOwnerRepo)
 	supplierService := service.NewSupplierService(supplierRepo, supplierCatalogRepo, productRepo)
 	purchaseEntryService := service.NewPurchaseEntryService(purchaseEntryRepo, supplierRepo, supplierCatalogRepo, productRepo, spacesClient, eventBusImpl, unitOfWork, syncOutboxRepo, syncIdentity, slogLogger, cfg.OrganizationID)
@@ -348,8 +348,18 @@ func main() {
 	// Auth routes (protected with JWT)
 	router.GET("/api/auth/me", handler.JWTAuthMiddleware(jwtService), userHandler.GetCurrentUserHandler)
 
-	// User routes (protected with admin API key)
+	// User routes (protected with admin API key) — kept for first-admin bootstrap via curl.
 	router.POST("/api/users", handler.AdminAPIKeyMiddleware(cfg), userHandler.CreateUserHandler)
+
+	// Admin user management (protected with JWT + fine-grained user permissions).
+	adminUsers := router.Group("/api/admin", handler.JWTAuthMiddleware(jwtService))
+	adminUsers.POST("/users", handler.RequirePermission(permissions.UsersCreate), userHandler.CreateUserHandler)
+	adminUsers.GET("/users", handler.RequirePermission(permissions.UsersRead), userHandler.ListUsersHandler)
+	adminUsers.GET("/users/:id", handler.RequirePermission(permissions.UsersRead), userHandler.GetUserHandler)
+	adminUsers.PUT("/users/:id", handler.RequirePermission(permissions.UsersUpdate), userHandler.UpdateUserHandler)
+	adminUsers.POST("/users/:id/reset-password", handler.RequirePermission(permissions.UsersUpdate), userHandler.ResetPasswordHandler)
+	adminUsers.DELETE("/users/:id", handler.RequirePermission(permissions.UsersDelete), userHandler.DeleteUserHandler)
+	adminUsers.GET("/roles", handler.RequirePermission(permissions.UsersRead), userHandler.ListRolesHandler)
 
 	// Admin routes (protected with admin API key)
 	router.POST("/api/invoices/update-missing-document-urls", handler.AdminAPIKeyMiddleware(cfg), invoiceHandler.UpdateMissingDocumentURLsHandler)

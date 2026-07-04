@@ -6,8 +6,10 @@ import (
 	"testing"
 	"time"
 
+	useragg "laguna-escondida/backend/internal/domain/aggregate/user"
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
+	"laguna-escondida/backend/internal/domain/permissions"
 	"laguna-escondida/backend/internal/domain/ports/mocks"
 
 	"github.com/stretchr/testify/assert"
@@ -15,12 +17,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// passthroughUnitOfWork runs the transactional callback inline, so tests exercise
+// the same code path without a real database transaction.
+type passthroughUnitOfWork struct{}
+
+func (passthroughUnitOfWork) Do(ctx context.Context, fn func(ctx context.Context) error) error {
+	return fn(ctx)
+}
+
 func createTestUserService(t *testing.T) (*UserService, *mocks.MockUserRepository, *mocks.MockRoleRepository, *mocks.MockUserRoleRepository) {
 	mockUserRepo := mocks.NewMockUserRepository(t)
 	mockRoleRepo := mocks.NewMockRoleRepository(t)
 	mockUserRoleRepo := mocks.NewMockUserRoleRepository(t)
 	jwtService := NewJWTService("test-secret-key-for-testing")
-	return NewUserService(mockUserRepo, mockRoleRepo, mockUserRoleRepo, jwtService), mockUserRepo, mockRoleRepo, mockUserRoleRepo
+	return NewUserService(mockUserRepo, mockRoleRepo, mockUserRoleRepo, jwtService, passthroughUnitOfWork{}), mockUserRepo, mockRoleRepo, mockUserRoleRepo
 }
 
 func createTestRole(id int, name string) *dto.Role {
@@ -268,4 +278,100 @@ func TestCreateUser_UserRoleAssignmentFailed(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to assign role to user")
 
+}
+
+// Guard: an admin cannot delete their own user.
+func TestDeleteUser_CannotDeleteSelf(t *testing.T) {
+	ctx := context.Background()
+	service, userRepo, _, _ := createTestUserService(t)
+
+	err := service.DeleteUser(ctx, "same-id", "same-id")
+
+	assert.True(t, errors.Is(err, domainError.ErrCannotDeleteSelf))
+	userRepo.AssertNotCalled(t, "FindByID")
+	userRepo.AssertNotCalled(t, "SoftDelete")
+}
+
+// Guard: deleting the last active admin is rejected.
+func TestDeleteUser_CannotRemoveLastAdmin(t *testing.T) {
+	ctx := context.Background()
+	service, userRepo, _, userRoleRepo := createTestUserService(t)
+
+	userRepo.On("FindByID", ctx, "admin-id").Return(&dto.User{ID: "admin-id", Active: true}, nil)
+	userRoleRepo.On("FindRolesByUserID", ctx, "admin-id").Return([]*dto.Role{createTestRole(permissions.RoleAdmin, "admin")}, nil)
+	userRoleRepo.On("CountUsersByRoleID", ctx, permissions.RoleAdmin).Return(1, nil)
+
+	err := service.DeleteUser(ctx, "acting-id", "admin-id")
+
+	assert.True(t, errors.Is(err, domainError.ErrCannotRemoveLastAdmin))
+	userRepo.AssertNotCalled(t, "SoftDelete")
+}
+
+func TestDeleteUser_Success(t *testing.T) {
+	ctx := context.Background()
+	service, userRepo, _, userRoleRepo := createTestUserService(t)
+
+	userRepo.On("FindByID", ctx, "user-id").Return(&dto.User{ID: "user-id", Active: true}, nil)
+	userRoleRepo.On("FindRolesByUserID", ctx, "user-id").Return([]*dto.Role{createTestRole(permissions.RoleServer, "server")}, nil)
+	userRepo.On("SoftDelete", ctx, "user-id").Return(nil)
+
+	err := service.DeleteUser(ctx, "acting-id", "user-id")
+
+	require.NoError(t, err)
+}
+
+// Guard: removing the admin role from the last active admin is rejected.
+func TestUpdateUser_CannotRemoveLastAdminRole(t *testing.T) {
+	ctx := context.Background()
+	service, userRepo, roleRepo, userRoleRepo := createTestUserService(t)
+
+	userRepo.On("FindByID", ctx, "admin-id").Return(&dto.User{ID: "admin-id", Active: true, Name: "Admin"}, nil)
+	userRoleRepo.On("FindRolesByUserID", ctx, "admin-id").Return([]*dto.Role{createTestRole(permissions.RoleAdmin, "admin")}, nil)
+	roleRepo.On("FindByIDs", ctx, []int{permissions.RoleServer}).Return([]*dto.Role{createTestRole(permissions.RoleServer, "server")}, nil)
+	userRoleRepo.On("CountUsersByRoleID", ctx, permissions.RoleAdmin).Return(1, nil)
+
+	req := &dto.UpdateUserRequest{RoleIDs: []int{permissions.RoleServer}}
+	result, err := service.UpdateUser(ctx, "acting-id", "admin-id", req)
+
+	assert.Nil(t, result)
+	assert.True(t, errors.Is(err, domainError.ErrCannotRemoveLastAdmin))
+	userRepo.AssertNotCalled(t, "Update")
+}
+
+// Guard: an admin cannot deactivate their own user.
+func TestUpdateUser_CannotDeactivateSelf(t *testing.T) {
+	ctx := context.Background()
+	service, userRepo, _, userRoleRepo := createTestUserService(t)
+
+	userRepo.On("FindByID", ctx, "me").Return(&dto.User{ID: "me", Active: true}, nil)
+	userRoleRepo.On("FindRolesByUserID", ctx, "me").Return([]*dto.Role{createTestRole(permissions.RoleAdmin, "admin")}, nil)
+
+	inactive := false
+	req := &dto.UpdateUserRequest{Active: &inactive}
+	result, err := service.UpdateUser(ctx, "me", "me", req)
+
+	assert.Nil(t, result)
+	assert.True(t, errors.Is(err, domainError.ErrCannotDeactivateSelf))
+	userRepo.AssertNotCalled(t, "Update")
+}
+
+// An inactive user cannot sign in even with the correct password.
+func TestSignIn_InactiveUser(t *testing.T) {
+	ctx := context.Background()
+	service, userRepo, _, _ := createTestUserService(t)
+
+	hashed, err := useragg.HashPassword("password123")
+	require.NoError(t, err)
+
+	userRepo.On("FindByUsername", ctx, "bob").Return(&dto.User{
+		ID:       "bob-id",
+		Username: "bob",
+		Password: hashed,
+		Active:   false,
+	}, nil)
+
+	result, err := service.SignIn(ctx, &dto.SignInRequest{Username: "bob", Password: "password123"})
+
+	assert.Nil(t, result)
+	assert.True(t, errors.Is(err, domainError.ErrUserInactive))
 }

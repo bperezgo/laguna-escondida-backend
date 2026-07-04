@@ -107,6 +107,8 @@ const (
 const (
 	UsersRead   Permission = "users:read"
 	UsersCreate Permission = "users:create"
+	UsersUpdate Permission = "users:update"
+	UsersDelete Permission = "users:delete"
 )
 
 // SSE permissions
@@ -145,7 +147,7 @@ func AllPermissions() []Permission {
 		// Financial
 		FinancialRead,
 		// Users
-		UsersRead, UsersCreate,
+		UsersRead, UsersCreate, UsersUpdate, UsersDelete,
 		// SSE
 		SSECommandsRead, SSECommandItemsRead,
 	}
