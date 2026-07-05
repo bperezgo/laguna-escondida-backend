@@ -14,6 +14,11 @@ import {
   sendIcon,
 } from "./orderTakingParts";
 
+// Prefix pre-filled into the temporal identifier input so the waitress only
+// types the table number after it (e.g. "MESA-12"). This is a frontend-only
+// convention: the backend accepts any temporal identifier.
+const TEMPORAL_IDENTIFIER_PREFIX = "MESA-";
+
 interface CreateOrderFormProps {
   onClose: () => void;
   onSuccess: () => void;
@@ -32,7 +37,9 @@ export default function CreateOrderForm({
   onSuccess,
 }: CreateOrderFormProps) {
   const [openBillId] = useState(() => crypto.randomUUID());
-  const [temporalIdentifier, setTemporalIdentifier] = useState("MESA-");
+  const [temporalIdentifier, setTemporalIdentifier] = useState(
+    TEMPORAL_IDENTIFIER_PREFIX
+  );
   const [descriptor, setDescriptor] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProducts, setSelectedProducts] = useState<
@@ -179,8 +186,17 @@ export default function CreateOrderForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!temporalIdentifier.trim()) {
+    const trimmedIdentifier = temporalIdentifier.trim();
+
+    if (!trimmedIdentifier) {
       setError("El identificador temporal es requerido");
+      return;
+    }
+
+    if (trimmedIdentifier === TEMPORAL_IDENTIFIER_PREFIX) {
+      setError(
+        `Completa el identificador después de "${TEMPORAL_IDENTIFIER_PREFIX}" (ej: ${TEMPORAL_IDENTIFIER_PREFIX}12)`
+      );
       return;
     }
 
