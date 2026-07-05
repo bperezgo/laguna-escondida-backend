@@ -26,6 +26,12 @@ func businessDayRange() (time.Time, time.Time) {
 	return startLocal.UTC(), startLocal.Add(24 * time.Hour).UTC()
 }
 
+// sseHeartbeatInterval is how often each stream emits an SSE comment line to keep
+// bytes flowing on an otherwise idle connection. It must stay well under the Next.js
+// proxy's undici bodyTimeout (300s), otherwise a quiet stream is mistaken for a dead
+// one and torn down every ~5 minutes. 15s leaves a wide safety margin.
+const sseHeartbeatInterval = 15 * time.Second
+
 type SSEHandler struct {
 	hub                *sse.Hub
 	openBillProductHub *sse.OpenBillProductHub
@@ -72,6 +78,9 @@ func (h *SSEHandler) StreamCommandsHandler(c *gin.Context) {
 
 	ctx := c.Request.Context()
 
+	heartbeat := time.NewTicker(sseHeartbeatInterval)
+	defer heartbeat.Stop()
+
 	c.Stream(func(w io.Writer) bool {
 		select {
 		case event, ok := <-client.Events:
@@ -103,6 +112,19 @@ func (h *SSEHandler) StreamCommandsHandler(c *gin.Context) {
 				zap.String("area", area),
 				zap.String("event_type", event.Type),
 			)
+			return true
+		case <-heartbeat.C:
+			// SSE comment line (starts with ':') — ignored by EventSource clients,
+			// but keeps bytes flowing so the Next.js proxy / intermediaries don't
+			// time out an idle stream. A write failure means the client is gone.
+			if _, err := fmt.Fprint(w, ": heartbeat\n\n"); err != nil {
+				h.logger.Info("SSE heartbeat write failed; closing stream",
+					zap.String("handler", "StreamCommands"),
+					zap.String("area", area),
+					zap.Error(err),
+				)
+				return false
+			}
 			return true
 		case <-ctx.Done():
 			h.logger.Info("SSE connection context done",
@@ -185,6 +207,9 @@ func (h *SSEHandler) StreamOpenBillProductsHandler(c *gin.Context) {
 	pendingProducts, err := h.orderService.GetPendingOpenBillProductsByArea(ctx, area)
 	pendingSent := false
 
+	heartbeat := time.NewTicker(sseHeartbeatInterval)
+	defer heartbeat.Stop()
+
 	c.Stream(func(w io.Writer) bool {
 		if !pendingSent {
 			pendingSent = true
@@ -248,6 +273,19 @@ func (h *SSEHandler) StreamOpenBillProductsHandler(c *gin.Context) {
 				zap.String("area", area),
 				zap.String("event_type", event.Type),
 			)
+			return true
+		case <-heartbeat.C:
+			// SSE comment line (starts with ':') — ignored by EventSource clients,
+			// but keeps bytes flowing so the Next.js proxy / intermediaries don't
+			// time out an idle stream. A write failure means the client is gone.
+			if _, err := fmt.Fprint(w, ": heartbeat\n\n"); err != nil {
+				h.logger.Info("SSE heartbeat write failed; closing stream",
+					zap.String("handler", "StreamOpenBillProducts"),
+					zap.String("area", area),
+					zap.Error(err),
+				)
+				return false
+			}
 			return true
 		case <-ctx.Done():
 			h.logger.Info("SSE connection context done",
