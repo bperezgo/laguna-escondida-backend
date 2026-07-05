@@ -138,6 +138,26 @@ func (r *OpenBillRepository) Create(ctx context.Context, aggregate *openBill.Agg
 	})
 }
 
+// ExistsActiveByTemporalIdentifier reports whether an active open bill already
+// carries this temporal identifier. An order is "active" when it is not soft-deleted
+// and its status is neither completed nor cancelled, so a finalized order's
+// identifier can be reused while a live one cannot be duplicated.
+func (r *OpenBillRepository) ExistsActiveByTemporalIdentifier(ctx context.Context, temporalIdentifier string) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&openBillModel{}).
+		Where(
+			"temporal_identifier = ? AND deleted_at IS NULL AND status NOT IN ?",
+			temporalIdentifier,
+			[]string{string(dto.CommandStatusCompleted), string(dto.CommandStatusCancelled)},
+		).
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.OpenBillWithProducts, error) {
 	type result struct {
 		// Open Bill fields

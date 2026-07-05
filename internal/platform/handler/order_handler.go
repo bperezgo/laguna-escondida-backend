@@ -55,6 +55,10 @@ func (h *OrderHandler) CreateOrderHandler(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "One or more products not found"})
 			return
 		}
+		if errors.Is(err, orderError.ErrDuplicateTemporalIdentifier) {
+			c.JSON(http.StatusConflict, gin.H{"error": "An active order with this temporal identifier already exists"})
+			return
+		}
 		if errors.Is(err, orderError.ErrOrderCreationFailed) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create order"})
 			return

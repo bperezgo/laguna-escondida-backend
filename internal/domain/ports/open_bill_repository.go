@@ -10,6 +10,7 @@ import (
 
 type OpenBillRepository interface {
 	Create(ctx context.Context, aggregate *openBill.Aggregate) error
+	ExistsActiveByTemporalIdentifier(ctx context.Context, temporalIdentifier string) (bool, error)
 	FindByID(ctx context.Context, id string) (*dto.OpenBillWithProducts, error)
 	FindAggregateByID(ctx context.Context, id string) (*openBill.Aggregate, error)
 	FindAll(ctx context.Context) ([]*dto.OpenBillWithCreator, error)

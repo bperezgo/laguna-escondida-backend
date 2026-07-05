@@ -106,6 +106,17 @@ func (s *OrderService) CreateOrder(
 	req *dto.CreateOrderRequest,
 	user dto.UserDomain,
 ) (*dto.OpenBill, error) {
+	// Reject a duplicate before doing any work: two active orders must never share a
+	// temporal identifier. "Active" excludes completed/cancelled/deleted orders, so a
+	// finalized order's identifier can be reused.
+	duplicateActive, checkErr := s.openBillRepo.ExistsActiveByTemporalIdentifier(ctx, req.TemporalIdentifier)
+	if checkErr != nil {
+		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, checkErr)
+	}
+	if duplicateActive {
+		return nil, orderError.ErrDuplicateTemporalIdentifier
+	}
+
 	var products []*dto.Product
 	totalAmount := decimal.Zero
 	var openBillProducts []*openBill.OpenBillProduct

@@ -107,6 +107,12 @@ func createTestService(t *testing.T, productRepo ports.ProductRepository, openBi
 	mockUnitOfWork := createMockUnitOfWork(t)
 	mockEventBus := createMockEventBus(t)
 	mockOutbox := createMockSyncOutboxRepository(t)
+	// CreateOrder now guards against a duplicate active temporal identifier by calling
+	// ExistsActiveByTemporalIdentifier first. Tests that aren't exercising that guard
+	// default to "no duplicate"; the dedicated duplicate test sets its own expectation.
+	if m, ok := openBillRepo.(*mocks.MockOpenBillRepository); ok {
+		m.EXPECT().ExistsActiveByTemporalIdentifier(mock.Anything, mock.Anything).Return(false, nil).Maybe()
+	}
 	return NewOrderService(openBillRepo, productRepo, billRepo, billOwnerRepo, nil, mockUnitOfWork, mockEventBus, mockOutbox, dto.SyncIdentity{NodeID: testNodeID})
 }
 
@@ -142,6 +148,70 @@ func TestCreateOrder_EmptyOrder(t *testing.T) {
 	assert.NotZero(t, result.UpdatedAt)
 
 	// Verify mocks
+}
+
+// TestCreateOrder_DuplicateTemporalIdentifier verifies the guard that prevents two
+// active orders from sharing a temporal identifier: when one already exists, creation
+// is rejected before any product work happens.
+func TestCreateOrder_DuplicateTemporalIdentifier(t *testing.T) {
+	// Setup
+	ctx := createTestContext()
+	mockOpenBillRepo := mocks.NewMockOpenBillRepository(t)
+
+	temporalIdentifier := "550e8400-e29b-41d4-a716-446655440099"
+	req := &dto.CreateOrderRequest{
+		OpenBillID:         uuidPlaceholder0,
+		TemporalIdentifier: temporalIdentifier,
+		Products: []dto.OrderProductItem{
+			{
+				OpenBillProductID: uuidPlaceholder1,
+				ProductID:         productID1,
+				Quantity:          1,
+			},
+		},
+	}
+	user := createTestUser()
+
+	// An active order already carries this temporal identifier. Constructed directly
+	// (not via createTestService) so no permissive "no duplicate" default is registered.
+	mockOpenBillRepo.On("ExistsActiveByTemporalIdentifier", ctx, temporalIdentifier).Return(true, nil)
+	service := NewOrderService(mockOpenBillRepo, nil, nil, nil, nil, nil, nil, nil, dto.SyncIdentity{NodeID: testNodeID})
+
+	// Execute
+	result, err := service.CreateOrder(ctx, req, user)
+
+	// Assert
+	require.Error(t, err)
+	assert.ErrorIs(t, err, orderError.ErrDuplicateTemporalIdentifier)
+	assert.Nil(t, result)
+}
+
+// TestCreateOrder_TemporalIdentifierLookupError verifies that a failure while checking
+// for a duplicate temporal identifier surfaces as an order-creation failure.
+func TestCreateOrder_TemporalIdentifierLookupError(t *testing.T) {
+	// Setup
+	ctx := createTestContext()
+	mockOpenBillRepo := mocks.NewMockOpenBillRepository(t)
+
+	temporalIdentifier := "550e8400-e29b-41d4-a716-446655440099"
+	req := &dto.CreateOrderRequest{
+		OpenBillID:         uuidPlaceholder0,
+		TemporalIdentifier: temporalIdentifier,
+		Products:           []dto.OrderProductItem{},
+	}
+	user := createTestUser()
+
+	lookupErr := errors.New("database unavailable")
+	mockOpenBillRepo.On("ExistsActiveByTemporalIdentifier", ctx, temporalIdentifier).Return(false, lookupErr)
+	service := NewOrderService(mockOpenBillRepo, nil, nil, nil, nil, nil, nil, nil, dto.SyncIdentity{NodeID: testNodeID})
+
+	// Execute
+	result, err := service.CreateOrder(ctx, req, user)
+
+	// Assert
+	require.Error(t, err)
+	assert.ErrorIs(t, err, orderError.ErrOrderCreationFailed)
+	assert.Nil(t, result)
 }
 
 func TestCreateOrder_SingleProduct(t *testing.T) {
@@ -418,7 +488,9 @@ func TestCreateOrder_TotalAmountCalculations(t *testing.T) {
 				},
 			}
 
-			// Mock expectations
+			// Mock expectations (ExpectedCalls was reset above, so re-register the
+			// duplicate-identifier guard that createTestService normally provides)
+			mockOpenBillRepo.On("ExistsActiveByTemporalIdentifier", ctx, "TABLE-01").Return(false, nil)
 			mockProductRepo.On("FindByIDs", ctx, []string{productID}).Return([]*dto.Product{product}, nil)
 			mockOpenBillRepo.On("GetProductPreparationResponsibilities", ctx, []string{productID}).Return([]dto.ProductPreparationResponsibilityWithProduct{}, nil)
 			mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
@@ -1914,6 +1986,7 @@ func TestCreateOrder_NoEventPublished_WhenNoProducts(t *testing.T) {
 		Products:           []dto.OrderProductItem{},
 	}
 
+	mockOpenBillRepo.On("ExistsActiveByTemporalIdentifier", ctx, "TABLE-01").Return(false, nil)
 	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
 
 	result, err := service.CreateOrder(ctx, req, user)
@@ -1945,6 +2018,7 @@ func TestCreateOrder_WritesOutboxRowInTransaction(t *testing.T) {
 		Products:           []dto.OrderProductItem{},
 	}
 
+	mockOpenBillRepo.On("ExistsActiveByTemporalIdentifier", ctx, "TABLE-07").Return(false, nil)
 	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
 
 	var captured *dto.SyncOutboxEntry

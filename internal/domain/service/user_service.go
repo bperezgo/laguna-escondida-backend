@@ -57,8 +57,8 @@ func (s *UserService) CreateUser(ctx context.Context, req *dto.CreateUserRequest
 	userDTO := userAggregate.ToDTO()
 
 	err = s.unitOfWork.Do(ctx, func(ctx context.Context) error {
-		if err := s.userRepo.Create(ctx, userDTO); err != nil {
-			return fmt.Errorf("%w: %w", domainError.ErrUserCreationFailed, err)
+		if createErr := s.userRepo.Create(ctx, userDTO); createErr != nil {
+			return fmt.Errorf("%w: %w", domainError.ErrUserCreationFailed, createErr)
 		}
 
 		now := time.Now()
@@ -68,8 +68,8 @@ func (s *UserService) CreateUser(ctx context.Context, req *dto.CreateUserRequest
 				RoleID:    role.ID,
 				CreatedAt: now,
 			}
-			if err := s.userRoleRepo.Create(ctx, userRole); err != nil {
-				return fmt.Errorf("failed to assign role to user: %w", err)
+			if roleErr := s.userRoleRepo.Create(ctx, userRole); roleErr != nil {
+				return fmt.Errorf("failed to assign role to user: %w", roleErr)
 			}
 		}
 		return nil
@@ -137,14 +137,13 @@ func (s *UserService) UpdateUser(ctx context.Context, actingUserID, id string, r
 	newRoleIDs := roleIDsOf(currentRoles)
 	var newRoles []*dto.Role
 	if rolesChanged {
-		roles, err := s.roleRepo.FindByIDs(ctx, req.RoleIDs)
+		newRoles, err = s.roleRepo.FindByIDs(ctx, req.RoleIDs)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %w", domainError.ErrRoleNotFound, err)
 		}
-		if len(roles) != len(req.RoleIDs) {
+		if len(newRoles) != len(req.RoleIDs) {
 			return nil, domainError.ErrInvalidRoleIDs
 		}
-		newRoles = roles
 		newRoleIDs = req.RoleIDs
 	}
 
@@ -156,9 +155,9 @@ func (s *UserService) UpdateUser(ctx context.Context, actingUserID, id string, r
 	wasActiveAdmin := current.Active && containsInt(roleIDsOf(currentRoles), permissions.RoleAdmin)
 	willBeActiveAdmin := newActive && containsInt(newRoleIDs, permissions.RoleAdmin)
 	if wasActiveAdmin && !willBeActiveAdmin {
-		count, err := s.userRoleRepo.CountUsersByRoleID(ctx, permissions.RoleAdmin)
-		if err != nil {
-			return nil, fmt.Errorf("failed to count admins: %w", err)
+		count, countErr := s.userRoleRepo.CountUsersByRoleID(ctx, permissions.RoleAdmin)
+		if countErr != nil {
+			return nil, fmt.Errorf("failed to count admins: %w", countErr)
 		}
 		if count <= 1 {
 			return nil, domainError.ErrCannotRemoveLastAdmin
@@ -172,18 +171,18 @@ func (s *UserService) UpdateUser(ctx context.Context, actingUserID, id string, r
 	current.UpdatedAt = time.Now()
 
 	err = s.unitOfWork.Do(ctx, func(ctx context.Context) error {
-		if err := s.userRepo.Update(ctx, current); err != nil {
-			return err
+		if updateErr := s.userRepo.Update(ctx, current); updateErr != nil {
+			return updateErr
 		}
 		if rolesChanged {
-			if err := s.userRoleRepo.DeleteByUserID(ctx, id); err != nil {
-				return fmt.Errorf("failed to clear user roles: %w", err)
+			if deleteErr := s.userRoleRepo.DeleteByUserID(ctx, id); deleteErr != nil {
+				return fmt.Errorf("failed to clear user roles: %w", deleteErr)
 			}
 			now := time.Now()
 			for _, role := range newRoles {
 				userRole := &dto.UserRole{UserID: id, RoleID: role.ID, CreatedAt: now}
-				if err := s.userRoleRepo.Create(ctx, userRole); err != nil {
-					return fmt.Errorf("failed to assign role to user: %w", err)
+				if roleErr := s.userRoleRepo.Create(ctx, userRole); roleErr != nil {
+					return fmt.Errorf("failed to assign role to user: %w", roleErr)
 				}
 			}
 		}
