@@ -28,12 +28,14 @@ Manages open orders (open bills) — active tabs that can contain products befor
 
 Creates a new open order. Products are optional — an empty order can be created.
 
+The `temporal_identifier` must be unique among **active** orders. An order is active while it is not completed, cancelled, or deleted. Creating an order whose `temporal_identifier` matches an existing active order is rejected with `409 Conflict`. Once an order is completed or cancelled, its `temporal_identifier` may be reused.
+
 ### Request Body
 
 | Field               | Type     | Required | Description                                   |
 | ------------------- | -------- | -------- | --------------------------------------------- |
 | open_bill_id        | string   | Yes      | UUID for the new order                         |
-| temporal_identifier | string   | Yes      | UUID used as a temporary human-readable label  |
+| temporal_identifier | string   | Yes      | UUID used as a temporary human-readable label; unique among active orders |
 | descriptor          | string   | No       | Optional description / table name              |
 | products            | array    | No       | List of products to add                        |
 | products[].open_bill_product_id | string | Yes | UUID for each line item              |
@@ -70,6 +72,32 @@ Creates a new open order. Products are optional — an empty order can be create
   "descriptor": "Mesa 5",
   "created_at": "2025-06-15T10:30:00Z",
   "updated_at": "2025-06-15T10:30:00Z"
+}
+```
+
+### Error Responses
+
+**404 Not Found** — one or more products do not exist
+
+```json
+{
+  "error": "One or more products not found"
+}
+```
+
+**409 Conflict** — an active order already uses this `temporal_identifier`
+
+```json
+{
+  "error": "An active order with this temporal identifier already exists"
+}
+```
+
+**500 Internal Server Error** — the order could not be created
+
+```json
+{
+  "error": "Failed to create order"
 }
 ```
 
