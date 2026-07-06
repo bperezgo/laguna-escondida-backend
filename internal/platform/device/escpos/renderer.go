@@ -107,11 +107,14 @@ func Render(ticket *dto.Ticket, opts Options) ([]byte, error) {
 	w.raw(escByte, 'a', 0)
 
 	// Bill metadata.
+	//
+	// ticket.Descriptor is deliberately NOT printed here. It is an internal field
+	// used to recognize the customer and must never reach the physical ticket.
+	// This omission is enforced by TestRender_DescriptorNotPrinted; reintroducing
+	// a "Detalle:" line (or otherwise emitting the descriptor) will fail that test
+	// on purpose, so the privacy implication is reviewed before it can ship.
 	w.rule()
 	w.line("Cuenta: " + ticket.TemporalIdentifier)
-	if ticket.Descriptor != "" {
-		w.line("Detalle: " + ticket.Descriptor)
-	}
 	if ticket.ServerName != "" {
 		w.line("Atendio: " + ticket.ServerName)
 	}

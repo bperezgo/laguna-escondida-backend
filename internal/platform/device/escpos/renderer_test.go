@@ -87,6 +87,36 @@ func TestRender_ControlSequences(t *testing.T) {
 	assert.True(t, bytes.Contains(got, []byte{0xA4}), "ñ should transcode to 0xA4 in CP850")
 }
 
+// TestRender_DescriptorNotPrinted is a restrictive guard: the bill descriptor is
+// an internal field used to recognize the customer and MUST NOT reach the printed
+// ticket. Render is fed a ticket that DOES carry a descriptor, and we assert that
+// neither the value nor the old "Detalle:" label appears in the output bytes.
+//
+// If a future change needs to surface the descriptor (or any transformation of it)
+// on paper, this test will fail — that failure is intentional. Do not just delete
+// or soften it: re-evaluate the privacy implication of printing an internal
+// customer identifier, get sign-off, and only then update this test and the
+// renderer together.
+func TestRender_DescriptorNotPrinted(t *testing.T) {
+	const internalDescriptor = "CLIENTE-INTERNO-9f3a-NO-IMPRIMIR"
+
+	ticket := sampleTicket()
+	ticket.Descriptor = internalDescriptor
+
+	for _, opts := range []Options{
+		{Width: 48, Codepage: CodepageCP850, Cut: CutPartial},
+		{Width: 32, Codepage: CodepageCP850, Cut: CutPartial},
+	} {
+		got, err := Render(ticket, opts)
+		require.NoError(t, err)
+
+		assert.NotContains(t, string(got), internalDescriptor,
+			"width %d: bill descriptor is internal and must never be printed on the ticket", opts.Width)
+		assert.NotContains(t, string(got), "Detalle",
+			"width %d: the 'Detalle:' descriptor label must never be printed", opts.Width)
+	}
+}
+
 func TestRender_CutModes(t *testing.T) {
 	full, err := Render(sampleTicket(), Options{Width: 48, Codepage: CodepageCP850, Cut: CutFull})
 	require.NoError(t, err)
