@@ -570,6 +570,33 @@ func (s *OrderService) GetAllActiveOpenBills(ctx context.Context) (*dto.OpenBill
 	}, nil
 }
 
+// GetClosedOpenBills returns the soft-deleted (closed) open bills created within
+// [from, to) — the read-only "Órdenes cerradas hoy" list. It reuses the open-bill list
+// shape so the frontend can render closed orders with the same card as active ones.
+func (s *OrderService) GetClosedOpenBills(ctx context.Context, from, to time.Time) (*dto.OpenBillListResponse, error) {
+	openBills, err := s.openBillRepo.FindDeletedByCreatedAtBetween(ctx, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get closed open bills: %w", err)
+	}
+
+	total := len(openBills)
+	return &dto.OpenBillListResponse{
+		OpenBills: openBills,
+		Total:     &total,
+	}, nil
+}
+
+// GetClosedOpenBillWithProducts returns a single closed (soft-deleted) open bill with
+// its products, for the closed-order detail view and cuenta reprint.
+func (s *OrderService) GetClosedOpenBillWithProducts(ctx context.Context, openBillID string) (*dto.OpenBillWithProducts, error) {
+	openBill, err := s.openBillRepo.FindByIDIncludingDeletedWithProducts(ctx, openBillID)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
+	}
+
+	return openBill, nil
+}
+
 // GetOpenBillWithProducts returns a specific open bill with inner joins to open_bills_products and products
 func (s *OrderService) GetOpenBillWithProducts(ctx context.Context, openBillID string) (*dto.OpenBillWithProducts, error) {
 	openBill, err := s.openBillRepo.FindByIDWithProducts(ctx, openBillID)

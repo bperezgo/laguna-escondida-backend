@@ -45,7 +45,10 @@ func NewPrintService(
 func (s *PrintService) PrintTicket(ctx context.Context, req *dto.PrintTicketRequest) error {
 	copies := min(max(req.Copies, 1), maxTicketCopies)
 
-	bill, err := s.openBillRepo.FindByIDWithProducts(ctx, req.OpenBillID)
+	// Load including soft-deleted so a closed order's cuenta can be reprinted (e.g. to
+	// settle a customer dispute over a paid order). An active bill still loads the same;
+	// paying does not delete the individual line items, so a reprint matches the original.
+	bill, err := s.openBillRepo.FindByIDIncludingDeletedWithProducts(ctx, req.OpenBillID)
 	if err != nil {
 		return fmt.Errorf("%w: %w", domainError.ErrOpenBillNotFound, err)
 	}

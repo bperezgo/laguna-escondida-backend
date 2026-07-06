@@ -762,6 +762,231 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 	}, nil
 }
 
+// FindDeletedByCreatedAtBetween returns the soft-deleted (closed) open bills whose
+// created_at falls within [from, to). These are the orders finalized during the
+// window — paid, or discarded — and power the read-only "Órdenes cerradas hoy" list.
+// Mirrors FindAll but selects the deleted rows instead of the active ones and orders
+// by deleted_at (close time) so the most recently closed order shows first.
+func (r *OpenBillRepository) FindDeletedByCreatedAtBetween(ctx context.Context, from, to time.Time) ([]*dto.OpenBillWithCreator, error) {
+	type result struct {
+		// Open Bill fields
+		ID                 string
+		TemporalIdentifier string
+		TotalAmount        decimal.Decimal
+		Status             string
+		CreatedBy          *string
+		Descriptor         *string
+		CreatedAt          time.Time
+		UpdatedAt          time.Time
+		// User fields
+		UserID       string
+		UserUsername string
+		UserName     string
+	}
+
+	var results []result
+	err := r.db.WithContext(ctx).
+		Table("open_bills").
+		Select(`
+			open_bills.id,
+			open_bills.temporal_identifier,
+			open_bills.total_amount,
+			open_bills.status,
+			open_bills.created_by,
+			open_bills.descriptor,
+			open_bills.created_at,
+			open_bills.updated_at,
+			users.id as user_id,
+			users.username as user_username,
+			users.name as user_name
+		`).
+		Joins("LEFT JOIN users ON open_bills.created_by = users.id AND users.deleted_at IS NULL").
+		Where("open_bills.deleted_at IS NOT NULL AND open_bills.created_at >= ? AND open_bills.created_at < ?", from, to).
+		Order("open_bills.deleted_at DESC").
+		Scan(&results).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	openBills := make([]*dto.OpenBillWithCreator, len(results))
+	for i, res := range results {
+		openBills[i] = &dto.OpenBillWithCreator{
+			ID:                 res.ID,
+			TemporalIdentifier: res.TemporalIdentifier,
+			TotalAmount:        res.TotalAmount,
+			Status:             dto.CommandStatus(res.Status),
+			CreatedBy: dto.OpenBillCreator{
+				ID:       res.UserID,
+				Username: res.UserUsername,
+				Name:     res.UserName,
+			},
+			Descriptor: res.Descriptor,
+			CreatedAt:  res.CreatedAt,
+			UpdatedAt:  res.UpdatedAt,
+		}
+	}
+
+	return openBills, nil
+}
+
+// FindByIDIncludingDeletedWithProducts is FindByIDWithProducts without the
+// "open_bills.deleted_at IS NULL" guard, so a closed (paid/discarded) open bill can be
+// loaded for the closed-order detail view and cuenta reprint. Its line items are still
+// selected with deleted_at IS NULL — paying does not soft-delete the individual
+// open_bills_products, so the bill reprints exactly the lines it was charged with.
+func (r *OpenBillRepository) FindByIDIncludingDeletedWithProducts(ctx context.Context, id string) (*dto.OpenBillWithProducts, error) {
+	type billResult struct {
+		// Open Bill fields
+		ID                 string
+		TemporalIdentifier string
+		TotalAmount        decimal.Decimal
+		Status             string
+		CreatedBy          *string
+		Descriptor         *string
+		CreatedAt          time.Time
+		UpdatedAt          time.Time
+		// User fields
+		UserID       string
+		UserUsername string
+		UserName     string
+	}
+
+	var result billResult
+	err := r.db.WithContext(ctx).
+		Table("open_bills").
+		Select(`
+			open_bills.id,
+			open_bills.temporal_identifier,
+			open_bills.total_amount,
+			open_bills.status,
+			open_bills.created_by,
+			open_bills.descriptor,
+			open_bills.created_at,
+			open_bills.updated_at,
+			users.id as user_id,
+			users.username as user_username,
+			users.name as user_name
+		`).
+		Joins("LEFT JOIN users ON open_bills.created_by = users.id AND users.deleted_at IS NULL").
+		Where("open_bills.id = ?", id).
+		Scan(&result).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	type productResult struct {
+		// Open Bill Product fields
+		ID         string
+		OpenBillID string
+		ProductID  string
+		Quantity   int
+		Notes      *string
+		Status     string
+		Area       *string
+		Priority   int
+		CreatedAt  time.Time
+		// Product fields
+		ProductName                string
+		ProductCategory            string
+		ProductVersion             int
+		ProductUnitPrice           decimal.Decimal
+		ProductVAT                 decimal.Decimal
+		ProductVATAmount           decimal.Decimal
+		ProductICO                 decimal.Decimal
+		ProductICOAmount           decimal.Decimal
+		ProductDescription         *string
+		ProductSKU                 string
+		ProductTotalPriceWithTaxes decimal.Decimal
+		ProductCreatedAt           time.Time
+		ProductUpdatedAt           time.Time
+	}
+
+	var productResults []productResult
+
+	err = r.db.WithContext(ctx).
+		Table("open_bills_products").
+		Select(`
+			open_bills_products.id,
+			open_bills_products.open_bill_id,
+			open_bills_products.product_id,
+			open_bills_products.quantity,
+			open_bills_products.notes,
+			open_bills_products.status,
+			open_bills_products.area,
+			open_bills_products.priority,
+			open_bills_products.created_at,
+			products.name as product_name,
+			products.category as product_category,
+			products.version as product_version,
+			products.unit_price as product_unit_price,
+			products.vat as product_vat,
+			products.vat_amount as product_vat_amount,
+			products.ico as product_ico,
+			products.ico_amount as product_ico_amount,
+			products.description as product_description,
+			products.sku as product_sku,
+			products.total_price_with_taxes as product_total_price_with_taxes,
+			products.created_at as product_created_at,
+			products.updated_at as product_updated_at
+		`).
+		Joins("INNER JOIN products ON open_bills_products.product_id = products.id AND products.deleted_at IS NULL").
+		Where("open_bills_products.open_bill_id = ? AND open_bills_products.deleted_at IS NULL", id).
+		Scan(&productResults).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	productDetails := make([]dto.OpenBillProductDetail, len(productResults))
+	for i, pr := range productResults {
+		productDetails[i] = dto.OpenBillProductDetail{
+			OpenBillProductID: pr.ID,
+			Product: dto.Product{
+				ID:                  pr.ProductID,
+				Name:                pr.ProductName,
+				Category:            pr.ProductCategory,
+				Version:             pr.ProductVersion,
+				UnitPrice:           pr.ProductUnitPrice,
+				VAT:                 pr.ProductVAT,
+				VATAmount:           pr.ProductVATAmount,
+				ICO:                 pr.ProductICO,
+				ICOAmount:           pr.ProductICOAmount,
+				Description:         pr.ProductDescription,
+				SKU:                 pr.ProductSKU,
+				TotalPriceWithTaxes: pr.ProductTotalPriceWithTaxes,
+				CreatedAt:           pr.ProductCreatedAt,
+				UpdatedAt:           pr.ProductUpdatedAt,
+			},
+			Quantity:  pr.Quantity,
+			Notes:     pr.Notes,
+			Status:    dto.CommandStatus(pr.Status),
+			Area:      pr.Area,
+			Priority:  pr.Priority,
+			CreatedAt: pr.CreatedAt,
+		}
+	}
+
+	createdBy := dto.OpenBillCreator{
+		ID:       result.UserID,
+		Username: result.UserUsername,
+		Name:     result.UserName,
+	}
+
+	return &dto.OpenBillWithProducts{
+		ID:                 result.ID,
+		TemporalIdentifier: result.TemporalIdentifier,
+		TotalAmount:        result.TotalAmount,
+		Status:             dto.CommandStatus(result.Status),
+		CreatedBy:          createdBy,
+		Descriptor:         result.Descriptor,
+		Products:           productDetails,
+		CreatedAt:          result.CreatedAt,
+		UpdatedAt:          result.UpdatedAt,
+	}, nil
+}
+
 func (r *OpenBillRepository) GetProductPreparationResponsibilities(ctx context.Context, productIDs []string) ([]dto.ProductPreparationResponsibilityWithProduct, error) {
 	db := postgres.GetTxOrDB(ctx, r.db)
 

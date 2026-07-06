@@ -369,6 +369,8 @@ func main() {
 	// Order routes
 	router.POST("/api/orders", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersCreate), orderHandler.CreateOrderHandler)
 	router.GET("/api/orders", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersRead), orderHandler.GetAllActiveOpenBillsHandler)
+	router.GET("/api/orders/closed", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersRead), orderHandler.GetClosedOpenBillsTodayHandler)
+	router.GET("/api/orders/closed/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersRead), orderHandler.GetClosedOpenBillWithProductsHandler)
 	router.GET("/api/orders/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersRead), orderHandler.GetOpenBillWithProductsHandler)
 	router.PUT("/api/orders/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersUpdate), orderHandler.UpdateOrderHandler)
 	router.DELETE("/api/orders/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersDelete), orderHandler.DeleteOrderHandler)

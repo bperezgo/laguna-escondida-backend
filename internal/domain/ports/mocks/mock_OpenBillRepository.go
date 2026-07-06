@@ -352,6 +352,65 @@ func (_c *MockOpenBillRepository_FindByID_Call) RunAndReturn(run func(context.Co
 	return _c
 }
 
+// FindByIDIncludingDeletedWithProducts provides a mock function with given fields: ctx, id
+func (_m *MockOpenBillRepository) FindByIDIncludingDeletedWithProducts(ctx context.Context, id string) (*dto.OpenBillWithProducts, error) {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindByIDIncludingDeletedWithProducts")
+	}
+
+	var r0 *dto.OpenBillWithProducts
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*dto.OpenBillWithProducts, error)); ok {
+		return rf(ctx, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *dto.OpenBillWithProducts); ok {
+		r0 = rf(ctx, id)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*dto.OpenBillWithProducts)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOpenBillRepository_FindByIDIncludingDeletedWithProducts_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindByIDIncludingDeletedWithProducts'
+type MockOpenBillRepository_FindByIDIncludingDeletedWithProducts_Call struct {
+	*mock.Call
+}
+
+// FindByIDIncludingDeletedWithProducts is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+func (_e *MockOpenBillRepository_Expecter) FindByIDIncludingDeletedWithProducts(ctx interface{}, id interface{}) *MockOpenBillRepository_FindByIDIncludingDeletedWithProducts_Call {
+	return &MockOpenBillRepository_FindByIDIncludingDeletedWithProducts_Call{Call: _e.mock.On("FindByIDIncludingDeletedWithProducts", ctx, id)}
+}
+
+func (_c *MockOpenBillRepository_FindByIDIncludingDeletedWithProducts_Call) Run(run func(ctx context.Context, id string)) *MockOpenBillRepository_FindByIDIncludingDeletedWithProducts_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockOpenBillRepository_FindByIDIncludingDeletedWithProducts_Call) Return(_a0 *dto.OpenBillWithProducts, _a1 error) *MockOpenBillRepository_FindByIDIncludingDeletedWithProducts_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOpenBillRepository_FindByIDIncludingDeletedWithProducts_Call) RunAndReturn(run func(context.Context, string) (*dto.OpenBillWithProducts, error)) *MockOpenBillRepository_FindByIDIncludingDeletedWithProducts_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // FindByIDWithProducts provides a mock function with given fields: ctx, id
 func (_m *MockOpenBillRepository) FindByIDWithProducts(ctx context.Context, id string) (*dto.OpenBillWithProducts, error) {
 	ret := _m.Called(ctx, id)
@@ -468,6 +527,66 @@ func (_c *MockOpenBillRepository_FindCompletedByAreaBetween_Call) Return(_a0 []*
 }
 
 func (_c *MockOpenBillRepository_FindCompletedByAreaBetween_Call) RunAndReturn(run func(context.Context, string, time.Time, time.Time) ([]*dto.OpenBillProductSSE, error)) *MockOpenBillRepository_FindCompletedByAreaBetween_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// FindDeletedByCreatedAtBetween provides a mock function with given fields: ctx, from, to
+func (_m *MockOpenBillRepository) FindDeletedByCreatedAtBetween(ctx context.Context, from time.Time, to time.Time) ([]*dto.OpenBillWithCreator, error) {
+	ret := _m.Called(ctx, from, to)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindDeletedByCreatedAtBetween")
+	}
+
+	var r0 []*dto.OpenBillWithCreator
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time, time.Time) ([]*dto.OpenBillWithCreator, error)); ok {
+		return rf(ctx, from, to)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time, time.Time) []*dto.OpenBillWithCreator); ok {
+		r0 = rf(ctx, from, to)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*dto.OpenBillWithCreator)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, time.Time, time.Time) error); ok {
+		r1 = rf(ctx, from, to)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOpenBillRepository_FindDeletedByCreatedAtBetween_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindDeletedByCreatedAtBetween'
+type MockOpenBillRepository_FindDeletedByCreatedAtBetween_Call struct {
+	*mock.Call
+}
+
+// FindDeletedByCreatedAtBetween is a helper method to define mock.On call
+//   - ctx context.Context
+//   - from time.Time
+//   - to time.Time
+func (_e *MockOpenBillRepository_Expecter) FindDeletedByCreatedAtBetween(ctx interface{}, from interface{}, to interface{}) *MockOpenBillRepository_FindDeletedByCreatedAtBetween_Call {
+	return &MockOpenBillRepository_FindDeletedByCreatedAtBetween_Call{Call: _e.mock.On("FindDeletedByCreatedAtBetween", ctx, from, to)}
+}
+
+func (_c *MockOpenBillRepository_FindDeletedByCreatedAtBetween_Call) Run(run func(ctx context.Context, from time.Time, to time.Time)) *MockOpenBillRepository_FindDeletedByCreatedAtBetween_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(time.Time), args[2].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockOpenBillRepository_FindDeletedByCreatedAtBetween_Call) Return(_a0 []*dto.OpenBillWithCreator, _a1 error) *MockOpenBillRepository_FindDeletedByCreatedAtBetween_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOpenBillRepository_FindDeletedByCreatedAtBetween_Call) RunAndReturn(run func(context.Context, time.Time, time.Time) ([]*dto.OpenBillWithCreator, error)) *MockOpenBillRepository_FindDeletedByCreatedAtBetween_Call {
 	_c.Call.Return(run)
 	return _c
 }

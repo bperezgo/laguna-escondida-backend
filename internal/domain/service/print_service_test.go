@@ -79,7 +79,7 @@ func TestPrintTicket_Success(t *testing.T) {
 	bill := printTestOpenBill([]dto.OpenBillProductDetail{
 		printTestProductDetail("Cerveza", 2, 8000, 1520, 0, nil),
 	})
-	repo.EXPECT().FindByIDWithProducts(mock.Anything, printOpenBillID).Return(bill, nil)
+	repo.EXPECT().FindByIDIncludingDeletedWithProducts(mock.Anything, printOpenBillID).Return(bill, nil)
 	printer.EXPECT().Print(mock.Anything, mock.AnythingOfType("*dto.Ticket")).Return(nil).Once()
 
 	svc := newPrintTestService(repo, printer)
@@ -96,7 +96,7 @@ func TestPrintTicket_MultipleCopies(t *testing.T) {
 	bill := printTestOpenBill([]dto.OpenBillProductDetail{
 		printTestProductDetail("Cerveza", 1, 8000, 1520, 0, nil),
 	})
-	repo.EXPECT().FindByIDWithProducts(mock.Anything, printOpenBillID).Return(bill, nil)
+	repo.EXPECT().FindByIDIncludingDeletedWithProducts(mock.Anything, printOpenBillID).Return(bill, nil)
 	printer.EXPECT().Print(mock.Anything, mock.Anything).Return(nil).Times(3)
 
 	svc := newPrintTestService(repo, printer)
@@ -113,7 +113,7 @@ func TestPrintTicket_CopiesCappedAtMax(t *testing.T) {
 	bill := printTestOpenBill([]dto.OpenBillProductDetail{
 		printTestProductDetail("Cerveza", 1, 8000, 1520, 0, nil),
 	})
-	repo.EXPECT().FindByIDWithProducts(mock.Anything, printOpenBillID).Return(bill, nil)
+	repo.EXPECT().FindByIDIncludingDeletedWithProducts(mock.Anything, printOpenBillID).Return(bill, nil)
 	printer.EXPECT().Print(mock.Anything, mock.Anything).Return(nil).Times(maxTicketCopies)
 
 	svc := newPrintTestService(repo, printer)
@@ -129,7 +129,7 @@ func TestPrintTicket_BillNotFound(t *testing.T) {
 	repo := mocks.NewMockOpenBillRepository(t)
 	printer := mocks.NewMockReceiptPrinter(t)
 
-	repo.EXPECT().FindByIDWithProducts(mock.Anything, printOpenBillID).
+	repo.EXPECT().FindByIDIncludingDeletedWithProducts(mock.Anything, printOpenBillID).
 		Return(nil, errors.New("sql: no rows in result set"))
 
 	svc := newPrintTestService(repo, printer)
@@ -148,7 +148,7 @@ func TestPrintTicket_PrinterError(t *testing.T) {
 	bill := printTestOpenBill([]dto.OpenBillProductDetail{
 		printTestProductDetail("Cerveza", 1, 8000, 1520, 0, nil),
 	})
-	repo.EXPECT().FindByIDWithProducts(mock.Anything, printOpenBillID).Return(bill, nil)
+	repo.EXPECT().FindByIDIncludingDeletedWithProducts(mock.Anything, printOpenBillID).Return(bill, nil)
 	printer.EXPECT().Print(mock.Anything, mock.Anything).Return(errors.New("out of paper")).Once()
 
 	svc := newPrintTestService(repo, printer)
@@ -170,7 +170,7 @@ func TestPrintTicket_TicketMapping(t *testing.T) {
 		printTestProductDetail("Cerveza", 2, 8000, 1520, 0, &notes), // unit total 9520
 		printTestProductDetail("Limonada", 1, 5000, 950, 100, nil),  // unit total 6050
 	})
-	repo.EXPECT().FindByIDWithProducts(mock.Anything, printOpenBillID).Return(bill, nil)
+	repo.EXPECT().FindByIDIncludingDeletedWithProducts(mock.Anything, printOpenBillID).Return(bill, nil)
 
 	var captured *dto.Ticket
 	printer.EXPECT().Print(mock.Anything, mock.Anything).

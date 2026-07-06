@@ -154,6 +154,46 @@ func (h *OrderHandler) GetAllActiveOpenBillsHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, openBills)
 }
 
+// GetClosedOpenBillsTodayHandler returns the orders closed today (soft-deleted open
+// bills whose created_at is within the current local business day, America/Bogota).
+// Powers the read-only "Órdenes cerradas hoy" view used to reprint a paid cuenta.
+func (h *OrderHandler) GetClosedOpenBillsTodayHandler(c *gin.Context) {
+	from, to := businessDayRange()
+
+	openBills, err := h.orderService.GetClosedOpenBills(c.Request.Context(), from, to)
+	if err != nil {
+		log.Printf("Error getting closed open bills: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve closed open bills"})
+		return
+	}
+
+	c.JSON(http.StatusOK, openBills)
+}
+
+// GetClosedOpenBillWithProductsHandler returns a single closed (soft-deleted) open bill
+// with its products, for the closed-order detail view and cuenta reprint.
+func (h *OrderHandler) GetClosedOpenBillWithProductsHandler(c *gin.Context) {
+	openBillID := c.Param("id")
+	if openBillID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Order ID is required"})
+		return
+	}
+
+	openBill, err := h.orderService.GetClosedOpenBillWithProducts(c.Request.Context(), openBillID)
+	if err != nil {
+		log.Printf("Error getting closed open bill with products: %v", err)
+
+		if errors.Is(err, orderError.ErrOrderNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
+			return
+		}
+		RespondError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, openBill)
+}
+
 func (h *OrderHandler) GetOpenBillWithProductsHandler(c *gin.Context) {
 	openBillID := c.Param("id")
 	if openBillID == "" {
