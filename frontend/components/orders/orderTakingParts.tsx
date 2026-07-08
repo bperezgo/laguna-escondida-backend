@@ -1,9 +1,17 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useRef } from "react";
 import { Input } from "@/components/ui";
 import type { Product } from "@/types/product";
 import type { OpenBillProductStatus } from "@/types/commandItem";
+
+// A "weighed" product is priced by a measure (grams, kg, ml, l) rather than per
+// unit. Its quantity IS the measure amount (e.g. 6000 g of fish), so it gets a
+// direct numeric field instead of the +/- stepper meant for counting units —
+// nobody taps "+" six thousand times.
+export const isWeighedProduct = (product: Product): boolean =>
+  product.unit_of_measure !== "unit";
 
 // Shared presentational parts for the order-taking screens (CreateOrderForm +
 // EditOrderForm). Keeping these in one place guarantees the create and edit flows
@@ -66,12 +74,20 @@ export const sendIcon: ReactNode = (
 export function ProductCard({
   product,
   qtyInOrder,
+  inOrder,
   onAdd,
 }: {
   product: Product;
   qtyInOrder: number;
+  inOrder: boolean;
   onAdd: (product: Product) => void;
 }) {
+  // Weighed products live on a single line whose grams aren't meaningful in the
+  // tiny badge, so we show a ✓ ("in the order") instead of the number. `inOrder`
+  // (presence) rather than `qtyInOrder > 0` (sum) so a just-added, not-yet-weighed
+  // fish still reads as added.
+  const weighed = isWeighedProduct(product);
+  const active = weighed ? inOrder : qtyInOrder > 0;
   return (
     <button
       type="button"
@@ -109,20 +125,19 @@ export function ProductCard({
           width: "30px",
           height: "30px",
           borderRadius: "var(--radius-sm)",
-          backgroundColor:
-            qtyInOrder > 0
-              ? "var(--color-primary)"
-              : "var(--color-primary-light)",
-          color: qtyInOrder > 0 ? "white" : "var(--color-primary)",
+          backgroundColor: active
+            ? "var(--color-primary)"
+            : "var(--color-primary-light)",
+          color: active ? "white" : "var(--color-primary)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          fontSize: qtyInOrder > 0 ? "0.85rem" : "1.3rem",
+          fontSize: active ? (weighed ? "1rem" : "0.85rem") : "1.3rem",
           fontWeight: 800,
           lineHeight: 1,
         }}
       >
-        {qtyInOrder > 0 ? `${qtyInOrder}` : "+"}
+        {active ? (weighed ? "✓" : `${qtyInOrder}`) : "+"}
       </span>
       {product.category && (
         <span
@@ -172,22 +187,44 @@ export interface OrderLineItemData {
   status?: OpenBillProductStatus;
 }
 
-// ── A single order line item: stepper + name/meta + notes ──
+// ── A single order line item: quantity control + name/meta + notes ──
 // `locked` freezes the line (old item, waitress can't remove/reduce it — only a
-// manager can). The stepper and notes go read-only and a lock chip is shown.
+// manager can). Unit products use a +/- stepper; weighed products (fish sold by
+// the gram, etc.) use a direct numeric field so a 6000 g catch is one entry.
+// A weighed line is never removed by reaching quantity 0 — 0 means "no weight
+// entered yet", which keeps the line (and blocks submit) until `onRemove` is used.
+// `focusSignal` bumps to move the cursor into the weight field when the product
+// is (re)tapped in the menu.
 export function OrderLineItem({
   item,
   onQuantityChange,
   onNotesChange,
+  onRemove = () => {},
   locked = false,
+  focusSignal = 0,
 }: {
   item: OrderLineItemData;
   onQuantityChange: (lineItemId: string, quantity: number) => void;
   onNotesChange: (lineItemId: string, notes: string) => void;
+  onRemove?: (lineItemId: string) => void;
   locked?: boolean;
+  focusSignal?: number;
 }) {
   const { lineItemId, product, quantity, notes, status } = item;
+  const weighed = isWeighedProduct(product);
+  const unit = product.unit_of_measure;
+  const pending = weighed && quantity <= 0;
   const lineTotal = parseFloat(product.total_price_with_taxes) * quantity;
+
+  // Move focus into the weight field when the product is tapped/re-tapped in the
+  // menu, so the waitress can type the scale reading straight away.
+  const weightInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (weighed && !locked && focusSignal) {
+      weightInputRef.current?.focus();
+      weightInputRef.current?.select();
+    }
+  }, [focusSignal, weighed, locked]);
 
   const stepButtonStyle = (disabled: boolean): CSSProperties => ({
     width: "30px",
@@ -216,64 +253,149 @@ export function OrderLineItem({
         opacity: locked ? 0.85 : 1,
       }}
     >
-      {/* Stepper */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "2px",
-          flex: "none",
-        }}
-      >
-        <button
-          type="button"
-          disabled={locked}
-          onClick={() => onQuantityChange(lineItemId, quantity - 1)}
-          style={stepButtonStyle(locked)}
-        >
-          −
-        </button>
-        <input
-          type="number"
-          value={quantity}
-          disabled={locked}
-          onChange={(e) => {
-            const val = e.target.value;
-            if (val === "") return;
-            const parsed = parseInt(val, 10);
-            if (!isNaN(parsed) && parsed >= 0) {
-              onQuantityChange(lineItemId, parsed);
-            }
-          }}
-          onBlur={(e) => {
-            const val = e.target.value;
-            if (val === "" || parseInt(val, 10) <= 0) {
-              onQuantityChange(lineItemId, 0);
-            }
-          }}
-          min="1"
+      {/* Quantity control: numeric grams field for weighed products, +/- stepper for units */}
+      {weighed ? (
+        <div
           style={{
-            width: "34px",
-            textAlign: "center",
-            fontWeight: 700,
-            fontSize: "0.95rem",
-            color: "var(--color-text-primary)",
-            border: "none",
-            background: "transparent",
-            outline: "none",
-            fontVariantNumeric: "tabular-nums",
-            MozAppearance: "textfield",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-start",
+            gap: "3px",
+            flex: "none",
           }}
-        />
-        <button
-          type="button"
-          disabled={locked}
-          onClick={() => onQuantityChange(lineItemId, quantity + 1)}
-          style={stepButtonStyle(locked)}
         >
-          +
-        </button>
-      </div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "3px",
+              border: pending
+                ? "1px solid var(--color-danger)"
+                : "1px solid var(--color-border-strong)",
+              borderRadius: "var(--radius-sm)",
+              padding: "0.3rem 0.45rem",
+              backgroundColor: locked
+                ? "var(--color-neutral-bg)"
+                : "var(--color-surface)",
+            }}
+          >
+            <input
+              ref={weightInputRef}
+              type="text"
+              inputMode="numeric"
+              disabled={locked}
+              value={quantity > 0 ? String(quantity) : ""}
+              placeholder="peso"
+              onChange={(e) => {
+                const digits = e.target.value.replace(/[^0-9]/g, "");
+                onQuantityChange(
+                  lineItemId,
+                  digits === "" ? 0 : parseInt(digits, 10),
+                );
+              }}
+              style={{
+                width: "58px",
+                textAlign: "right",
+                fontWeight: 700,
+                fontSize: "0.95rem",
+                color: "var(--color-text-primary)",
+                border: "none",
+                background: "transparent",
+                outline: "none",
+                fontVariantNumeric: "tabular-nums",
+                padding: 0,
+                MozAppearance: "textfield",
+              }}
+            />
+            <span
+              style={{
+                fontSize: "0.8rem",
+                fontWeight: 600,
+                color: "var(--color-text-secondary)",
+              }}
+            >
+              {unit}
+            </span>
+          </div>
+          {!locked && (
+            <button
+              type="button"
+              onClick={() => onRemove(lineItemId)}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: 0,
+                fontSize: "0.7rem",
+                fontWeight: 600,
+                color: "var(--color-text-muted)",
+                textDecoration: "underline",
+                fontFamily: "inherit",
+              }}
+            >
+              Quitar
+            </button>
+          )}
+        </div>
+      ) : (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "2px",
+            flex: "none",
+          }}
+        >
+          <button
+            type="button"
+            disabled={locked}
+            onClick={() => onQuantityChange(lineItemId, quantity - 1)}
+            style={stepButtonStyle(locked)}
+          >
+            −
+          </button>
+          <input
+            type="number"
+            value={quantity}
+            disabled={locked}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === "") return;
+              const parsed = parseInt(val, 10);
+              if (!isNaN(parsed) && parsed >= 0) {
+                onQuantityChange(lineItemId, parsed);
+              }
+            }}
+            onBlur={(e) => {
+              const val = e.target.value;
+              if (val === "" || parseInt(val, 10) <= 0) {
+                onQuantityChange(lineItemId, 0);
+              }
+            }}
+            min="1"
+            style={{
+              width: "34px",
+              textAlign: "center",
+              fontWeight: 700,
+              fontSize: "0.95rem",
+              color: "var(--color-text-primary)",
+              border: "none",
+              background: "transparent",
+              outline: "none",
+              fontVariantNumeric: "tabular-nums",
+              MozAppearance: "textfield",
+            }}
+          />
+          <button
+            type="button"
+            disabled={locked}
+            onClick={() => onQuantityChange(lineItemId, quantity + 1)}
+            style={stepButtonStyle(locked)}
+          >
+            +
+          </button>
+        </div>
+      )}
 
       {/* Name + meta + notes */}
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -354,8 +476,21 @@ export function OrderLineItem({
             fontVariantNumeric: "tabular-nums",
           }}
         >
-          {quantity} × {formatCOP(product.total_price_with_taxes)} ={" "}
-          {formatCOP(lineTotal)}
+          {pending ? (
+            <span style={{ color: "var(--color-danger)", fontWeight: 600 }}>
+              Ingresa el peso en {unit}
+            </span>
+          ) : weighed ? (
+            <>
+              {quantity} {unit} × {formatCOP(product.total_price_with_taxes)} ={" "}
+              {formatCOP(lineTotal)}
+            </>
+          ) : (
+            <>
+              {quantity} × {formatCOP(product.total_price_with_taxes)} ={" "}
+              {formatCOP(lineTotal)}
+            </>
+          )}
         </div>
         <div style={{ marginTop: "0.4rem" }}>
           <Input

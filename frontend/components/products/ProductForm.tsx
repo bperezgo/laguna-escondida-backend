@@ -7,11 +7,9 @@ import type {
   UpdateProductRequest,
   ProductType,
   UnitOfMeasure,
-  ProductResponsibility,
 } from "@/types/product";
 import { PRODUCT_TYPES, UNITS_OF_MEASURE, PREPARATION_AREAS, PRIORITY_LEVELS, requiresPricing } from "@/types/product";
 import { productsApi } from "@/lib/api/products";
-import { productResponsibilitiesApi } from "@/lib/api/productResponsibilities";
 import { Modal, Input, Select, Textarea, Button } from "@/components/ui";
 
 interface ProductFormProps {
@@ -54,12 +52,16 @@ export default function ProductForm({
   const categoryInputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
-  // Product Responsibility State
-  const [hasResponsibility, setHasResponsibility] = useState(false);
-  const [responsibilityArea, setResponsibilityArea] = useState("");
-  const [responsibilityPriority, setResponsibilityPriority] = useState("0");
-  const [existingResponsibilityId, setExistingResponsibilityId] = useState<string | null>(null);
-  const [responsibilityLoading, setResponsibilityLoading] = useState(false);
+  // Product Responsibility State — initialized from the product's embedded responsibility
+  const [hasResponsibility, setHasResponsibility] = useState(
+    !!product?.preparation_responsibility
+  );
+  const [responsibilityArea, setResponsibilityArea] = useState(
+    product?.preparation_responsibility?.area || ""
+  );
+  const [responsibilityPriority, setResponsibilityPriority] = useState(
+    product?.preparation_responsibility?.priority?.toString() || "0"
+  );
 
   const needsPricing = requiresPricing(formData.product_type);
 
@@ -112,41 +114,14 @@ export default function ProductForm({
     };
   }, []);
 
-  // Fetch existing product responsibility when editing
+  // Sync responsibility fields from the product's embedded responsibility.
+  // Reads come embedded in the product payload, so no separate fetch is needed.
   useEffect(() => {
-    const fetchResponsibility = async () => {
-      if (!product?.id) {
-        // Reset responsibility state for new products
-        setHasResponsibility(false);
-        setResponsibilityArea("");
-        setResponsibilityPriority("0");
-        setExistingResponsibilityId(null);
-        return;
-      }
-
-      try {
-        setResponsibilityLoading(true);
-        const responsibility = await productResponsibilitiesApi.getById(product.id);
-
-        // If we found a responsibility, populate the form
-        setHasResponsibility(true);
-        setResponsibilityArea(responsibility.area);
-        setResponsibilityPriority(responsibility.priority.toString());
-        setExistingResponsibilityId(responsibility.id);
-      } catch (error) {
-        // 404 means no responsibility exists, which is fine
-        // Just leave the fields empty
-        setHasResponsibility(false);
-        setResponsibilityArea("");
-        setResponsibilityPriority("0");
-        setExistingResponsibilityId(null);
-      } finally {
-        setResponsibilityLoading(false);
-      }
-    };
-
-    fetchResponsibility();
-  }, [product?.id]);
+    const responsibility = product?.preparation_responsibility;
+    setHasResponsibility(!!responsibility);
+    setResponsibilityArea(responsibility?.area || "");
+    setResponsibilityPriority(responsibility?.priority?.toString() || "0");
+  }, [product]);
 
   // Filter categories based on input
   const filteredCategories = categories.filter((category) =>
@@ -266,6 +241,13 @@ export default function ProductForm({
       product_type: formData.product_type,
       unit_of_measure: formData.unit_of_measure,
       sku: formData.sku.trim(),
+      // Reconciled atomically by the backend: object = create/update, null = remove.
+      preparation_responsibility: hasResponsibility
+        ? {
+            area: responsibilityArea.trim(),
+            priority: parseInt(responsibilityPriority),
+          }
+        : null,
     };
 
     // Add optional description if provided
@@ -281,56 +263,8 @@ export default function ProductForm({
       submitData.total_price_with_taxes = formData.total_price_with_taxes.trim();
     }
 
-    try {
-      // First, submit the product
-      await onSubmit(submitData);
-
-      // After product is saved successfully, handle responsibility
-      await handleResponsibilityOperations();
-    } catch (error) {
-      // Error is already handled by onSubmit
-      throw error;
-    }
-  };
-
-  const handleResponsibilityOperations = async () => {
-    try {
-      if (hasResponsibility) {
-        const responsibilityData = {
-          area: responsibilityArea.trim(),
-          priority: parseInt(responsibilityPriority),
-        };
-
-        if (existingResponsibilityId) {
-          // Update existing responsibility
-          await productResponsibilitiesApi.update(
-            existingResponsibilityId,
-            responsibilityData
-          );
-        } else {
-          // Create new responsibility
-          await productResponsibilitiesApi.create({
-            product_name: formData.name.trim(),
-            ...responsibilityData,
-          });
-        }
-      } else if (existingResponsibilityId) {
-        // Delete responsibility if checkbox is unchecked
-        await productResponsibilitiesApi.delete(existingResponsibilityId);
-      }
-    } catch (error) {
-      // Log the error but don't fail the entire operation
-      console.error("Error handling product responsibility:", error);
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Failed to save product responsibility";
-
-      // Show a warning to the user
-      alert(
-        `El producto se guardó correctamente, pero hubo un problema con la responsabilidad de preparación: ${errorMessage}`
-      );
-    }
+    // Persist the product and its responsibility in a single atomic request.
+    await onSubmit(submitData);
   };
 
   const handleChange = (field: string, value: string) => {
@@ -514,13 +448,7 @@ export default function ProductForm({
             Responsabilidad de Preparación
           </h3>
 
-          {responsibilityLoading ? (
-            <p style={{ color: "var(--color-text-secondary)", fontSize: "0.875rem" }}>
-              Cargando información de preparación...
-            </p>
-          ) : (
-            <>
-              {/* Checkbox */}
+          {/* Checkbox */}
               <div style={{ marginBottom: "1rem" }}>
                 <label
                   style={{
@@ -634,8 +562,6 @@ export default function ProductForm({
                   </div>
                 </>
               )}
-            </>
-          )}
         </div>
 
         {/* Pricing Section - Only shown for sellable products */}

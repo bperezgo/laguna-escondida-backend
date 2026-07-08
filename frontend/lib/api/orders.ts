@@ -52,6 +52,18 @@ export async function removeOpenBill(id: string): Promise<void> {
   });
 }
 
+// Closed bills = open bills that were paid/closed (soft-deleted). These power the
+// read-only "Órdenes cerradas hoy" view, filtered to today by the backend.
+export async function getClosedBills(): Promise<OpenBillListResponse> {
+  return apiRequest<OpenBillListResponse>("/orders/closed");
+}
+
+export async function getClosedBillById(
+  id: string
+): Promise<OpenBillWithProducts> {
+  return apiRequest<OpenBillWithProducts>(`/orders/closed/${id}`);
+}
+
 // Order endpoints
 export async function createOrder(
   data: CreateOrderRequest

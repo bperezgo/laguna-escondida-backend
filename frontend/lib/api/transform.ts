@@ -20,6 +20,7 @@ export function transformProduct(product: any): Product {
     deleted_at: product.deleted_at,
     sku: product.sku,
     total_price_with_taxes: product.total_price_with_taxes,
+    preparation_responsibility: product.preparation_responsibility ?? null,
   };
 }
 

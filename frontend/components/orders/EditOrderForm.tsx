@@ -15,6 +15,7 @@ import {
   CategoryPills,
   formatCOP,
   sendIcon,
+  isWeighedProduct,
 } from "./orderTakingParts";
 import type { Product } from "@/types/product";
 import type { OpenBillWithProducts, OrderProductItem } from "@/types/order";
@@ -91,6 +92,10 @@ export default function EditOrderForm({
   const [baselineSignature, setBaselineSignature] = useState<string | null>(
     null,
   );
+  // Bumping `focusNonce` re-fires a weighed line's focus effect; `focusLineItemId`
+  // says which line to focus. Set when a weighed product is (re)tapped in the menu.
+  const [focusNonce, setFocusNonce] = useState(0);
+  const [focusLineItemId, setFocusLineItemId] = useState<string | null>(null);
 
   // Who's editing — admins/managers bypass the per-item edit lock entirely.
   const { user } = usePermissions();
@@ -222,6 +227,20 @@ export default function EditOrderForm({
   }, [products, searchQuery, activeCategory]);
 
   const handleProductSelect = (product: Product) => {
+    const weighed = isWeighedProduct(product);
+    // Weighed products live on a single line — re-tapping focuses the existing
+    // (still-editable) line instead of adding a duplicate. A locked old line is
+    // skipped, so more of the same fish can be added on a fresh line.
+    if (weighed) {
+      const existing = Array.from(selectedProducts.values()).find(
+        (p) => p.product.id === product.id && !isLineLocked(p),
+      );
+      if (existing) {
+        setFocusLineItemId(existing.lineItemId);
+        setFocusNonce((n) => n + 1);
+        return;
+      }
+    }
     setLineItemCounter((prev) => {
       const lineItemId = `line-${prev + 1}`;
       const openBillProductId = crypto.randomUUID();
@@ -231,11 +250,17 @@ export default function EditOrderForm({
           lineItemId,
           openBillProductId,
           product,
-          quantity: 1,
+          // Weighed lines start with no weight (pending); the waitress types the
+          // scale reading. Unit products start at 1.
+          quantity: weighed ? 0 : 1,
           notes: "",
         });
         return newMap;
       });
+      if (weighed) {
+        setFocusLineItemId(lineItemId);
+        setFocusNonce((n) => n + 1);
+      }
       return prev + 1;
     });
   };
@@ -243,7 +268,10 @@ export default function EditOrderForm({
   const handleQuantityChange = (lineItemId: string, newQuantity: number) => {
     const target = selectedProducts.get(lineItemId);
     if (target && isLineLocked(target)) return;
-    if (newQuantity <= 0) {
+    const weighed = target ? isWeighedProduct(target.product) : false;
+    // A unit line hitting 0 is removed; a weighed line stays as "pending" (no
+    // weight yet) and is only removed via handleRemove.
+    if (newQuantity <= 0 && !weighed) {
       setSelectedProducts((prev) => {
         const newMap = new Map(prev);
         newMap.delete(lineItemId);
@@ -256,12 +284,22 @@ export default function EditOrderForm({
         if (existing) {
           newMap.set(lineItemId, {
             ...existing,
-            quantity: newQuantity,
+            quantity: Math.max(0, newQuantity),
           });
         }
         return newMap;
       });
     }
+  };
+
+  const handleRemove = (lineItemId: string) => {
+    const target = selectedProducts.get(lineItemId);
+    if (target && isLineLocked(target)) return;
+    setSelectedProducts((prev) => {
+      const newMap = new Map(prev);
+      newMap.delete(lineItemId);
+      return newMap;
+    });
   };
 
   const handleNotesChange = (lineItemId: string, notes: string) => {
@@ -282,6 +320,16 @@ export default function EditOrderForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const pending = Array.from(selectedProducts.values()).filter(
+      (p) => isWeighedProduct(p.product) && p.quantity <= 0,
+    );
+    if (pending.length > 0) {
+      setError(
+        `Ingresa el peso de: ${pending.map((p) => p.product.name).join(", ")}`,
+      );
+      return;
+    }
 
     setIsSubmitting(true);
     setError(null);
@@ -350,6 +398,29 @@ export default function EditOrderForm({
     selectedProductsArray
       .filter((p) => p.product.id === productId)
       .reduce((sum, p) => sum + p.quantity, 0);
+  const productInOrder = (productId: string) =>
+    selectedProductsArray.some((p) => p.product.id === productId);
+
+  // Weighed lines with no weight yet block submit — a fish left "pending" would
+  // otherwise be charged as 0.
+  const pendingWeightNames = selectedProductsArray
+    .filter((p) => isWeighedProduct(p.product) && p.quantity <= 0)
+    .map((p) => p.product.name);
+  const hasPendingWeight = pendingWeightNames.length > 0;
+
+  const pendingWeightHint = hasPendingWeight ? (
+    <div
+      style={{
+        marginBottom: "0.5rem",
+        fontSize: "0.8rem",
+        fontWeight: 600,
+        color: "var(--color-danger)",
+        textAlign: "center",
+      }}
+    >
+      Falta el peso de: {pendingWeightNames.join(", ")}
+    </div>
+  ) : null;
 
   const groupedProducts = useMemo(() => {
     const productMap = new Map<
@@ -828,6 +899,7 @@ export default function EditOrderForm({
                         key={product.id}
                         product={product}
                         qtyInOrder={qtyInOrderFor(product.id)}
+                        inOrder={productInOrder(product.id)}
                         onAdd={handleProductSelect}
                       />
                     ))
@@ -873,6 +945,10 @@ export default function EditOrderForm({
                         locked={isLineLocked(item, now)}
                         onQuantityChange={handleQuantityChange}
                         onNotesChange={handleNotesChange}
+                        onRemove={handleRemove}
+                        focusSignal={
+                          focusLineItemId === item.lineItemId ? focusNonce : 0
+                        }
                       />
                     ))
                   )}
@@ -967,11 +1043,12 @@ export default function EditOrderForm({
                   {formatCOP(openBill.total_amount)}
                 </span>
               </div>
+              {pendingWeightHint}
               <Button
                 type="submit"
                 fullWidth
                 size="lg"
-                disabled={isSubmitting}
+                disabled={isSubmitting || hasPendingWeight}
                 leftIcon={sendIcon}
                 style={updateButtonStyle}
               >
@@ -1263,6 +1340,7 @@ export default function EditOrderForm({
                     key={product.id}
                     product={product}
                     qtyInOrder={qtyInOrderFor(product.id)}
+                    inOrder={productInOrder(product.id)}
                     onAdd={handleProductSelect}
                   />
                 ))
@@ -1353,6 +1431,10 @@ export default function EditOrderForm({
                     locked={isLineLocked(item, now)}
                     onQuantityChange={handleQuantityChange}
                     onNotesChange={handleNotesChange}
+                    onRemove={handleRemove}
+                    focusSignal={
+                      focusLineItemId === item.lineItemId ? focusNonce : 0
+                    }
                   />
                 ))
               )}
@@ -1395,11 +1477,12 @@ export default function EditOrderForm({
                   {formatCOP(openBill.total_amount)}
                 </span>
               </div>
+              {pendingWeightHint}
               <Button
                 type="submit"
                 fullWidth
                 size="lg"
-                disabled={isSubmitting}
+                disabled={isSubmitting || hasPendingWeight}
                 leftIcon={sendIcon}
                 style={updateButtonStyle}
               >

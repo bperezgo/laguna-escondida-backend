@@ -52,6 +52,9 @@ export interface Product {
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
+  // Single preparation responsibility (area + priority) embedded on product reads,
+  // or null/absent when the product has no responsibility.
+  preparation_responsibility?: ProductResponsibility | null;
 }
 
 export interface CreateProductRequest {
@@ -66,6 +69,9 @@ export interface CreateProductRequest {
   vat?: string;
   ico?: string;
   taxes_format?: string;
+  // Preparation responsibility, reconciled atomically with the product:
+  // object = create/update, null = remove, omitted = leave unchanged.
+  preparation_responsibility?: { area: string; priority: number } | null;
 }
 
 export interface UpdateProductRequest {
@@ -80,6 +86,9 @@ export interface UpdateProductRequest {
   vat?: string;
   ico?: string;
   taxes_format?: string;
+  // Preparation responsibility, reconciled atomically with the product:
+  // object = create/update, null = remove, omitted = leave unchanged.
+  preparation_responsibility?: { area: string; priority: number } | null;
 }
 
 export interface ProductListResponse {

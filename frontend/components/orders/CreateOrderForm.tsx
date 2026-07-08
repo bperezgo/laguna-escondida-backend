@@ -12,6 +12,7 @@ import {
   CategoryPills,
   formatCOP,
   sendIcon,
+  isWeighedProduct,
 } from "./orderTakingParts";
 
 // Prefix pre-filled into the temporal identifier input so the waitress only
@@ -51,6 +52,10 @@ export default function CreateOrderForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lineItemCounter, setLineItemCounter] = useState(0);
+  // Bumping `focusNonce` re-fires a weighed line's focus effect; `focusLineItemId`
+  // says which line to focus. Set when a weighed product is (re)tapped in the menu.
+  const [focusNonce, setFocusNonce] = useState(0);
+  const [focusLineItemId, setFocusLineItemId] = useState<string | null>(null);
 
   // Mobile layout: below 768px we render the Menú / Pedido tabs (Option B); the
   // desktop two-pane POS renders unchanged above it. `mobileView` toggles the tabs.
@@ -129,6 +134,19 @@ export default function CreateOrderForm({
   }, [products, searchQuery, selectedCategory]);
 
   const handleProductSelect = (product: Product) => {
+    const weighed = isWeighedProduct(product);
+    // Weighed products live on a single line — re-tapping focuses the existing
+    // line instead of adding a duplicate.
+    if (weighed) {
+      const existing = Array.from(selectedProducts.values()).find(
+        (p) => p.product.id === product.id,
+      );
+      if (existing) {
+        setFocusLineItemId(existing.lineItemId);
+        setFocusNonce((n) => n + 1);
+        return;
+      }
+    }
     setLineItemCounter((prev) => {
       const lineItemId = `line-${prev + 1}`;
       const openBillProductId = crypto.randomUUID();
@@ -138,17 +156,27 @@ export default function CreateOrderForm({
           lineItemId,
           openBillProductId,
           product,
-          quantity: 1,
+          // Weighed lines start with no weight (pending); the waitress types the
+          // scale reading. Unit products start at 1.
+          quantity: weighed ? 0 : 1,
           notes: "",
         });
         return newMap;
       });
+      if (weighed) {
+        setFocusLineItemId(lineItemId);
+        setFocusNonce((n) => n + 1);
+      }
       return prev + 1;
     });
   };
 
   const handleQuantityChange = (lineItemId: string, newQuantity: number) => {
-    if (newQuantity <= 0) {
+    const target = selectedProducts.get(lineItemId);
+    const weighed = target ? isWeighedProduct(target.product) : false;
+    // A unit line hitting 0 is removed; a weighed line stays as "pending" (no
+    // weight yet) and is only removed via handleRemove.
+    if (newQuantity <= 0 && !weighed) {
       setSelectedProducts((prev) => {
         const newMap = new Map(prev);
         newMap.delete(lineItemId);
@@ -161,12 +189,20 @@ export default function CreateOrderForm({
         if (existing) {
           newMap.set(lineItemId, {
             ...existing,
-            quantity: newQuantity,
+            quantity: Math.max(0, newQuantity),
           });
         }
         return newMap;
       });
     }
+  };
+
+  const handleRemove = (lineItemId: string) => {
+    setSelectedProducts((prev) => {
+      const newMap = new Map(prev);
+      newMap.delete(lineItemId);
+      return newMap;
+    });
   };
 
   const handleNotesChange = (lineItemId: string, notes: string) => {
@@ -202,6 +238,16 @@ export default function CreateOrderForm({
 
     if (selectedProducts.size === 0) {
       setError("Por favor selecciona al menos un producto");
+      return;
+    }
+
+    const pending = Array.from(selectedProducts.values()).filter(
+      (p) => isWeighedProduct(p.product) && p.quantity <= 0,
+    );
+    if (pending.length > 0) {
+      setError(
+        `Ingresa el peso de: ${pending.map((p) => p.product.name).join(", ")}`,
+      );
       return;
     }
 
@@ -241,13 +287,37 @@ export default function CreateOrderForm({
     selectedProductsArray
       .filter((p) => p.product.id === productId)
       .reduce((sum, p) => sum + p.quantity, 0);
+  const productInOrder = (productId: string) =>
+    selectedProductsArray.some((p) => p.product.id === productId);
   const orderTotal = selectedProductsArray.reduce(
     (sum, { product, quantity }) =>
       sum + parseFloat(product.total_price_with_taxes) * quantity,
     0,
   );
 
-  const canSubmit = !isSubmitting && selectedProducts.size > 0;
+  // Weighed lines with no weight yet block submit — a fish left "pending" would
+  // otherwise be charged as 0.
+  const pendingWeightNames = selectedProductsArray
+    .filter((p) => isWeighedProduct(p.product) && p.quantity <= 0)
+    .map((p) => p.product.name);
+  const hasPendingWeight = pendingWeightNames.length > 0;
+
+  const canSubmit =
+    !isSubmitting && selectedProducts.size > 0 && !hasPendingWeight;
+
+  const pendingWeightHint = hasPendingWeight ? (
+    <div
+      style={{
+        marginBottom: "0.5rem",
+        fontSize: "0.8rem",
+        fontWeight: 600,
+        color: "var(--color-danger)",
+        textAlign: "center",
+      }}
+    >
+      Falta el peso de: {pendingWeightNames.join(", ")}
+    </div>
+  ) : null;
 
   // Identifier + descriptor fields (shared by both layouts — required for create)
   const orderDetailsFields = (
@@ -504,6 +574,7 @@ export default function CreateOrderForm({
                         key={product.id}
                         product={product}
                         qtyInOrder={qtyInOrderFor(product.id)}
+                        inOrder={productInOrder(product.id)}
                         onAdd={handleProductSelect}
                       />
                     ))
@@ -551,6 +622,10 @@ export default function CreateOrderForm({
                         item={item}
                         onQuantityChange={handleQuantityChange}
                         onNotesChange={handleNotesChange}
+                        onRemove={handleRemove}
+                        focusSignal={
+                          focusLineItemId === item.lineItemId ? focusNonce : 0
+                        }
                       />
                     ))
                   )}
@@ -595,6 +670,7 @@ export default function CreateOrderForm({
                   {formatCOP(orderTotal)}
                 </span>
               </div>
+              {pendingWeightHint}
               <Button type="submit" fullWidth size="lg" disabled={!canSubmit} leftIcon={sendIcon}>
                 {isSubmitting ? "Creando..." : "Crear Orden"}
               </Button>
@@ -781,6 +857,7 @@ export default function CreateOrderForm({
                     key={product.id}
                     product={product}
                     qtyInOrder={qtyInOrderFor(product.id)}
+                    inOrder={productInOrder(product.id)}
                     onAdd={handleProductSelect}
                   />
                 ))
@@ -867,6 +944,10 @@ export default function CreateOrderForm({
                     item={item}
                     onQuantityChange={handleQuantityChange}
                     onNotesChange={handleNotesChange}
+                    onRemove={handleRemove}
+                    focusSignal={
+                      focusLineItemId === item.lineItemId ? focusNonce : 0
+                    }
                   />
                 ))
               )}
@@ -909,6 +990,7 @@ export default function CreateOrderForm({
                   {formatCOP(orderTotal)}
                 </span>
               </div>
+              {pendingWeightHint}
               <Button type="submit" fullWidth size="lg" disabled={!canSubmit} leftIcon={sendIcon}>
                 {isSubmitting ? "Creando..." : "Crear Orden"}
               </Button>

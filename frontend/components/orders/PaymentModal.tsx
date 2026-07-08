@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { payOrder } from "@/lib/api/orders";
-import { printTicket } from "@/lib/api/device";
 import { getBillOwnerById } from "@/lib/api/billOwners";
-import { generateInvoicePrintHTML } from "@/lib/templates/invoicePrint";
 import { useEdgeStatus } from "@/lib/edge/context";
+import { useReceiptPrint } from "@/lib/hooks/useReceiptPrint";
+import ReceiptPrintContent from "@/components/orders/ReceiptPrintContent";
+import { calculateReceiptTotals, groupBillProducts } from "@/lib/orders/receipt";
 import type { OpenBillWithProducts } from "@/types/order";
 import type { PaymentType, PayOrderRequest } from "@/types/billOwner";
 import { Button, Input, Modal, Select } from "@/components/ui";
@@ -27,10 +28,9 @@ export default function PaymentModal({
   onClose,
   onSuccess,
 }: PaymentModalProps) {
-  const printRef = useRef<HTMLDivElement>(null);
   const { isOffline } = useEdgeStatus();
+  const { printRef, isPrinting, print } = useReceiptPrint(openBill);
   const [isPaying, setIsPaying] = useState(false);
-  const [isPrinting, setIsPrinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Printing only works from a computer (browser print / edge printer), so the
@@ -69,95 +69,9 @@ export default function PaymentModal({
     }
   }, [isOffline, paymentType]);
 
-  // Group products by product ID (consolidate duplicates)
-  const groupedProducts = () => {
-    const productMap = new Map<
-      string,
-      {
-        product: (typeof openBill.products)[0]["product"];
-        totalQuantity: number;
-      }
-    >();
-
-    openBill.products.forEach(({ product, quantity }) => {
-      if (productMap.has(product.id)) {
-        const existing = productMap.get(product.id)!;
-        existing.totalQuantity += quantity;
-      } else {
-        productMap.set(product.id, {
-          product,
-          totalQuantity: quantity,
-        });
-      }
-    });
-
-    return Array.from(productMap.values());
-  };
-
-  // Calculate totals
-  const calculateTotals = () => {
-    let subtotal = 0;
-    let totalVAT = 0;
-    let totalICO = 0;
-
-    openBill.products.forEach(({ product, quantity }) => {
-      const itemSubtotal = parseFloat(product.unit_price) * quantity;
-      const itemVAT = parseFloat(product.vat_amount || "0") * quantity;
-      const itemICO = parseFloat(product.ico_amount || "0") * quantity;
-
-      subtotal += itemSubtotal;
-      totalVAT += itemVAT;
-      totalICO += itemICO;
-    });
-
-    const total = subtotal + totalVAT + totalICO;
-
-    return { subtotal, totalVAT, totalICO, total };
-  };
-
-  const consolidated = groupedProducts();
-  const { subtotal, totalVAT, totalICO, total } = calculateTotals();
-
-  // Browser fallback: opens a print window with the rendered HTML. Used when the
-  // edge printer endpoint is unavailable (e.g. cloud mode, or printer offline).
-  const browserPrint = () => {
-    const printContent = printRef.current;
-    if (!printContent) return;
-
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) return;
-
-    printWindow.document.write(
-      generateInvoicePrintHTML({
-        title: `Factura - ${openBill.temporal_identifier}`,
-        content: printContent.innerHTML,
-      }),
-    );
-
-    printWindow.document.close();
-    printWindow.focus();
-
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 250);
-  };
-
-  // Print on the edge node's physical receipt printer via POST /api/device/print.
-  // Falls back to browser printing if the endpoint is unavailable or the printer
-  // cannot be reached.
-  const handlePrint = async () => {
-    if (isPrinting) return;
-    setIsPrinting(true);
-    try {
-      await printTicket({ open_bill_id: openBill.id });
-    } catch (err) {
-      console.error("Edge print failed, falling back to browser print:", err);
-      browserPrint();
-    } finally {
-      setIsPrinting(false);
-    }
-  };
+  const consolidated = groupBillProducts(openBill);
+  const { subtotal, totalVAT, totalICO, total } =
+    calculateReceiptTotals(openBill);
 
   const handleSearchCustomer = async () => {
     if (!customerId.trim()) {
@@ -264,7 +178,7 @@ export default function PaymentModal({
           </Button>
           <Button
             variant="secondary"
-            onClick={handlePrint}
+            onClick={print}
             disabled={isPaying || isPrinting}
             leftIcon={
               <svg
@@ -611,59 +525,7 @@ export default function PaymentModal({
 
       {/* Hidden Print Content */}
       <div style={{ display: "none" }}>
-        <div ref={printRef}>
-          <div className="header">
-            <div className="bill-number">
-              Factura - {openBill.temporal_identifier}
-            </div>
-            <div className="date">{formatDate(openBill.created_at)}</div>
-            {openBill.created_by && (
-              <div className="date">Served by: {openBill.created_by.name}</div>
-            )}
-          </div>
-
-          <div className="items">
-            {consolidated.map(({ product, totalQuantity }) => {
-              const itemTotal =
-                parseFloat(product.total_price_with_taxes) * totalQuantity;
-              return (
-                <div key={product.id} className="item">
-                  <div className="item-name">{product.name}</div>
-                  <div className="item-details">
-                    <span>
-                      ${product.total_price_with_taxes} × {totalQuantity}
-                    </span>
-                    <span>${itemTotal.toFixed(2)}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="totals">
-            <div className="total-row">
-              <span>Subtotal:</span>
-              <span>${subtotal.toFixed(2)}</span>
-            </div>
-            <div className="total-row">
-              <span>IVA:</span>
-              <span>${totalVAT.toFixed(2)}</span>
-            </div>
-            <div className="total-row">
-              <span>ICO:</span>
-              <span>${totalICO.toFixed(2)}</span>
-            </div>
-            <div className="total-row final">
-              <span>TOTAL:</span>
-              <span>${total.toFixed(2)}</span>
-            </div>
-          </div>
-
-          <div className="footer">
-            <div>¡Gracias por su visita!</div>
-            <div>Laguna Escondida</div>
-          </div>
-        </div>
+        <ReceiptPrintContent ref={printRef} openBill={openBill} />
       </div>
     </Modal>
   );

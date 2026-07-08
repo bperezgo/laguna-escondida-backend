@@ -8,6 +8,7 @@ import WaitressOrderGroup from "./WaitressOrderGroup";
 import CreateOrderForm from "./CreateOrderForm";
 import EditOrderForm from "./EditOrderForm";
 import PaymentModal from "./PaymentModal";
+import ClosedOrdersPanel from "./ClosedOrdersPanel";
 import {
   getOpenBills,
   getOpenBillById,
@@ -40,6 +41,8 @@ export default function OrdersPageClient() {
   );
   const [isLoadingBill, setIsLoadingBill] = useState(false);
   const [viewMode, setViewMode] = useState<OrderViewMode>("mine");
+  // Primary tab: live open bills vs. today's closed (paid) bills.
+  const [mainView, setMainView] = useState<"open" | "closed">("open");
 
   const { user } = usePermissions();
   const defaultViewApplied = useRef(false);
@@ -181,28 +184,82 @@ export default function OrdersPageClient() {
               color: "var(--color-text-primary)",
             }}
           >
-            Cuentas Abiertas
+            {mainView === "open" ? "Cuentas Abiertas" : "Órdenes Cerradas Hoy"}
           </h1>
-          <PermissionGate permission={PERMISSIONS.ORDERS_CREATE}>
-            <Button
-              size="lg"
-              onClick={() => setShowCreateForm(true)}
-              style={{ boxShadow: "var(--shadow-md)" }}
-            >
-              + Crear Nueva Orden
-            </Button>
-          </PermissionGate>
+          {mainView === "open" && (
+            <PermissionGate permission={PERMISSIONS.ORDERS_CREATE}>
+              <Button
+                size="lg"
+                onClick={() => setShowCreateForm(true)}
+                style={{ boxShadow: "var(--shadow-md)" }}
+              >
+                + Crear Nueva Orden
+              </Button>
+            </PermissionGate>
+          )}
         </div>
 
-        {/* View toggle: my orders vs. the whole floor */}
-        <div style={{ marginBottom: "1rem" }}>
-          <OrderViewToggle
-            value={viewMode}
-            onChange={setViewMode}
-            mineCount={totalMineCount}
-            allCount={openBills.length}
-          />
+        {/* Primary tabs: open bills vs. today's closed bills */}
+        <div
+          role="tablist"
+          aria-label="Abiertas o cerradas hoy"
+          style={{
+            display: "flex",
+            gap: "0.25rem",
+            padding: "0.25rem",
+            backgroundColor: "var(--color-surface)",
+            border: "1px solid var(--color-border)",
+            borderRadius: "var(--radius-lg)",
+            maxWidth: "420px",
+            marginBottom: "1rem",
+          }}
+        >
+          {(["open", "closed"] as const).map((mode) => {
+            const active = mainView === mode;
+            return (
+              <button
+                key={mode}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setMainView(mode)}
+                style={{
+                  flex: 1,
+                  minHeight: "44px",
+                  padding: "0.5rem 1rem",
+                  border: "none",
+                  borderRadius: "var(--radius-md)",
+                  cursor: "pointer",
+                  fontSize: "0.95rem",
+                  fontWeight: 600,
+                  backgroundColor: active
+                    ? "var(--color-primary)"
+                    : "transparent",
+                  color: active
+                    ? "var(--color-on-primary, #fff)"
+                    : "var(--color-text-secondary)",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {mode === "open" ? "Abiertas" : "Cerradas hoy"}
+              </button>
+            );
+          })}
         </div>
+
+        {mainView === "closed" && <ClosedOrdersPanel />}
+
+        {mainView === "open" && (
+          <>
+            {/* View toggle: my orders vs. the whole floor */}
+            <div style={{ marginBottom: "1rem" }}>
+              <OrderViewToggle
+                value={viewMode}
+                onChange={setViewMode}
+                mineCount={totalMineCount}
+                allCount={openBills.length}
+              />
+            </div>
 
         {/* Search Bar */}
         <OpenBillSearch
@@ -345,6 +402,8 @@ export default function OrdersPageClient() {
                 )}
               </>
             )}
+          </>
+        )}
           </>
         )}
       </div>
