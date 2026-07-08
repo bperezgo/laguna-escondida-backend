@@ -236,15 +236,15 @@ func TestUpdateProduct_RemovesResponsibilityWhenNull(t *testing.T) {
 	existingProduct := createTestProductDTO(productID, "Old Name", "Old Category", 1, 50.0, 0.095, 0.05)
 
 	req := &dto.UpdateProductRequest{
-		Name:                "New Name",
-		Category:            "New Category",
-		ProductType:         "SELLABLE",
-		UnitOfMeasure:       "unit",
-		TotalPriceWithTaxes: "200.0",
-		VAT:                 "38.0",
-		ICO:                 "12.0",
-		TaxesFormat:         "percentage",
-		SKU:                 "SKU002",
+		Name:                      "New Name",
+		Category:                  "New Category",
+		ProductType:               "SELLABLE",
+		UnitOfMeasure:             "unit",
+		TotalPriceWithTaxes:       "200.0",
+		VAT:                       "38.0",
+		ICO:                       "12.0",
+		TaxesFormat:               "percentage",
+		SKU:                       "SKU002",
 		PreparationResponsibility: dto.OptionalResponsibility{Set: true, Value: nil},
 	}
 

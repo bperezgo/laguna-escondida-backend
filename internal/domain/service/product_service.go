@@ -49,13 +49,13 @@ func (s *ProductService) CreateProduct(ctx context.Context, req *dto.CreateProdu
 
 	var responsibility *dto.ProductPreparationResponsibility
 	err = s.unitOfWork.Do(ctx, func(ctx context.Context) error {
-		if err := s.productRepo.Create(ctx, aggregate); err != nil {
-			return err
+		if createErr := s.productRepo.Create(ctx, aggregate); createErr != nil {
+			return createErr
 		}
 		if input := req.PreparationResponsibility.Value; input != nil {
-			created, err := s.productRepo.CreatePreparationResponsibility(ctx, productDTO.ID, input.Area, input.Priority)
-			if err != nil {
-				return err
+			created, createErr := s.productRepo.CreatePreparationResponsibility(ctx, productDTO.ID, input.Area, input.Priority)
+			if createErr != nil {
+				return createErr
 			}
 			responsibility = created
 		}
@@ -96,13 +96,13 @@ func (s *ProductService) UpdateProduct(ctx context.Context, id string, req *dto.
 
 	var responsibility *dto.ProductPreparationResponsibility
 	err = s.unitOfWork.Do(ctx, func(ctx context.Context) error {
-		if err := s.productRepo.Update(ctx, id, newProduct); err != nil {
-			return err
+		if updateErr := s.productRepo.Update(ctx, id, newProduct); updateErr != nil {
+			return updateErr
 		}
 
-		existingMap, err := s.productRepo.FindPreparationResponsibilitiesByProductIDs(ctx, []string{id})
-		if err != nil {
-			return err
+		existingMap, findErr := s.productRepo.FindPreparationResponsibilitiesByProductIDs(ctx, []string{id})
+		if findErr != nil {
+			return findErr
 		}
 		current := existingMap[id]
 
@@ -115,20 +115,20 @@ func (s *ProductService) UpdateProduct(ctx context.Context, id string, req *dto.
 		input := req.PreparationResponsibility.Value
 		switch {
 		case input != nil && current != nil:
-			updated, err := s.productRepo.UpdatePreparationResponsibility(ctx, current.ID, input.Area, input.Priority)
-			if err != nil {
-				return err
+			updated, updateErr := s.productRepo.UpdatePreparationResponsibility(ctx, current.ID, input.Area, input.Priority)
+			if updateErr != nil {
+				return updateErr
 			}
 			responsibility = updated
 		case input != nil && current == nil:
-			created, err := s.productRepo.CreatePreparationResponsibility(ctx, id, input.Area, input.Priority)
-			if err != nil {
-				return err
+			created, createErr := s.productRepo.CreatePreparationResponsibility(ctx, id, input.Area, input.Priority)
+			if createErr != nil {
+				return createErr
 			}
 			responsibility = created
 		case input == nil && current != nil:
-			if err := s.productRepo.DeletePreparationResponsibility(ctx, current.ID); err != nil {
-				return err
+			if deleteErr := s.productRepo.DeletePreparationResponsibility(ctx, current.ID); deleteErr != nil {
+				return deleteErr
 			}
 			responsibility = nil
 		}
