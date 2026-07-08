@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -42,6 +43,9 @@ type Product struct {
 	TotalPriceWithTaxes decimal.Decimal `json:"total_price_with_taxes"`
 	CreatedAt           time.Time       `json:"created_at"`
 	UpdatedAt           time.Time       `json:"updated_at"`
+	// PreparationResponsibility is the product's single preparation area + priority,
+	// or nil when the product has no responsibility. Populated on product reads only.
+	PreparationResponsibility *ProductPreparationResponsibility `json:"preparation_responsibility,omitempty"`
 }
 
 type CreateProductRequest struct {
@@ -55,6 +59,9 @@ type CreateProductRequest struct {
 	Description         *string `json:"description"`
 	SKU                 string  `json:"sku" validate:"required,min=1,max=255"`
 	TotalPriceWithTaxes string  `json:"total_price_with_taxes"`
+	// PreparationResponsibility, when provided, creates the product's preparation
+	// responsibility (area + priority) atomically with the product.
+	PreparationResponsibility OptionalResponsibility `json:"preparation_responsibility"`
 }
 
 type UpdateProductRequest struct {
@@ -69,6 +76,9 @@ type UpdateProductRequest struct {
 	Description         *string         `json:"description"`
 	SKU                 string          `json:"sku" validate:"required,min=1,max=255"`
 	TotalPriceWithTaxes string          `json:"total_price_with_taxes"`
+	// PreparationResponsibility reconciles the product's responsibility atomically
+	// with the update: absent = leave as-is, null = remove, object = create/update.
+	PreparationResponsibility OptionalResponsibility `json:"preparation_responsibility"`
 }
 
 type ProductListResponse struct {
@@ -100,6 +110,37 @@ type ProductPreparationResponsibility struct {
 type UpdateProductResponsibilityRequest struct {
 	Area     string `json:"area" validate:"required,min=1,max=255"`
 	Priority int    `json:"priority" validate:"required,gte=0"`
+}
+
+// ProductResponsibilityInput is the area+priority payload embedded in a product
+// create/update request.
+type ProductResponsibilityInput struct {
+	Area     string `json:"area"`
+	Priority int    `json:"priority"`
+}
+
+// OptionalResponsibility captures the tri-state of the preparation_responsibility
+// field on a product request so callers can distinguish intent:
+//   - absent  (Set=false)            → leave the product's responsibility unchanged
+//   - null    (Set=true, Value=nil)  → remove the responsibility
+//   - object  (Set=true, Value set)  → create or update the responsibility
+type OptionalResponsibility struct {
+	Set   bool
+	Value *ProductResponsibilityInput
+}
+
+func (o *OptionalResponsibility) UnmarshalJSON(data []byte) error {
+	o.Set = true
+	if string(data) == "null" {
+		o.Value = nil
+		return nil
+	}
+	var v ProductResponsibilityInput
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	o.Value = &v
+	return nil
 }
 
 type BulkCreateProductItem struct {

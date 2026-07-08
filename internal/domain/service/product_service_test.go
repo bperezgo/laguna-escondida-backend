@@ -22,14 +22,14 @@ func createTestProductService(t *testing.T) (*ProductService, *mocks.MockProduct
 	mockRepo := mocks.NewMockProductRepository(t)
 	mockSupplierRepo := mocks.NewMockSupplierRepository(t)
 	mockCatalogRepo := mocks.NewMockSupplierCatalogRepository(t)
-	return NewProductService(mockRepo, mockSupplierRepo, mockCatalogRepo), mockRepo
+	return NewProductService(mockRepo, mockSupplierRepo, mockCatalogRepo, passthroughUnitOfWork{}), mockRepo
 }
 
 func createTestProductServiceWithAllMocks(t *testing.T) (*ProductService, *mocks.MockProductRepository, *mocks.MockSupplierRepository, *mocks.MockSupplierCatalogRepository) {
 	mockRepo := mocks.NewMockProductRepository(t)
 	mockSupplierRepo := mocks.NewMockSupplierRepository(t)
 	mockCatalogRepo := mocks.NewMockSupplierCatalogRepository(t)
-	return NewProductService(mockRepo, mockSupplierRepo, mockCatalogRepo), mockRepo, mockSupplierRepo, mockCatalogRepo
+	return NewProductService(mockRepo, mockSupplierRepo, mockCatalogRepo, passthroughUnitOfWork{}), mockRepo, mockSupplierRepo, mockCatalogRepo
 }
 
 func createTestProductDTO(id, name, category string, version int, totalPrice, vatPercentage, icoPercentage float64) *dto.Product {
@@ -107,6 +107,160 @@ func TestCreateProduct_Success(t *testing.T) {
 		"Invariant violated: unitPrice(%s) + vatAmount(%s) + icoAmount(%s) = %s, expected %s",
 		result.UnitPrice, result.VATAmount, result.ICOAmount, calculatedTotal, result.TotalPriceWithTaxes)
 
+}
+
+// CreateProduct also creates the preparation responsibility atomically when the
+// request includes one.
+func TestCreateProduct_WithResponsibility(t *testing.T) {
+	ctx := context.Background()
+	service, mockRepo := createTestProductService(t)
+
+	req := &dto.CreateProductRequest{
+		Name:                "Test Product",
+		Category:            "Category A",
+		ProductType:         "SELLABLE",
+		UnitOfMeasure:       "unit",
+		TotalPriceWithTaxes: "127.0",
+		VAT:                 "19",
+		ICO:                 "8",
+		TaxesFormat:         "percentage",
+		SKU:                 "SKU001",
+		PreparationResponsibility: dto.OptionalResponsibility{
+			Set:   true,
+			Value: &dto.ProductResponsibilityInput{Area: "kitchen", Priority: 2},
+		},
+	}
+
+	mockRepo.On("Create", ctx, mock.Anything).Return(nil)
+	mockRepo.On("CreatePreparationResponsibility", ctx, mock.Anything, "kitchen", 2).
+		Return(&dto.ProductPreparationResponsibility{ID: "resp-1", Area: "kitchen", Priority: 2}, nil)
+
+	result, err := service.CreateProduct(ctx, req)
+
+	require.NoError(t, err)
+	require.NotNil(t, result.PreparationResponsibility)
+	assert.Equal(t, "kitchen", result.PreparationResponsibility.Area)
+	assert.Equal(t, 2, result.PreparationResponsibility.Priority)
+	mockRepo.AssertCalled(t, "CreatePreparationResponsibility", ctx, mock.Anything, "kitchen", 2)
+}
+
+// UpdateProduct creates a responsibility when the product had none and the
+// request provides one.
+func TestUpdateProduct_CreatesResponsibilityWhenNoneExists(t *testing.T) {
+	ctx := context.Background()
+	service, mockRepo := createTestProductService(t)
+
+	productID := "product-1"
+	existingProduct := createTestProductDTO(productID, "Old Name", "Old Category", 1, 50.0, 0.095, 0.05)
+
+	req := &dto.UpdateProductRequest{
+		Name:                "New Name",
+		Category:            "New Category",
+		ProductType:         "SELLABLE",
+		UnitOfMeasure:       "unit",
+		TotalPriceWithTaxes: "200.0",
+		VAT:                 "38.0",
+		ICO:                 "12.0",
+		TaxesFormat:         "percentage",
+		SKU:                 "SKU002",
+		PreparationResponsibility: dto.OptionalResponsibility{
+			Set:   true,
+			Value: &dto.ProductResponsibilityInput{Area: "bar", Priority: 1},
+		},
+	}
+
+	mockRepo.On("FindByID", ctx, productID).Return(existingProduct, nil)
+	mockRepo.On("Update", ctx, productID, mock.Anything).Return(nil)
+	mockRepo.On("FindPreparationResponsibilitiesByProductIDs", ctx, mock.Anything).
+		Return(map[string]*dto.ProductPreparationResponsibility{}, nil)
+	mockRepo.On("CreatePreparationResponsibility", ctx, productID, "bar", 1).
+		Return(&dto.ProductPreparationResponsibility{ID: "resp-2", Area: "bar", Priority: 1}, nil)
+
+	result, err := service.UpdateProduct(ctx, productID, req)
+
+	require.NoError(t, err)
+	require.NotNil(t, result.PreparationResponsibility)
+	assert.Equal(t, "bar", result.PreparationResponsibility.Area)
+	mockRepo.AssertCalled(t, "CreatePreparationResponsibility", ctx, productID, "bar", 1)
+}
+
+// UpdateProduct updates the existing responsibility in place when one exists.
+func TestUpdateProduct_UpdatesExistingResponsibility(t *testing.T) {
+	ctx := context.Background()
+	service, mockRepo := createTestProductService(t)
+
+	productID := "product-1"
+	existingProduct := createTestProductDTO(productID, "Old Name", "Old Category", 1, 50.0, 0.095, 0.05)
+
+	req := &dto.UpdateProductRequest{
+		Name:                "New Name",
+		Category:            "New Category",
+		ProductType:         "SELLABLE",
+		UnitOfMeasure:       "unit",
+		TotalPriceWithTaxes: "200.0",
+		VAT:                 "38.0",
+		ICO:                 "12.0",
+		TaxesFormat:         "percentage",
+		SKU:                 "SKU002",
+		PreparationResponsibility: dto.OptionalResponsibility{
+			Set:   true,
+			Value: &dto.ProductResponsibilityInput{Area: "grill", Priority: 3},
+		},
+	}
+
+	mockRepo.On("FindByID", ctx, productID).Return(existingProduct, nil)
+	mockRepo.On("Update", ctx, productID, mock.Anything).Return(nil)
+	mockRepo.On("FindPreparationResponsibilitiesByProductIDs", ctx, mock.Anything).
+		Return(map[string]*dto.ProductPreparationResponsibility{
+			productID: {ID: "resp-9", ProductID: productID, Area: "kitchen", Priority: 1},
+		}, nil)
+	mockRepo.On("UpdatePreparationResponsibility", ctx, "resp-9", "grill", 3).
+		Return(&dto.ProductPreparationResponsibility{ID: "resp-9", Area: "grill", Priority: 3}, nil)
+
+	result, err := service.UpdateProduct(ctx, productID, req)
+
+	require.NoError(t, err)
+	require.NotNil(t, result.PreparationResponsibility)
+	assert.Equal(t, "grill", result.PreparationResponsibility.Area)
+	assert.Equal(t, 3, result.PreparationResponsibility.Priority)
+	mockRepo.AssertCalled(t, "UpdatePreparationResponsibility", ctx, "resp-9", "grill", 3)
+	mockRepo.AssertNotCalled(t, "CreatePreparationResponsibility")
+}
+
+// UpdateProduct removes the responsibility when the request explicitly sends null.
+func TestUpdateProduct_RemovesResponsibilityWhenNull(t *testing.T) {
+	ctx := context.Background()
+	service, mockRepo := createTestProductService(t)
+
+	productID := "product-1"
+	existingProduct := createTestProductDTO(productID, "Old Name", "Old Category", 1, 50.0, 0.095, 0.05)
+
+	req := &dto.UpdateProductRequest{
+		Name:                "New Name",
+		Category:            "New Category",
+		ProductType:         "SELLABLE",
+		UnitOfMeasure:       "unit",
+		TotalPriceWithTaxes: "200.0",
+		VAT:                 "38.0",
+		ICO:                 "12.0",
+		TaxesFormat:         "percentage",
+		SKU:                 "SKU002",
+		PreparationResponsibility: dto.OptionalResponsibility{Set: true, Value: nil},
+	}
+
+	mockRepo.On("FindByID", ctx, productID).Return(existingProduct, nil)
+	mockRepo.On("Update", ctx, productID, mock.Anything).Return(nil)
+	mockRepo.On("FindPreparationResponsibilitiesByProductIDs", ctx, mock.Anything).
+		Return(map[string]*dto.ProductPreparationResponsibility{
+			productID: {ID: "resp-9", ProductID: productID, Area: "kitchen", Priority: 1},
+		}, nil)
+	mockRepo.On("DeletePreparationResponsibility", ctx, "resp-9").Return(nil)
+
+	result, err := service.UpdateProduct(ctx, productID, req)
+
+	require.NoError(t, err)
+	assert.Nil(t, result.PreparationResponsibility)
+	mockRepo.AssertCalled(t, "DeletePreparationResponsibility", ctx, "resp-9")
 }
 
 // Success Case - SKU with hyphen is valid
@@ -268,6 +422,8 @@ func TestUpdateProduct_ValidSKU_WithHyphen(t *testing.T) {
 		dto := p.ToDTO()
 		return dto.SKU == "SKU-002"
 	})).Return(nil)
+	mockRepo.On("FindPreparationResponsibilitiesByProductIDs", ctx, mock.Anything).
+		Return(map[string]*dto.ProductPreparationResponsibility{}, nil)
 
 	result, err := service.UpdateProduct(ctx, productID, req)
 
@@ -337,6 +493,8 @@ func TestUpdateProduct_Success(t *testing.T) {
 			dto.TotalPriceWithTaxes.Equal(decimal.NewFromFloat(200.0)) && dto.VAT.Equal(decimal.NewFromFloat(0.38)) &&
 			dto.Version == 1 // Version should remain 1
 	})).Return(nil)
+	mockRepo.On("FindPreparationResponsibilitiesByProductIDs", ctx, mock.Anything).
+		Return(map[string]*dto.ProductPreparationResponsibility{}, nil)
 
 	result, err := service.UpdateProduct(ctx, productID, req)
 
@@ -485,6 +643,8 @@ func TestListProducts_Success(t *testing.T) {
 
 	filter := dto.ListProductsRequest{}
 	mockRepo.On("FindAll", ctx, filter).Return(products, nil)
+	mockRepo.On("FindPreparationResponsibilitiesByProductIDs", ctx, mock.Anything).
+		Return(map[string]*dto.ProductPreparationResponsibility{}, nil)
 
 	result, err := service.ListProducts(ctx, filter)
 
@@ -508,6 +668,8 @@ func TestListProducts_FilterByProductType(t *testing.T) {
 		ProductTypes: []dto.ProductType{dto.ProductTypeSellable, dto.ProductTypeBoth},
 	}
 	mockRepo.On("FindAll", ctx, filter).Return(products, nil)
+	mockRepo.On("FindPreparationResponsibilitiesByProductIDs", ctx, mock.Anything).
+		Return(map[string]*dto.ProductPreparationResponsibility{}, nil)
 
 	result, err := service.ListProducts(ctx, filter)
 
@@ -559,6 +721,8 @@ func TestGetProductByID_Success(t *testing.T) {
 	expectedProduct := createTestProductDTO(productID, "Product", "Category", 1, 100.0, 0.19, 0.08)
 
 	mockRepo.On("FindByID", ctx, productID).Return(expectedProduct, nil)
+	mockRepo.On("FindPreparationResponsibilitiesByProductIDs", ctx, mock.Anything).
+		Return(map[string]*dto.ProductPreparationResponsibility{}, nil)
 
 	result, err := service.GetProductByID(ctx, productID)
 

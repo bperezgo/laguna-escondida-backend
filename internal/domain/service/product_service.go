@@ -17,36 +17,67 @@ type ProductService struct {
 	productRepo         ports.ProductRepository
 	supplierRepo        ports.SupplierRepository
 	supplierCatalogRepo ports.SupplierCatalogRepository
+	unitOfWork          ports.UnitOfWork
 }
 
 func NewProductService(
 	productRepo ports.ProductRepository,
 	supplierRepo ports.SupplierRepository,
 	supplierCatalogRepo ports.SupplierCatalogRepository,
+	unitOfWork ports.UnitOfWork,
 ) *ProductService {
 	return &ProductService{
 		productRepo:         productRepo,
 		supplierRepo:        supplierRepo,
 		supplierCatalogRepo: supplierCatalogRepo,
+		unitOfWork:          unitOfWork,
 	}
 }
 
-// CreateProduct creates a new product with version = 1
+// CreateProduct creates a new product with version = 1, optionally creating its
+// preparation responsibility (area + priority) in the same transaction.
 func (s *ProductService) CreateProduct(ctx context.Context, req *dto.CreateProductRequest) (*dto.Product, error) {
-	product, err := product.NewAggregateFromCreateProductRequest(req)
+	if err := validateResponsibilityInput(req.PreparationResponsibility.Value); err != nil {
+		return nil, err
+	}
+
+	aggregate, err := product.NewAggregateFromCreateProductRequest(req)
+	if err != nil {
+		return nil, err
+	}
+	productDTO := aggregate.ToDTO()
+
+	var responsibility *dto.ProductPreparationResponsibility
+	err = s.unitOfWork.Do(ctx, func(ctx context.Context) error {
+		if err := s.productRepo.Create(ctx, aggregate); err != nil {
+			return err
+		}
+		if input := req.PreparationResponsibility.Value; input != nil {
+			created, err := s.productRepo.CreatePreparationResponsibility(ctx, productDTO.ID, input.Area, input.Priority)
+			if err != nil {
+				return err
+			}
+			responsibility = created
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	if err := s.productRepo.Create(ctx, product); err != nil {
+	productDTO.PreparationResponsibility = responsibility
+	return productDTO, nil
+}
+
+// UpdateProduct updates an existing product, keeping version = 1, and reconciles
+// its preparation responsibility in the same transaction based on the request's
+// preparation_responsibility field (absent = unchanged, null = removed, object =
+// created/updated).
+func (s *ProductService) UpdateProduct(ctx context.Context, id string, req *dto.UpdateProductRequest) (*dto.Product, error) {
+	if err := validateResponsibilityInput(req.PreparationResponsibility.Value); err != nil {
 		return nil, err
 	}
 
-	return product.ToDTO(), nil
-}
-
-// UpdateProduct updates an existing product, keeping version = 1
-func (s *ProductService) UpdateProduct(ctx context.Context, id string, req *dto.UpdateProductRequest) (*dto.Product, error) {
 	existing, err := s.productRepo.FindByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", domainError.ErrProductNotFound, err)
@@ -61,12 +92,69 @@ func (s *ProductService) UpdateProduct(ctx context.Context, id string, req *dto.
 	if err != nil {
 		return nil, err
 	}
+	productDTO := newProduct.ToDTO()
 
-	if err := s.productRepo.Update(ctx, id, newProduct); err != nil {
+	var responsibility *dto.ProductPreparationResponsibility
+	err = s.unitOfWork.Do(ctx, func(ctx context.Context) error {
+		if err := s.productRepo.Update(ctx, id, newProduct); err != nil {
+			return err
+		}
+
+		existingMap, err := s.productRepo.FindPreparationResponsibilitiesByProductIDs(ctx, []string{id})
+		if err != nil {
+			return err
+		}
+		current := existingMap[id]
+
+		// Field omitted: leave the responsibility as it is.
+		if !req.PreparationResponsibility.Set {
+			responsibility = current
+			return nil
+		}
+
+		input := req.PreparationResponsibility.Value
+		switch {
+		case input != nil && current != nil:
+			updated, err := s.productRepo.UpdatePreparationResponsibility(ctx, current.ID, input.Area, input.Priority)
+			if err != nil {
+				return err
+			}
+			responsibility = updated
+		case input != nil && current == nil:
+			created, err := s.productRepo.CreatePreparationResponsibility(ctx, id, input.Area, input.Priority)
+			if err != nil {
+				return err
+			}
+			responsibility = created
+		case input == nil && current != nil:
+			if err := s.productRepo.DeletePreparationResponsibility(ctx, current.ID); err != nil {
+				return err
+			}
+			responsibility = nil
+		}
+		return nil
+	})
+	if err != nil {
 		return nil, err
 	}
 
-	return newProduct.ToDTO(), nil
+	productDTO.PreparationResponsibility = responsibility
+	return productDTO, nil
+}
+
+// validateResponsibilityInput guards the embedded responsibility payload. The
+// frontend already validates these; this is defense-in-depth for direct callers.
+func validateResponsibilityInput(input *dto.ProductResponsibilityInput) error {
+	if input == nil {
+		return nil
+	}
+	if input.Area == "" {
+		return fmt.Errorf("preparation responsibility area is required")
+	}
+	if input.Priority < 0 {
+		return fmt.Errorf("preparation responsibility priority must be greater than or equal to 0")
+	}
+	return nil
 }
 
 // DeleteProduct soft deletes a product
@@ -90,6 +178,10 @@ func (s *ProductService) ListProducts(ctx context.Context, filter dto.ListProduc
 		return nil, fmt.Errorf("failed to list products: %w", err)
 	}
 
+	if err := s.attachResponsibilities(ctx, products); err != nil {
+		return nil, fmt.Errorf("failed to list products: %w", err)
+	}
+
 	return products, nil
 }
 
@@ -100,7 +192,38 @@ func (s *ProductService) GetProductByID(ctx context.Context, id string) (*dto.Pr
 		return nil, fmt.Errorf("%w: %w", domainError.ErrProductNotFound, err)
 	}
 
+	if err := s.attachResponsibilities(ctx, []*dto.Product{product}); err != nil {
+		return nil, fmt.Errorf("failed to load product responsibility: %w", err)
+	}
+
 	return product, nil
+}
+
+// attachResponsibilities enriches the given products with their single preparation
+// responsibility (area + priority) using one batched query. Products without a
+// responsibility are left untouched (nil).
+func (s *ProductService) attachResponsibilities(ctx context.Context, products []*dto.Product) error {
+	if len(products) == 0 {
+		return nil
+	}
+
+	ids := make([]string, len(products))
+	for i, p := range products {
+		ids[i] = p.ID
+	}
+
+	respMap, err := s.productRepo.FindPreparationResponsibilitiesByProductIDs(ctx, ids)
+	if err != nil {
+		return err
+	}
+
+	for _, p := range products {
+		if resp, ok := respMap[p.ID]; ok {
+			p.PreparationResponsibility = resp
+		}
+	}
+
+	return nil
 }
 
 // CreateProductResponsibility assigns a preparation responsibility (area) to a product

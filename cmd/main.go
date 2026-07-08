@@ -155,7 +155,7 @@ func main() {
 		syncOutboxRepo,
 		syncIdentity,
 	)
-	productService := service.NewProductService(productRepo, supplierRepo, supplierCatalogRepo)
+	productService := service.NewProductService(productRepo, supplierRepo, supplierCatalogRepo, unitOfWork)
 	stockService := service.NewStockService(stockRepo, productRepo)
 	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, jwtService, unitOfWork)
 	billOwnerService := service.NewBillOwnerService(billOwnerRepo)

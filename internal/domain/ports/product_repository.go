@@ -21,4 +21,7 @@ type ProductRepository interface {
 	UpdatePreparationResponsibility(ctx context.Context, id string, area string, priority int) (*dto.ProductPreparationResponsibility, error)
 	DeletePreparationResponsibility(ctx context.Context, id string) error
 	FindPreparationResponsibilityByID(ctx context.Context, id string) (*dto.ProductPreparationResponsibility, error)
+	// FindPreparationResponsibilitiesByProductIDs returns at most one responsibility per product,
+	// keyed by product ID. Products without a responsibility are absent from the map.
+	FindPreparationResponsibilitiesByProductIDs(ctx context.Context, productIDs []string) (map[string]*dto.ProductPreparationResponsibility, error)
 }

@@ -579,6 +579,65 @@ func (_c *MockProductRepository_FindBySKUs_Call) RunAndReturn(run func(context.C
 	return _c
 }
 
+// FindPreparationResponsibilitiesByProductIDs provides a mock function with given fields: ctx, productIDs
+func (_m *MockProductRepository) FindPreparationResponsibilitiesByProductIDs(ctx context.Context, productIDs []string) (map[string]*dto.ProductPreparationResponsibility, error) {
+	ret := _m.Called(ctx, productIDs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindPreparationResponsibilitiesByProductIDs")
+	}
+
+	var r0 map[string]*dto.ProductPreparationResponsibility
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, []string) (map[string]*dto.ProductPreparationResponsibility, error)); ok {
+		return rf(ctx, productIDs)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, []string) map[string]*dto.ProductPreparationResponsibility); ok {
+		r0 = rf(ctx, productIDs)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(map[string]*dto.ProductPreparationResponsibility)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, []string) error); ok {
+		r1 = rf(ctx, productIDs)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProductRepository_FindPreparationResponsibilitiesByProductIDs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindPreparationResponsibilitiesByProductIDs'
+type MockProductRepository_FindPreparationResponsibilitiesByProductIDs_Call struct {
+	*mock.Call
+}
+
+// FindPreparationResponsibilitiesByProductIDs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - productIDs []string
+func (_e *MockProductRepository_Expecter) FindPreparationResponsibilitiesByProductIDs(ctx interface{}, productIDs interface{}) *MockProductRepository_FindPreparationResponsibilitiesByProductIDs_Call {
+	return &MockProductRepository_FindPreparationResponsibilitiesByProductIDs_Call{Call: _e.mock.On("FindPreparationResponsibilitiesByProductIDs", ctx, productIDs)}
+}
+
+func (_c *MockProductRepository_FindPreparationResponsibilitiesByProductIDs_Call) Run(run func(ctx context.Context, productIDs []string)) *MockProductRepository_FindPreparationResponsibilitiesByProductIDs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]string))
+	})
+	return _c
+}
+
+func (_c *MockProductRepository_FindPreparationResponsibilitiesByProductIDs_Call) Return(_a0 map[string]*dto.ProductPreparationResponsibility, _a1 error) *MockProductRepository_FindPreparationResponsibilitiesByProductIDs_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProductRepository_FindPreparationResponsibilitiesByProductIDs_Call) RunAndReturn(run func(context.Context, []string) (map[string]*dto.ProductPreparationResponsibility, error)) *MockProductRepository_FindPreparationResponsibilitiesByProductIDs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // FindPreparationResponsibilityByID provides a mock function with given fields: ctx, id
 func (_m *MockProductRepository) FindPreparationResponsibilityByID(ctx context.Context, id string) (*dto.ProductPreparationResponsibility, error) {
 	ret := _m.Called(ctx, id)
