@@ -1,0 +1,55 @@
+name: Release
+
+# Cut a release image on a semver tag. The tag you push (e.g. v1.0.0) becomes the
+# image tag in ECR, which you then point aws-infra/image-tags.json at before
+# `cdk deploy bryan-dev-services`. This is the only workflow allowed to push to
+# ECR — the AWS role trusts tag refs (refs/tags/v*) only, not branches or PRs.
+on:
+  push:
+    tags:
+      - 'v*'
+
+# OIDC: id-token lets this job mint a GitHub token that AWS exchanges for the
+# scoped push role. No long-lived AWS access keys are stored in the repo.
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: laguna-escondida
+
+jobs:
+  push-image:
+    name: Build and push image to ECR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      # Assumes the role from the CiStack output. Set the repo variable
+      # AWS_ROLE_ARN (Settings → Secrets and variables → Actions → Variables)
+      # to the LagunaPushRoleArn value printed by `cdk deploy bryan-dev-ci`.
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Fargate here runs amd64, so build for linux/amd64 explicitly. The image
+      # tag is the git tag that triggered this run (github.ref_name = "v1.0.0").
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.ref_name }}
