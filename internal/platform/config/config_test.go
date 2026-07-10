@@ -16,10 +16,10 @@ func setRequiredEnv(t *testing.T) {
 	t.Setenv("ELECTRONIC_INVOICE_PASSWORD", "password")
 	t.Setenv("ADMIN_API_KEY", "admin-key")
 	t.Setenv("JWT_SECRET", "jwt-secret")
-	t.Setenv("SPACES_REGION", "us-east-1")
-	t.Setenv("SPACES_KEY", "spaces-key")
-	t.Setenv("SPACES_SECRET", "spaces-secret")
-	t.Setenv("SPACES_BUCKET", "spaces-bucket")
+	t.Setenv("STORAGE_REGION", "us-east-1")
+	t.Setenv("STORAGE_ACCESS_KEY", "storage-key")
+	t.Setenv("STORAGE_SECRET", "storage-secret")
+	t.Setenv("STORAGE_BUCKET", "storage-bucket")
 	t.Setenv("ORGANIZATION_ID", "org-123")
 }
 

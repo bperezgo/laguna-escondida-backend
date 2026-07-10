@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 
 	"laguna-escondida/backend/internal/domain/aggregate/support_document"
 	"laguna-escondida/backend/internal/domain/dto"
@@ -73,7 +72,7 @@ func (s *SupportDocumentService) ListSupportDocuments(ctx context.Context, req *
 		return nil, err
 	}
 
-	s.populateDownloadURLs(ctx, docs)
+	s.populateDownloadURLs(docs)
 
 	totalPages := int(totalCount) / criteria.PageSize
 	if int(totalCount)%criteria.PageSize != 0 {
@@ -168,7 +167,7 @@ func (s *SupportDocumentService) ExportSupportDocumentsCSV(ctx context.Context, 
 		return nil, err
 	}
 
-	s.populateDownloadURLs(ctx, docs)
+	s.populateDownloadURLs(docs)
 
 	var buf bytes.Buffer
 	writer := csv.NewWriter(&buf)
@@ -234,19 +233,15 @@ func (s *SupportDocumentService) ExportSupportDocumentsCSV(ctx context.Context, 
 	return buf.Bytes(), nil
 }
 
-func (s *SupportDocumentService) populateDownloadURLs(ctx context.Context, docs []dto.SupportDocumentListItem) {
+func (s *SupportDocumentService) populateDownloadURLs(docs []dto.SupportDocumentListItem) {
 	for i := range docs {
 		if docs[i].PDFStoragePath != nil {
-			url, err := s.storageClient.GetPresignedURL(ctx, *docs[i].PDFStoragePath, 1*time.Hour)
-			if err == nil {
-				docs[i].PDFDownloadURL = &url
-			}
+			url := s.storageClient.GetPublicURL(*docs[i].PDFStoragePath)
+			docs[i].PDFDownloadURL = &url
 		}
 		if docs[i].XMLStoragePath != nil {
-			url, err := s.storageClient.GetPresignedURL(ctx, *docs[i].XMLStoragePath, 1*time.Hour)
-			if err == nil {
-				docs[i].XMLDownloadURL = &url
-			}
+			url := s.storageClient.GetPublicURL(*docs[i].XMLStoragePath)
+			docs[i].XMLDownloadURL = &url
 		}
 	}
 }

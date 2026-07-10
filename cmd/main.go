@@ -75,9 +75,9 @@ func main() {
 	httpClient := httpclient.NewClient(logger)
 
 	// Initialize storage client
-	spacesClient, err := storage.NewSpacesClient(cfg)
+	storageClient, err := storage.NewS3Client(cfg)
 	if err != nil {
-		log.Fatalf("Failed to create Spaces client: %v", err)
+		log.Fatalf("Failed to create storage client: %v", err)
 	}
 
 	// Initialize repositories
@@ -97,7 +97,7 @@ func main() {
 	electronicInvoiceClient := httpclient.NewElectronicInvoiceClient(cfg, httpClient)
 	billRepo := repository.NewBillRepository(db.DB, cfg)
 	pendingInvoiceRepo := repository.NewPendingInvoiceRepository(db.DB)
-	invoiceService := service.NewInvoiceService(electronicInvoiceClient, productRepo, billRepo, spacesClient, cfg.OrganizationID)
+	invoiceService := service.NewInvoiceService(electronicInvoiceClient, productRepo, billRepo, storageClient, cfg.OrganizationID)
 
 	// Initialize SSE Hubs
 	sseHub := sse.NewHub()
@@ -160,12 +160,12 @@ func main() {
 	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, jwtService, unitOfWork)
 	billOwnerService := service.NewBillOwnerService(billOwnerRepo)
 	supplierService := service.NewSupplierService(supplierRepo, supplierCatalogRepo, productRepo)
-	purchaseEntryService := service.NewPurchaseEntryService(purchaseEntryRepo, supplierRepo, supplierCatalogRepo, productRepo, spacesClient, eventBusImpl, unitOfWork, syncOutboxRepo, syncIdentity, slogLogger, cfg.OrganizationID)
-	expenseService := service.NewExpenseService(expenseCategoryRepo, expenseRepo, supplierRepo, spacesClient, cfg.OrganizationID)
+	purchaseEntryService := service.NewPurchaseEntryService(purchaseEntryRepo, supplierRepo, supplierCatalogRepo, productRepo, storageClient, eventBusImpl, unitOfWork, syncOutboxRepo, syncIdentity, slogLogger, cfg.OrganizationID)
+	expenseService := service.NewExpenseService(expenseCategoryRepo, expenseRepo, supplierRepo, storageClient, cfg.OrganizationID)
 	productIngredientService := service.NewProductIngredientService(productIngredientRepo, productRepo)
 	financialService := service.NewFinancialService(billRepo, expenseRepo, purchaseEntryRepo)
 	supportDocRepo := repository.NewSupportDocumentRepository(db.DB, electronicInvoiceClient, cfg)
-	supportDocService := service.NewSupportDocumentService(electronicInvoiceClient, supportDocRepo, spacesClient, cfg.OrganizationID)
+	supportDocService := service.NewSupportDocumentService(electronicInvoiceClient, supportDocRepo, storageClient, cfg.OrganizationID)
 	// Drains the pending_invoices queue: issues queued electronic invoices to the fiscal
 	// provider out-of-band (so paying an order never blocks on it), stores the CUFE on the
 	// bill, and replicates that result to the cloud. Runs in both modes — the queue only ever

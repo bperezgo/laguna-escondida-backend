@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -33,11 +34,16 @@ type Config struct {
 	SupportDocumentPrefix     string
 	AdminAPIKey               string
 	JWTSecret                 string
-	SpacesRegion              string
-	SpacesEndpoint            string
-	SpacesKey                 string
-	SpacesSecret              string
-	SpacesBucket              string
+	StorageRegion             string
+	StorageEndpoint           string
+	StorageAccessKey          string
+	StorageSecret             string
+	StorageBucket             string
+	CDNURL                    string
+	CDNKeyPairID              string
+	CDNPrivateKey             string
+	CDNPrivateKeyPath         string
+	CDNURLTTL                 time.Duration
 	OrganizationID            string
 	InvoiceURLCron            string
 	SupportDocumentURLCron    string
@@ -97,25 +103,49 @@ func NewConfig() (*Config, error) {
 		supportDocumentPrefix = "SETP"
 	}
 
-	spacesRegion := os.Getenv("SPACES_REGION")
-	if spacesRegion == "" {
-		return nil, errors.New("SPACES_REGION is not set")
+	// STORAGE_REGION is the AWS region of the S3 bucket. Defaults to us-east-1 so a
+	// stock AWS setup boots without extra config.
+	storageRegion := os.Getenv("STORAGE_REGION")
+	if storageRegion == "" {
+		storageRegion = "us-east-1"
 	}
 
-	// SPACES_ENDPOINT is optional: when set (e.g. http://localhost:9000 for a
-	// local MinIO), it overrides the default DigitalOcean Spaces endpoint.
-	spacesEndpoint := os.Getenv("SPACES_ENDPOINT")
-	spacesKey := os.Getenv("SPACES_KEY")
-	if spacesKey == "" {
-		return nil, errors.New("SPACES_KEY is not set")
+	// STORAGE_ENDPOINT is optional: when set (e.g. http://localhost:9000 for a local
+	// MinIO), it overrides the AWS S3 default endpoint. Leave unset for real AWS S3.
+	storageEndpoint := os.Getenv("STORAGE_ENDPOINT")
+
+	// Credentials are optional: when unset, the AWS SDK default credential chain
+	// (environment, shared config, or the ECS/EC2 IAM role) is used instead. This lets
+	// the app run under an instance/task role without static keys.
+	storageAccessKey := os.Getenv("STORAGE_ACCESS_KEY")
+	storageSecret := os.Getenv("STORAGE_SECRET")
+
+	storageBucket := os.Getenv("STORAGE_BUCKET")
+	if storageBucket == "" {
+		return nil, errors.New("STORAGE_BUCKET is not set")
 	}
-	spacesSecret := os.Getenv("SPACES_SECRET")
-	if spacesSecret == "" {
-		return nil, errors.New("SPACES_SECRET is not set")
-	}
-	spacesBucket := os.Getenv("SPACES_BUCKET")
-	if spacesBucket == "" {
-		return nil, errors.New("SPACES_BUCKET is not set")
+
+	// CDN_URL is the CloudFront (or other CDN) base URL used to build public object
+	// URLs, e.g. https://d35pmcujebj2l9.cloudfront.net. Optional: when unset,
+	// GetPublicURL falls back to a direct endpoint/S3 URL (useful for local dev).
+	cdnURL := os.Getenv("CDN_URL")
+
+	// CloudFront signed-URL settings. When CDN_KEY_PAIR_ID plus a private key
+	// (CDN_PRIVATE_KEY inline PEM, or CDN_PRIVATE_KEY_PATH pointing at a PEM file)
+	// are set, object URLs are signed and expire after CDN_URL_TTL. When unset,
+	// URLs are unsigned (which only works if the CDN/bucket is publicly readable).
+	cdnKeyPairID := os.Getenv("CDN_KEY_PAIR_ID")
+	cdnPrivateKey := os.Getenv("CDN_PRIVATE_KEY")
+	cdnPrivateKeyPath := os.Getenv("CDN_PRIVATE_KEY_PATH")
+
+	// CDN_URL_TTL is how long a signed URL stays valid. Defaults to one week.
+	cdnURLTTL := 7 * 24 * time.Hour
+	if v := os.Getenv("CDN_URL_TTL"); v != "" {
+		parsed, err := time.ParseDuration(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid CDN_URL_TTL %q: %w", v, err)
+		}
+		cdnURLTTL = parsed
 	}
 	// TODO Review the best way to handle the organization id (securely) when the goal was to roll out this for different organizations
 	organizationID := os.Getenv("ORGANIZATION_ID")
@@ -219,11 +249,16 @@ func NewConfig() (*Config, error) {
 		SupportDocumentPrefix:     supportDocumentPrefix,
 		AdminAPIKey:               adminAPIKey,
 		JWTSecret:                 jwtSecret,
-		SpacesRegion:              spacesRegion,
-		SpacesEndpoint:            spacesEndpoint,
-		SpacesKey:                 spacesKey,
-		SpacesSecret:              spacesSecret,
-		SpacesBucket:              spacesBucket,
+		StorageRegion:             storageRegion,
+		StorageEndpoint:           storageEndpoint,
+		StorageAccessKey:          storageAccessKey,
+		StorageSecret:             storageSecret,
+		StorageBucket:             storageBucket,
+		CDNURL:                    cdnURL,
+		CDNKeyPairID:              cdnKeyPairID,
+		CDNPrivateKey:             cdnPrivateKey,
+		CDNPrivateKeyPath:         cdnPrivateKeyPath,
+		CDNURLTTL:                 cdnURLTTL,
 		OrganizationID:            organizationID,
 		InvoiceURLCron:            invoiceURLCron,
 		SupportDocumentURLCron:    supportDocumentURLCron,

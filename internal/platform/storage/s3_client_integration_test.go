@@ -47,7 +47,7 @@ func skipIfIntegrationTestsDisabled(t *testing.T) {
 	}
 }
 
-func TestSpacesClient_Upload_Integration(t *testing.T) {
+func TestS3Client_Upload_Integration(t *testing.T) {
 	// Load environment variables from .env file
 	if err := loadEnvFromProjectRoot(); err != nil {
 		t.Logf("Warning: could not load .env file: %v", err)
@@ -60,14 +60,14 @@ func TestSpacesClient_Upload_Integration(t *testing.T) {
 	require.NoError(t, err, "Failed to load config")
 
 	// Create client
-	client, err := storage.NewSpacesClient(cfg)
-	require.NoError(t, err, "Failed to create SpacesClient")
+	client, err := storage.NewS3Client(cfg)
+	require.NoError(t, err, "Failed to create S3Client")
 
 	ctx := context.Background()
 
 	// Test data
 	testKey := fmt.Sprintf("test/integration-test-%d.txt", time.Now().UnixNano())
-	testContent := []byte("Hello, this is an integration test for DigitalOcean Spaces!")
+	testContent := []byte("Hello, this is an integration test for AWS S3!")
 	contentType := "text/plain"
 
 	// Upload the file
@@ -101,7 +101,7 @@ func TestSpacesClient_Upload_Integration(t *testing.T) {
 	})
 }
 
-func TestSpacesClient_UploadPDF_Integration(t *testing.T) {
+func TestS3Client_UploadPDF_Integration(t *testing.T) {
 	if err := loadEnvFromProjectRoot(); err != nil {
 		t.Logf("Warning: could not load .env file: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestSpacesClient_UploadPDF_Integration(t *testing.T) {
 	cfg, err := config.NewConfig()
 	require.NoError(t, err)
 
-	client, err := storage.NewSpacesClient(cfg)
+	client, err := storage.NewS3Client(cfg)
 	require.NoError(t, err)
 
 	ctx := context.Background()

@@ -178,7 +178,7 @@ func (s *PurchaseEntryService) ListPurchaseEntries(ctx context.Context) ([]*dto.
 		return nil, fmt.Errorf("failed to list purchase entries: %w", err)
 	}
 
-	s.populateDownloadURLs(ctx, entries)
+	s.populateDownloadURLs(entries)
 
 	return entries, nil
 }
@@ -189,7 +189,7 @@ func (s *PurchaseEntryService) ListPurchaseEntriesByCriteria(ctx context.Context
 		return nil, fmt.Errorf("failed to list purchase entries by criteria: %w", err)
 	}
 
-	s.populateDownloadURLs(ctx, entries)
+	s.populateDownloadURLs(entries)
 
 	return entries, nil
 }
@@ -204,24 +204,20 @@ func (s *PurchaseEntryService) GetPurchaseEntriesBySupplier(ctx context.Context,
 		return nil, fmt.Errorf("failed to get supplier purchase entries: %w", err)
 	}
 
-	s.populateDownloadURLs(ctx, entries)
+	s.populateDownloadURLs(entries)
 
 	return entries, nil
 }
 
-func (s *PurchaseEntryService) populateDownloadURLs(ctx context.Context, entries []*dto.PurchaseEntryWithSupplier) {
+func (s *PurchaseEntryService) populateDownloadURLs(entries []*dto.PurchaseEntryWithSupplier) {
 	for _, entry := range entries {
 		if entry.PDFStoragePath != nil {
-			url, err := s.storageClient.GetPresignedURL(ctx, *entry.PDFStoragePath, 1*time.Hour)
-			if err == nil {
-				entry.PDFDownloadURL = &url
-			}
+			url := s.storageClient.GetPublicURL(*entry.PDFStoragePath)
+			entry.PDFDownloadURL = &url
 		}
 		if entry.XMLStoragePath != nil {
-			url, err := s.storageClient.GetPresignedURL(ctx, *entry.XMLStoragePath, 1*time.Hour)
-			if err == nil {
-				entry.XMLDownloadURL = &url
-			}
+			url := s.storageClient.GetPublicURL(*entry.XMLStoragePath)
+			entry.XMLDownloadURL = &url
 		}
 	}
 }
@@ -308,7 +304,7 @@ func (s *PurchaseEntryService) ExportPurchaseEntriesCSV(ctx context.Context, req
 		return nil, fmt.Errorf("failed to fetch purchase entries: %w", err)
 	}
 
-	s.populateDownloadURLs(ctx, entries)
+	s.populateDownloadURLs(entries)
 
 	var buf bytes.Buffer
 	writer := csv.NewWriter(&buf)

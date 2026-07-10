@@ -211,7 +211,7 @@ func (s *ExpenseService) ListExpenses(ctx context.Context) ([]*dto.ExpenseWithCa
 		return nil, fmt.Errorf("failed to list expenses: %w", err)
 	}
 
-	s.populateExpenseDownloadURLs(ctx, expenses)
+	s.populateExpenseDownloadURLs(expenses)
 
 	return expenses, nil
 }
@@ -222,24 +222,20 @@ func (s *ExpenseService) ListExpensesByCriteria(ctx context.Context, criteria *d
 		return nil, fmt.Errorf("failed to list expenses by criteria: %w", err)
 	}
 
-	s.populateExpenseDownloadURLs(ctx, expenses)
+	s.populateExpenseDownloadURLs(expenses)
 
 	return expenses, nil
 }
 
-func (s *ExpenseService) populateExpenseDownloadURLs(ctx context.Context, expenses []*dto.ExpenseWithCategory) {
+func (s *ExpenseService) populateExpenseDownloadURLs(expenses []*dto.ExpenseWithCategory) {
 	for _, exp := range expenses {
 		if exp.PDFStoragePath != nil {
-			url, err := s.storageClient.GetPresignedURL(ctx, *exp.PDFStoragePath, 1*time.Hour)
-			if err == nil {
-				exp.PDFDownloadURL = &url
-			}
+			url := s.storageClient.GetPublicURL(*exp.PDFStoragePath)
+			exp.PDFDownloadURL = &url
 		}
 		if exp.XMLStoragePath != nil {
-			url, err := s.storageClient.GetPresignedURL(ctx, *exp.XMLStoragePath, 1*time.Hour)
-			if err == nil {
-				exp.XMLDownloadURL = &url
-			}
+			url := s.storageClient.GetPublicURL(*exp.XMLStoragePath)
+			exp.XMLDownloadURL = &url
 		}
 	}
 }
@@ -327,7 +323,7 @@ func (s *ExpenseService) ExportExpensesCSV(ctx context.Context, req *dto.ExportE
 		return nil, fmt.Errorf("failed to fetch expenses: %w", err)
 	}
 
-	s.populateExpenseDownloadURLs(ctx, expenses)
+	s.populateExpenseDownloadURLs(expenses)
 
 	var buf bytes.Buffer
 	writer := csv.NewWriter(&buf)

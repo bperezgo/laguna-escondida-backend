@@ -7,7 +7,7 @@
 # auto-runs migrations on boot, so each DB self-migrates.
 #
 # Storage note: the edge is OFFLINE-FIRST and never uses object storage (uploads,
-# invoices and support documents are online-only features). Its SPACES_* values below are
+# invoices and support documents are online-only features). Its STORAGE_* values below are
 # inert placeholders that only satisfy config validation — the S3 client is lazy and is
 # never contacted unless an upload/download runs, which the sync tests don't do. Only the
 # cloud gets a real MinIO.
@@ -82,11 +82,11 @@ services:
       <<: *app-env
       APP_MODE: cloud
       DB_HOST: cloud-db
-      SPACES_REGION: us-east-1
-      SPACES_KEY: minioadmin
-      SPACES_SECRET: minioadmin
-      SPACES_BUCKET: laguna-escondida
-      SPACES_ENDPOINT: http://minio:9000
+      STORAGE_REGION: us-east-1
+      STORAGE_ACCESS_KEY: minioadmin
+      STORAGE_SECRET: minioadmin
+      STORAGE_BUCKET: laguna-escondida
+      STORAGE_ENDPOINT: http://minio:9000
     ports:
       - "8080:8080"
     depends_on:
@@ -133,10 +133,10 @@ services:
       SYNC_PULL_CRON: "* * * * *"
       # Inert: edge storage is online-only. Placeholders satisfy config validation;
       # the lazy S3 client is never contacted by the sync tests.
-      SPACES_REGION: us-east-1
-      SPACES_KEY: offline-unused
-      SPACES_SECRET: offline-unused
-      SPACES_BUCKET: offline-unused
+      STORAGE_REGION: us-east-1
+      STORAGE_ACCESS_KEY: offline-unused
+      STORAGE_SECRET: offline-unused
+      STORAGE_BUCKET: offline-unused
     ports:
       - "8082:8080"
     # NOTE: edge depends ONLY on its own DB, never on `cloud`. That is what lets you

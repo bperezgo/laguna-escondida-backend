@@ -66,42 +66,44 @@ type verifyStatusDocument struct {
 	ATTACHED string `json:"ATTACHED"`
 }
 
-type SpacesClient struct {
-	client   *s3.Client
-	bucket   string
-	endpoint string
+type S3Client struct {
+	client *s3.Client
+	bucket string
 }
 
-func NewSpacesClient(region, key, secret, bucket string) (*SpacesClient, error) {
-	awsCfg, err := awsconfig.LoadDefaultConfig(context.Background(),
-		awsconfig.WithRegion("us-east-1"),
-		awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
-			key,
-			secret,
-			"",
-		)),
-	)
+func NewS3Client(region, endpoint, key, secret, bucket string) (*S3Client, error) {
+	loadOpts := []func(*awsconfig.LoadOptions) error{
+		awsconfig.WithRegion(region),
+	}
+	if key != "" && secret != "" {
+		loadOpts = append(loadOpts, awsconfig.WithCredentialsProvider(
+			credentials.NewStaticCredentialsProvider(key, secret, ""),
+		))
+	}
+
+	awsCfg, err := awsconfig.LoadDefaultConfig(context.Background(), loadOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load AWS config: %w", err)
 	}
 
-	endpoint := fmt.Sprintf("https://%s.digitaloceanspaces.com", region)
-
 	client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
-		o.BaseEndpoint = aws.String(endpoint)
-		o.UsePathStyle = true
+		// STORAGE_ENDPOINT overrides the default AWS S3 endpoint (e.g. a local MinIO);
+		// S3-compatible services need path-style addressing.
+		if endpoint != "" {
+			o.BaseEndpoint = aws.String(endpoint)
+			o.UsePathStyle = true
+		}
 		o.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenRequired
 		o.ResponseChecksumValidation = aws.ResponseChecksumValidationWhenRequired
 	})
 
-	return &SpacesClient{
-		client:   client,
-		bucket:   bucket,
-		endpoint: fmt.Sprintf("%s.digitaloceanspaces.com", region),
+	return &S3Client{
+		client: client,
+		bucket: bucket,
 	}, nil
 }
 
-func (c *SpacesClient) Upload(ctx context.Context, key string, data []byte, contentType string) error {
+func (c *S3Client) Upload(ctx context.Context, key string, data []byte, contentType string) error {
 	_, err := c.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(c.bucket),
 		Key:         aws.String(key),
@@ -109,7 +111,7 @@ func (c *SpacesClient) Upload(ctx context.Context, key string, data []byte, cont
 		ContentType: aws.String(contentType),
 	})
 	if err != nil {
-		return fmt.Errorf("failed to upload to Spaces: %w", err)
+		return fmt.Errorf("failed to upload to S3: %w", err)
 	}
 	return nil
 }
@@ -144,26 +146,31 @@ func main() {
 		log.Fatal("ELECTRONIC_INVOICE_URL, ELECTRONIC_INVOICE_USER, and ELECTRONIC_INVOICE_PASSWORD environment variables are required")
 	}
 
-	// Spaces configuration
-	spacesRegion := os.Getenv("SPACES_REGION")
-	spacesKey := os.Getenv("SPACES_KEY")
-	spacesSecret := os.Getenv("SPACES_SECRET")
-	spacesBucket := os.Getenv("SPACES_BUCKET")
+	// Storage (AWS S3) configuration. Region defaults to us-east-1 and credentials are
+	// optional (the AWS default credential chain / IAM role is used when unset).
+	storageRegion := os.Getenv("STORAGE_REGION")
+	if storageRegion == "" {
+		storageRegion = "us-east-1"
+	}
+	storageEndpoint := os.Getenv("STORAGE_ENDPOINT")
+	storageAccessKey := os.Getenv("STORAGE_ACCESS_KEY")
+	storageSecret := os.Getenv("STORAGE_SECRET")
+	storageBucket := os.Getenv("STORAGE_BUCKET")
 	organizationID := os.Getenv("ORGANIZATION_ID")
 
-	if spacesRegion == "" || spacesKey == "" || spacesSecret == "" || spacesBucket == "" || organizationID == "" {
-		log.Fatal("SPACES_REGION, SPACES_KEY, SPACES_SECRET, SPACES_BUCKET, and ORGANIZATION_ID environment variables are required")
+	if storageBucket == "" || organizationID == "" {
+		log.Fatal("STORAGE_BUCKET and ORGANIZATION_ID environment variables are required")
 	}
 
-	// Initialize Spaces client
-	var spacesClient *SpacesClient
+	// Initialize S3 client
+	var s3Client *S3Client
 	var err error
 	if !dryRun {
-		spacesClient, err = NewSpacesClient(spacesRegion, spacesKey, spacesSecret, spacesBucket)
+		s3Client, err = NewS3Client(storageRegion, storageEndpoint, storageAccessKey, storageSecret, storageBucket)
 		if err != nil {
-			log.Fatalf("Failed to initialize Spaces client: %v", err)
+			log.Fatalf("Failed to initialize storage client: %v", err)
 		}
-		log.Println("Spaces client initialized successfully")
+		log.Println("Storage client initialized successfully")
 	}
 
 	// Connect to database
@@ -269,8 +276,8 @@ func main() {
 				continue
 			}
 
-			if err := spacesClient.Upload(ctx, pdfStorageKey, pdfData, "application/pdf"); err != nil {
-				log.Printf("  [ERROR] Failed to upload PDF to Spaces: %v", err)
+			if err := s3Client.Upload(ctx, pdfStorageKey, pdfData, "application/pdf"); err != nil {
+				log.Printf("  [ERROR] Failed to upload PDF to S3: %v", err)
 				errorCount++
 				continue
 			}
@@ -288,8 +295,8 @@ func main() {
 				continue
 			}
 
-			if err := spacesClient.Upload(ctx, xmlStorageKey, xmlData, "application/xml"); err != nil {
-				log.Printf("  [ERROR] Failed to upload XML to Spaces: %v", err)
+			if err := s3Client.Upload(ctx, xmlStorageKey, xmlData, "application/xml"); err != nil {
+				log.Printf("  [ERROR] Failed to upload XML to S3: %v", err)
 				errorCount++
 				continue
 			}

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 
 	"laguna-escondida/backend/internal/domain/aggregate/bill"
 	"laguna-escondida/backend/internal/domain/dto"
@@ -116,7 +115,7 @@ func (s *InvoiceService) ListInvoices(ctx context.Context, req *dto.ListInvoices
 		return nil, err
 	}
 
-	s.populateInvoiceDownloadURLs(ctx, invoices)
+	s.populateInvoiceDownloadURLs(invoices)
 
 	totalPages := int(totalCount) / criteria.PageSize
 	if int(totalCount)%criteria.PageSize != 0 {
@@ -201,19 +200,15 @@ func (s *InvoiceService) UpdateMissingDocumentURLs(ctx context.Context) (*dto.Up
 	}, nil
 }
 
-func (s *InvoiceService) populateInvoiceDownloadURLs(ctx context.Context, invoices []dto.InvoiceListItem) {
+func (s *InvoiceService) populateInvoiceDownloadURLs(invoices []dto.InvoiceListItem) {
 	for i := range invoices {
 		if invoices[i].PDFStoragePath != nil {
-			url, err := s.storageClient.GetPresignedURL(ctx, *invoices[i].PDFStoragePath, 1*time.Hour)
-			if err == nil {
-				invoices[i].PDFDownloadURL = &url
-			}
+			url := s.storageClient.GetPublicURL(*invoices[i].PDFStoragePath)
+			invoices[i].PDFDownloadURL = &url
 		}
 		if invoices[i].XMLStoragePath != nil {
-			url, err := s.storageClient.GetPresignedURL(ctx, *invoices[i].XMLStoragePath, 1*time.Hour)
-			if err == nil {
-				invoices[i].XMLDownloadURL = &url
-			}
+			url := s.storageClient.GetPublicURL(*invoices[i].XMLStoragePath)
+			invoices[i].XMLDownloadURL = &url
 		}
 	}
 }
@@ -286,7 +281,7 @@ func (s *InvoiceService) ExportInvoicesCSV(ctx context.Context, req *dto.ExportI
 		return nil, err
 	}
 
-	s.populateInvoiceDownloadURLs(ctx, invoices)
+	s.populateInvoiceDownloadURLs(invoices)
 
 	var buf bytes.Buffer
 	writer := csv.NewWriter(&buf)
