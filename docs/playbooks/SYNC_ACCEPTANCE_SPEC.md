@@ -26,11 +26,13 @@ offline-first: it serves entirely from local data and never hard-depends on the 
 
 Two data flows, deliberately asymmetric:
 
-- **Pull (cloud → edge), reference data.** `products`, `users`, `suppliers` are
-  cloud-owned. The edge pulls a **cursor diff** over `updated_at`/`deleted_at`: the cloud
-  returns rows changed after the edge's `last_pulled_cursor`, the edge upserts them. Payloads
-  carry `deleted_at` (so soft-deletes propagate) and the user payload carries the **password
-  hash** (so the edge can authenticate while offline). Idempotent and monotonic.
+- **Pull (cloud → edge), reference data.** `products`, `users`, `suppliers`, and
+  `product_preparation_responsibilities` are cloud-owned. The edge pulls a **cursor diff**
+  over `updated_at`/`deleted_at`: the cloud returns rows changed after the edge's
+  `last_pulled_cursor`, the edge upserts them. Payloads carry `deleted_at` (so soft-deletes
+  propagate) and the user payload carries the **password hash** (so the edge can authenticate
+  while offline). Responsibilities carry their own `updated_at`, so a responsibility-only
+  edit replicates even when its product is unchanged. Idempotent and monotonic.
 - **Push (edge → cloud), op-log.** `open_bill` (orders) and `purchase_entry` are
   edge-owned. The business change and a `sync_outbox` row are written **in the same
   transaction**. The edge pushes pending outbox ops to the cloud, which applies and acks
@@ -114,7 +116,8 @@ violated) · **Verify** (tier + how) · **Maps to** (playbook checklist → plan
 - **Why:** The edge cannot sell a product or authenticate a user it has never seen. This is
   the baseline "the edge knows about cloud data" promise.
 - **Verify:** Tier 1. Seed on cloud → `edge.PullChanges` → assert row present on edge.
-- **Maps to:** Checklist **E.1** → `TestSync_Pull_ReplicatesNewProduct` (and `_User`, `_Supplier`).
+- **Maps to:** Checklist **E.1** → `TestSync_Pull_ReplicatesNewProduct` (and `_User`,
+  `_Supplier`, `_ProductResponsibility`).
 
 #### SYNC-INV-04 — Updates replicate down
 - **Guarantees:** An update to a cloud reference row (e.g. rename) reaches the edge on the
@@ -122,7 +125,9 @@ violated) · **Verify** (tier + how) · **Maps to** (playbook checklist → plan
 - **Why:** Stale prices/names on the edge produce wrong bills. The cursor diff must catch
   `updated_at` bumps, not just inserts.
 - **Verify:** Tier 1. Update on cloud → pull → assert edge reflects the new value.
-- **Maps to:** Checklist **E.2** → `TestSync_Pull_ReplicatesUpdate`.
+- **Maps to:** Checklist **E.2** → `TestSync_Pull_ReplicatesUpdate`,
+  `TestSync_Pull_ReplicatesProductResponsibility` (responsibility-only change with the
+  product row untouched).
 
 #### SYNC-INV-05 — Soft-deletes (tombstones) replicate down
 - **Guarantees:** Setting `deleted_at` on a cloud row propagates; the edge row gets
@@ -130,7 +135,8 @@ violated) · **Verify** (tier + how) · **Maps to** (playbook checklist → plan
 - **Why:** A discontinued product must stop being sellable on the edge, but history
   (past bills referencing it) must survive — hence soft-delete, not removal.
 - **Verify:** Tier 1. Soft-delete on cloud → pull → assert edge row's `deleted_at` is set.
-- **Maps to:** Checklist **E.3** → `TestSync_Pull_ReplicatesTombstone`.
+- **Maps to:** Checklist **E.3** → `TestSync_Pull_ReplicatesTombstone`,
+  `TestSync_Pull_ReplicatesResponsibilityTombstone`.
 
 #### SYNC-INV-06 — User payload carries the password hash (offline auth)
 - **Guarantees:** The replicated `users` row includes the password hash, so the edge can
@@ -260,7 +266,7 @@ violated) · **Verify** (tier + how) · **Maps to** (playbook checklist → plan
 #### SYNC-INV-19 — Storage-backed features are online-only; the edge never blocks on storage
 - **Guarantees:** Sync replicates rows only; blobs (documents, PDFs, electronic invoices,
   support documents) do not sync. The edge's sync path never contacts object storage, so a
-  missing/placeholder `SPACES_*` config does not break the edge.
+  missing/placeholder `STORAGE_*` config does not break the edge.
 - **Why:** This is a deliberate scope line. A future change that accidentally couples sync to
   storage would make the edge fail offline — the exact thing the edge exists to avoid. The
   test guards the boundary.
@@ -295,9 +301,9 @@ Status: ✅ implemented · 🟡 partial · ⬜ not yet.
 | --- | --- | --- | --- | --- | --- |
 | SYNC-INV-01 | Identity derivation | setup | 1 | ⬜ | `TestSync_Identity_DeriveMatchesAcrossNodes` |
 | SYNC-INV-02 | Auth fails closed | B | 1 | ⬜ | `TestSync_Auth_PushRejectsMissingOrWrongKey` (also `node_auth_middleware_test.go`) |
-| SYNC-INV-03 | Pull: new rows | E.1 | 1 | ✅ | `TestSync_Pull_ReplicatesNewProduct` |
-| SYNC-INV-04 | Pull: updates | E.2 | 1 | ✅ | `TestSync_Pull_ReplicatesUpdate` |
-| SYNC-INV-05 | Pull: tombstones | E.3 | 1 | ✅ | `TestSync_Pull_ReplicatesTombstone` |
+| SYNC-INV-03 | Pull: new rows | E.1 | 1 | ✅ | `TestSync_Pull_ReplicatesNewProduct`, `TestSync_Pull_ReplicatesProductResponsibility` |
+| SYNC-INV-04 | Pull: updates | E.2 | 1 | ✅ | `TestSync_Pull_ReplicatesUpdate`, `TestSync_Pull_ReplicatesProductResponsibility` (responsibility-only) |
+| SYNC-INV-05 | Pull: tombstones | E.3 | 1 | ✅ | `TestSync_Pull_ReplicatesTombstone`, `TestSync_Pull_ReplicatesResponsibilityTombstone` |
 | SYNC-INV-06 | Pull: offline auth | E.4 | 1 | 🟡 | `TestSync_Pull_UserCarriesPasswordHash` (hash replicates; live offline sign-in TODO) |
 | SYNC-INV-07 | Pull: cursor monotonic | E note | 1 | ✅ | `TestSync_Pull_CursorDoesNotRewindOnNoOp` |
 | SYNC-INV-08 | Pull: incremental | *(new)* | 1 | ✅ | `TestSync_Pull_SecondPullIsIncremental` |

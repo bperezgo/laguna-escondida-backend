@@ -129,9 +129,9 @@ func main() {
     // ...more repositories
 
     // 4. Create infrastructure services
-    unitOfWork   := postgres.NewUnitOfWork(db)
-    spacesClient := storage.NewSpacesClient(cfg)
-    jwtService   := service.NewJWTService(cfg.JWTSecret)
+    unitOfWork    := postgres.NewUnitOfWork(db)
+    storageClient := storage.NewS3Client(cfg)
+    jwtService    := service.NewJWTService(cfg.JWTSecret)
 
     // 5. Create event bus
     eventBus := eventbus.NewGoChannelEventBus(watermillLogger)
@@ -542,20 +542,25 @@ Repositories check the context for a transaction via `txKey{}`. This allows mult
 
 ### External Services
 
-**S3-compatible storage** (`internal/platform/storage/spaces_client.go`):
+**AWS S3 storage** (`internal/platform/storage/s3_client.go`):
 
 ```go
-type SpacesClient struct {
-    client   *s3.Client
-    bucket   string
-    endpoint string
+type S3Client struct {
+    client    *s3.Client
+    bucket    string
+    region    string
+    endpoint  string
+    cdnURL    string
+    urlSigner *sign.URLSigner // nil unless CloudFront signing is configured
+    urlTTL    time.Duration
 }
 
-func NewSpacesClient(cfg *config.Config) *SpacesClient { ... }
-func (c *SpacesClient) Upload(ctx context.Context, key string, data []byte, contentType string) error
-func (c *SpacesClient) Download(ctx context.Context, key string) ([]byte, error)
-func (c *SpacesClient) Delete(ctx context.Context, key string) error
-func (c *SpacesClient) GetPublicURL(key string) string
+func NewS3Client(cfg *config.Config) (*S3Client, error) { ... }
+func (c *S3Client) Upload(ctx context.Context, key string, data []byte, contentType string) error
+func (c *S3Client) Download(ctx context.Context, key string) ([]byte, error)
+func (c *S3Client) Delete(ctx context.Context, key string) error
+func (c *S3Client) GetPublicURL(key string) string          // CloudFront URL; signed + expiring (CDN_URL_TTL, default 1 week) when signing is configured
+func (c *S3Client) GetPresignedURL(ctx context.Context, key string, expiration time.Duration) (string, error)
 ```
 
 **HTTP clients** (`internal/platform/httpclient/`):
@@ -837,10 +842,16 @@ type Config struct {
     ElectronicInvoiceURL      string  // External invoice service
     ElectronicInvoiceUser     string
     ElectronicInvoicePassword string
-    SpacesRegion              string  // S3-compatible storage
-    SpacesKey                 string
-    SpacesSecret              string
-    SpacesBucket              string
+    StorageRegion             string  // AWS S3 storage
+    StorageEndpoint           string  // optional; override for local MinIO
+    StorageAccessKey          string  // optional; falls back to IAM role
+    StorageSecret             string  // optional; falls back to IAM role
+    StorageBucket             string
+    CDNURL                    string  // CloudFront base URL for object URLs
+    CDNKeyPairID              string  // optional; CloudFront signed-URL key pair ID
+    CDNPrivateKey             string  // optional; inline PEM for CloudFront signing
+    CDNPrivateKeyPath         string  // optional; PEM file path for CloudFront signing
+    CDNURLTTL                 time.Duration // signed-URL lifetime (CDN_URL_TTL, default 1 week)
     OrganizationID            string  // Multi-tenant support
 }
 
@@ -849,7 +860,7 @@ func NewConfig() (*Config, error) {
 }
 ```
 
-**Required environment variables**: `JWT_SECRET`, `ADMIN_API_KEY`, `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_SSLMODE`, `PORT`, `SPACES_*`, `ELECTRONIC_INVOICE_*`, `ORGANIZATION_ID`.
+**Required environment variables**: `JWT_SECRET`, `ADMIN_API_KEY`, `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_SSLMODE`, `PORT`, `STORAGE_BUCKET` (plus optional `STORAGE_REGION`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET`, `STORAGE_ENDPOINT`, `CDN_URL`; for signed CloudFront links `CDN_KEY_PAIR_ID` + `CDN_PRIVATE_KEY` or `CDN_PRIVATE_KEY_PATH`, and optional `CDN_URL_TTL`), `ELECTRONIC_INVOICE_*`, `ORGANIZATION_ID`.
 
 ---
 

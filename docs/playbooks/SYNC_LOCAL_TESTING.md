@@ -217,8 +217,8 @@ docker compose -f docker-compose.sync.yml down -v     # stop and wipe both DBs +
   available on the edge, and the edge cannot upload while offline. Storage-backed features
   (document upload, electronic invoices, support documents) are **online-only** — the
   frontend should surface an "offline — feature unavailable" message for them. The edge's
-  `SPACES_*` values in the compose are inert placeholders (the S3 client is lazy and never
+  `STORAGE_*` values in the compose are inert placeholders (the S3 client is lazy and never
   contacted by sync).
-- **Env management follow-up:** a small future change can make `SPACES_*` required only in
+- **Env management follow-up:** a small future change can make `STORAGE_*` required only in
   `cloud` mode (and wire an offline storage adapter on the edge), so the edge needs no
   storage env at all. Deferred to keep this rig zero-code.
