@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"slices"
 	"time"
 
 	"laguna-escondida/backend/internal/domain/permissions"
@@ -36,13 +37,18 @@ func (s *JWTService) GenerateToken(userID string, username string, roleIDs []int
 	perms := permissions.GetPermissionsForRoles(roleIDs)
 	permStrings := permissions.PermissionStrings(perms)
 
+	expiration := 7 * 24 * time.Hour
+	if slices.Contains(roleIDs, permissions.RoleAdmin) {
+		expiration = 24 * time.Hour
+	}
+
 	claims := JWTClaims{
 		UserID:      userID,
 		Username:    username,
 		RoleIDs:     roleIDs,
 		Permissions: permStrings,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiration)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}
