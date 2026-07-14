@@ -45,7 +45,8 @@ type OpenBillProductDetail struct {
 	Priority          int           `json:"priority"`
 	// CreatedAt is when this line item was first added. Preserved across order
 	// updates (the repository upserts by id), so it reflects original creation.
-	CreatedAt time.Time `json:"created_at"`
+	CreatedAt     time.Time `json:"created_at"`
+	CreatedByName string    `json:"created_by_name"`
 }
 
 type OpenBillWithProducts struct {

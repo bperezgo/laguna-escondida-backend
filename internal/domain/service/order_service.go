@@ -170,6 +170,7 @@ func (s *OrderService) CreateOrder(
 				item.Notes,
 				area,
 				priority,
+				user.ID,
 			)
 			if err != nil {
 				return nil, fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
@@ -323,7 +324,7 @@ func (s *OrderService) appendOpenBillDeleteOutbox(ctx context.Context, openBillI
 // If product is new, creates it with quantity
 // If product exists with different quantity, updates the quantity
 // If product is removed, soft deletes it (sets deleted_at)
-func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *dto.UpdateOrderRequest) (*dto.OpenBill, error) {
+func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *dto.UpdateOrderRequest, user dto.UserDomain) (*dto.OpenBill, error) {
 	existingOpenBill, err := s.openBillRepo.FindByIDWithProducts(ctx, openBillID)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
@@ -386,6 +387,7 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 				item.Notes,
 				area,
 				priority,
+				user.ID,
 			)
 			if err != nil {
 				return nil, fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)

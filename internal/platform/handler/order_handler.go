@@ -89,7 +89,19 @@ func (h *OrderHandler) UpdateOrderHandler(c *gin.Context) {
 		req.Products = []dto.OrderProductItem{}
 	}
 
-	openBill, err := h.orderService.UpdateOrder(c.Request.Context(), openBillID, &req)
+	userID, ok := c.Get("user_id")
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Username not found in context"})
+		return
+	}
+
+	userIDStr, ok := userID.(string)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID is not a string"})
+		return
+	}
+
+	openBill, err := h.orderService.UpdateOrder(c.Request.Context(), openBillID, &req, dto.UserDomain{ID: userIDStr})
 	if err != nil {
 		log.Printf("Error updating order: %v", err)
 

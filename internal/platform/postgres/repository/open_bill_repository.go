@@ -46,6 +46,7 @@ type openBillProductModel struct {
 	Status     string     `gorm:"type:varchar(50);not null;default:'created'"`
 	Area       *string    `gorm:"type:varchar(255)"`
 	Priority   int        `gorm:"type:integer;not null;default:0"`
+	CreatedBy  string     `gorm:"type:uuid;not null;column:created_by"`
 	CreatedAt  time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
 	UpdatedAt  time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
 	DeletedAt  *time.Time `gorm:"type:timestamp"`
@@ -125,6 +126,7 @@ func (r *OpenBillRepository) Create(ctx context.Context, aggregate *openBill.Agg
 					Status:     string(item.Status()),
 					Area:       item.Area(),
 					Priority:   item.Priority(),
+					CreatedBy:  item.CreatedByID(),
 					CreatedAt:  time.Now(),
 					UpdatedAt:  time.Now(),
 				}
@@ -217,6 +219,8 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 		Area       *string
 		Priority   int
 		CreatedAt  time.Time
+		// Product creator fields
+		ProductCreatedByName string
 		// Product fields
 		ProductName                string
 		ProductCategory            string
@@ -249,6 +253,7 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 			open_bills_products.area,
 			open_bills_products.priority,
 			open_bills_products.created_at,
+			product_creator.name as product_created_by_name,
 			products.name as product_name,
 			products.category as product_category,
 			products.version as product_version,
@@ -266,6 +271,7 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 			products.updated_at as product_updated_at
 		`).
 		Joins("INNER JOIN products ON open_bills_products.product_id = products.id AND products.deleted_at IS NULL").
+		Joins("LEFT JOIN users product_creator ON open_bills_products.created_by = product_creator.id AND product_creator.deleted_at IS NULL").
 		Where("open_bills_products.open_bill_id = ? AND open_bills_products.deleted_at IS NULL", id).
 		Scan(&productResults).Error
 
@@ -295,12 +301,13 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 				CreatedAt:           pr.ProductCreatedAt,
 				UpdatedAt:           pr.ProductUpdatedAt,
 			},
-			Quantity:  pr.Quantity,
-			Notes:     pr.Notes,
-			Status:    dto.CommandStatus(pr.Status),
-			Area:      pr.Area,
-			Priority:  pr.Priority,
-			CreatedAt: pr.CreatedAt,
+			Quantity:      pr.Quantity,
+			Notes:         pr.Notes,
+			Status:        dto.CommandStatus(pr.Status),
+			Area:          pr.Area,
+			Priority:      pr.Priority,
+			CreatedAt:     pr.CreatedAt,
+			CreatedByName: pr.ProductCreatedByName,
 		}
 	}
 
@@ -350,6 +357,7 @@ func (r *OpenBillRepository) FindAggregateByID(ctx context.Context, id string) (
 			dto.CommandStatus(pm.Status),
 			pm.Area,
 			pm.Priority,
+			pm.CreatedBy,
 		)
 		if err != nil {
 			return nil, err
@@ -455,6 +463,7 @@ func (r *OpenBillRepository) Update(ctx context.Context, aggregate *openBill.Agg
 					Status:     string(item.Status()),
 					Area:       item.Area(),
 					Priority:   item.Priority(),
+					CreatedBy:  item.CreatedByID(),
 					CreatedAt:  now,
 					UpdatedAt:  now,
 				}
@@ -662,6 +671,8 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 		Area       *string
 		Priority   int
 		CreatedAt  time.Time
+		// Product creator fields
+		ProductCreatedByName string
 		// Product fields
 		ProductName                string
 		ProductCategory            string
@@ -692,6 +703,7 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 			open_bills_products.area,
 			open_bills_products.priority,
 			open_bills_products.created_at,
+			product_creator.name as product_created_by_name,
 			products.name as product_name,
 			products.category as product_category,
 			products.version as product_version,
@@ -707,6 +719,7 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 			products.updated_at as product_updated_at
 		`).
 		Joins("INNER JOIN products ON open_bills_products.product_id = products.id AND products.deleted_at IS NULL").
+		Joins("LEFT JOIN users product_creator ON open_bills_products.created_by = product_creator.id AND product_creator.deleted_at IS NULL").
 		Where("open_bills_products.open_bill_id = ? AND open_bills_products.deleted_at IS NULL", id).
 		Scan(&productResults).Error
 
@@ -734,12 +747,13 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 				CreatedAt:           pr.ProductCreatedAt,
 				UpdatedAt:           pr.ProductUpdatedAt,
 			},
-			Quantity:  pr.Quantity,
-			Notes:     pr.Notes,
-			Status:    dto.CommandStatus(pr.Status),
-			Area:      pr.Area,
-			Priority:  pr.Priority,
-			CreatedAt: pr.CreatedAt,
+			Quantity:      pr.Quantity,
+			Notes:         pr.Notes,
+			Status:        dto.CommandStatus(pr.Status),
+			Area:          pr.Area,
+			Priority:      pr.Priority,
+			CreatedAt:     pr.CreatedAt,
+			CreatedByName: pr.ProductCreatedByName,
 		}
 	}
 
@@ -887,6 +901,8 @@ func (r *OpenBillRepository) FindByIDIncludingDeletedWithProducts(ctx context.Co
 		Area       *string
 		Priority   int
 		CreatedAt  time.Time
+		// Product creator fields
+		ProductCreatedByName string
 		// Product fields
 		ProductName                string
 		ProductCategory            string
@@ -917,6 +933,7 @@ func (r *OpenBillRepository) FindByIDIncludingDeletedWithProducts(ctx context.Co
 			open_bills_products.area,
 			open_bills_products.priority,
 			open_bills_products.created_at,
+			product_creator.name as product_created_by_name,
 			products.name as product_name,
 			products.category as product_category,
 			products.version as product_version,
@@ -932,6 +949,7 @@ func (r *OpenBillRepository) FindByIDIncludingDeletedWithProducts(ctx context.Co
 			products.updated_at as product_updated_at
 		`).
 		Joins("INNER JOIN products ON open_bills_products.product_id = products.id AND products.deleted_at IS NULL").
+		Joins("LEFT JOIN users product_creator ON open_bills_products.created_by = product_creator.id AND product_creator.deleted_at IS NULL").
 		Where("open_bills_products.open_bill_id = ? AND open_bills_products.deleted_at IS NULL", id).
 		Scan(&productResults).Error
 
@@ -959,12 +977,13 @@ func (r *OpenBillRepository) FindByIDIncludingDeletedWithProducts(ctx context.Co
 				CreatedAt:           pr.ProductCreatedAt,
 				UpdatedAt:           pr.ProductUpdatedAt,
 			},
-			Quantity:  pr.Quantity,
-			Notes:     pr.Notes,
-			Status:    dto.CommandStatus(pr.Status),
-			Area:      pr.Area,
-			Priority:  pr.Priority,
-			CreatedAt: pr.CreatedAt,
+			Quantity:      pr.Quantity,
+			Notes:         pr.Notes,
+			Status:        dto.CommandStatus(pr.Status),
+			Area:          pr.Area,
+			Priority:      pr.Priority,
+			CreatedAt:     pr.CreatedAt,
+			CreatedByName: pr.ProductCreatedByName,
 		}
 	}
 
@@ -1088,7 +1107,7 @@ func (r *OpenBillRepository) FindPendingByArea(ctx context.Context, area string)
 		`).
 		Joins("INNER JOIN open_bills ON open_bills_products.open_bill_id = open_bills.id AND open_bills.deleted_at IS NULL").
 		Joins("INNER JOIN products ON open_bills_products.product_id = products.id AND products.deleted_at IS NULL").
-		Joins("INNER JOIN users ON open_bills.created_by = users.id AND users.deleted_at IS NULL").
+		Joins("LEFT JOIN users ON open_bills_products.created_by = users.id AND users.deleted_at IS NULL").
 		// Stream every non-cancelled line of any comanda that still has >=1
 		// unfinished line in this area. This keeps completed lines on the kitchen
 		// board (rendered struck-through) until the whole comanda is done, so
@@ -1171,7 +1190,7 @@ func (r *OpenBillRepository) FindCompletedByAreaBetween(ctx context.Context, are
 		`).
 		Joins("INNER JOIN open_bills ON open_bills_products.open_bill_id = open_bills.id AND open_bills.deleted_at IS NULL").
 		Joins("INNER JOIN products ON open_bills_products.product_id = products.id AND products.deleted_at IS NULL").
-		Joins("INNER JOIN users ON open_bills.created_by = users.id AND users.deleted_at IS NULL").
+		Joins("LEFT JOIN users ON open_bills_products.created_by = users.id AND users.deleted_at IS NULL").
 		// Completed lines of comandas that no longer have any pending line in this
 		// area (the inverse of the live board's EXISTS), completed within the window.
 		Where(`open_bills_products.area = ?

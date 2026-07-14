@@ -9,16 +9,17 @@ import (
 )
 
 type OpenBillProduct struct {
-	id        string
-	productID string
-	quantity  int
-	notes     *string
-	status    *shared.CommandStatus
-	area      *string
-	priority  int
+	id          string
+	productID   string
+	quantity    int
+	notes       *string
+	status      *shared.CommandStatus
+	area        *string
+	priority    int
+	createdByID string
 }
 
-func NewOpenBillProduct(id, productID string, quantity int, notes *string, area *string, priority int) (*OpenBillProduct, error) {
+func NewOpenBillProduct(id, productID string, quantity int, notes *string, area *string, priority int, createdByID string) (*OpenBillProduct, error) {
 	if _, err := uuid.Parse(id); err != nil {
 		return nil, openBillError.ErrInvalidOpenBillProductID
 	}
@@ -37,17 +38,18 @@ func NewOpenBillProduct(id, productID string, quantity int, notes *string, area 
 	}
 
 	return &OpenBillProduct{
-		id:        id,
-		productID: productID,
-		quantity:  quantity,
-		notes:     notes,
-		status:    status,
-		area:      area,
-		priority:  priority,
+		id:          id,
+		productID:   productID,
+		quantity:    quantity,
+		notes:       notes,
+		status:      status,
+		area:        area,
+		priority:    priority,
+		createdByID: createdByID,
 	}, nil
 }
 
-func NewOpenBillProductFromRepository(id, productID string, quantity int, notes *string, status dto.CommandStatus, area *string, priority int) (*OpenBillProduct, error) {
+func NewOpenBillProductFromRepository(id, productID string, quantity int, notes *string, status dto.CommandStatus, area *string, priority int, createdByID string) (*OpenBillProduct, error) {
 	if _, err := uuid.Parse(id); err != nil {
 		return nil, openBillError.ErrInvalidOpenBillProductID
 	}
@@ -66,13 +68,14 @@ func NewOpenBillProductFromRepository(id, productID string, quantity int, notes 
 	}
 
 	return &OpenBillProduct{
-		id:        id,
-		productID: productID,
-		quantity:  quantity,
-		notes:     notes,
-		status:    statusVO,
-		area:      area,
-		priority:  priority,
+		id:          id,
+		productID:   productID,
+		quantity:    quantity,
+		notes:       notes,
+		status:      statusVO,
+		area:        area,
+		priority:    priority,
+		createdByID: createdByID,
 	}, nil
 }
 
@@ -102,6 +105,10 @@ func (p *OpenBillProduct) Area() *string {
 
 func (p *OpenBillProduct) Priority() int {
 	return p.priority
+}
+
+func (p *OpenBillProduct) CreatedByID() string {
+	return p.createdByID
 }
 
 func (p *OpenBillProduct) IsCreated() bool {

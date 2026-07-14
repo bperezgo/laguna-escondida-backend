@@ -727,7 +727,7 @@ func TestUpdateOrder_EmptyOrder(t *testing.T) {
 	mockOpenBillRepo.On("Update", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
 
 	// Execute
-	result, err := service.UpdateOrder(ctx, openBillID, req)
+	result, err := service.UpdateOrder(ctx, openBillID, req, dto.UserDomain{ID: "00000000-0000-0000-0000-000000000001"})
 
 	// Assert
 	require.NoError(t, err)
@@ -777,7 +777,7 @@ func TestUpdateOrder_SingleProduct(t *testing.T) {
 	mockOpenBillRepo.On("Update", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
 
 	// Execute
-	result, err := service.UpdateOrder(ctx, openBillID, req)
+	result, err := service.UpdateOrder(ctx, openBillID, req, dto.UserDomain{ID: "00000000-0000-0000-0000-000000000001"})
 
 	// Assert
 	require.NoError(t, err)
@@ -829,7 +829,7 @@ func TestUpdateOrder_MultipleProductsWithQuantities(t *testing.T) {
 	mockOpenBillRepo.On("Update", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
 
 	// Execute
-	result, err := service.UpdateOrder(ctx, openBillID, req)
+	result, err := service.UpdateOrder(ctx, openBillID, req, dto.UserDomain{ID: "00000000-0000-0000-0000-000000000001"})
 
 	// Assert
 	require.NoError(t, err)
@@ -880,7 +880,7 @@ func TestUpdateOrder_UpdateQuantity(t *testing.T) {
 	mockOpenBillRepo.On("Update", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
 
 	// Execute
-	result, err := service.UpdateOrder(ctx, openBillID, req)
+	result, err := service.UpdateOrder(ctx, openBillID, req, dto.UserDomain{ID: "00000000-0000-0000-0000-000000000001"})
 
 	// Assert
 	require.NoError(t, err)
@@ -910,7 +910,7 @@ func TestUpdateOrder_OrderNotFound(t *testing.T) {
 	mockOpenBillRepo.On("FindByIDWithProducts", ctx, openBillID).Return(nil, errors.New("not found"))
 
 	// Execute
-	result, err := service.UpdateOrder(ctx, openBillID, req)
+	result, err := service.UpdateOrder(ctx, openBillID, req, dto.UserDomain{ID: "00000000-0000-0000-0000-000000000001"})
 
 	// Assert
 	require.Error(t, err)
@@ -958,7 +958,7 @@ func TestUpdateOrder_ProductNotFound(t *testing.T) {
 	mockProductRepo.On("FindByIDs", ctx, []string{productID1, productID2}).Return([]*dto.Product{product1}, nil)
 
 	// Execute
-	result, err := service.UpdateOrder(ctx, openBillID, req)
+	result, err := service.UpdateOrder(ctx, openBillID, req, dto.UserDomain{ID: "00000000-0000-0000-0000-000000000001"})
 
 	// Assert
 	require.Error(t, err)
@@ -1004,7 +1004,7 @@ func TestUpdateOrder_RepositoryError_ProductFetch(t *testing.T) {
 	mockProductRepo.On("FindByIDs", ctx, []string{productID1}).Return(nil, repoError)
 
 	// Execute
-	result, err := service.UpdateOrder(ctx, openBillID, req)
+	result, err := service.UpdateOrder(ctx, openBillID, req, dto.UserDomain{ID: "00000000-0000-0000-0000-000000000001"})
 
 	// Assert
 	require.Error(t, err)
@@ -1056,7 +1056,7 @@ func TestUpdateOrder_RepositoryError_Update(t *testing.T) {
 	mockOpenBillRepo.On("Update", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(repoError)
 
 	// Execute
-	result, err := service.UpdateOrder(ctx, openBillID, req)
+	result, err := service.UpdateOrder(ctx, openBillID, req, dto.UserDomain{ID: "00000000-0000-0000-0000-000000000001"})
 
 	// Assert
 	require.Error(t, err)
@@ -1096,7 +1096,7 @@ func TestUpdateOrder_UpdateTemporalIdentifier(t *testing.T) {
 	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(existingAggregate, nil)
 	mockOpenBillRepo.On("Update", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
 
-	result, err := service.UpdateOrder(ctx, openBillID, req)
+	result, err := service.UpdateOrder(ctx, openBillID, req, dto.UserDomain{ID: "00000000-0000-0000-0000-000000000001"})
 
 	require.NoError(t, err)
 	assert.NotNil(t, result)
@@ -1132,7 +1132,7 @@ func TestUpdateOrder_UpdateDescriptor(t *testing.T) {
 	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(existingAggregate, nil)
 	mockOpenBillRepo.On("Update", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
 
-	result, err := service.UpdateOrder(ctx, openBillID, req)
+	result, err := service.UpdateOrder(ctx, openBillID, req, dto.UserDomain{ID: "00000000-0000-0000-0000-000000000001"})
 
 	require.NoError(t, err)
 	assert.NotNil(t, result)
@@ -1171,7 +1171,7 @@ func TestUpdateOrder_UpdateBothTemporalIdentifierAndDescriptor(t *testing.T) {
 	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(existingAggregate, nil)
 	mockOpenBillRepo.On("Update", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
 
-	result, err := service.UpdateOrder(ctx, openBillID, req)
+	result, err := service.UpdateOrder(ctx, openBillID, req, dto.UserDomain{ID: "00000000-0000-0000-0000-000000000001"})
 
 	require.NoError(t, err)
 	assert.NotNil(t, result)
@@ -1220,7 +1220,7 @@ func TestUpdateOrder_UpdateInfoWithProducts(t *testing.T) {
 	mockOpenBillRepo.On("GetProductPreparationResponsibilities", ctx, []string{productID}).Return([]dto.ProductPreparationResponsibilityWithProduct{}, nil)
 	mockOpenBillRepo.On("Update", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
 
-	result, err := service.UpdateOrder(ctx, openBillID, req)
+	result, err := service.UpdateOrder(ctx, openBillID, req, dto.UserDomain{ID: "00000000-0000-0000-0000-000000000001"})
 
 	require.NoError(t, err)
 	assert.NotNil(t, result)
@@ -1269,7 +1269,7 @@ func TestUpdateOrder_NilInfoFieldsPreservesExistingValues(t *testing.T) {
 	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(existingAggregate, nil)
 	mockOpenBillRepo.On("Update", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
 
-	result, err := service.UpdateOrder(ctx, openBillID, req)
+	result, err := service.UpdateOrder(ctx, openBillID, req, dto.UserDomain{ID: "00000000-0000-0000-0000-000000000001"})
 
 	require.NoError(t, err)
 	assert.NotNil(t, result)
@@ -2077,7 +2077,7 @@ func TestUpdateOrder_WritesOutboxRowInTransaction(t *testing.T) {
 		Return(nil).
 		Once()
 
-	_, err := service.UpdateOrder(ctx, openBillID, req)
+	_, err := service.UpdateOrder(ctx, openBillID, req, dto.UserDomain{ID: "00000000-0000-0000-0000-000000000001"})
 	require.NoError(t, err)
 
 	require.NotNil(t, captured)
@@ -2240,7 +2240,7 @@ func buildStatusAggregate(t *testing.T, productStatus dto.CommandStatus) (*openB
 	t.Helper()
 	openBillProductID := uuidPlaceholder2
 	area := "kitchen"
-	product, err := openBill.NewOpenBillProductFromRepository(openBillProductID, uuidPlaceholder1, 1, nil, productStatus, &area, 2)
+	product, err := openBill.NewOpenBillProductFromRepository(openBillProductID, uuidPlaceholder1, 1, nil, productStatus, &area, 2, "00000000-0000-0000-0000-000000000001")
 	require.NoError(t, err)
 	aggregate := createTestOpenBillAggregate(openBillID1, []*openBill.OpenBillProduct{product})
 	return aggregate, openBillID1, openBillProductID
