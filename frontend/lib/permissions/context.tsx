@@ -23,6 +23,8 @@ export function PermissionsProvider({ children }: PermissionsProviderProps) {
   const [permissions, setPermissions] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isEdge, setIsEdge] = useState(false);
 
   const fetchPermissions = useCallback(async () => {
     setIsLoading(true);
@@ -36,6 +38,8 @@ export function PermissionsProvider({ children }: PermissionsProviderProps) {
           // Not authenticated - this is expected for unauthenticated users
           setUser(null);
           setPermissions([]);
+          setIsAdmin(false);
+          setIsEdge(false);
           return;
         }
         throw new Error("Failed to fetch permissions");
@@ -44,11 +48,15 @@ export function PermissionsProvider({ children }: PermissionsProviderProps) {
       const data: AuthUser = await response.json();
       setUser(data);
       setPermissions(data.permissions || []);
+      setIsAdmin(data.roles?.some((r) => r.name === "admin") ?? false);
+      setIsEdge(data.deployment_mode === "edge");
     } catch (err) {
       console.error("Error fetching permissions:", err);
       setError(err instanceof Error ? err.message : "Unknown error");
       setUser(null);
       setPermissions([]);
+      setIsAdmin(false);
+      setIsEdge(false);
     } finally {
       setIsLoading(false);
     }
@@ -85,6 +93,8 @@ export function PermissionsProvider({ children }: PermissionsProviderProps) {
     permissions,
     isLoading,
     error,
+    isAdmin,
+    isEdge,
     hasPermission,
     hasAnyPermission,
     hasAllPermissions,

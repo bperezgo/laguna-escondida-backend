@@ -3,6 +3,7 @@ import { config } from "@/lib/config/config";
 import { getAccessToken } from "@/lib/auth";
 import { cookies } from "next/headers";
 import { AuthUser } from "@/lib/permissions/types";
+import type { EdgeMode, EdgeStatus } from "@/types/edge";
 
 export async function GET() {
   try {
@@ -40,7 +41,24 @@ export async function GET() {
     }
 
     const data: AuthUser = await response.json();
-    return NextResponse.json(data);
+
+    // Fetch deployment mode from the edge status endpoint.
+    // Default to "cloud" on failure — more restrictive is the safer fallback.
+    let deployment_mode: EdgeMode = "cloud";
+    try {
+      const edgeResponse = await fetch(`${config.apiUrl}/edge/status`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (edgeResponse.ok) {
+        const edgeData: EdgeStatus = await edgeResponse.json();
+        deployment_mode = edgeData.mode ?? "cloud";
+      }
+    } catch {
+      // Backend unreachable — keep the safe "cloud" default.
+    }
+
+    return NextResponse.json({ ...data, deployment_mode });
   } catch (error) {
     console.error("Error fetching user info:", error);
     return NextResponse.json(

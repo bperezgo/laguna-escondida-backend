@@ -2,7 +2,7 @@
 
 import type { OpenBillProductFromSSE } from "@/types/commandItem";
 import { PermissionGate } from "@/components/permissions";
-import { PERMISSIONS } from "@/lib/permissions";
+import { PERMISSIONS, usePermissions } from "@/lib/permissions";
 import {
   calculateRemainingMs,
   formatCountdown,
@@ -27,6 +27,7 @@ export default function CommandItemCard({
   isCompleting,
   now,
 }: CommandItemCardProps) {
+  const { isEdge } = usePermissions();
   const remainingMs = calculateRemainingMs(item.priority, item.created_at, now);
   const countdownColors = getCountdownColor(remainingMs);
   const createdDate = new Date(item.created_at);
@@ -71,6 +72,7 @@ export default function CommandItemCard({
         >
           {formatCountdown(remainingMs)}
         </div>
+        {isEdge && (
         <PermissionGate permission={PERMISSIONS.COMMANDS_UPDATE}>
           <button
             onClick={() => onTogglePin(item.open_bill_product_id)}
@@ -91,6 +93,7 @@ export default function CommandItemCard({
             📌
           </button>
         </PermissionGate>
+        )}
       </div>
 
       {/* Content */}
@@ -185,7 +188,8 @@ export default function CommandItemCard({
         </div>
       </div>
 
-      {/* Complete button */}
+      {/* Complete button — hidden from cloud; kitchen is read-only there. */}
+      {isEdge && (
       <PermissionGate permission={PERMISSIONS.COMMANDS_UPDATE}>
         <div
           style={{
@@ -215,6 +219,7 @@ export default function CommandItemCard({
           </button>
         </div>
       </PermissionGate>
+      )}
     </div>
   );
 }

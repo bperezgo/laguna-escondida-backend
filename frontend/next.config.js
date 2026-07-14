@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  distDir: process.env.NEXT_DIST_DIR ?? '.next',
 
   // Produce a self-contained server bundle at .next/standalone/server.js so the edge
   // appliance can run `node server.js` with a minimal, pinned dependency tree

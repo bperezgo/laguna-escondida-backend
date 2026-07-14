@@ -42,6 +42,11 @@ interface ProductWithQuantity {
    * always freely editable. Drives the 5-minute edit lock.
    */
   createdAt?: string;
+  /**
+   * Name of the staff member who added this line. Only populated when different
+   * from the order creator — the modal shows it as contextual info.
+   */
+  createdByName?: string;
 }
 
 /**
@@ -163,6 +168,8 @@ export default function EditOrderForm({
           if (product) {
             counter++;
             const lineItemId = `line-${counter}`;
+            const adderName = orderProduct.created_by_name || "";
+            const orderCreatorName = openBill.created_by?.name || "";
             initialSelectedProducts.set(lineItemId, {
               lineItemId,
               openBillProductId: orderProduct.open_bill_product_id,
@@ -171,6 +178,10 @@ export default function EditOrderForm({
               notes: orderProduct.notes || "",
               status: orderProduct.status,
               createdAt: orderProduct.created_at,
+              createdByName:
+                adderName && adderName !== orderCreatorName
+                  ? adderName
+                  : undefined,
             });
           }
         });

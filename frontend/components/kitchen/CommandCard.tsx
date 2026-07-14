@@ -2,7 +2,7 @@
 
 import type { GroupedCommand } from "./KitchenCommandView";
 import { PermissionGate } from "@/components/permissions";
-import { PERMISSIONS } from "@/lib/permissions";
+import { PERMISSIONS, usePermissions } from "@/lib/permissions";
 import {
   calculateRemainingMs,
   formatCountdown,
@@ -32,6 +32,8 @@ export default function CommandCard({
   isReady = false,
   now,
 }: CommandCardProps) {
+  const { isEdge } = usePermissions();
+
   // Format time to UTC-5 (America/Bogota or America/Lima timezone)
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -304,7 +306,9 @@ export default function CommandCard({
                   x{item.quantity}
                 </span>
 
-                {/* Per-line action: strike (✓) when pending, undo (↶) when done */}
+                {/* Per-line action: strike (✓) when pending, undo (↶) when done.
+                    Mutations are blocked from cloud — kitchen is read-only there. */}
+                {isEdge && (
                 <PermissionGate permission={PERMISSIONS.COMMANDS_UPDATE}>
                   <button
                     onClick={() =>
@@ -342,6 +346,7 @@ export default function CommandCard({
                     {isDone ? "↶" : "✓"}
                   </button>
                 </PermissionGate>
+                )}
               </div>
               {item.notes && (
                 <div

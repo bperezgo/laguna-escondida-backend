@@ -55,6 +55,8 @@ export interface OpenBillProduct {
    * grace window. Optional because responses may omit it.
    */
   created_at?: string;
+  /** Name of the user who added this line item. Empty string when omitted. */
+  created_by_name?: string;
 }
 
 export interface OpenBillWithProducts extends OpenBill {

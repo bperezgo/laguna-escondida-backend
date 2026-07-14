@@ -4,7 +4,8 @@ import { usePermissions, PERMISSIONS } from "@/lib/permissions";
 import { PermissionGate } from "@/components/permissions";
 import { Card, CardBody, Button } from "@/components/ui";
 
-// Navigation items with their required permissions
+// Navigation items with their required permissions.
+// cloudAdminOnly: true means the card is hidden on cloud for non-admin roles.
 const navItems = [
   {
     href: "/orders",
@@ -12,6 +13,7 @@ const navItems = [
     description: "Administra las órdenes de los clientes",
     permission: PERMISSIONS.ORDERS_READ,
     accent: "var(--color-primary)",
+    cloudAdminOnly: true,
   },
   {
     href: "/products",
@@ -47,6 +49,7 @@ const navItems = [
     description: "Ver comandas en tiempo real",
     permission: PERMISSIONS.COMMANDS_READ,
     accent: "var(--color-secondary)",
+    cloudAdminOnly: true,
   },
   {
     href: "/suppliers",
@@ -86,7 +89,7 @@ const navItems = [
 ];
 
 export default function HomePage() {
-  const { user, isLoading } = usePermissions();
+  const { user, isLoading, isAdmin, isEdge } = usePermissions();
 
   const handleSignOut = async () => {
     try {
@@ -167,7 +170,11 @@ export default function HomePage() {
               gap: "1rem",
             }}
           >
-            {navItems.map((item) => (
+            {navItems
+              .filter(
+                (item) => !item.cloudAdminOnly || isEdge || isAdmin
+              )
+              .map((item) => (
               <PermissionGate key={item.href} permission={item.permission}>
                 <a
                   href={item.href}

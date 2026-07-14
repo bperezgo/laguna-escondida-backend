@@ -185,6 +185,10 @@ export interface OrderLineItemData {
   quantity: number;
   notes: string;
   status?: OpenBillProductStatus;
+  /** ISO 8601 creation time of this line item (persisted items only). */
+  createdAt?: string;
+  /** Name of the staff member who added this line, only shown when different from the order creator. */
+  createdByName?: string;
 }
 
 // ── A single order line item: quantity control + name/meta + notes ──
@@ -210,7 +214,7 @@ export function OrderLineItem({
   locked?: boolean;
   focusSignal?: number;
 }) {
-  const { lineItemId, product, quantity, notes, status } = item;
+  const { lineItemId, product, quantity, notes, status, createdAt, createdByName } = item;
   const weighed = isWeighedProduct(product);
   const unit = product.unit_of_measure;
   const pending = weighed && quantity <= 0;
@@ -492,6 +496,23 @@ export function OrderLineItem({
             </>
           )}
         </div>
+        {(createdAt || createdByName) && (
+          <div
+            style={{
+              fontSize: "0.72rem",
+              color: "var(--color-text-muted)",
+              marginTop: "0.15rem",
+            }}
+          >
+            {createdAt &&
+              new Date(createdAt).toLocaleTimeString("es-CO", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            {createdAt && createdByName && " · "}
+            {createdByName}
+          </div>
+        )}
         <div style={{ marginTop: "0.4rem" }}>
           <Input
             type="text"
