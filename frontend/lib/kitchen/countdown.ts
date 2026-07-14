@@ -27,7 +27,10 @@ export function calculateRemainingMs(
 
 export function formatCountdown(remainingMs: number): string {
   if (remainingMs <= 0) {
-    return "¡URGENTE!";
+    const overdueSeconds = Math.floor(-remainingMs / 1000);
+    const minutes = Math.floor(overdueSeconds / 60);
+    const seconds = overdueSeconds % 60;
+    return `-${minutes}:${seconds.toString().padStart(2, "0")}`;
   }
 
   const totalSeconds = Math.floor(remainingMs / 1000);
