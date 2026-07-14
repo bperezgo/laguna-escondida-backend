@@ -505,7 +505,7 @@ func main() {
 				LegalNotice: cfg.TicketLegalNotice,
 			})
 			deviceHandler := handler.NewDeviceHandler(printService)
-			router.POST("/api/device/print", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersRead), deviceHandler.PrintTicketHandler)
+			router.POST("/api/device/print", handler.JWTAuthMiddleware(jwtService, permissions.RoleAdmin, permissions.RoleManager), deviceHandler.PrintTicketHandler)
 			logger.Info("Ticket printing enabled", zap.String("transport", deviceCfg.Transport))
 		}
 
