@@ -368,6 +368,11 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 			productPriceMap[p.ID] = p
 		}
 
+		existingProductsByID := make(map[string]*openBill.OpenBillProduct)
+		for _, p := range existingBillAggregate.Products() {
+			existingProductsByID[p.ID()] = p
+		}
+
 		for _, item := range req.Products {
 			if p, exists := productPriceMap[item.ProductID]; exists {
 				totalAmount = totalAmount.Add(p.TotalPriceWithTaxes.Mul(decimal.NewFromInt(int64(item.Quantity))))
@@ -380,15 +385,29 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 				priority = resp.Priority
 			}
 
-			openBillProduct, err := openBill.NewOpenBillProduct(
-				item.OpenBillProductID,
-				item.ProductID,
-				item.Quantity,
-				item.Notes,
-				area,
-				priority,
-				user.ID,
-			)
+			var openBillProduct *openBill.OpenBillProduct
+			if existing, exists := existingProductsByID[item.OpenBillProductID]; exists {
+				openBillProduct, err = openBill.NewOpenBillProductFromRepository(
+					item.OpenBillProductID,
+					item.ProductID,
+					item.Quantity,
+					item.Notes,
+					existing.Status(),
+					area,
+					priority,
+					existing.CreatedByID(),
+				)
+			} else {
+				openBillProduct, err = openBill.NewOpenBillProduct(
+					item.OpenBillProductID,
+					item.ProductID,
+					item.Quantity,
+					item.Notes,
+					area,
+					priority,
+					user.ID,
+				)
+			}
 			if err != nil {
 				return nil, fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
 			}

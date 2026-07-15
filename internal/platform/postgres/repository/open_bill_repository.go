@@ -1087,6 +1087,7 @@ func (r *OpenBillRepository) FindPendingByArea(ctx context.Context, area string)
 		TemporalIdentifier string
 		Priority           int
 		CreatedAt          time.Time
+		UpdatedAt          time.Time
 		CreatedByName      string
 	}
 
@@ -1103,6 +1104,7 @@ func (r *OpenBillRepository) FindPendingByArea(ctx context.Context, area string)
 			open_bills.temporal_identifier,
 			open_bills_products.priority,
 			open_bills_products.created_at,
+			open_bills_products.updated_at,
 			users.name as created_by_name
 		`).
 		Joins("INNER JOIN open_bills ON open_bills_products.open_bill_id = open_bills.id AND open_bills.deleted_at IS NULL").
@@ -1133,6 +1135,10 @@ func (r *OpenBillRepository) FindPendingByArea(ctx context.Context, area string)
 
 	sseProducts := make([]*dto.OpenBillProductSSE, len(results))
 	for i, r := range results {
+		var completedAt *time.Time
+		if r.Status == "completed" {
+			completedAt = &r.UpdatedAt
+		}
 		sseProducts[i] = &dto.OpenBillProductSSE{
 			OpenBillProductID:  r.OpenBillProductID,
 			OpenBillID:         r.OpenBillID,
@@ -1145,6 +1151,7 @@ func (r *OpenBillRepository) FindPendingByArea(ctx context.Context, area string)
 			Priority:           r.Priority,
 			CreatedAt:          r.CreatedAt,
 			CreatedByName:      r.CreatedByName,
+			CompletedAt:        completedAt,
 		}
 	}
 
