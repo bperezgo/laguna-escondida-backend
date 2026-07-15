@@ -129,6 +129,7 @@ func Render(ticket *dto.Ticket, opts Options) ([]byte, error) {
 		if item.Notes != "" {
 			w.wrapped("* " + item.Notes)
 		}
+		w.raw(lfByte)
 	}
 
 	// Totals.
@@ -143,6 +144,7 @@ func Render(ticket *dto.Ticket, opts Options) ([]byte, error) {
 	if ticket.Tip.IsPositive() {
 		w.line(padLR("Propina", formatCOP(ticket.Tip), w.width))
 	}
+	w.raw(lfByte)
 	w.raw(escByte, 'E', 1)
 	w.line(padLR("TOTAL", formatCOP(ticket.Total), w.width))
 	w.raw(escByte, 'E', 0)
