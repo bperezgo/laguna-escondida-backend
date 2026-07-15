@@ -32,6 +32,14 @@ const (
 	uuidPlaceholder2 = "550e8400-e29b-41d4-a716-446655440002"
 	uuidPlaceholder3 = "550e8400-e29b-41d4-a716-446655440003"
 	userID1          = "550e8400-e29b-41d4-a716-446655440020"
+
+	// open_bill_product IDs used in status-preservation tests
+	obpID1   = "660e8400-e29b-41d4-a716-446655440001"
+	obpID2   = "660e8400-e29b-41d4-a716-446655440002"
+	obpID3   = "660e8400-e29b-41d4-a716-446655440003"
+	obpID4   = "660e8400-e29b-41d4-a716-446655440004"
+	obpIDNew = "660e8400-e29b-41d4-a716-446655440005"
+	userID2  = "550e8400-e29b-41d4-a716-446655440021"
 )
 
 // Test helpers
@@ -2326,4 +2334,210 @@ func TestSetOpenBillProductInProgress_SyncsStatusToOutbox(t *testing.T) {
 	payload := decodeOpenBillPayload(t, captured)
 	require.Len(t, payload.Products, 1)
 	assert.Equal(t, dto.CommandStatusInProgress, payload.Products[0].Status)
+}
+
+// ============================================================================
+// UpdateOrder – Product Status Preservation (regression tests)
+//
+// Bug: when UpdateOrder rebuilt the product list from the request it used
+// NewOpenBillProduct for every item, which hardcodes status = "created". Any
+// product that had already been marked completed / in_progress / cancelled was
+// silently reset, making the kitchen display show previously-done items again.
+//
+// Fix: existing products (matched by open_bill_product ID) are reconstructed
+// with NewOpenBillProductFromRepository so their current status is preserved;
+// only genuinely new products start in "created".
+// ============================================================================
+
+// makeKitchenProduct creates an OpenBillProduct in the given status, simulating
+// a kitchen-preparation product already stored in the aggregate.
+func makeKitchenProduct(t *testing.T, obpID, productID string, status dto.CommandStatus, createdByID string) *openBill.OpenBillProduct {
+	t.Helper()
+	area := "kitchen"
+	p, err := openBill.NewOpenBillProductFromRepository(obpID, productID, 1, nil, status, &area, 1, createdByID)
+	require.NoError(t, err)
+	return p
+}
+
+// captureUpdateAggregate runs UpdateOrder and returns the aggregate that was
+// handed to the repository's Update call, for status assertions.
+func captureUpdateAggregate(
+	t *testing.T,
+	existingProducts []*openBill.OpenBillProduct,
+	reqItems []dto.OrderProductItem,
+	products []*dto.Product,
+) *openBill.Aggregate {
+	t.Helper()
+	ctx := createTestContext()
+	mockProductRepo := mocks.NewMockProductRepository(t)
+	mockOpenBillRepo := mocks.NewMockOpenBillRepository(t)
+	service := createTestService(t, mockProductRepo, mockOpenBillRepo, nil, nil)
+
+	existingBill := &dto.OpenBillWithProducts{
+		ID:                 openBillID1,
+		TemporalIdentifier: "ORDER-123",
+		TotalAmount:        decimal.NewFromFloat(0),
+		Products:           []dto.OpenBillProductDetail{},
+		CreatedBy:          dto.OpenBillCreator{ID: userID1},
+		CreatedAt:          time.Now(),
+		UpdatedAt:          time.Now(),
+	}
+	existingAggregate := createTestOpenBillAggregate(openBillID1, existingProducts)
+
+	uniqueIDs := make([]string, 0, len(products))
+	seen := make(map[string]bool)
+	for _, item := range reqItems {
+		if !seen[item.ProductID] {
+			uniqueIDs = append(uniqueIDs, item.ProductID)
+			seen[item.ProductID] = true
+		}
+	}
+
+	mockOpenBillRepo.On("FindByIDWithProducts", ctx, openBillID1).Return(existingBill, nil)
+	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID1).Return(existingAggregate, nil)
+	mockProductRepo.On("FindByIDs", ctx, uniqueIDs).Return(products, nil)
+	mockOpenBillRepo.On("GetProductPreparationResponsibilities", ctx, uniqueIDs).
+		Return([]dto.ProductPreparationResponsibilityWithProduct{}, nil)
+
+	var captured *openBill.Aggregate
+	mockOpenBillRepo.On("Update", ctx, mock.AnythingOfType("*open_bill.Aggregate")).
+		Run(func(args mock.Arguments) {
+			if agg, ok := args.Get(1).(*openBill.Aggregate); ok {
+				captured = agg
+			}
+		}).
+		Return(nil)
+
+	_, err := service.UpdateOrder(ctx, openBillID1, &dto.UpdateOrderRequest{Products: reqItems}, dto.UserDomain{ID: userID2})
+	require.NoError(t, err)
+	require.NotNil(t, captured)
+	return captured
+}
+
+// TestUpdateOrder_AddingNewProductDoesNotResetCompletedStatuses is the primary
+// regression test. Four kitchen products are already completed; a fifth is added.
+// The four completed products must not be reset to "created".
+func TestUpdateOrder_AddingNewProductDoesNotResetCompletedStatuses(t *testing.T) {
+	existing := []*openBill.OpenBillProduct{
+		makeKitchenProduct(t, obpID1, productID1, dto.CommandStatusCompleted, userID1),
+		makeKitchenProduct(t, obpID2, productID1, dto.CommandStatusCompleted, userID1),
+		makeKitchenProduct(t, obpID3, productID1, dto.CommandStatusCompleted, userID1),
+		makeKitchenProduct(t, obpID4, productID1, dto.CommandStatusCompleted, userID1),
+	}
+
+	reqItems := []dto.OrderProductItem{
+		{OpenBillProductID: obpID1, ProductID: productID1, Quantity: 1},
+		{OpenBillProductID: obpID2, ProductID: productID1, Quantity: 1},
+		{OpenBillProductID: obpID3, ProductID: productID1, Quantity: 1},
+		{OpenBillProductID: obpID4, ProductID: productID1, Quantity: 1},
+		{OpenBillProductID: obpIDNew, ProductID: productID1, Quantity: 1},
+	}
+
+	product := createTestProduct(productID1, "Burger", "Food", 1, 50.0, 9.5)
+	captured := captureUpdateAggregate(t, existing, reqItems, []*dto.Product{product})
+
+	byID := make(map[string]*openBill.OpenBillProduct)
+	for _, p := range captured.Products() {
+		byID[p.ID()] = p
+	}
+
+	require.Len(t, byID, 5)
+	for _, id := range []string{obpID1, obpID2, obpID3, obpID4} {
+		assert.Equal(t, dto.CommandStatusCompleted, byID[id].Status(), "product %s must stay completed", id)
+	}
+	assert.Equal(t, dto.CommandStatusCreated, byID[obpIDNew].Status(), "new product must start as created")
+}
+
+// TestUpdateOrder_AddingNewProductDoesNotResetInProgressStatuses verifies the
+// same preservation for in_progress products (e.g. kitchen started cooking).
+func TestUpdateOrder_AddingNewProductDoesNotResetInProgressStatuses(t *testing.T) {
+	existing := []*openBill.OpenBillProduct{
+		makeKitchenProduct(t, obpID1, productID1, dto.CommandStatusInProgress, userID1),
+		makeKitchenProduct(t, obpID2, productID1, dto.CommandStatusInProgress, userID1),
+	}
+
+	reqItems := []dto.OrderProductItem{
+		{OpenBillProductID: obpID1, ProductID: productID1, Quantity: 1},
+		{OpenBillProductID: obpID2, ProductID: productID1, Quantity: 1},
+		{OpenBillProductID: obpIDNew, ProductID: productID1, Quantity: 1},
+	}
+
+	product := createTestProduct(productID1, "Pizza", "Food", 1, 60.0, 11.4)
+	captured := captureUpdateAggregate(t, existing, reqItems, []*dto.Product{product})
+
+	byID := make(map[string]*openBill.OpenBillProduct)
+	for _, p := range captured.Products() {
+		byID[p.ID()] = p
+	}
+
+	require.Len(t, byID, 3)
+	assert.Equal(t, dto.CommandStatusInProgress, byID[obpID1].Status())
+	assert.Equal(t, dto.CommandStatusInProgress, byID[obpID2].Status())
+	assert.Equal(t, dto.CommandStatusCreated, byID[obpIDNew].Status())
+}
+
+// TestUpdateOrder_MixedStatusProductsAllPreserveTheirStatus tests an open_bill
+// where products are in different terminal and non-terminal states. Each must
+// survive the update unchanged; only the brand-new product starts as created.
+func TestUpdateOrder_MixedStatusProductsAllPreserveTheirStatus(t *testing.T) {
+	existing := []*openBill.OpenBillProduct{
+		makeKitchenProduct(t, obpID1, productID1, dto.CommandStatusCompleted, userID1),
+		makeKitchenProduct(t, obpID2, productID1, dto.CommandStatusInProgress, userID1),
+		makeKitchenProduct(t, obpID3, productID1, dto.CommandStatusCreated, userID1),
+		makeKitchenProduct(t, obpID4, productID1, dto.CommandStatusCancelled, userID1),
+	}
+
+	reqItems := []dto.OrderProductItem{
+		{OpenBillProductID: obpID1, ProductID: productID1, Quantity: 1},
+		{OpenBillProductID: obpID2, ProductID: productID1, Quantity: 1},
+		{OpenBillProductID: obpID3, ProductID: productID1, Quantity: 1},
+		{OpenBillProductID: obpID4, ProductID: productID1, Quantity: 1},
+		{OpenBillProductID: obpIDNew, ProductID: productID1, Quantity: 1},
+	}
+
+	product := createTestProduct(productID1, "Salad", "Food", 1, 30.0, 5.7)
+	captured := captureUpdateAggregate(t, existing, reqItems, []*dto.Product{product})
+
+	byID := make(map[string]*openBill.OpenBillProduct)
+	for _, p := range captured.Products() {
+		byID[p.ID()] = p
+	}
+
+	require.Len(t, byID, 5)
+	assert.Equal(t, dto.CommandStatusCompleted, byID[obpID1].Status())
+	assert.Equal(t, dto.CommandStatusInProgress, byID[obpID2].Status())
+	assert.Equal(t, dto.CommandStatusCreated, byID[obpID3].Status())
+	assert.Equal(t, dto.CommandStatusCancelled, byID[obpID4].Status())
+	assert.Equal(t, dto.CommandStatusCreated, byID[obpIDNew].Status())
+}
+
+// TestUpdateOrder_PreservesOriginalCreatedByForExistingProducts verifies that
+// the createdByID of existing products is not overwritten with the ID of the
+// waiter who is submitting the update request.
+func TestUpdateOrder_PreservesOriginalCreatedByForExistingProducts(t *testing.T) {
+	existing := []*openBill.OpenBillProduct{
+		makeKitchenProduct(t, obpID1, productID1, dto.CommandStatusCompleted, userID1),
+		makeKitchenProduct(t, obpID2, productID1, dto.CommandStatusCreated, userID1),
+	}
+
+	reqItems := []dto.OrderProductItem{
+		{OpenBillProductID: obpID1, ProductID: productID1, Quantity: 1},
+		{OpenBillProductID: obpID2, ProductID: productID1, Quantity: 1},
+		{OpenBillProductID: obpIDNew, ProductID: productID1, Quantity: 1},
+	}
+
+	product := createTestProduct(productID1, "Drink", "Beverages", 1, 10.0, 1.9)
+	captured := captureUpdateAggregate(t, existing, reqItems, []*dto.Product{product})
+
+	byID := make(map[string]*openBill.OpenBillProduct)
+	for _, p := range captured.Products() {
+		byID[p.ID()] = p
+	}
+
+	require.Len(t, byID, 3)
+	// Existing products must keep the original creator, not userID2 (the waiter running the update).
+	assert.Equal(t, userID1, byID[obpID1].CreatedByID())
+	assert.Equal(t, userID1, byID[obpID2].CreatedByID())
+	// New product is attributed to the waiter submitting the request.
+	assert.Equal(t, userID2, byID[obpIDNew].CreatedByID())
 }
