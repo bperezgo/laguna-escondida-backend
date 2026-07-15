@@ -33,6 +33,8 @@ export interface GroupedCommand {
     created_at: string;
     // Per-line status drives the strike-through (completed = struck).
     status: OpenBillProductStatus;
+    // Stamped client-side when the cook strikes the line.
+    completed_at?: string | null;
   }[];
   created_at: string;
 }
@@ -94,6 +96,7 @@ export default function KitchenCommandView() {
           priority: p.priority,
           created_at: p.created_at,
           status: p.status,
+          completed_at: p.completed_at,
         })),
         created_at: firstProduct.created_at,
       });
@@ -227,14 +230,14 @@ export default function KitchenCommandView() {
     };
   }, []);
 
-  // Optimistically set a line's status in local state (instant strike / un-strike).
   const setProductStatus = (
     productId: string,
-    status: OpenBillProductStatus
+    status: OpenBillProductStatus,
+    completed_at?: string | null
   ) => {
     setProducts((prev) =>
       prev.map((p) =>
-        p.open_bill_product_id === productId ? { ...p, status } : p
+        p.open_bill_product_id === productId ? { ...p, status, completed_at } : p
       )
     );
   };
@@ -257,25 +260,24 @@ export default function KitchenCommandView() {
   // Strike a single line. Stays visible (struck) until the whole comanda is done.
   const handleCompleteLine = async (openBillId: string, productId: string) => {
     markBusy(productId, true);
-    setProductStatus(productId, "completed"); // optimistic strike
+    setProductStatus(productId, "completed", new Date().toISOString());
     try {
       await completeOpenBillProduct(openBillId, productId);
     } catch (error) {
-      setProductStatus(productId, "created"); // revert
+      setProductStatus(productId, "created", null);
       showError(error, "Error al marcar como completado");
     } finally {
       markBusy(productId, false);
     }
   };
 
-  // Undo a strike: revert a completed line back to pending.
   const handleUndoLine = async (openBillId: string, productId: string) => {
     markBusy(productId, true);
-    setProductStatus(productId, "created"); // optimistic un-strike
+    setProductStatus(productId, "created", null);
     try {
       await uncompleteOpenBillProduct(openBillId, productId);
     } catch (error) {
-      setProductStatus(productId, "completed"); // revert
+      setProductStatus(productId, "completed"); // revert — no timestamp recovery needed
       showError(error, "Error al deshacer");
     } finally {
       markBusy(productId, false);

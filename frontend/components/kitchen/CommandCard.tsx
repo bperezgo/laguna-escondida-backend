@@ -251,7 +251,7 @@ export default function CommandCard({
                   {item.product_name}
                 </span>
 
-                {/* Countdown while pending; a check once struck */}
+                {/* Countdown while pending; a check + time once struck */}
                 {isDone ? (
                   <span
                     style={{
@@ -263,9 +263,10 @@ export default function CommandCard({
                       borderRadius: "var(--radius-sm)",
                       minWidth: "3.75rem",
                       textAlign: "center",
+                      whiteSpace: "nowrap",
                     }}
                   >
-                    ✓ Lista
+                    ✓{item.completed_at ? ` ${formatTime(item.completed_at)}` : " Lista"}
                   </span>
                 ) : (
                   <span
