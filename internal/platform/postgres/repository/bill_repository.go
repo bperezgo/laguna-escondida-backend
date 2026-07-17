@@ -2,15 +2,13 @@ package repository
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
 	"time"
 
 	"laguna-escondida/backend/internal/domain/aggregate/bill"
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
-	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/postgres"
-	"laguna-escondida/backend/internal/platform/shared/constants"
 
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
@@ -18,39 +16,75 @@ import (
 )
 
 type BillRepository struct {
-	db     *gorm.DB
-	config *config.Config
+	db *gorm.DB
 }
 
-func NewBillRepository(db *gorm.DB, cfg *config.Config) ports.BillRepository {
-	return &BillRepository{
-		db:     db,
-		config: cfg,
-	}
+func NewBillRepository(db *gorm.DB) ports.BillRepository {
+	return &BillRepository{db: db}
 }
 
+// GetNextConsecutive atomically increments and returns the next consecutive for the given
+// prefix. Called by the cloud submission service only — never at bill-creation time — so
+// all consecutive numbers come from a single centralized counter.
+// The UPSERT auto-seeds a new prefix starting at 1 rather than returning 0 when the row
+// is absent (which would silently issue an invalid consecutive to the fiscal provider).
 func (r *BillRepository) GetNextConsecutive(ctx context.Context, prefix string) (int, error) {
 	var lastConsecutive int
 	err := r.db.WithContext(ctx).
-		Raw("UPDATE invoice_sequences SET last_consecutive = last_consecutive + 1 WHERE prefix = ? RETURNING last_consecutive", prefix).
+		Raw(`INSERT INTO invoice_sequences (prefix, last_consecutive)
+		     VALUES (?, 1)
+		     ON CONFLICT (prefix)
+		     DO UPDATE SET last_consecutive = invoice_sequences.last_consecutive + 1
+		     RETURNING last_consecutive`, prefix).
 		Scan(&lastConsecutive).Error
 	if err != nil {
 		return 0, err
 	}
+	if lastConsecutive == 0 {
+		return 0, fmt.Errorf("get next consecutive: upsert returned 0 for prefix %q", prefix)
+	}
 	return lastConsecutive, nil
 }
 
-// Create persists the finalized bill and enqueues its electronic-invoice submission in one
-// transaction. It deliberately does NOT call the fiscal provider: that is an external HTTP
-// call and must not hold a DB transaction open nor block closing the order when offline. The
-// reserved prefix+consecutive and the full provider request are captured in pending_invoices
-// so the background submitter can issue (and idempotently retry) the exact same invoice later.
-func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, products []*dto.Product) error {
-	consecutive, err := r.GetNextConsecutive(ctx, constants.InvoicePrefix)
-	if err != nil {
-		return err
+// FindProductsByBillID returns full product records for a bill's line items. Used by the
+// cloud submission service to build the provider request at submission time.
+func (r *BillRepository) FindProductsByBillID(ctx context.Context, billID string) ([]*dto.Product, error) {
+	var models []productModel
+	if err := r.db.WithContext(ctx).
+		Joins("JOIN bill_products bp ON bp.product_id = products.id").
+		Where("bp.bill_id = ? AND products.deleted_at IS NULL", billID).
+		Find(&models).Error; err != nil {
+		return nil, err
 	}
 
+	result := make([]*dto.Product, len(models))
+	for i := range models {
+		result[i] = &dto.Product{
+			ID:                  models[i].ID,
+			Name:                models[i].Name,
+			Category:            models[i].Category,
+			ProductType:         dto.ProductType(models[i].ProductType),
+			UnitOfMeasure:       dto.UnitOfMeasure(models[i].UnitOfMeasure),
+			Version:             models[i].Version,
+			UnitPrice:           models[i].UnitPrice,
+			VAT:                 models[i].VAT,
+			VATAmount:           models[i].VATAmount,
+			ICO:                 models[i].ICO,
+			ICOAmount:           models[i].ICOAmount,
+			Description:         models[i].Description,
+			SKU:                 models[i].SKU,
+			TotalPriceWithTaxes: models[i].TotalPriceWithTaxes,
+			CreatedAt:           models[i].CreatedAt,
+			UpdatedAt:           models[i].UpdatedAt,
+		}
+	}
+	return result, nil
+}
+
+// Create persists the finalized bill (header, owner, line items) in a single transaction.
+// It does not enqueue a pending invoice — the calling service constructs and persists that
+// separately so the repository has no business logic.
+func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, products []*dto.Product) error {
 	billDTO := bill.ToDTO()
 
 	var billOwnerID *string
@@ -58,21 +92,9 @@ func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, produ
 		billOwnerID = &billDTO.Customer.DocumentNumber
 	}
 
-	req := &dto.CreateElectronicInvoiceRequest{
-		Prefix:      r.config.ElectronicInvoicePrefix,
-		Consecutive: consecutive,
-		PaymentCode: bill.PaymentCode(),
-		Bill:        billDTO,
-		Products:    products,
-	}
-	requestPayload, err := json.Marshal(req)
-	if err != nil {
-		return err
-	}
-
 	db := postgres.GetTxOrDB(ctx, r.db)
 	return db.Transaction(func(tx *gorm.DB) error {
-		billModel := &billModel{
+		bm := &billModel{
 			ID:             billDTO.ID,
 			BillOwnerID:    billOwnerID,
 			TotalAmount:    billDTO.TotalAmount,
@@ -97,7 +119,7 @@ func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, produ
 				UpdatedAt:          now,
 			}
 
-			if err = tx.Clauses(clause.OnConflict{
+			if err := tx.Clauses(clause.OnConflict{
 				Columns: []clause.Column{{Name: "id"}},
 				DoUpdates: clause.Assignments(map[string]any{
 					"email":               billOwner.Email,
@@ -110,31 +132,19 @@ func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, produ
 			}
 		}
 
-		if err = tx.Create(billModel).Error; err != nil {
+		if err := tx.Create(bm).Error; err != nil {
 			return err
 		}
 
 		for _, product := range products {
-			billProduct := &billProductModel{
-				BillID:    billModel.ID,
+			if err := tx.Create(&billProductModel{
+				BillID:    bm.ID,
 				ProductID: product.ID,
 				CreatedAt: time.Now(),
 				UpdatedAt: time.Now(),
-			}
-			if err = tx.Create(billProduct).Error; err != nil {
+			}).Error; err != nil {
 				return err
 			}
-		}
-
-		pending := &pendingInvoiceModel{
-			BillID:         billDTO.ID,
-			Prefix:         req.Prefix,
-			Consecutive:    consecutive,
-			RequestPayload: string(requestPayload),
-			Status:         string(dto.PendingInvoiceStatusPending),
-		}
-		if err = tx.Create(pending).Error; err != nil {
-			return err
 		}
 
 		return nil

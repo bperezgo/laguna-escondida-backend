@@ -9,6 +9,8 @@ import (
 	"laguna-escondida/backend/internal/domain/ports"
 )
 
+const logKeyNodeID = "node_id"
+
 const defaultPushBatchSize = 100
 
 // SyncPushService is the edge side of replication. It drains this node's unsynced
@@ -61,6 +63,17 @@ func (s *SyncPushService) PushPending(ctx context.Context) (*dto.SyncPushResult,
 			return result, fmt.Errorf("list unsynced outbox: %w", err)
 		}
 		if len(entries) == 0 {
+			// Detect stale node identity: rows exist for a different origin_node_id but
+			// none for ours. This happens when APP_MODE or ORGANIZATION_ID changes between
+			// runs (the derived NodeID shifts) or when NODE_ID is set to a new value.
+			// Fix: set NODE_ID explicitly to the UUID shown in the sync_outbox table, or
+			// UPDATE sync_outbox SET origin_node_id = '<current>' WHERE synced_at IS NULL.
+			if orphaned, checkErr := s.outboxRepo.HasUnsyncedFromOtherOrigins(ctx, s.syncIdentity.NodeID); checkErr == nil && orphaned {
+				s.logger.Warn("sync outbox has unsynced rows for a different node ID — "+
+					"outbox rows will never be pushed until the mismatch is resolved; "+
+					"set NODE_ID env var to the UUID stored in sync_outbox.origin_node_id",
+					slog.String(logKeyNodeID, s.syncIdentity.NodeID))
+			}
 			return result, nil
 		}
 

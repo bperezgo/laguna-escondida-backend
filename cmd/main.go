@@ -94,10 +94,8 @@ func main() {
 	expenseCategoryRepo := repository.NewExpenseCategoryRepository(db.DB)
 	expenseRepo := repository.NewExpenseRepository(db.DB)
 	productIngredientRepo := repository.NewProductIngredientRepository(db.DB)
-	electronicInvoiceClient := httpclient.NewElectronicInvoiceClient(cfg, httpClient)
-	billRepo := repository.NewBillRepository(db.DB, cfg)
+	billRepo := repository.NewBillRepository(db.DB)
 	pendingInvoiceRepo := repository.NewPendingInvoiceRepository(db.DB)
-	invoiceService := service.NewInvoiceService(electronicInvoiceClient, productRepo, billRepo, storageClient, cfg.OrganizationID)
 
 	// Initialize SSE Hubs
 	sseHub := sse.NewHub()
@@ -129,9 +127,10 @@ func main() {
 	// soft-delete for a tombstone). The sync service dispatches on op.EntityType and
 	// fails closed for any entity type without a registered applier.
 	syncAppliers := map[dto.SyncEntityType]ports.SyncApplier{
-		dto.SyncEntityOpenBill:      repository.NewOpenBillSyncApplier(db.DB),
-		dto.SyncEntityPurchaseEntry: repository.NewPurchaseEntrySyncApplier(db.DB),
-		dto.SyncEntityBill:          repository.NewBillSyncApplier(db.DB),
+		dto.SyncEntityOpenBill:       repository.NewOpenBillSyncApplier(db.DB),
+		dto.SyncEntityPurchaseEntry:  repository.NewPurchaseEntrySyncApplier(db.DB),
+		dto.SyncEntityBill:           repository.NewBillSyncApplier(db.DB),
+		dto.SyncEntityPendingInvoice: repository.NewPendingInvoiceSyncApplier(db.DB),
 	}
 	syncService := service.NewSyncService(unitOfWork, syncInboxRepo, syncAppliers, slogLogger)
 	syncReferenceService := service.NewSyncReferenceService(syncReferenceRepo, slogLogger)
@@ -141,13 +140,18 @@ func main() {
 	// Edge status: pending-ops/lag come from this node's unsynced outbox (a domain use
 	// case); connectivity comes from the sync scheduler via the in-memory tracker below.
 	edgeStatusService := service.NewEdgeStatusService(syncOutboxRepo, syncIdentity)
+	pendingInvoiceInitialStatus := dto.PendingInvoiceStatusPendingCloud
+	if cfg.AppMode == config.ModeCloud {
+		pendingInvoiceInitialStatus = dto.PendingInvoiceStatusPending
+	}
 	orderService := service.NewOrderServiceWithSSE(
 		logger,
 		openBillRepo,
 		productRepo,
 		billRepo,
+		pendingInvoiceRepo,
+		pendingInvoiceInitialStatus,
 		billOwnerRepo,
-		invoiceService,
 		unitOfWork,
 		eventBusImpl,
 		userRepo,
@@ -164,21 +168,6 @@ func main() {
 	expenseService := service.NewExpenseService(expenseCategoryRepo, expenseRepo, supplierRepo, storageClient, cfg.OrganizationID)
 	productIngredientService := service.NewProductIngredientService(productIngredientRepo, productRepo)
 	financialService := service.NewFinancialService(billRepo, expenseRepo, purchaseEntryRepo)
-	supportDocRepo := repository.NewSupportDocumentRepository(db.DB, electronicInvoiceClient, cfg)
-	supportDocService := service.NewSupportDocumentService(electronicInvoiceClient, supportDocRepo, storageClient, cfg.OrganizationID)
-	// Drains the pending_invoices queue: issues queued electronic invoices to the fiscal
-	// provider out-of-band (so paying an order never blocks on it), stores the CUFE on the
-	// bill, and replicates that result to the cloud. Runs in both modes — the queue only ever
-	// has rows on the node that took the payment.
-	invoiceSubmissionService := service.NewInvoiceSubmissionService(
-		pendingInvoiceRepo,
-		billRepo,
-		electronicInvoiceClient,
-		unitOfWork,
-		syncOutboxRepo,
-		syncIdentity,
-		logger,
-	)
 
 	// Initialize Event Subscriber
 	eventSubscriber, err := eventbus.NewGoChannelEventSubscriber(eventBusImpl.PubSub(), watermillLogger)
@@ -293,25 +282,10 @@ func main() {
 		}
 	}()
 
-	// Initialize and start cron scheduler
-	cronScheduler, err := cron.NewScheduler(invoiceService, supportDocService, invoiceSubmissionService, cfg.InvoiceURLCron, cfg.SupportDocumentURLCron, cfg.InvoiceSubmitCron, logger)
-	if err != nil {
-		log.Fatalf("Failed to create cron scheduler: %v", err)
-	}
-	if err := cronScheduler.Start(); err != nil {
-		log.Fatalf("Failed to start cron scheduler: %v", err)
-	}
-	defer func() {
-		if err := cronScheduler.Stop(); err != nil {
-			log.Printf("Failed to stop cron scheduler: %v", err)
-		}
-	}()
-
 	// Initialize handlers
 	orderHandler := handler.NewOrderHandler(orderService)
 	productHandler := handler.NewProductHandler(productService)
 	stockHandler := handler.NewStockHandler(stockService)
-	invoiceHandler := handler.NewInvoiceHandler(invoiceService)
 	userHandler := handler.NewUserHandler(userService)
 	billOwnerHandler := handler.NewBillOwnerHandler(billOwnerService)
 	supplierHandler := handler.NewSupplierHandler(supplierService)
@@ -319,7 +293,6 @@ func main() {
 	expenseHandler := handler.NewExpenseHandler(expenseService)
 	productIngredientHandler := handler.NewProductIngredientHandler(productIngredientService)
 	financialHandler := handler.NewFinancialHandler(financialService)
-	supportDocHandler := handler.NewSupportDocumentHandler(supportDocService)
 	sseHandler := handler.NewSSEHandler(sseHub, openBillProductHub, orderService, logger)
 	// Online flips to offline if no successful pull lands within ~2.5 pull-cron intervals.
 	// In edge mode the scheduler (below) records pull outcomes into this tracker; in cloud
@@ -361,10 +334,6 @@ func main() {
 	adminUsers.DELETE("/users/:id", handler.RequirePermission(permissions.UsersDelete), userHandler.DeleteUserHandler)
 	adminUsers.GET("/roles", handler.RequirePermission(permissions.UsersRead), userHandler.ListRolesHandler)
 
-	// Admin routes (protected with admin API key)
-	router.POST("/api/invoices/update-missing-document-urls", handler.AdminAPIKeyMiddleware(cfg), invoiceHandler.UpdateMissingDocumentURLsHandler)
-	router.POST("/api/support-documents/update-missing-document-urls", handler.AdminAPIKeyMiddleware(cfg), supportDocHandler.UpdateMissingSupportDocumentURLsHandler)
-
 	// Protected routes (require JWT authentication + permissions)
 	// Order routes
 	router.POST("/api/orders", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersCreate), orderHandler.CreateOrderHandler)
@@ -402,16 +371,6 @@ func main() {
 	router.GET("/api/products/:id/ingredients", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsRead), productIngredientHandler.GetIngredientsHandler)
 	router.PUT("/api/products/:id/ingredients/:ingredient_id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), productIngredientHandler.UpdateIngredientHandler)
 	router.DELETE("/api/products/:id/ingredients/:ingredient_id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), productIngredientHandler.RemoveIngredientHandler)
-
-	// Invoice routes
-	router.POST("/api/invoices", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.InvoicesCreate), invoiceHandler.CreateElectronicInvoiceHandler)
-	router.GET("/api/invoices", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.InvoicesRead), invoiceHandler.ListInvoicesHandler)
-	router.GET("/api/invoices/export", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.InvoicesExport), invoiceHandler.ExportInvoicesCSVHandler)
-
-	// Support Document routes
-	router.POST("/api/support-documents", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SupportDocumentsCreate), supportDocHandler.CreateSupportDocumentHandler)
-	router.GET("/api/support-documents", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SupportDocumentsRead), supportDocHandler.ListSupportDocumentsHandler)
-	router.GET("/api/support-documents/export", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SupportDocumentsExport), supportDocHandler.ExportSupportDocumentsCSVHandler)
 
 	// Stock routes
 	router.POST("/api/stock", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.StockCreate), stockHandler.CreateStockHandler)
@@ -537,8 +496,48 @@ func main() {
 		}()
 	case config.ModeCloud:
 		logger.Info("Running in CLOUD mode", zap.String("app_mode", string(cfg.AppMode)))
-		// Cloud is the sync aggregate: accept pushes from edge nodes and serve them the
-		// reference changes they pull. Both routes require the shared node key.
+
+		electronicInvoiceClient := httpclient.NewElectronicInvoiceClient(cfg, httpClient)
+		invoiceService := service.NewInvoiceService(
+			electronicInvoiceClient, productRepo, billRepo, pendingInvoiceRepo, unitOfWork, storageClient, cfg.OrganizationID,
+		)
+		supportDocRepo := repository.NewSupportDocumentRepository(db.DB, electronicInvoiceClient, cfg)
+		supportDocService := service.NewSupportDocumentService(electronicInvoiceClient, supportDocRepo, storageClient, cfg.OrganizationID)
+		invoiceSubmissionService := service.NewInvoiceSubmissionService(
+			pendingInvoiceRepo, billRepo, electronicInvoiceClient, unitOfWork, syncOutboxRepo, syncIdentity, cfg, logger,
+		)
+
+		cronScheduler, cronErr := cron.NewScheduler(invoiceService, supportDocService, invoiceSubmissionService, cfg.InvoiceURLCron, cfg.SupportDocumentURLCron, cfg.InvoiceSubmitCron, logger)
+		if cronErr != nil {
+			log.Fatalf("Failed to create cron scheduler: %v", cronErr)
+		}
+		if cronErr = cronScheduler.Start(); cronErr != nil {
+			log.Fatalf("Failed to start cron scheduler: %v", cronErr)
+		}
+		defer func() {
+			if cronErr = cronScheduler.Stop(); cronErr != nil {
+				log.Printf("Failed to stop cron scheduler: %v", cronErr)
+			}
+		}()
+
+		invoiceHandler := handler.NewInvoiceHandler(invoiceService)
+		supportDocHandler := handler.NewSupportDocumentHandler(supportDocService)
+
+		// Admin routes (protected with admin API key)
+		router.POST("/api/invoices/update-missing-document-urls", handler.AdminAPIKeyMiddleware(cfg), invoiceHandler.UpdateMissingDocumentURLsHandler)
+		router.POST("/api/support-documents/update-missing-document-urls", handler.AdminAPIKeyMiddleware(cfg), supportDocHandler.UpdateMissingSupportDocumentURLsHandler)
+
+		// Invoice routes
+		router.POST("/api/invoices", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.InvoicesCreate), invoiceHandler.CreateElectronicInvoiceHandler)
+		router.GET("/api/invoices", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.InvoicesRead), invoiceHandler.ListInvoicesHandler)
+		router.GET("/api/invoices/export", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.InvoicesExport), invoiceHandler.ExportInvoicesCSVHandler)
+
+		// Support Document routes
+		router.POST("/api/support-documents", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SupportDocumentsCreate), supportDocHandler.CreateSupportDocumentHandler)
+		router.GET("/api/support-documents", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SupportDocumentsRead), supportDocHandler.ListSupportDocumentsHandler)
+		router.GET("/api/support-documents/export", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SupportDocumentsExport), supportDocHandler.ExportSupportDocumentsCSVHandler)
+
+		// Cloud sync aggregate: accept pushes from edge nodes and serve reference changes.
 		syncHandler := handler.NewSyncHandler(syncService, syncReferenceService)
 		router.POST("/api/sync/push", handler.NodeAuthMiddleware(cfg), syncHandler.PushHandler)
 		router.GET("/api/sync/pull", handler.NodeAuthMiddleware(cfg), syncHandler.PullHandler)

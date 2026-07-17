@@ -13,15 +13,17 @@ import (
 	"gorm.io/gorm"
 )
 
-// pendingInvoiceModel maps the pending_invoices local job queue. It is enqueued by
-// BillRepository.Create (same package, same transaction as the bill) and drained by the
-// invoice submission service. It is never replicated between nodes.
+// pendingInvoiceModel maps the pending_invoices queue. Rows are created by
+// BillRepository.Create and drained by the cloud submission service.
+// Consecutive and RequestPayload are NULL until the cloud cron assigns them
+// right before the first submission attempt.
 type pendingInvoiceModel struct {
 	ID             string     `gorm:"column:id;primaryKey;default:gen_random_uuid()"`
 	BillID         string     `gorm:"column:bill_id"`
+	PaymentCode    string     `gorm:"column:payment_code"`
 	Prefix         string     `gorm:"column:prefix"`
-	Consecutive    int        `gorm:"column:consecutive"`
-	RequestPayload string     `gorm:"column:request_payload;type:jsonb"`
+	Consecutive    *int       `gorm:"column:consecutive"`
+	RequestPayload *string    `gorm:"column:request_payload;type:jsonb"`
 	Status         string     `gorm:"column:status"`
 	Attempts       int        `gorm:"column:attempts"`
 	LastAttemptAt  *time.Time `gorm:"column:last_attempt_at"`
@@ -43,9 +45,22 @@ func NewPendingInvoiceRepository(db *gorm.DB) ports.PendingInvoiceRepository {
 	return &PendingInvoiceRepository{db: db}
 }
 
-// ListDue returns due pending submissions in consecutive order (lowest-first), so fiscal
-// numbers are issued in sequence. A row is due when it has never been attempted
-// (next_attempt_at IS NULL) or its backoff timer has elapsed.
+// Create persists a new pending invoice row exactly as the caller constructed it.
+func (r *PendingInvoiceRepository) Create(ctx context.Context, p *dto.PendingInvoice) error {
+	db := postgres.GetTxOrDB(ctx, r.db)
+	m := &pendingInvoiceModel{
+		ID:          p.ID,
+		BillID:      p.BillID,
+		PaymentCode: string(p.PaymentCode),
+		Status:      string(p.Status),
+	}
+	return db.Create(m).Error
+}
+
+// ListDue returns due pending submissions ordered by consecutive ascending (NULLS FIRST),
+// so unassigned rows are processed before already-assigned ones, and submitted numbers are
+// issued in sequence. A row is due when it has never been attempted (next_attempt_at IS NULL)
+// or its backoff timer has elapsed.
 func (r *PendingInvoiceRepository) ListDue(ctx context.Context, limit int) ([]*dto.PendingInvoice, error) {
 	db := postgres.GetTxOrDB(ctx, r.db)
 
@@ -53,7 +68,7 @@ func (r *PendingInvoiceRepository) ListDue(ctx context.Context, limit int) ([]*d
 	if err := db.
 		Where("status = ? AND (next_attempt_at IS NULL OR next_attempt_at <= ?)",
 			string(dto.PendingInvoiceStatusPending), time.Now()).
-		Order("consecutive ASC").
+		Order("consecutive ASC NULLS FIRST").
 		Limit(limit).
 		Find(&models).Error; err != nil {
 		return nil, fmt.Errorf("query due pending invoices: %w", err)
@@ -64,6 +79,24 @@ func (r *PendingInvoiceRepository) ListDue(ctx context.Context, limit int) ([]*d
 		pendings[i] = toPendingInvoice(&models[i])
 	}
 	return pendings, nil
+}
+
+// AssignConsecutive stores the cloud-assigned consecutive and the built request payload.
+// The WHERE consecutive IS NULL guard makes it idempotent — a second concurrent call is
+// a no-op so concurrent cron ticks cannot double-assign.
+func (r *PendingInvoiceRepository) AssignConsecutive(ctx context.Context, id string, consecutive int, requestPayload json.RawMessage) error {
+	db := postgres.GetTxOrDB(ctx, r.db)
+	payload := string(requestPayload)
+	if err := db.Model(&pendingInvoiceModel{}).
+		Where("id = ? AND consecutive IS NULL", id).
+		Updates(map[string]any{
+			"consecutive":     consecutive,
+			"request_payload": payload,
+			"updated_at":      time.Now(),
+		}).Error; err != nil {
+		return fmt.Errorf("assign consecutive to pending invoice: %w", err)
+	}
+	return nil
 }
 
 // MarkSubmitted flips a row to submitted after the provider accepts it.
@@ -105,12 +138,17 @@ func (r *PendingInvoiceRepository) MarkFailed(ctx context.Context, id string, er
 }
 
 func toPendingInvoice(m *pendingInvoiceModel) *dto.PendingInvoice {
+	var payload json.RawMessage
+	if m.RequestPayload != nil {
+		payload = json.RawMessage(*m.RequestPayload)
+	}
 	return &dto.PendingInvoice{
 		ID:             m.ID,
 		BillID:         m.BillID,
+		PaymentCode:    dto.ElectronicInvoicePaymentCode(m.PaymentCode),
 		Prefix:         m.Prefix,
 		Consecutive:    m.Consecutive,
-		RequestPayload: json.RawMessage(m.RequestPayload),
+		RequestPayload: payload,
 		Status:         dto.PendingInvoiceStatus(m.Status),
 		Attempts:       m.Attempts,
 		LastAttemptAt:  m.LastAttemptAt,

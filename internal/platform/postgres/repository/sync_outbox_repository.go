@@ -142,6 +142,23 @@ func (r *SyncOutboxRepository) PendingStats(ctx context.Context, originNodeID st
 	}, nil
 }
 
+// HasUnsyncedFromOtherOrigins returns true when any unsynced row in the outbox
+// belongs to a node other than myOriginNodeID. A true result with an empty
+// ListUnsynced means the current node ID doesn't match what was written —
+// typically caused by APP_MODE or ORGANIZATION_ID changing between runs.
+func (r *SyncOutboxRepository) HasUnsyncedFromOtherOrigins(ctx context.Context, myOriginNodeID string) (bool, error) {
+	db := postgres.GetTxOrDB(ctx, r.db)
+
+	var exists bool
+	if err := db.Raw(
+		"SELECT EXISTS(SELECT 1 FROM sync_outbox WHERE origin_node_id != ? AND synced_at IS NULL)",
+		myOriginNodeID,
+	).Scan(&exists).Error; err != nil {
+		return false, fmt.Errorf("check unsynced from other origins: %w", err)
+	}
+	return exists, nil
+}
+
 func toSyncOutboxEntry(m *syncOutboxModel) *dto.SyncOutboxEntry {
 	return &dto.SyncOutboxEntry{
 		OpID:         m.OpID,

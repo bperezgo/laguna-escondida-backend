@@ -4,6 +4,7 @@ package mocks
 
 import (
 	context "context"
+	json "encoding/json"
 	dto "laguna-escondida/backend/internal/domain/dto"
 
 	mock "github.com/stretchr/testify/mock"
@@ -22,6 +23,102 @@ type MockPendingInvoiceRepository_Expecter struct {
 
 func (_m *MockPendingInvoiceRepository) EXPECT() *MockPendingInvoiceRepository_Expecter {
 	return &MockPendingInvoiceRepository_Expecter{mock: &_m.Mock}
+}
+
+// AssignConsecutive provides a mock function with given fields: ctx, id, consecutive, requestPayload
+func (_m *MockPendingInvoiceRepository) AssignConsecutive(ctx context.Context, id string, consecutive int, requestPayload json.RawMessage) error {
+	ret := _m.Called(ctx, id, consecutive, requestPayload)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AssignConsecutive")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, int, json.RawMessage) error); ok {
+		r0 = rf(ctx, id, consecutive, requestPayload)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockPendingInvoiceRepository_AssignConsecutive_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AssignConsecutive'
+type MockPendingInvoiceRepository_AssignConsecutive_Call struct {
+	*mock.Call
+}
+
+// AssignConsecutive is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+//   - consecutive int
+//   - requestPayload json.RawMessage
+func (_e *MockPendingInvoiceRepository_Expecter) AssignConsecutive(ctx interface{}, id interface{}, consecutive interface{}, requestPayload interface{}) *MockPendingInvoiceRepository_AssignConsecutive_Call {
+	return &MockPendingInvoiceRepository_AssignConsecutive_Call{Call: _e.mock.On("AssignConsecutive", ctx, id, consecutive, requestPayload)}
+}
+
+func (_c *MockPendingInvoiceRepository_AssignConsecutive_Call) Run(run func(ctx context.Context, id string, consecutive int, requestPayload json.RawMessage)) *MockPendingInvoiceRepository_AssignConsecutive_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(int), args[3].(json.RawMessage))
+	})
+	return _c
+}
+
+func (_c *MockPendingInvoiceRepository_AssignConsecutive_Call) Return(_a0 error) *MockPendingInvoiceRepository_AssignConsecutive_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockPendingInvoiceRepository_AssignConsecutive_Call) RunAndReturn(run func(context.Context, string, int, json.RawMessage) error) *MockPendingInvoiceRepository_AssignConsecutive_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// Create provides a mock function with given fields: ctx, pendingInvoice
+func (_m *MockPendingInvoiceRepository) Create(ctx context.Context, pendingInvoice *dto.PendingInvoice) error {
+	ret := _m.Called(ctx, pendingInvoice)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Create")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *dto.PendingInvoice) error); ok {
+		r0 = rf(ctx, pendingInvoice)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockPendingInvoiceRepository_Create_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Create'
+type MockPendingInvoiceRepository_Create_Call struct {
+	*mock.Call
+}
+
+// Create is a helper method to define mock.On call
+//   - ctx context.Context
+//   - pendingInvoice *dto.PendingInvoice
+func (_e *MockPendingInvoiceRepository_Expecter) Create(ctx interface{}, pendingInvoice interface{}) *MockPendingInvoiceRepository_Create_Call {
+	return &MockPendingInvoiceRepository_Create_Call{Call: _e.mock.On("Create", ctx, pendingInvoice)}
+}
+
+func (_c *MockPendingInvoiceRepository_Create_Call) Run(run func(ctx context.Context, pendingInvoice *dto.PendingInvoice)) *MockPendingInvoiceRepository_Create_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*dto.PendingInvoice))
+	})
+	return _c
+}
+
+func (_c *MockPendingInvoiceRepository_Create_Call) Return(_a0 error) *MockPendingInvoiceRepository_Create_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockPendingInvoiceRepository_Create_Call) RunAndReturn(run func(context.Context, *dto.PendingInvoice) error) *MockPendingInvoiceRepository_Create_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // ListDue provides a mock function with given fields: ctx, limit

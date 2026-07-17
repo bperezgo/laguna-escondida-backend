@@ -8,6 +8,7 @@ import (
 
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
+	"laguna-escondida/backend/internal/platform/config"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -23,12 +24,12 @@ const (
 	invoiceBackoffMax  = time.Hour
 )
 
-// InvoiceSubmissionService drains the pending_invoices queue: it issues each queued
-// electronic invoice through the fiscal provider, stores the returned CUFE/Tascode on the
-// bill, and replicates that result to the cloud. The provider call happens OUTSIDE any DB
-// transaction (it is an external HTTP hop), so it never blocks closing an order. It is safe
-// to re-run — the provider deduplicates on prefix+consecutive, and the same row carries the
-// same reserved number across retries.
+// InvoiceSubmissionService drains the pending_invoices queue: for each due row it first
+// assigns the next consecutive from the centralized invoice_sequences (if not already done),
+// builds the provider request, submits it, stores the CUFE/Tascode on the bill, and
+// replicates the result to the cloud. The provider call happens OUTSIDE any DB transaction.
+// It is safe to re-run — consecutive assignment is idempotent (WHERE consecutive IS NULL)
+// and the provider deduplicates on prefix+consecutive.
 type InvoiceSubmissionService struct {
 	pendingRepo   ports.PendingInvoiceRepository
 	billRepo      ports.BillRepository
@@ -36,6 +37,7 @@ type InvoiceSubmissionService struct {
 	unitOfWork    ports.UnitOfWork
 	outboxRepo    ports.SyncOutboxRepository
 	syncIdentity  dto.SyncIdentity
+	config        *config.Config
 	logger        *zap.Logger
 }
 
@@ -46,6 +48,7 @@ func NewInvoiceSubmissionService(
 	unitOfWork ports.UnitOfWork,
 	outboxRepo ports.SyncOutboxRepository,
 	syncIdentity dto.SyncIdentity,
+	cfg *config.Config,
 	logger *zap.Logger,
 ) *InvoiceSubmissionService {
 	return &InvoiceSubmissionService{
@@ -55,6 +58,7 @@ func NewInvoiceSubmissionService(
 		unitOfWork:    unitOfWork,
 		outboxRepo:    outboxRepo,
 		syncIdentity:  syncIdentity,
+		config:        cfg,
 		logger:        logger,
 	}
 }
@@ -74,6 +78,20 @@ func (s *InvoiceSubmissionService) SubmitDue(ctx context.Context) error {
 }
 
 func (s *InvoiceSubmissionService) submitOne(ctx context.Context, pending *dto.PendingInvoice) {
+	// Assign the consecutive and build the request payload on first encounter. This is the
+	// centralization point: all consecutive numbers come from the cloud's invoice_sequences,
+	// never from the edge, so edge and cloud bills cannot produce duplicate numbers.
+	if pending.Consecutive == nil {
+		if err := s.reserveConsecutive(ctx, pending); err != nil {
+			s.logger.Warn("failed to assign invoice consecutive; will retry",
+				zap.String("pending_invoice_id", pending.ID),
+				zap.String("bill_id", pending.BillID),
+				zap.Error(err))
+			s.markFailed(ctx, pending, err)
+			return
+		}
+	}
+
 	var req dto.CreateElectronicInvoiceRequest
 	if err := json.Unmarshal(pending.RequestPayload, &req); err != nil {
 		s.logger.Error("invalid pending invoice payload; backing off",
@@ -93,8 +111,8 @@ func (s *InvoiceSubmissionService) submitOne(ctx context.Context, pending *dto.P
 		s.logger.Warn("electronic invoice submission failed; will retry",
 			zap.String("pending_invoice_id", pending.ID),
 			zap.String("bill_id", pending.BillID),
-			zap.String("prefix", pending.Prefix),
-			zap.Int("consecutive", pending.Consecutive),
+			zap.String("prefix", s.config.ElectronicInvoicePrefix),
+			zap.Int("consecutive", *pending.Consecutive),
 			zap.Int("attempts", pending.Attempts),
 			zap.Error(err))
 		s.markFailed(ctx, pending, err)
@@ -121,6 +139,53 @@ func (s *InvoiceSubmissionService) submitOne(ctx context.Context, pending *dto.P
 			zap.String("cufe", resp.CUFE),
 			zap.Error(err))
 	}
+}
+
+// reserveConsecutive assigns the next consecutive from the cloud's invoice_sequences,
+// fetches the bill and its products, builds the full CreateElectronicInvoiceRequest, and
+// persists it to the pending_invoice row. After this call, pending.Consecutive and
+// pending.RequestPayload are populated and ready for submission.
+func (s *InvoiceSubmissionService) reserveConsecutive(ctx context.Context, pending *dto.PendingInvoice) error {
+	bill, err := s.billRepo.FindByID(ctx, pending.BillID)
+	if err != nil {
+		return fmt.Errorf("load bill for invoice: %w", err)
+	}
+
+	products, err := s.billRepo.FindProductsByBillID(ctx, pending.BillID)
+	if err != nil {
+		return fmt.Errorf("load products for invoice: %w", err)
+	}
+	// Guard before claiming a consecutive: if the cloud's products table doesn't yet have
+	// the product IDs referenced by bill_products (e.g. edge-created products whose pull
+	// sync hasn't run), building the provider request would produce an invalid empty-items
+	// payload. Returning an error here keeps consecutive IS NULL so the next tick retries —
+	// no sequence number is wasted and no broken payload is stored permanently.
+	if len(products) == 0 {
+		return fmt.Errorf("no products found for bill %s: products may not yet be synced to cloud", pending.BillID)
+	}
+
+	consecutive, err := s.billRepo.GetNextConsecutive(ctx, s.config.ElectronicInvoicePrefix)
+	if err != nil {
+		return fmt.Errorf("get next consecutive: %w", err)
+	}
+
+	reqPayload, err := json.Marshal(&dto.CreateElectronicInvoiceRequest{
+		Prefix:      s.config.ElectronicInvoicePrefix,
+		Consecutive: consecutive,
+		PaymentCode: pending.PaymentCode,
+		Bill:        bill,
+		Products:    products,
+	})
+	if err != nil {
+		return fmt.Errorf("marshal invoice request: %w", err)
+	}
+
+	if err := s.pendingRepo.AssignConsecutive(ctx, pending.ID, consecutive, reqPayload); err != nil {
+		return fmt.Errorf("persist assigned consecutive: %w", err)
+	}
+	pending.Consecutive = &consecutive
+	pending.RequestPayload = reqPayload
+	return nil
 }
 
 func (s *InvoiceSubmissionService) markFailed(ctx context.Context, pending *dto.PendingInvoice, cause error) {

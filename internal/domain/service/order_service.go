@@ -28,43 +28,46 @@ const OpenBillProductCancelledEventType = "open_bill_product.cancelled"
 const OpenBillProductUpdatedEventType = "open_bill_product.updated"
 
 type OrderService struct {
-	logger                     *zap.Logger
-	openBillRepo               ports.OpenBillRepository
-	productRepo                ports.ProductRepository
-	billRepo                   ports.BillRepository
-	billOwnerRepo              ports.BillOwnerRepository
-	invoiceService             *InvoiceService
-	unitOfWork                 ports.UnitOfWork
-	eventBus                   pkgports.EventBus
-	userRepo                   ports.UserRepository
-	openBillProductSSENotifier ports.OpenBillProductSSENotifier
-	outboxRepo                 ports.SyncOutboxRepository
-	syncIdentity               dto.SyncIdentity
-	taxConfig                  dto.TaxConfig
+	logger                      *zap.Logger
+	openBillRepo                ports.OpenBillRepository
+	productRepo                 ports.ProductRepository
+	billRepo                    ports.BillRepository
+	pendingInvoiceRepo          ports.PendingInvoiceRepository
+	pendingInvoiceInitialStatus dto.PendingInvoiceStatus
+	billOwnerRepo               ports.BillOwnerRepository
+	unitOfWork                  ports.UnitOfWork
+	eventBus                    pkgports.EventBus
+	userRepo                    ports.UserRepository
+	openBillProductSSENotifier  ports.OpenBillProductSSENotifier
+	outboxRepo                  ports.SyncOutboxRepository
+	syncIdentity                dto.SyncIdentity
+	taxConfig                   dto.TaxConfig
 }
 
 func NewOrderService(
 	openBillRepo ports.OpenBillRepository,
 	productRepo ports.ProductRepository,
 	billRepo ports.BillRepository,
+	pendingInvoiceRepo ports.PendingInvoiceRepository,
+	pendingInvoiceInitialStatus dto.PendingInvoiceStatus,
 	billOwnerRepo ports.BillOwnerRepository,
-	invoiceService *InvoiceService,
 	unitOfWork ports.UnitOfWork,
 	eventBus pkgports.EventBus,
 	outboxRepo ports.SyncOutboxRepository,
 	syncIdentity dto.SyncIdentity,
 ) *OrderService {
 	return &OrderService{
-		openBillRepo:   openBillRepo,
-		productRepo:    productRepo,
-		taxConfig:      dto.GetDefaultTaxConfig(),
-		billRepo:       billRepo,
-		billOwnerRepo:  billOwnerRepo,
-		invoiceService: invoiceService,
-		unitOfWork:     unitOfWork,
-		eventBus:       eventBus,
-		outboxRepo:     outboxRepo,
-		syncIdentity:   syncIdentity,
+		openBillRepo:                openBillRepo,
+		productRepo:                 productRepo,
+		taxConfig:                   dto.GetDefaultTaxConfig(),
+		billRepo:                    billRepo,
+		pendingInvoiceRepo:          pendingInvoiceRepo,
+		pendingInvoiceInitialStatus: pendingInvoiceInitialStatus,
+		billOwnerRepo:               billOwnerRepo,
+		unitOfWork:                  unitOfWork,
+		eventBus:                    eventBus,
+		outboxRepo:                  outboxRepo,
+		syncIdentity:                syncIdentity,
 	}
 }
 
@@ -73,8 +76,9 @@ func NewOrderServiceWithSSE(
 	openBillRepo ports.OpenBillRepository,
 	productRepo ports.ProductRepository,
 	billRepo ports.BillRepository,
+	pendingInvoiceRepo ports.PendingInvoiceRepository,
+	pendingInvoiceInitialStatus dto.PendingInvoiceStatus,
 	billOwnerRepo ports.BillOwnerRepository,
-	invoiceService *InvoiceService,
 	unitOfWork ports.UnitOfWork,
 	eventBus pkgports.EventBus,
 	userRepo ports.UserRepository,
@@ -83,19 +87,20 @@ func NewOrderServiceWithSSE(
 	syncIdentity dto.SyncIdentity,
 ) *OrderService {
 	return &OrderService{
-		logger:                     logger,
-		openBillRepo:               openBillRepo,
-		productRepo:                productRepo,
-		taxConfig:                  dto.GetDefaultTaxConfig(),
-		billRepo:                   billRepo,
-		billOwnerRepo:              billOwnerRepo,
-		invoiceService:             invoiceService,
-		unitOfWork:                 unitOfWork,
-		eventBus:                   eventBus,
-		userRepo:                   userRepo,
-		openBillProductSSENotifier: openBillProductSSENotifier,
-		outboxRepo:                 outboxRepo,
-		syncIdentity:               syncIdentity,
+		logger:                      logger,
+		openBillRepo:                openBillRepo,
+		productRepo:                 productRepo,
+		taxConfig:                   dto.GetDefaultTaxConfig(),
+		billRepo:                    billRepo,
+		pendingInvoiceRepo:          pendingInvoiceRepo,
+		pendingInvoiceInitialStatus: pendingInvoiceInitialStatus,
+		billOwnerRepo:               billOwnerRepo,
+		unitOfWork:                  unitOfWork,
+		eventBus:                    eventBus,
+		userRepo:                    userRepo,
+		openBillProductSSENotifier:  openBillProductSSENotifier,
+		outboxRepo:                  outboxRepo,
+		syncIdentity:                syncIdentity,
 	}
 }
 
@@ -250,6 +255,7 @@ func openBillSyncProducts(aggregate *openBill.Aggregate) []dto.OpenBillSyncProdu
 			Status:            p.Status(),
 			Area:              p.Area(),
 			Priority:          p.Priority(),
+			CreatedBy:         p.CreatedByID(),
 		})
 	}
 	return items
@@ -485,14 +491,28 @@ func (s *OrderService) PayOrder(ctx context.Context, payOrderCommand command.Pay
 			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
 		}
 
-		if err := s.openBillRepo.Delete(txCtx, payOrderCommand.OpenBillID); err != nil {
+		if err = s.openBillRepo.Delete(txCtx, payOrderCommand.OpenBillID); err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
 		}
 
-		// Persist the finalized bill and enqueue its electronic invoice. This no longer calls
-		// the fiscal provider inline (that is an external HTTP call drained asynchronously by
-		// the submitter), so paying an order succeeds even when the provider is unreachable.
-		if err := s.billRepo.Create(txCtx, billAggregate, productDTOs); err != nil {
+		// Persist the finalized bill. The pending invoice is constructed here in the service
+		// (where business decisions belong) and persisted separately in the same transaction.
+		if err = s.billRepo.Create(txCtx, billAggregate, productDTOs); err != nil {
+			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
+		}
+
+		pendingInvoiceID, err := uuid.NewV7()
+		if err != nil {
+			return fmt.Errorf("%w: generate pending invoice id: %w", orderError.ErrOrderPaymentFailed, err)
+		}
+		billDTO := billAggregate.ToDTO()
+		pendingInvoice := &dto.PendingInvoice{
+			ID:          pendingInvoiceID.String(),
+			BillID:      billDTO.ID,
+			PaymentCode: payOrderCommand.PaymentCode,
+			Status:      s.pendingInvoiceInitialStatus,
+		}
+		if err = s.pendingInvoiceRepo.Create(txCtx, pendingInvoice); err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
 		}
 
@@ -506,8 +526,40 @@ func (s *OrderService) PayOrder(ctx context.Context, payOrderCommand command.Pay
 		if err := s.appendBillCreateOutbox(txCtx, billAggregate.ToDTO()); err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
 		}
+		if err := s.appendPendingInvoiceCreateOutbox(txCtx, pendingInvoice); err != nil {
+			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
+		}
 
 		return nil
+	})
+}
+
+// appendPendingInvoiceCreateOutbox writes one sync_outbox row so the cloud can create a
+// pending_invoice and submit the invoice on behalf of this edge node. Only the payment code
+// is included — consecutive and request_payload are assigned by the cloud at submission time.
+// This runs in both modes; in cloud mode there is no push loop so the row is never sent.
+func (s *OrderService) appendPendingInvoiceCreateOutbox(ctx context.Context, p *dto.PendingInvoice) error {
+	opID, err := uuid.NewV7()
+	if err != nil {
+		return fmt.Errorf("generate pending invoice outbox op_id: %w", err)
+	}
+
+	payload, err := json.Marshal(dto.PendingInvoiceSyncPayload{
+		ID:          p.ID,
+		BillID:      p.BillID,
+		PaymentCode: p.PaymentCode,
+	})
+	if err != nil {
+		return fmt.Errorf("marshal pending invoice sync payload: %w", err)
+	}
+
+	return s.outboxRepo.Append(ctx, &dto.SyncOutboxEntry{
+		OpID:         opID.String(),
+		OriginNodeID: s.syncIdentity.NodeID,
+		EntityType:   dto.SyncEntityPendingInvoice,
+		EntityID:     p.BillID,
+		Operation:    dto.SyncOperationCreate,
+		Payload:      payload,
 	})
 }
 

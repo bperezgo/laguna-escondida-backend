@@ -28,6 +28,3 @@ CREATE TABLE IF NOT EXISTS support_document_products (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP NULL
 );
-
-INSERT INTO invoice_sequences (prefix, last_consecutive) VALUES ('DS', -1)
-ON CONFLICT (prefix) DO NOTHING;

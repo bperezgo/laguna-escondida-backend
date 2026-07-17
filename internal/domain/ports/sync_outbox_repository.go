@@ -26,4 +26,9 @@ type SyncOutboxRepository interface {
 	// oldest created_at (nil when none) — powering the edge status endpoint's backlog
 	// and lag figures.
 	PendingStats(ctx context.Context, originNodeID string) (*dto.SyncOutboxPendingStats, error)
+	// HasUnsyncedFromOtherOrigins returns true when the outbox contains unsynced rows
+	// whose origin_node_id differs from myOriginNodeID. Used by the push loop to detect
+	// a stale node-identity: rows written under a previous NODE_ID are silently skipped
+	// by ListUnsynced, and this check surfaces that mismatch so it can be logged.
+	HasUnsyncedFromOtherOrigins(ctx context.Context, myOriginNodeID string) (bool, error)
 }

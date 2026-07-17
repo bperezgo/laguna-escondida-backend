@@ -74,11 +74,30 @@ func TestPushPending_EmptyOutbox_NoOp(t *testing.T) {
 	client := mocks.NewMockSyncPushClient(t)
 
 	outbox.EXPECT().ListUnsynced(mock.Anything, testNodeID, 100).Return([]*dto.SyncOutboxEntry{}, nil).Once()
+	// Genuinely empty outbox: no orphaned rows under a different node ID.
+	outbox.EXPECT().HasUnsyncedFromOtherOrigins(mock.Anything, testNodeID).Return(false, nil).Once()
 
 	result, err := newPushService(t, outbox, state, client, 100).PushPending(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 0, result.PushedOps)
 	// No push, no mark, no state advance when there is nothing to send.
+	client.AssertNotCalled(t, "Push", mock.Anything, mock.Anything)
+}
+
+func TestPushPending_EmptyOutbox_OrphanedRows_LogsWarning(t *testing.T) {
+	ctx := context.Background()
+	outbox := mocks.NewMockSyncOutboxRepository(t)
+	state := mocks.NewMockSyncStateRepository(t)
+	client := mocks.NewMockSyncPushClient(t)
+
+	// My rows return empty, but orphaned rows exist under a different node ID.
+	outbox.EXPECT().ListUnsynced(mock.Anything, testNodeID, 100).Return([]*dto.SyncOutboxEntry{}, nil).Once()
+	outbox.EXPECT().HasUnsyncedFromOtherOrigins(mock.Anything, testNodeID).Return(true, nil).Once()
+
+	result, err := newPushService(t, outbox, state, client, 100).PushPending(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 0, result.PushedOps)
+	// Still no push — but the warning log would have fired.
 	client.AssertNotCalled(t, "Push", mock.Anything, mock.Anything)
 }
 

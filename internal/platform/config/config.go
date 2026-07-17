@@ -73,15 +73,15 @@ func NewConfig() (*Config, error) {
 	}
 
 	url := os.Getenv("ELECTRONIC_INVOICE_URL")
-	if url == "" {
+	if appMode == ModeCloud && url == "" {
 		return nil, errors.New("ELECTRONIC_INVOICE_URL is not set")
 	}
 	user := os.Getenv("ELECTRONIC_INVOICE_USER")
-	if user == "" {
+	if appMode == ModeCloud && user == "" {
 		return nil, errors.New("ELECTRONIC_INVOICE_USER is not set")
 	}
 	password := os.Getenv("ELECTRONIC_INVOICE_PASSWORD")
-	if password == "" {
+	if appMode == ModeCloud && password == "" {
 		return nil, errors.New("ELECTRONIC_INVOICE_PASSWORD is not set")
 	}
 	adminAPIKey := os.Getenv("ADMIN_API_KEY")

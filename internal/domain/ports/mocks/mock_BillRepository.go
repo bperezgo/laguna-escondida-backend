@@ -315,6 +315,122 @@ func (_c *MockBillRepository_FindByNullDocumentURL_Call) RunAndReturn(run func(c
 	return _c
 }
 
+// FindProductsByBillID provides a mock function with given fields: ctx, billID
+func (_m *MockBillRepository) FindProductsByBillID(ctx context.Context, billID string) ([]*dto.Product, error) {
+	ret := _m.Called(ctx, billID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindProductsByBillID")
+	}
+
+	var r0 []*dto.Product
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]*dto.Product, error)); ok {
+		return rf(ctx, billID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []*dto.Product); ok {
+		r0 = rf(ctx, billID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*dto.Product)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, billID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockBillRepository_FindProductsByBillID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindProductsByBillID'
+type MockBillRepository_FindProductsByBillID_Call struct {
+	*mock.Call
+}
+
+// FindProductsByBillID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - billID string
+func (_e *MockBillRepository_Expecter) FindProductsByBillID(ctx interface{}, billID interface{}) *MockBillRepository_FindProductsByBillID_Call {
+	return &MockBillRepository_FindProductsByBillID_Call{Call: _e.mock.On("FindProductsByBillID", ctx, billID)}
+}
+
+func (_c *MockBillRepository_FindProductsByBillID_Call) Run(run func(ctx context.Context, billID string)) *MockBillRepository_FindProductsByBillID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockBillRepository_FindProductsByBillID_Call) Return(_a0 []*dto.Product, _a1 error) *MockBillRepository_FindProductsByBillID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockBillRepository_FindProductsByBillID_Call) RunAndReturn(run func(context.Context, string) ([]*dto.Product, error)) *MockBillRepository_FindProductsByBillID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetNextConsecutive provides a mock function with given fields: ctx, prefix
+func (_m *MockBillRepository) GetNextConsecutive(ctx context.Context, prefix string) (int, error) {
+	ret := _m.Called(ctx, prefix)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetNextConsecutive")
+	}
+
+	var r0 int
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (int, error)); ok {
+		return rf(ctx, prefix)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) int); ok {
+		r0 = rf(ctx, prefix)
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, prefix)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockBillRepository_GetNextConsecutive_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetNextConsecutive'
+type MockBillRepository_GetNextConsecutive_Call struct {
+	*mock.Call
+}
+
+// GetNextConsecutive is a helper method to define mock.On call
+//   - ctx context.Context
+//   - prefix string
+func (_e *MockBillRepository_Expecter) GetNextConsecutive(ctx interface{}, prefix interface{}) *MockBillRepository_GetNextConsecutive_Call {
+	return &MockBillRepository_GetNextConsecutive_Call{Call: _e.mock.On("GetNextConsecutive", ctx, prefix)}
+}
+
+func (_c *MockBillRepository_GetNextConsecutive_Call) Run(run func(ctx context.Context, prefix string)) *MockBillRepository_GetNextConsecutive_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockBillRepository_GetNextConsecutive_Call) Return(_a0 int, _a1 error) *MockBillRepository_GetNextConsecutive_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockBillRepository_GetNextConsecutive_Call) RunAndReturn(run func(context.Context, string) (int, error)) *MockBillRepository_GetNextConsecutive_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetRevenueSummary provides a mock function with given fields: ctx, startDate, endDate
 func (_m *MockBillRepository) GetRevenueSummary(ctx context.Context, startDate time.Time, endDate time.Time) (*dto.RevenueSummary, error) {
 	ret := _m.Called(ctx, startDate, endDate)

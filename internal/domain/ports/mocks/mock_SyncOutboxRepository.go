@@ -69,6 +69,63 @@ func (_c *MockSyncOutboxRepository_Append_Call) RunAndReturn(run func(context.Co
 	return _c
 }
 
+// HasUnsyncedFromOtherOrigins provides a mock function with given fields: ctx, myOriginNodeID
+func (_m *MockSyncOutboxRepository) HasUnsyncedFromOtherOrigins(ctx context.Context, myOriginNodeID string) (bool, error) {
+	ret := _m.Called(ctx, myOriginNodeID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for HasUnsyncedFromOtherOrigins")
+	}
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (bool, error)); ok {
+		return rf(ctx, myOriginNodeID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) bool); ok {
+		r0 = rf(ctx, myOriginNodeID)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, myOriginNodeID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockSyncOutboxRepository_HasUnsyncedFromOtherOrigins_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'HasUnsyncedFromOtherOrigins'
+type MockSyncOutboxRepository_HasUnsyncedFromOtherOrigins_Call struct {
+	*mock.Call
+}
+
+// HasUnsyncedFromOtherOrigins is a helper method to define mock.On call
+//   - ctx context.Context
+//   - myOriginNodeID string
+func (_e *MockSyncOutboxRepository_Expecter) HasUnsyncedFromOtherOrigins(ctx interface{}, myOriginNodeID interface{}) *MockSyncOutboxRepository_HasUnsyncedFromOtherOrigins_Call {
+	return &MockSyncOutboxRepository_HasUnsyncedFromOtherOrigins_Call{Call: _e.mock.On("HasUnsyncedFromOtherOrigins", ctx, myOriginNodeID)}
+}
+
+func (_c *MockSyncOutboxRepository_HasUnsyncedFromOtherOrigins_Call) Run(run func(ctx context.Context, myOriginNodeID string)) *MockSyncOutboxRepository_HasUnsyncedFromOtherOrigins_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockSyncOutboxRepository_HasUnsyncedFromOtherOrigins_Call) Return(_a0 bool, _a1 error) *MockSyncOutboxRepository_HasUnsyncedFromOtherOrigins_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockSyncOutboxRepository_HasUnsyncedFromOtherOrigins_Call) RunAndReturn(run func(context.Context, string) (bool, error)) *MockSyncOutboxRepository_HasUnsyncedFromOtherOrigins_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListUnsynced provides a mock function with given fields: ctx, originNodeID, limit
 func (_m *MockSyncOutboxRepository) ListUnsynced(ctx context.Context, originNodeID string, limit int) ([]*dto.SyncOutboxEntry, error) {
 	ret := _m.Called(ctx, originNodeID, limit)

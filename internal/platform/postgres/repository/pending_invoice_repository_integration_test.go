@@ -19,12 +19,13 @@ import (
 func seedPendingInvoice(t *testing.T, db *Database, billID string, consecutive int) string {
 	t.Helper()
 	id := uuid.NewString()
+	payload := `{"Prefix":"LAG"}`
 	require.NoError(t, db.DB.Create(&pendingInvoiceModel{
 		ID:             id,
 		BillID:         billID,
 		Prefix:         "LAG",
-		Consecutive:    consecutive,
-		RequestPayload: `{"Prefix":"LAG"}`,
+		Consecutive:    &consecutive,
+		RequestPayload: &payload,
 		Status:         string(dto.PendingInvoiceStatusPending),
 	}).Error)
 	t.Cleanup(func() { db.DB.Exec("DELETE FROM pending_invoices WHERE id = ?", id) })

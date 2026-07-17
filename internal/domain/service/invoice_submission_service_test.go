@@ -9,6 +9,7 @@ import (
 
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports/mocks"
+	"laguna-escondida/backend/internal/platform/config"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -30,18 +31,20 @@ func newSubmissionService(
 		createMockUnitOfWork(t),
 		outboxRepo,
 		dto.SyncIdentity{NodeID: testNodeID},
+		&config.Config{ElectronicInvoicePrefix: "LAG"},
 		zap.NewNop(),
 	)
 }
 
 func duePendingInvoice(t *testing.T) *dto.PendingInvoice {
-	payload, err := json.Marshal(&dto.CreateElectronicInvoiceRequest{Prefix: "LAG", Consecutive: 5})
+	consecutive := 5
+	payload, err := json.Marshal(&dto.CreateElectronicInvoiceRequest{Prefix: "LAG", Consecutive: consecutive})
 	require.NoError(t, err)
 	return &dto.PendingInvoice{
 		ID:             "pending-1",
 		BillID:         "bill-1",
 		Prefix:         "LAG",
-		Consecutive:    5,
+		Consecutive:    &consecutive,
 		RequestPayload: payload,
 		Status:         dto.PendingInvoiceStatusPending,
 		Attempts:       0,

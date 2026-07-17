@@ -13,6 +13,7 @@ import (
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
 
+	"github.com/google/uuid"
 	"github.com/samber/lo"
 )
 
@@ -20,6 +21,8 @@ type InvoiceService struct {
 	electronicInvoiceClient ports.ElectronicInvoiceClient
 	productRepo             ports.ProductRepository
 	billRepo                ports.BillRepository
+	pendingInvoiceRepo      ports.PendingInvoiceRepository
+	unitOfWork              ports.UnitOfWork
 	storageClient           ports.StorageClient
 	organizationID          string
 }
@@ -28,6 +31,8 @@ func NewInvoiceService(
 	electronicInvoiceClient ports.ElectronicInvoiceClient,
 	productRepo ports.ProductRepository,
 	billRepo ports.BillRepository,
+	pendingInvoiceRepo ports.PendingInvoiceRepository,
+	unitOfWork ports.UnitOfWork,
 	storageClient ports.StorageClient,
 	organizationID string,
 ) *InvoiceService {
@@ -35,6 +40,8 @@ func NewInvoiceService(
 		electronicInvoiceClient: electronicInvoiceClient,
 		productRepo:             productRepo,
 		billRepo:                billRepo,
+		pendingInvoiceRepo:      pendingInvoiceRepo,
+		unitOfWork:              unitOfWork,
 		storageClient:           storageClient,
 		organizationID:          organizationID,
 	}
@@ -87,13 +94,31 @@ func (s *InvoiceService) CreateElectronicInvoice(ctx context.Context, invoice *d
 		return domainError.ErrProductNotFound
 	}
 
-	bill, err := bill.NewBillFromCreateElectronicInvoiceRequest(invoice, billProducts)
-
+	billAggregate, err := bill.NewBillFromCreateElectronicInvoiceRequest(invoice, billProducts)
 	if err != nil {
 		return err
 	}
 
-	return s.billRepo.Create(ctx, bill, products)
+	// InvoiceService is cloud-only, so the pending invoice always starts as pending (not
+	// pending_cloud). Both the bill and its pending invoice are persisted in the same
+	// transaction so a partial failure cannot leave a bill without a submission row.
+	return s.unitOfWork.Do(ctx, func(txCtx context.Context) error {
+		if err := s.billRepo.Create(txCtx, billAggregate, products); err != nil {
+			return err
+		}
+
+		pendingInvoiceID, err := uuid.NewV7()
+		if err != nil {
+			return fmt.Errorf("generate pending invoice id: %w", err)
+		}
+		billDTO := billAggregate.ToDTO()
+		return s.pendingInvoiceRepo.Create(txCtx, &dto.PendingInvoice{
+			ID:          pendingInvoiceID.String(),
+			BillID:      billDTO.ID,
+			PaymentCode: invoice.PaymentCode,
+			Status:      dto.PendingInvoiceStatusPending,
+		})
+	})
 }
 
 func (s *InvoiceService) ListInvoices(ctx context.Context, req *dto.ListInvoicesRequest) (*dto.ListInvoicesResponse, error) {

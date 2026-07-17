@@ -32,9 +32,10 @@ const (
 type SyncEntityType string
 
 const (
-	SyncEntityOpenBill      SyncEntityType = "open_bill"
-	SyncEntityPurchaseEntry SyncEntityType = "purchase_entry"
-	SyncEntityBill          SyncEntityType = "bill"
+	SyncEntityOpenBill       SyncEntityType = "open_bill"
+	SyncEntityPurchaseEntry  SyncEntityType = "purchase_entry"
+	SyncEntityBill           SyncEntityType = "bill"
+	SyncEntityPendingInvoice SyncEntityType = "pending_invoice"
 )
 
 // SyncOutboxEntry is one durable change queued for replication to a peer node.
@@ -198,6 +199,16 @@ type BillSyncProduct struct {
 	Quantity  int    `json:"quantity"`
 }
 
+// PendingInvoiceSyncPayload carries the minimum data needed to create a pending_invoice row
+// on the cloud. Consecutive and RequestPayload are intentionally absent — the cloud cron
+// assigns the consecutive from its centralized invoice_sequences table and builds the full
+// provider request at submission time, so all consecutive numbers have a single source of truth.
+type PendingInvoiceSyncPayload struct {
+	ID          string                       `json:"id"`
+	BillID      string                       `json:"bill_id"`
+	PaymentCode ElectronicInvoicePaymentCode `json:"payment_code"`
+}
+
 // BillSyncPayload is the row snapshot carried in a sync_outbox entry for a finalized
 // bill, replicated restaurant → cloud. A create carries the header amounts, the embedded
 // customer (so the peer can upsert bill_owner), and the line items; CUFE/Tascode are nil
@@ -246,4 +257,5 @@ type OpenBillSyncProduct struct {
 	Status            CommandStatus `json:"status"`
 	Area              *string       `json:"area,omitempty"`
 	Priority          int           `json:"priority"`
+	CreatedBy         string        `json:"created_by"`
 }

@@ -99,6 +99,12 @@ func (a *OpenBillSyncApplier) applyUpsert(ctx context.Context, op *dto.SyncOutbo
 func (a *OpenBillSyncApplier) reconcileProducts(db *gorm.DB, payload *dto.OpenBillSyncPayload) error {
 	keepIDs := make([]string, 0, len(payload.Products))
 	for _, item := range payload.Products {
+		// Fall back to the order creator when the product payload pre-dates the
+		// created_by field (old edge code did not include it in the sync snapshot).
+		createdBy := item.CreatedBy
+		if createdBy == "" {
+			createdBy = payload.CreatedByID
+		}
 		product := &openBillProductModel{
 			ID:         item.OpenBillProductID,
 			OpenBillID: payload.ID,
@@ -108,6 +114,7 @@ func (a *OpenBillSyncApplier) reconcileProducts(db *gorm.DB, payload *dto.OpenBi
 			Status:     string(item.Status),
 			Area:       item.Area,
 			Priority:   item.Priority,
+			CreatedBy:  createdBy,
 			CreatedAt:  payload.CreatedAt,
 			UpdatedAt:  payload.UpdatedAt,
 		}
