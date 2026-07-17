@@ -501,21 +501,6 @@ func (s *OrderService) PayOrder(ctx context.Context, payOrderCommand command.Pay
 			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
 		}
 
-		pendingInvoiceID, err := uuid.NewV7()
-		if err != nil {
-			return fmt.Errorf("%w: generate pending invoice id: %w", orderError.ErrOrderPaymentFailed, err)
-		}
-		billDTO := billAggregate.ToDTO()
-		pendingInvoice := &dto.PendingInvoice{
-			ID:          pendingInvoiceID.String(),
-			BillID:      billDTO.ID,
-			PaymentCode: payOrderCommand.PaymentCode,
-			Status:      s.pendingInvoiceInitialStatus,
-		}
-		if err = s.pendingInvoiceRepo.Create(txCtx, pendingInvoice); err != nil {
-			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
-		}
-
 		// Replicate the pay outcome to the cloud (Option A, same transaction): the open_bill
 		// is gone (tombstone) and a finalized bill now exists. The bill snapshot is the same
 		// deterministic DTO the repository persisted. The bill's CUFE syncs later via an update
@@ -523,11 +508,31 @@ func (s *OrderService) PayOrder(ctx context.Context, payOrderCommand command.Pay
 		if err := s.appendOpenBillDeleteOutbox(txCtx, payOrderCommand.OpenBillID); err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
 		}
-		if err := s.appendBillCreateOutbox(txCtx, billAggregate.ToDTO()); err != nil {
+		billDTO := billAggregate.ToDTO()
+		if err := s.appendBillCreateOutbox(txCtx, billDTO); err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
 		}
-		if err := s.appendPendingInvoiceCreateOutbox(txCtx, pendingInvoice); err != nil {
-			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
+
+		// Cash payments do not require an electronic invoice from the fiscal provider,
+		// so we skip creating a pending_invoice row and its outbox entry.
+		// TODO: remove this exception once cash invoicing is required.
+		if payOrderCommand.PaymentCode != dto.ElectronicInvoicePaymentCodeCash {
+			pendingInvoiceID, err := uuid.NewV7()
+			if err != nil {
+				return fmt.Errorf("%w: generate pending invoice id: %w", orderError.ErrOrderPaymentFailed, err)
+			}
+			pendingInvoice := &dto.PendingInvoice{
+				ID:          pendingInvoiceID.String(),
+				BillID:      billDTO.ID,
+				PaymentCode: payOrderCommand.PaymentCode,
+				Status:      s.pendingInvoiceInitialStatus,
+			}
+			if err = s.pendingInvoiceRepo.Create(txCtx, pendingInvoice); err != nil {
+				return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
+			}
+			if err := s.appendPendingInvoiceCreateOutbox(txCtx, pendingInvoice); err != nil {
+				return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
+			}
 		}
 
 		return nil
