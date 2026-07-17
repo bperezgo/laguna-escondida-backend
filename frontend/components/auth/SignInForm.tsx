@@ -59,6 +59,11 @@ export default function SignInForm() {
       <div style={{ maxWidth: "26rem", width: "100%" }}>
         {/* Brand */}
         <div style={{ textAlign: "center", marginBottom: "1.75rem" }}>
+          <img
+            src="/logo-navbar.png"
+            alt="Laguna Escondida"
+            style={{ height: "72px", marginBottom: "1rem" }}
+          />
           <h1
             style={{
               fontSize: "1.75rem",

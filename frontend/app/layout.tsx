@@ -5,6 +5,13 @@ import { Providers } from "@/components/providers";
 export const metadata: Metadata = {
   title: "Laguna Escondida",
   description: "Full-stack application",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/logo-navbar.png",
+  },
 };
 
 export default function RootLayout({
