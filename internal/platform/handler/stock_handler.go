@@ -130,7 +130,13 @@ func (h *StockHandler) GetAllStocksHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, stocks)
+	total := len(stocks)
+	response := dto.StockListResponse{
+		Stocks: stocks,
+		Total:  &total,
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 func (h *StockHandler) BulkStockCreationOrUpdatingHandler(c *gin.Context) {

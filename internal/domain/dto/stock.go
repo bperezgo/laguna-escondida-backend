@@ -11,6 +11,11 @@ type Stock struct {
 	UpdatedAt     time.Time     `json:"updated_at"`
 }
 
+type StockListResponse struct {
+	Stocks []*Stock `json:"stocks"`
+	Total  *int     `json:"total,omitempty"`
+}
+
 type CreateStockRequest struct {
 	ProductID string `json:"product_id" validate:"required,uuid"`
 	Amount    int    `json:"amount" validate:"required"`
