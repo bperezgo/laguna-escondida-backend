@@ -11,7 +11,8 @@ import type {
 export async function GET() {
   try {
     const response = await serverApiRequest<any>('/stock');
-    const transformed = transformStockListResponse(response);
+    const data = await response.json();
+    const transformed = transformStockListResponse(data);
     return NextResponse.json(transformed);
   } catch (error) {
     console.error('Error fetching stocks:', error);
@@ -38,10 +39,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(transformed);
     } else {
       // Single stock creation
-      const stock = await serverApiRequest<any>('/stock', {
+      const response = await serverApiRequest<any>('/stock', {
         method: 'POST',
         body: JSON.stringify(body),
       });
+      const stock = await response.json();
       const transformed = transformStock(stock);
       return NextResponse.json(transformed);
     }

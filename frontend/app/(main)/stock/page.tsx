@@ -11,7 +11,8 @@ export default async function StockPage() {
   
   try {
     const stockResponse = await serverApiRequest<any>('/stock');
-    const transformed = transformStockListResponse(stockResponse);
+    const data = await stockResponse.json();
+    const transformed = transformStockListResponse(data);
     stocks = transformed.stocks || [];
   } catch (error) {
     console.error('Error fetching stocks:', error);
@@ -21,7 +22,8 @@ export default async function StockPage() {
   try {
     // Fetch products to show in the product selector
     const productResponse = await serverApiRequest<any>('/products');
-    const transformed = transformProductListResponse(productResponse);
+    const data = await productResponse.json();
+    const transformed = transformProductListResponse(data);
     products = transformed.products || [];
   } catch (error) {
     console.error('Error fetching products:', error);
