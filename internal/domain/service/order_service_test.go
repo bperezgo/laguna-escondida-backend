@@ -2120,7 +2120,7 @@ func TestDeleteOrder_WritesTombstoneOutboxRow(t *testing.T) {
 		UpdatedAt:          time.Now(),
 	}
 
-	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(openBillWithProducts, nil)
+	mockOpenBillRepo.On("FindByIDWithProducts", ctx, openBillID).Return(openBillWithProducts, nil)
 	mockOpenBillRepo.On("Delete", ctx, openBillID).Return(nil)
 
 	var captured *dto.SyncOutboxEntry
@@ -2165,7 +2165,7 @@ func TestDeleteOrder_Success(t *testing.T) {
 		UpdatedAt:          time.Now(),
 	}
 
-	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(openBillWithProducts, nil)
+	mockOpenBillRepo.On("FindByIDWithProducts", ctx, openBillID).Return(openBillWithProducts, nil)
 	mockOpenBillRepo.On("Delete", ctx, openBillID).Return(nil)
 
 	err := service.DeleteOrder(ctx, openBillID)
@@ -2185,7 +2185,7 @@ func TestDeleteOrder_OrderNotFound(t *testing.T) {
 	openBillID := "non-existent-order"
 	findError := errors.New("order not found in database")
 
-	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(nil, findError)
+	mockOpenBillRepo.On("FindByIDWithProducts", ctx, openBillID).Return(nil, findError)
 
 	err := service.DeleteOrder(ctx, openBillID)
 
@@ -2215,7 +2215,7 @@ func TestDeleteOrder_DeleteFails(t *testing.T) {
 
 	deleteError := errors.New("database connection failed")
 
-	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(openBillWithProducts, nil)
+	mockOpenBillRepo.On("FindByIDWithProducts", ctx, openBillID).Return(openBillWithProducts, nil)
 	mockOpenBillRepo.On("Delete", ctx, openBillID).Return(deleteError)
 
 	err := service.DeleteOrder(ctx, openBillID)

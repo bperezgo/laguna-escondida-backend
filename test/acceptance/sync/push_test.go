@@ -91,3 +91,84 @@ func TestSync_Ordering_AppliesInSeqAndMonotonicHWM(t *testing.T) {
 	require.Equal(t, 0, res2.PushedOps, "second push is a no-op")
 	assert.Equal(t, maxSeq, r.edgePushedSeq(), "HWM stable, never regresses")
 }
+
+// seedCloudProduct seeds a single cloud product so the stock applier's product_id FK
+// resolves, and returns its id.
+func (r *rig) seedCloudProduct(t *testing.T, sku string) string {
+	t.Helper()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	p := newProduct(sku, "Cafe", now)
+	r.seedCloudProducts(p)
+	return p.ID
+}
+
+// Stock replicates edge → cloud as a state snapshot: the edge is the single writer, so the
+// cloud applier upserts the current on-hand amount keyed by (product_id, version). These
+// tests seed a cloud product so the FK resolves, then push stock ops over the HTTP boundary.
+
+// A pushed stock create lands on the cloud mirror with the edge's on-hand amount, and the
+// edge outbox drains.
+func TestSync_Push_StockLandsOnCloudMirror(t *testing.T) {
+	r := newRig(t)
+	productID := r.seedCloudProduct(t, "SKU-STOCK-1")
+
+	r.appendEdgeOutbox(r.stockOutboxEntry(productID, 1, 42, dto.SyncOperationCreate))
+
+	res := r.push()
+
+	assert.Equal(t, 1, res.PushedOps, "one op pushed")
+	assert.Equal(t, int64(1), r.cloudCount("stock", "product_id = ? AND deleted_at IS NULL", productID), "stock landed on cloud")
+	assert.Equal(t, 42, r.cloudStockAmount(productID), "cloud mirrors the on-hand amount")
+	assert.Equal(t, int64(0), r.edgeCount("sync_outbox", "synced_at IS NULL"), "edge outbox drained")
+}
+
+// Because edge is the single writer, applying snapshots in seq order converges the cloud to
+// the last amount per product — no summation, exactly one row.
+func TestSync_Push_StockUpdateConvergesToLastSnapshot(t *testing.T) {
+	r := newRig(t)
+	productID := r.seedCloudProduct(t, "SKU-STOCK-2")
+
+	r.appendEdgeOutbox(r.stockOutboxEntry(productID, 1, 100, dto.SyncOperationCreate))
+	r.appendEdgeOutbox(r.stockOutboxEntry(productID, 1, 87, dto.SyncOperationUpdate))
+
+	res := r.push()
+
+	assert.Equal(t, 2, res.PushedOps, "both ops pushed")
+	assert.Equal(t, int64(1), r.cloudCount("stock", "product_id = ?", productID), "single row per product")
+	assert.Equal(t, 87, r.cloudStockAmount(productID), "last snapshot wins")
+}
+
+// Replaying a stock op (the lost-ack retry case) applies once: the amount is unchanged and
+// the op is deduped via sync_inbox.op_id.
+func TestSync_Push_StockReplayIsIdempotent(t *testing.T) {
+	r := newRig(t)
+	productID := r.seedCloudProduct(t, "SKU-STOCK-3")
+
+	entry := r.stockOutboxEntry(productID, 1, 55, dto.SyncOperationCreate)
+	req := &dto.SyncPushRequest{NodeID: r.identity.NodeID, Ops: []dto.SyncOutboxEntry{*entry}}
+
+	first := r.cloudApply(req)
+	second := r.cloudApply(req) // a retried, previously-acked batch
+
+	assert.Len(t, first.AckedOpIDs, 1, "first apply acks the op")
+	assert.Len(t, second.AckedOpIDs, 1, "replay still acks (idempotent)")
+	assert.Equal(t, int64(1), r.cloudCount("stock", "product_id = ?", productID), "applied exactly once")
+	assert.Equal(t, 55, r.cloudStockAmount(productID), "amount unchanged on replay")
+	assert.Equal(t, int64(1), r.cloudCount("sync_inbox", "op_id = ?", entry.OpID), "deduped in inbox")
+}
+
+// A stock delete tombstone soft-deletes the cloud mirror row: no live row remains, but the
+// tombstoned row is retained.
+func TestSync_Push_StockDeleteSoftDeletesMirror(t *testing.T) {
+	r := newRig(t)
+	productID := r.seedCloudProduct(t, "SKU-STOCK-4")
+
+	r.appendEdgeOutbox(r.stockOutboxEntry(productID, 1, 30, dto.SyncOperationCreate))
+	r.appendEdgeOutbox(r.stockOutboxEntry(productID, 1, 0, dto.SyncOperationDelete))
+
+	res := r.push()
+
+	assert.Equal(t, 2, res.PushedOps, "both ops pushed")
+	assert.Equal(t, int64(0), r.cloudCount("stock", "product_id = ? AND deleted_at IS NULL", productID), "mirror soft-deleted")
+	assert.Equal(t, int64(1), r.cloudCount("stock", "product_id = ? AND deleted_at IS NOT NULL", productID), "tombstone retained")
+}

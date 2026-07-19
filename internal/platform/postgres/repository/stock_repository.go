@@ -6,6 +6,7 @@ import (
 
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
+	"laguna-escondida/backend/internal/platform/postgres"
 
 	"gorm.io/gorm"
 )
@@ -54,12 +55,12 @@ func (r *StockRepository) Create(ctx context.Context, stock *dto.Stock) error {
 		UpdatedAt:     stock.UpdatedAt,
 	}
 
-	return r.db.WithContext(ctx).Create(model).Error
+	return postgres.GetTxOrDB(ctx, r.db).Create(model).Error
 }
 
 func (r *StockRepository) FindByProductID(ctx context.Context, productID string) (*dto.Stock, error) {
 	var model stockModel
-	if err := r.db.WithContext(ctx).
+	if err := postgres.GetTxOrDB(ctx, r.db).
 		Where("product_id = ? AND deleted_at IS NULL", productID).
 		First(&model).Error; err != nil {
 		return nil, err
@@ -70,7 +71,7 @@ func (r *StockRepository) FindByProductID(ctx context.Context, productID string)
 
 func (r *StockRepository) FindAll(ctx context.Context) ([]*dto.Stock, error) {
 	var models []stockModel
-	if err := r.db.WithContext(ctx).
+	if err := postgres.GetTxOrDB(ctx, r.db).
 		Where("deleted_at IS NULL").
 		Find(&models).Error; err != nil {
 		return nil, err
@@ -86,7 +87,7 @@ func (r *StockRepository) FindAll(ctx context.Context) ([]*dto.Stock, error) {
 
 func (r *StockRepository) UpdateAmount(ctx context.Context, productID string, amount int) error {
 	now := time.Now()
-	return r.db.WithContext(ctx).
+	return postgres.GetTxOrDB(ctx, r.db).
 		Model(&stockModel{}).
 		Where("product_id = ? AND deleted_at IS NULL", productID).
 		Updates(map[string]any{
@@ -97,7 +98,7 @@ func (r *StockRepository) UpdateAmount(ctx context.Context, productID string, am
 
 func (r *StockRepository) Delete(ctx context.Context, productID string) error {
 	now := time.Now()
-	return r.db.WithContext(ctx).
+	return postgres.GetTxOrDB(ctx, r.db).
 		Model(&stockModel{}).
 		Where("product_id = ? AND deleted_at IS NULL", productID).
 		Updates(map[string]any{
@@ -106,43 +107,45 @@ func (r *StockRepository) Delete(ctx context.Context, productID string) error {
 		}).Error
 }
 
+// BulkCreateOrUpdate creates or updates each stock row, joining the caller's transaction
+// via GetTxOrDB. The stock service always calls it inside a UnitOfWork (Option A), so the
+// bulk write and the outbox rows that replicate it commit atomically.
 func (r *StockRepository) BulkCreateOrUpdate(ctx context.Context, stocks []*dto.Stock) error {
 	if len(stocks) == 0 {
 		return nil
 	}
 
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		for _, stock := range stocks {
-			model := &stockModel{
-				ProductID:     stock.ProductID,
-				Version:       stock.Version,
-				Amount:        stock.Amount,
-				UnitOfMeasure: string(stock.UnitOfMeasure),
-				CreatedAt:     stock.CreatedAt,
-				UpdatedAt:     stock.UpdatedAt,
-			}
+	db := postgres.GetTxOrDB(ctx, r.db)
+	for _, stock := range stocks {
+		model := &stockModel{
+			ProductID:     stock.ProductID,
+			Version:       stock.Version,
+			Amount:        stock.Amount,
+			UnitOfMeasure: string(stock.UnitOfMeasure),
+			CreatedAt:     stock.CreatedAt,
+			UpdatedAt:     stock.UpdatedAt,
+		}
 
-			var existing stockModel
-			err := tx.Where("product_id = ? AND version = ? AND deleted_at IS NULL", stock.ProductID, stock.Version).First(&existing).Error
-			if err == gorm.ErrRecordNotFound {
-				if err = tx.Create(model).Error; err != nil {
-					return err
-				}
-			} else if err != nil {
+		var existing stockModel
+		err := db.Where("product_id = ? AND version = ? AND deleted_at IS NULL", stock.ProductID, stock.Version).First(&existing).Error
+		if err == gorm.ErrRecordNotFound {
+			if err = db.Create(model).Error; err != nil {
 				return err
-			} else {
-				if err := tx.Model(&stockModel{}).
-					Where("product_id = ? AND version = ? AND deleted_at IS NULL", stock.ProductID, stock.Version).
-					Updates(map[string]any{
-						"amount":     stock.Amount,
-						"updated_at": stock.UpdatedAt,
-					}).Error; err != nil {
-					return err
-				}
+			}
+		} else if err != nil {
+			return err
+		} else {
+			if err := db.Model(&stockModel{}).
+				Where("product_id = ? AND version = ? AND deleted_at IS NULL", stock.ProductID, stock.Version).
+				Updates(map[string]any{
+					"amount":     stock.Amount,
+					"updated_at": stock.UpdatedAt,
+				}).Error; err != nil {
+				return err
 			}
 		}
-		return nil
-	})
+	}
+	return nil
 }
 
 func (r *StockRepository) CreateHistoricRecord(ctx context.Context, historicStock *dto.HistoricStock) error {
@@ -153,12 +156,12 @@ func (r *StockRepository) CreateHistoricRecord(ctx context.Context, historicStoc
 		Change:        historicStock.Change,
 	}
 
-	return r.db.WithContext(ctx).Create(model).Error
+	return postgres.GetTxOrDB(ctx, r.db).Create(model).Error
 }
 
 func (r *StockRepository) FindHistoricByProductID(ctx context.Context, productID string) ([]*dto.HistoricStock, error) {
 	var models []historicStockModel
-	if err := r.db.WithContext(ctx).
+	if err := postgres.GetTxOrDB(ctx, r.db).
 		Where("product_id = ?", productID).
 		Order("created_at DESC").
 		Find(&models).Error; err != nil {

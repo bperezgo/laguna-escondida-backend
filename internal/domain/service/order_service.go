@@ -687,7 +687,9 @@ func (s *OrderService) GetOpenBillWithProducts(ctx context.Context, openBillID s
 
 // DeleteOrder soft deletes an open order by setting deleted_at
 func (s *OrderService) DeleteOrder(ctx context.Context, openBillID string) error {
-	_, err := s.openBillRepo.FindByID(ctx, openBillID)
+	// Read the order's line items before the soft-delete so the published event can carry
+	// them for stock restoration — after the delete they'd be gone.
+	existingOpenBill, err := s.openBillRepo.FindByIDWithProducts(ctx, openBillID)
 	if err != nil {
 		return fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
 	}
@@ -705,8 +707,9 @@ func (s *OrderService) DeleteOrder(ctx context.Context, openBillID string) error
 		return err
 	}
 
-	// Publish event for SSE notifications after the commit.
-	event := dto.NewOrderDeletedEvent(openBillID)
+	// Publish event after the commit for SSE notifications and stock reversal; the product
+	// lines ride on the event so the stock handler restores inventory (voids return stock).
+	event := dto.NewOrderDeletedEvent(openBillID, existingOpenBill.Products)
 	if err := s.eventBus.Publish(ctx, event); err != nil {
 		s.logger.Error("failed to publish order deleted event", zap.Error(err))
 	}

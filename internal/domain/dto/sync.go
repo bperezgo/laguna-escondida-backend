@@ -36,6 +36,7 @@ const (
 	SyncEntityPurchaseEntry  SyncEntityType = "purchase_entry"
 	SyncEntityBill           SyncEntityType = "bill"
 	SyncEntityPendingInvoice SyncEntityType = "pending_invoice"
+	SyncEntityStock          SyncEntityType = "stock"
 )
 
 // SyncOutboxEntry is one durable change queued for replication to a peer node.
@@ -228,6 +229,19 @@ type BillSyncPayload struct {
 	Products       []BillSyncProduct `json:"products,omitempty"`
 	CreatedAt      time.Time         `json:"created_at"`
 	UpdatedAt      time.Time         `json:"updated_at"`
+}
+
+// StockSyncPayload is the row snapshot carried in a sync_outbox entry for a stock change,
+// replicated edge → cloud. Edge is the single writer, so apply is a plain upsert of the
+// current on-hand amount keyed by (product_id, version); the last snapshot per product wins.
+type StockSyncPayload struct {
+	ProductID     string     `json:"product_id"`
+	Version       int        `json:"version"`
+	Amount        int        `json:"amount"`
+	UnitOfMeasure string     `json:"unit_of_measure"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+	DeletedAt     *time.Time `json:"deleted_at,omitempty"`
 }
 
 // OpenBillSyncPayload is the row snapshot carried in a sync_outbox entry for an

@@ -225,6 +225,7 @@ func newRig(t *testing.T) *rig {
 	cloudAppliers := map[dto.SyncEntityType]ports.SyncApplier{
 		dto.SyncEntityOpenBill:      repository.NewOpenBillSyncApplier(cloudGDB),
 		dto.SyncEntityPurchaseEntry: repository.NewPurchaseEntrySyncApplier(cloudGDB),
+		dto.SyncEntityStock:         repository.NewStockSyncApplier(cloudGDB),
 	}
 	cloudSync := service.NewSyncService(cloudUoW, cloudInbox, cloudAppliers, logger)
 	cloudRef := repository.NewSyncReferenceRepository(cloudGDB)
@@ -478,6 +479,51 @@ func (r *rig) openBillOutboxEntry(createdByID, productID string) (entry *dto.Syn
 		Operation:    dto.SyncOperationCreate,
 		Payload:      raw,
 	}, orderID
+}
+
+// stockOutboxEntry builds a stock outbox row for the given (cloud-resident) product. A
+// create/update carries the amount snapshot; a delete carries a tombstone keyed by product_id.
+func (r *rig) stockOutboxEntry(productID string, version, amount int, op dto.SyncOperation) *dto.SyncOutboxEntry {
+	r.t.Helper()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	var raw json.RawMessage
+	if op == dto.SyncOperationDelete {
+		b, err := json.Marshal(dto.SyncTombstone{ID: productID})
+		require.NoError(r.t, err, "marshal stock tombstone")
+		raw = b
+	} else {
+		b, err := json.Marshal(dto.StockSyncPayload{
+			ProductID:     productID,
+			Version:       version,
+			Amount:        amount,
+			UnitOfMeasure: "unit",
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		})
+		require.NoError(r.t, err, "marshal stock payload")
+		raw = b
+	}
+
+	return &dto.SyncOutboxEntry{
+		OpID:         uuid.NewString(),
+		OriginNodeID: r.identity.NodeID,
+		EntityType:   dto.SyncEntityStock,
+		EntityID:     productID,
+		Operation:    op,
+		Payload:      raw,
+	}
+}
+
+// cloudStockAmount reads the mirrored on-hand amount for a product from the cloud stock
+// table (live rows only). Returns 0 when no live row exists.
+func (r *rig) cloudStockAmount(productID string) int {
+	r.t.Helper()
+	var amount int
+	require.NoError(r.t, r.cloudDB.Table("stock").
+		Where("product_id = ? AND deleted_at IS NULL", productID).
+		Select("amount").Scan(&amount).Error, "read cloud stock amount")
+	return amount
 }
 
 // envOr returns the env var or a fallback (kept local so the package needs no shared helper).

@@ -25,7 +25,16 @@ func createTestStockEventHandler(t *testing.T) (*StockEventHandler, *mocks.MockS
 	lockManager := eventbus.NewProductLockManager()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	handler := NewStockEventHandler(mockStockRepo, mockProductRepo, mockIngredientRepo, lockManager, logger)
+	handler := NewStockEventHandler(
+		mockStockRepo,
+		mockProductRepo,
+		mockIngredientRepo,
+		lockManager,
+		createMockUnitOfWork(t),
+		createMockSyncOutboxRepository(t),
+		dto.SyncIdentity{NodeID: testNodeID},
+		logger,
+	)
 	return handler, mockStockRepo, mockProductRepo, mockIngredientRepo
 }
 
@@ -536,7 +545,7 @@ func TestHandleOrderCreated_EmptyProducts(t *testing.T) {
 	mockProductRepo.AssertNotCalled(t, "FindByID")
 }
 
-func TestHandleOrderDeleted_LogsWarning(t *testing.T) {
+func TestHandleOrderDeleted_EmptyOrderNoOp(t *testing.T) {
 	ctx := context.Background()
 	handler, mockStockRepo, mockProductRepo, _ := createTestStockEventHandler(t)
 
@@ -549,6 +558,93 @@ func TestHandleOrderDeleted_LogsWarning(t *testing.T) {
 	require.NoError(t, err)
 	mockStockRepo.AssertNotCalled(t, "UpdateAmount")
 	mockProductRepo.AssertNotCalled(t, "FindByID")
+}
+
+// TestHandleOrderDeleted_RestoresSellableStock asserts a voided order credits each line's
+// quantity back to inventory — the mirror image of HandleOrderCreated's decrement.
+func TestHandleOrderDeleted_RestoresSellableStock(t *testing.T) {
+	ctx := context.Background()
+	handler, mockStockRepo, mockProductRepo, _ := createTestStockEventHandler(t)
+
+	productID := "product-1"
+	product := createTestProductWithType(productID, "Test Product", "Category A", 1, 100.0, 19.0, dto.ProductTypeSellable)
+	existingStock := createTestStock(productID, 1, 95)
+
+	event := dto.OrderDeletedEvent{
+		OpenBillID: "order-1",
+		Products: []dto.OrderCreatedEventProduct{
+			{ProductID: productID, Quantity: 5},
+		},
+	}
+
+	// First call from increaseStockForProduct, second call from updateStock.
+	mockProductRepo.On("FindByID", ctx, productID).Return(product, nil).Twice()
+	mockStockRepo.On("FindByProductID", ctx, productID).Return(existingStock, nil).Once()
+	mockStockRepo.On("UpdateAmount", ctx, productID, 100).Return(nil).Once()
+	mockStockRepo.On("CreateHistoricRecord", ctx, mock.MatchedBy(func(h *dto.HistoricStock) bool {
+		return h.ProductID == productID && h.Change == 5 && h.UnitOfMeasure == dto.UnitOfMeasureUnit
+	})).Return(nil).Once()
+
+	err := handler.HandleOrderDeleted(ctx, event)
+
+	require.NoError(t, err)
+	mockStockRepo.AssertExpectations(t)
+	mockProductRepo.AssertExpectations(t)
+}
+
+// TestHandleOrderDeleted_CompositeRestoresIngredients asserts a voided composite line
+// credits each ingredient back by quantity × recipe amount (composite-expanding restore).
+func TestHandleOrderDeleted_CompositeRestoresIngredients(t *testing.T) {
+	ctx := context.Background()
+	handler, mockStockRepo, mockProductRepo, mockIngredientRepo := createTestStockEventHandler(t)
+
+	compositeID := "composite-1"
+	ingredient1ID := "ingredient-1"
+	ingredient2ID := "ingredient-2"
+
+	compositeProduct := createTestProductWithType(compositeID, "Plate", "Category A", 1, 200.0, 19.0, dto.ProductTypeComposite)
+	ingredient1Product := createTestProductWithType(ingredient1ID, "Rice", "Category A", 1, 10.0, 19.0, dto.ProductTypeIngredient)
+	ingredient2Product := createTestProductWithType(ingredient2ID, "Beans", "Category A", 1, 15.0, 19.0, dto.ProductTypeIngredient)
+
+	ingredients := []*dto.ProductIngredient{
+		createTestIngredient("ing-1", compositeID, ingredient1ID, 2.0),
+		createTestIngredient("ing-2", compositeID, ingredient2ID, 1.5),
+	}
+
+	ingredient1Stock := createTestStock(ingredient1ID, 1, 100)
+	ingredient2Stock := createTestStock(ingredient2ID, 1, 50)
+
+	event := dto.OrderDeletedEvent{
+		OpenBillID: "order-1",
+		Products: []dto.OrderCreatedEventProduct{
+			{ProductID: compositeID, Quantity: 3},
+		},
+	}
+
+	mockProductRepo.On("FindByID", ctx, compositeID).Return(compositeProduct, nil).Once()
+	mockIngredientRepo.On("FindByCompositeProductID", ctx, compositeID).Return(ingredients, nil).Once()
+
+	// updateStock calls FindByID for each ingredient; restore adds quantity × recipe amount.
+	mockProductRepo.On("FindByID", ctx, ingredient1ID).Return(ingredient1Product, nil).Once()
+	mockStockRepo.On("FindByProductID", ctx, ingredient1ID).Return(ingredient1Stock, nil).Once()
+	mockStockRepo.On("UpdateAmount", ctx, ingredient1ID, 106).Return(nil).Once()
+	mockStockRepo.On("CreateHistoricRecord", ctx, mock.MatchedBy(func(h *dto.HistoricStock) bool {
+		return h.ProductID == ingredient1ID && h.Change == 6 && h.UnitOfMeasure == dto.UnitOfMeasureUnit
+	})).Return(nil).Once()
+
+	mockProductRepo.On("FindByID", ctx, ingredient2ID).Return(ingredient2Product, nil).Once()
+	mockStockRepo.On("FindByProductID", ctx, ingredient2ID).Return(ingredient2Stock, nil).Once()
+	mockStockRepo.On("UpdateAmount", ctx, ingredient2ID, 54).Return(nil).Once()
+	mockStockRepo.On("CreateHistoricRecord", ctx, mock.MatchedBy(func(h *dto.HistoricStock) bool {
+		return h.ProductID == ingredient2ID && h.Change == 4 && h.UnitOfMeasure == dto.UnitOfMeasureUnit
+	})).Return(nil).Once()
+
+	err := handler.HandleOrderDeleted(ctx, event)
+
+	require.NoError(t, err)
+	mockStockRepo.AssertExpectations(t)
+	mockProductRepo.AssertExpectations(t)
+	mockIngredientRepo.AssertExpectations(t)
 }
 
 // Negative Stock Tests

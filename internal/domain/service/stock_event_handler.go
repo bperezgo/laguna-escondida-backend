@@ -18,6 +18,9 @@ type StockEventHandler struct {
 	productRepo           ports.ProductRepository
 	productIngredientRepo ports.ProductIngredientRepository
 	lockManager           *eventbus.ProductLockManager
+	unitOfWork            ports.UnitOfWork
+	outboxRepo            ports.SyncOutboxRepository
+	syncIdentity          dto.SyncIdentity
 	logger                *slog.Logger
 }
 
@@ -26,6 +29,9 @@ func NewStockEventHandler(
 	productRepo ports.ProductRepository,
 	productIngredientRepo ports.ProductIngredientRepository,
 	lockManager *eventbus.ProductLockManager,
+	unitOfWork ports.UnitOfWork,
+	outboxRepo ports.SyncOutboxRepository,
+	syncIdentity dto.SyncIdentity,
 	logger *slog.Logger,
 ) *StockEventHandler {
 	return &StockEventHandler{
@@ -33,6 +39,9 @@ func NewStockEventHandler(
 		productRepo:           productRepo,
 		productIngredientRepo: productIngredientRepo,
 		lockManager:           lockManager,
+		unitOfWork:            unitOfWork,
+		outboxRepo:            outboxRepo,
+		syncIdentity:          syncIdentity,
 		logger:                logger,
 	}
 }
@@ -110,18 +119,27 @@ func (h *StockEventHandler) HandleOrderUpdated(ctx context.Context, event dto.Or
 	return nil
 }
 
-// HandleOrderDeleted reverses stock changes when an order is deleted.
-// Note: This requires the deleted order's products to be available.
-// For now, we log a warning as OrderDeletedEvent may not contain product details.
+// HandleOrderDeleted restores stock when an order is deleted (voided). It is the mirror
+// image of HandleOrderCreated: every line the order still held is credited back to
+// inventory (composite products expand to their ingredients), reversing the decrement the
+// order applied. Cancelling or completing a line never returns stock, so the lines present
+// at deletion time are exactly what is owed back. The lines ride on the event, so no read
+// of the now soft-deleted order is needed.
 func (h *StockEventHandler) HandleOrderDeleted(ctx context.Context, event dto.OrderDeletedEvent) error {
-	h.logger.Warn("order deleted event received - stock reversal requires product info",
+	h.logger.Info("handling order deleted event for stock",
 		slog.String("open_bill_id", event.OpenBillID),
+		slog.Int("product_count", len(event.Products)),
 	)
 
-	// TODO: To properly reverse stock on deletion, we need either:
-	// 1. Include products in OrderDeletedEvent before deletion
-	// 2. Query from soft-deleted records
-	// 3. Store order snapshots
+	for _, item := range event.Products {
+		if err := h.increaseStockForProduct(ctx, item.ProductID, item.Quantity); err != nil {
+			h.logger.Error("failed to restore stock on order deletion",
+				slog.String("product_id", item.ProductID),
+				slog.Int("quantity", item.Quantity),
+				slog.String("error", err.Error()),
+			)
+		}
+	}
 
 	return nil
 }
@@ -224,52 +242,70 @@ func (h *StockEventHandler) updateStock(ctx context.Context, productID string, c
 		return fmt.Errorf("product not found: %w", prodErr)
 	}
 
-	existingStock, err := h.stockRepo.FindByProductID(ctx, productID)
-	if err != nil {
-		now := time.Now()
-		stock := &dto.Stock{
+	existingStock, findErr := h.stockRepo.FindByProductID(ctx, productID)
+
+	// Persist the stock write, its historic record, and the sync-outbox row that replicates
+	// it to the cloud in one transaction (Option A). The per-product lock above serializes
+	// the read-modify-write so concurrent in-process events can't lose an update.
+	return h.unitOfWork.Do(ctx, func(ctx context.Context) error {
+		var snapshot *dto.Stock
+		var operation dto.SyncOperation
+
+		if findErr != nil {
+			now := time.Now()
+			stock := &dto.Stock{
+				ProductID:     productID,
+				Version:       product.Version,
+				Amount:        change,
+				UnitOfMeasure: product.UnitOfMeasure,
+				CreatedAt:     now,
+				UpdatedAt:     now,
+			}
+			if createErr := h.stockRepo.Create(ctx, stock); createErr != nil {
+				return fmt.Errorf("failed to create stock: %w", createErr)
+			}
+			snapshot = stock
+			operation = dto.SyncOperationCreate
+
+			h.logger.Info("created new stock entry",
+				slog.String("product_id", productID),
+				slog.Int("initial_amount", change),
+				slog.String("unit_of_measure", string(product.UnitOfMeasure)),
+			)
+		} else {
+			newAmount := existingStock.Amount + change
+			if err := h.stockRepo.UpdateAmount(ctx, productID, newAmount); err != nil {
+				return fmt.Errorf("failed to update stock: %w", err)
+			}
+			snapshot = &dto.Stock{
+				ProductID:     existingStock.ProductID,
+				Version:       existingStock.Version,
+				Amount:        newAmount,
+				UnitOfMeasure: existingStock.UnitOfMeasure,
+				CreatedAt:     existingStock.CreatedAt,
+				UpdatedAt:     time.Now(),
+			}
+			operation = dto.SyncOperationUpdate
+
+			h.logger.Info("updated stock",
+				slog.String("product_id", productID),
+				slog.Int("previous_amount", existingStock.Amount),
+				slog.Int("change", change),
+				slog.Int("new_amount", newAmount),
+			)
+		}
+
+		// Unlike before, a failed historic write now rolls back the stock write (and the
+		// outbox row) instead of being logged and swallowed.
+		if err := h.stockRepo.CreateHistoricRecord(ctx, &dto.HistoricStock{
 			ProductID:     productID,
-			Version:       product.Version,
-			Amount:        change,
 			UnitOfMeasure: product.UnitOfMeasure,
-			CreatedAt:     now,
-			UpdatedAt:     now,
-		}
-		if createErr := h.stockRepo.Create(ctx, stock); createErr != nil {
-			return fmt.Errorf("failed to create stock: %w", createErr)
-		}
-
-		h.logger.Info("created new stock entry",
-			slog.String("product_id", productID),
-			slog.Int("initial_amount", change),
-			slog.String("unit_of_measure", string(product.UnitOfMeasure)),
-		)
-	} else {
-		newAmount := existingStock.Amount + change
-		if err := h.stockRepo.UpdateAmount(ctx, productID, newAmount); err != nil {
-			return fmt.Errorf("failed to update stock: %w", err)
+			Change:        change,
+			CreatedAt:     time.Now(),
+		}); err != nil {
+			return fmt.Errorf("failed to create historic stock record: %w", err)
 		}
 
-		h.logger.Info("updated stock",
-			slog.String("product_id", productID),
-			slog.Int("previous_amount", existingStock.Amount),
-			slog.Int("change", change),
-			slog.Int("new_amount", newAmount),
-		)
-	}
-
-	if err := h.stockRepo.CreateHistoricRecord(ctx, &dto.HistoricStock{
-		ProductID:     productID,
-		UnitOfMeasure: product.UnitOfMeasure,
-		Change:        change,
-		CreatedAt:     time.Now(),
-	}); err != nil {
-		h.logger.Error("failed to create historic stock record",
-			slog.String("product_id", productID),
-			slog.Int("change", change),
-			slog.String("error", err.Error()),
-		)
-	}
-
-	return nil
+		return appendStockOutbox(ctx, h.outboxRepo, h.syncIdentity.NodeID, snapshot, operation)
+	})
 }

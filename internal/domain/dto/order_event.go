@@ -85,28 +85,46 @@ var _ event.DomainEvent = (*OrderCreatedEvent)(nil)
 type OrderDeletedEvent struct {
 	event.BaseEvent
 	OpenBillID string `json:"open_bill_id"`
+	// Products are the order's line items captured before the soft-delete, so the stock
+	// handler can restore on-hand inventory without re-reading the deleted order. They are
+	// exported (like OrderCreatedEvent.Products) so they survive the JSON round-trip through
+	// the event bus — BaseEvent's unexported fields do not.
+	Products []OrderCreatedEventProduct `json:"products"`
 }
 
-func NewOrderDeletedEvent(openBillID string) OrderDeletedEvent {
+func NewOrderDeletedEvent(openBillID string, products []OpenBillProductDetail) OrderDeletedEvent {
+	eventProducts := make([]OrderCreatedEventProduct, len(products))
+	for i, p := range products {
+		eventProducts[i] = OrderCreatedEventProduct{
+			OpenBillProductID: p.OpenBillProductID,
+			ProductID:         p.Product.ID,
+			Quantity:          p.Quantity,
+			Notes:             p.Notes,
+		}
+	}
+
 	return OrderDeletedEvent{
 		BaseEvent:  event.NewBaseEvent(OrderDeletedEventName, openBillID),
 		OpenBillID: openBillID,
+		Products:   eventProducts,
 	}
 }
 
 func (e OrderDeletedEvent) Data() []byte {
 	payload := struct {
-		EventID     string    `json:"event_id"`
-		EventName   string    `json:"event_name"`
-		AggregateID string    `json:"aggregate_id"`
-		OccurredAt  time.Time `json:"occurred_at"`
-		OpenBillID  string    `json:"open_bill_id"`
+		EventID     string                     `json:"event_id"`
+		EventName   string                     `json:"event_name"`
+		AggregateID string                     `json:"aggregate_id"`
+		OccurredAt  time.Time                  `json:"occurred_at"`
+		OpenBillID  string                     `json:"open_bill_id"`
+		Products    []OrderCreatedEventProduct `json:"products"`
 	}{
 		EventID:     e.EventID(),
 		EventName:   e.EventName(),
 		AggregateID: e.AggregateID(),
 		OccurredAt:  e.OccurredAt(),
 		OpenBillID:  e.OpenBillID,
+		Products:    e.Products,
 	}
 	data, _ := json.Marshal(payload)
 	return data

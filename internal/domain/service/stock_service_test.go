@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -15,10 +16,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// createTestStockService wires the service with permissive UnitOfWork + outbox mocks
+// (passthrough Do, optional Append) so the existing cases exercise the business logic
+// without asserting on sync; the dedicated outbox test below asserts the append.
 func createTestStockService(t *testing.T) (*StockService, *mocks.MockStockRepository, *mocks.MockProductRepository) {
 	mockStockRepo := mocks.NewMockStockRepository(t)
 	mockProductRepo := mocks.NewMockProductRepository(t)
-	return NewStockService(mockStockRepo, mockProductRepo), mockStockRepo, mockProductRepo
+	service := NewStockService(
+		mockStockRepo,
+		mockProductRepo,
+		createMockUnitOfWork(t),
+		createMockSyncOutboxRepository(t),
+		dto.SyncIdentity{NodeID: testNodeID},
+	)
+	return service, mockStockRepo, mockProductRepo
 }
 
 func createTestStock(productID string, version int, amount int) *dto.Stock {
@@ -132,6 +143,57 @@ func TestCreateStock_RepositoryError(t *testing.T) {
 	assert.Nil(t, result)
 	assert.ErrorIs(t, err, domainError.ErrStockCreationFailed)
 
+}
+
+// TestCreateStock_WritesOutboxRowInTransaction asserts the transactional outbox
+// (Option A): creating stock appends exactly one stock outbox row, stamped with this
+// node's id and the create operation, and the payload snapshot carries the amount.
+func TestCreateStock_WritesOutboxRowInTransaction(t *testing.T) {
+	ctx := context.Background()
+	mockStockRepo := mocks.NewMockStockRepository(t)
+	mockProductRepo := mocks.NewMockProductRepository(t)
+	mockOutbox := mocks.NewMockSyncOutboxRepository(t)
+
+	service := NewStockService(
+		mockStockRepo,
+		mockProductRepo,
+		createMockUnitOfWork(t),
+		mockOutbox,
+		dto.SyncIdentity{NodeID: testNodeID},
+	)
+
+	productID := "product-1"
+	product := createTestProduct(productID, "Test Product", "Category A", 1, 100.0, 19.0)
+	req := &dto.CreateStockRequest{ProductID: productID, Amount: 100}
+
+	mockProductRepo.On("FindByID", ctx, productID).Return(product, nil).Once()
+	mockStockRepo.On("FindByProductID", ctx, productID).Return(nil, errors.New("not found")).Once()
+	mockStockRepo.On("Create", ctx, mock.AnythingOfType("*dto.Stock")).Return(nil).Once()
+	mockStockRepo.On("CreateHistoricRecord", ctx, mock.AnythingOfType("*dto.HistoricStock")).Return(nil).Once()
+
+	var captured *dto.SyncOutboxEntry
+	mockOutbox.EXPECT().
+		Append(mock.Anything, mock.AnythingOfType("*dto.SyncOutboxEntry")).
+		Run(func(_ context.Context, entry *dto.SyncOutboxEntry) { captured = entry }).
+		Return(nil).
+		Once()
+
+	result, err := service.CreateStock(ctx, req)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	require.NotNil(t, captured)
+	assert.NotEmpty(t, captured.OpID, "service must set a client-generated op_id")
+	assert.Equal(t, testNodeID, captured.OriginNodeID)
+	assert.Equal(t, dto.SyncEntityStock, captured.EntityType)
+	assert.Equal(t, dto.SyncOperationCreate, captured.Operation)
+	assert.Equal(t, productID, captured.EntityID)
+
+	var snapshot dto.StockSyncPayload
+	require.NoError(t, json.Unmarshal(captured.Payload, &snapshot))
+	assert.Equal(t, productID, snapshot.ProductID)
+	assert.Equal(t, req.Amount, snapshot.Amount)
+	assert.Equal(t, product.Version, snapshot.Version)
 }
 
 // AddOrDecreaseStock Tests

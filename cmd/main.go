@@ -131,6 +131,7 @@ func main() {
 		dto.SyncEntityPurchaseEntry:  repository.NewPurchaseEntrySyncApplier(db.DB),
 		dto.SyncEntityBill:           repository.NewBillSyncApplier(db.DB),
 		dto.SyncEntityPendingInvoice: repository.NewPendingInvoiceSyncApplier(db.DB),
+		dto.SyncEntityStock:          repository.NewStockSyncApplier(db.DB),
 	}
 	syncService := service.NewSyncService(unitOfWork, syncInboxRepo, syncAppliers, slogLogger)
 	syncReferenceService := service.NewSyncReferenceService(syncReferenceRepo, slogLogger)
@@ -160,7 +161,7 @@ func main() {
 		syncIdentity,
 	)
 	productService := service.NewProductService(productRepo, supplierRepo, supplierCatalogRepo, unitOfWork)
-	stockService := service.NewStockService(stockRepo, productRepo)
+	stockService := service.NewStockService(stockRepo, productRepo, unitOfWork, syncOutboxRepo, syncIdentity)
 	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, jwtService, unitOfWork)
 	billOwnerService := service.NewBillOwnerService(billOwnerRepo)
 	supplierService := service.NewSupplierService(supplierRepo, supplierCatalogRepo, productRepo)
@@ -223,6 +224,9 @@ func main() {
 		productRepo,
 		productIngredientRepo,
 		productLockManager,
+		unitOfWork,
+		syncOutboxRepo,
+		syncIdentity,
 		slogLogger,
 	)
 
@@ -372,12 +376,10 @@ func main() {
 	router.PUT("/api/products/:id/ingredients/:ingredient_id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), productIngredientHandler.UpdateIngredientHandler)
 	router.DELETE("/api/products/:id/ingredients/:ingredient_id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), productIngredientHandler.RemoveIngredientHandler)
 
-	// Stock routes
-	router.POST("/api/stock", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.StockCreate), stockHandler.CreateStockHandler)
-	router.PUT("/api/stock/:product_id/add-or-decrease", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.StockUpdate), stockHandler.AddOrDecreaseStockHandler)
-	router.DELETE("/api/stock/:product_id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.StockDelete), stockHandler.DeleteStockHandler)
+	// Stock routes — reads are served in both modes; the writes are wired edge-only in
+	// the mode switch below, because the edge is the single writer for on-hand stock and
+	// the cloud is a read-only mirror fed by the sync applier.
 	router.GET("/api/stock", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.StockRead), stockHandler.GetAllStocksHandler)
-	router.POST("/api/stock/bulk", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.StockCreate), stockHandler.BulkStockCreationOrUpdatingHandler)
 
 	// Bill Owner routes
 	router.GET("/api/bill-owners/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.BillOwnersRead), billOwnerHandler.GetByIDHandler)
@@ -441,6 +443,13 @@ func main() {
 	switch cfg.AppMode {
 	case config.ModeEdge:
 		logger.Info("Running in EDGE mode", zap.String("app_mode", string(cfg.AppMode)))
+
+		// Stock writes are edge-only: the edge is the single writer for on-hand stock and
+		// each mutation appends a sync op that replicates the new amount to the cloud mirror.
+		router.POST("/api/stock", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.StockCreate), stockHandler.CreateStockHandler)
+		router.PUT("/api/stock/:product_id/add-or-decrease", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.StockUpdate), stockHandler.AddOrDecreaseStockHandler)
+		router.DELETE("/api/stock/:product_id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.StockDelete), stockHandler.DeleteStockHandler)
+		router.POST("/api/stock/bulk", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.StockCreate), stockHandler.BulkStockCreationOrUpdatingHandler)
 
 		// Ticket printing (POST /api/device/print) — edge only. Build the printer
 		// transport from PRINTER_* config; if it fails (e.g. windows transport on a

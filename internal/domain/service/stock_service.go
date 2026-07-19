@@ -2,23 +2,38 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
+
+	"github.com/google/uuid"
 )
 
 type StockService struct {
-	stockRepo   ports.StockRepository
-	productRepo ports.ProductRepository
+	stockRepo    ports.StockRepository
+	productRepo  ports.ProductRepository
+	unitOfWork   ports.UnitOfWork
+	outboxRepo   ports.SyncOutboxRepository
+	syncIdentity dto.SyncIdentity
 }
 
-func NewStockService(stockRepo ports.StockRepository, productRepo ports.ProductRepository) *StockService {
+func NewStockService(
+	stockRepo ports.StockRepository,
+	productRepo ports.ProductRepository,
+	unitOfWork ports.UnitOfWork,
+	outboxRepo ports.SyncOutboxRepository,
+	syncIdentity dto.SyncIdentity,
+) *StockService {
 	return &StockService{
-		stockRepo:   stockRepo,
-		productRepo: productRepo,
+		stockRepo:    stockRepo,
+		productRepo:  productRepo,
+		unitOfWork:   unitOfWork,
+		outboxRepo:   outboxRepo,
+		syncIdentity: syncIdentity,
 	}
 }
 
@@ -43,19 +58,26 @@ func (s *StockService) CreateStock(ctx context.Context, req *dto.CreateStockRequ
 		UpdatedAt:     now,
 	}
 
-	if err := s.stockRepo.Create(ctx, stock); err != nil {
-		return nil, fmt.Errorf("%w: %w", domainError.ErrStockCreationFailed, err)
-	}
+	// Persist the stock row, its historic record, and the sync-outbox row that replicates
+	// it to the cloud in one transaction (Option A): they commit or roll back together.
+	if err := s.unitOfWork.Do(ctx, func(ctx context.Context) error {
+		if err := s.stockRepo.Create(ctx, stock); err != nil {
+			return fmt.Errorf("%w: %w", domainError.ErrStockCreationFailed, err)
+		}
 
-	historicStock := &dto.HistoricStock{
-		ProductID:     req.ProductID,
-		UnitOfMeasure: product.UnitOfMeasure,
-		CreatedAt:     now,
-		Change:        req.Amount,
-	}
+		historicStock := &dto.HistoricStock{
+			ProductID:     req.ProductID,
+			UnitOfMeasure: product.UnitOfMeasure,
+			CreatedAt:     now,
+			Change:        req.Amount,
+		}
+		if err := s.stockRepo.CreateHistoricRecord(ctx, historicStock); err != nil {
+			return fmt.Errorf("failed to create historic stock record: %w", err)
+		}
 
-	if err := s.stockRepo.CreateHistoricRecord(ctx, historicStock); err != nil {
-		return nil, fmt.Errorf("failed to create historic stock record: %w", err)
+		return appendStockOutbox(ctx, s.outboxRepo, s.syncIdentity.NodeID, stock, dto.SyncOperationCreate)
+	}); err != nil {
+		return nil, err
 	}
 
 	return stock, nil
@@ -78,36 +100,44 @@ func (s *StockService) AddOrDecreaseStock(ctx context.Context, req *dto.AddOrDec
 
 	newAmount := existingStock.Amount + req.Change
 
-	if err := s.stockRepo.UpdateAmount(ctx, req.ProductID, newAmount); err != nil {
-		return fmt.Errorf("%w: %w", domainError.ErrStockUpdateFailed, err)
-	}
+	return s.unitOfWork.Do(ctx, func(ctx context.Context) error {
+		if err := s.stockRepo.UpdateAmount(ctx, req.ProductID, newAmount); err != nil {
+			return fmt.Errorf("%w: %w", domainError.ErrStockUpdateFailed, err)
+		}
 
-	historicStock := &dto.HistoricStock{
-		ProductID:     req.ProductID,
-		UnitOfMeasure: product.UnitOfMeasure,
-		CreatedAt:     time.Now(),
-		Change:        req.Change,
-	}
+		historicStock := &dto.HistoricStock{
+			ProductID:     req.ProductID,
+			UnitOfMeasure: product.UnitOfMeasure,
+			CreatedAt:     time.Now(),
+			Change:        req.Change,
+		}
+		if err := s.stockRepo.CreateHistoricRecord(ctx, historicStock); err != nil {
+			return fmt.Errorf("failed to create historic stock record: %w", err)
+		}
 
-	if err := s.stockRepo.CreateHistoricRecord(ctx, historicStock); err != nil {
-		return fmt.Errorf("failed to create historic stock record: %w", err)
-	}
-
-	return nil
+		updatedStock := &dto.Stock{
+			ProductID:     existingStock.ProductID,
+			Version:       existingStock.Version,
+			Amount:        newAmount,
+			UnitOfMeasure: existingStock.UnitOfMeasure,
+			CreatedAt:     existingStock.CreatedAt,
+			UpdatedAt:     time.Now(),
+		}
+		return appendStockOutbox(ctx, s.outboxRepo, s.syncIdentity.NodeID, updatedStock, dto.SyncOperationUpdate)
+	})
 }
 
 func (s *StockService) DeleteStock(ctx context.Context, productID string) error {
-	existingStock, err := s.stockRepo.FindByProductID(ctx, productID)
-	if err != nil {
+	if _, err := s.stockRepo.FindByProductID(ctx, productID); err != nil {
 		return fmt.Errorf("%w: %w", domainError.ErrStockNotFound, err)
 	}
 
-	if err := s.stockRepo.Delete(ctx, productID); err != nil {
-		return fmt.Errorf("%w: %w", domainError.ErrStockDeleteFailed, err)
-	}
-
-	_ = existingStock
-	return nil
+	return s.unitOfWork.Do(ctx, func(ctx context.Context) error {
+		if err := s.stockRepo.Delete(ctx, productID); err != nil {
+			return fmt.Errorf("%w: %w", domainError.ErrStockDeleteFailed, err)
+		}
+		return appendStockDeleteOutbox(ctx, s.outboxRepo, s.syncIdentity.NodeID, productID)
+	})
 }
 
 func (s *StockService) GetAllStocks(ctx context.Context) ([]*dto.Stock, error) {
@@ -154,6 +184,7 @@ func (s *StockService) BulkStockCreationOrUpdating(ctx context.Context, req *dto
 	}
 
 	stocksToCreateOrUpdate := make([]*dto.Stock, 0, len(req.Items))
+	operations := make([]dto.SyncOperation, 0, len(req.Items))
 	historicRecords := make([]*dto.HistoricStock, 0, len(req.Items))
 	now := time.Now()
 
@@ -171,6 +202,7 @@ func (s *StockService) BulkStockCreationOrUpdating(ctx context.Context, req *dto
 				UpdatedAt:     now,
 			}
 			stocksToCreateOrUpdate = append(stocksToCreateOrUpdate, stock)
+			operations = append(operations, dto.SyncOperationCreate)
 
 			historicStock := &dto.HistoricStock{
 				ProductID:     item.ProductID,
@@ -195,6 +227,7 @@ func (s *StockService) BulkStockCreationOrUpdating(ctx context.Context, req *dto
 				UpdatedAt:     now,
 			}
 			stocksToCreateOrUpdate = append(stocksToCreateOrUpdate, stock)
+			operations = append(operations, dto.SyncOperationUpdate)
 
 			if change != 0 {
 				historicStock := &dto.HistoricStock{
@@ -208,15 +241,82 @@ func (s *StockService) BulkStockCreationOrUpdating(ctx context.Context, req *dto
 		}
 	}
 
-	if err := s.stockRepo.BulkCreateOrUpdate(ctx, stocksToCreateOrUpdate); err != nil {
-		return fmt.Errorf("failed to bulk create or update stocks: %w", err)
-	}
-
-	for _, historicStock := range historicRecords {
-		if err := s.stockRepo.CreateHistoricRecord(ctx, historicStock); err != nil {
-			return fmt.Errorf("failed to create historic stock record: %w", err)
+	// Bulk write, its historic records, and one outbox op per changed product all commit
+	// in a single transaction (Option A), so the cloud mirror converges to exactly what
+	// the edge persisted.
+	return s.unitOfWork.Do(ctx, func(ctx context.Context) error {
+		if err := s.stockRepo.BulkCreateOrUpdate(ctx, stocksToCreateOrUpdate); err != nil {
+			return fmt.Errorf("failed to bulk create or update stocks: %w", err)
 		}
+
+		for _, historicStock := range historicRecords {
+			if err := s.stockRepo.CreateHistoricRecord(ctx, historicStock); err != nil {
+				return fmt.Errorf("failed to create historic stock record: %w", err)
+			}
+		}
+
+		for i, stock := range stocksToCreateOrUpdate {
+			if err := appendStockOutbox(ctx, s.outboxRepo, s.syncIdentity.NodeID, stock, operations[i]); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+}
+
+// appendStockOutbox writes one create/update sync_outbox row carrying the current stock
+// snapshot. It must be called inside a UnitOfWork transaction (Option A). Shared by the
+// manual stock writes (StockService) and the order/purchase-driven writes (StockEventHandler).
+func appendStockOutbox(ctx context.Context, outboxRepo ports.SyncOutboxRepository, nodeID string, stock *dto.Stock, operation dto.SyncOperation) error {
+	opID, err := uuid.NewV7()
+	if err != nil {
+		return fmt.Errorf("generate stock outbox op_id: %w", err)
 	}
 
-	return nil
+	payload := dto.StockSyncPayload{
+		ProductID:     stock.ProductID,
+		Version:       stock.Version,
+		Amount:        stock.Amount,
+		UnitOfMeasure: string(stock.UnitOfMeasure),
+		CreatedAt:     stock.CreatedAt,
+		UpdatedAt:     stock.UpdatedAt,
+	}
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal stock sync payload: %w", err)
+	}
+
+	return outboxRepo.Append(ctx, &dto.SyncOutboxEntry{
+		OpID:         opID.String(),
+		OriginNodeID: nodeID,
+		EntityType:   dto.SyncEntityStock,
+		EntityID:     stock.ProductID,
+		Operation:    operation,
+		Payload:      payloadBytes,
+	})
+}
+
+// appendStockDeleteOutbox writes a delete (tombstone) sync_outbox row keyed by product_id.
+// It must be called inside a UnitOfWork transaction (Option A).
+func appendStockDeleteOutbox(ctx context.Context, outboxRepo ports.SyncOutboxRepository, nodeID, productID string) error {
+	opID, err := uuid.NewV7()
+	if err != nil {
+		return fmt.Errorf("generate stock outbox op_id: %w", err)
+	}
+
+	payloadBytes, err := json.Marshal(dto.SyncTombstone{ID: productID})
+	if err != nil {
+		return fmt.Errorf("marshal stock tombstone: %w", err)
+	}
+
+	return outboxRepo.Append(ctx, &dto.SyncOutboxEntry{
+		OpID:         opID.String(),
+		OriginNodeID: nodeID,
+		EntityType:   dto.SyncEntityStock,
+		EntityID:     productID,
+		Operation:    dto.SyncOperationDelete,
+		Payload:      payloadBytes,
+	})
 }
