@@ -71,7 +71,7 @@ func (s *StockService) CreateStock(ctx context.Context, req *dto.CreateStockRequ
 			CreatedAt:     now,
 			Change:        req.Amount,
 		}
-		if err := s.stockRepo.CreateHistoricRecord(ctx, historicStock); err != nil {
+		if err := createAndSyncHistoric(ctx, s.stockRepo, s.outboxRepo, s.syncIdentity.NodeID, historicStock); err != nil {
 			return fmt.Errorf("failed to create historic stock record: %w", err)
 		}
 
@@ -111,7 +111,7 @@ func (s *StockService) AddOrDecreaseStock(ctx context.Context, req *dto.AddOrDec
 			CreatedAt:     time.Now(),
 			Change:        req.Change,
 		}
-		if err := s.stockRepo.CreateHistoricRecord(ctx, historicStock); err != nil {
+		if err := createAndSyncHistoric(ctx, s.stockRepo, s.outboxRepo, s.syncIdentity.NodeID, historicStock); err != nil {
 			return fmt.Errorf("failed to create historic stock record: %w", err)
 		}
 
@@ -250,7 +250,7 @@ func (s *StockService) BulkStockCreationOrUpdating(ctx context.Context, req *dto
 		}
 
 		for _, historicStock := range historicRecords {
-			if err := s.stockRepo.CreateHistoricRecord(ctx, historicStock); err != nil {
+			if err := createAndSyncHistoric(ctx, s.stockRepo, s.outboxRepo, s.syncIdentity.NodeID, historicStock); err != nil {
 				return fmt.Errorf("failed to create historic stock record: %w", err)
 			}
 		}
@@ -294,6 +294,44 @@ func appendStockOutbox(ctx context.Context, outboxRepo ports.SyncOutboxRepositor
 		EntityType:   dto.SyncEntityStock,
 		EntityID:     stock.ProductID,
 		Operation:    operation,
+		Payload:      payloadBytes,
+	})
+}
+
+// createAndSyncHistoric persists one historic_stock movement row and appends its append-only
+// create sync_outbox op in the same transaction (Option A), so the ledger entry replicates to
+// the cloud. It generates the row's op_id, stores it on the row, and reuses it as the sync op
+// id (1:1) — the cloud dedups on it. Must be called inside a UnitOfWork transaction. Shared by
+// the manual stock writes (StockService) and the order/purchase-driven writes (StockEventHandler).
+func createAndSyncHistoric(ctx context.Context, stockRepo ports.StockRepository, outboxRepo ports.SyncOutboxRepository, nodeID string, historic *dto.HistoricStock) error {
+	opID, err := uuid.NewV7()
+	if err != nil {
+		return fmt.Errorf("generate historic_stock op_id: %w", err)
+	}
+	historic.OpID = opID.String()
+
+	if createErr := stockRepo.CreateHistoricRecord(ctx, historic); createErr != nil {
+		return createErr
+	}
+
+	payload := dto.HistoricStockSyncPayload{
+		OpID:          historic.OpID,
+		ProductID:     historic.ProductID,
+		UnitOfMeasure: string(historic.UnitOfMeasure),
+		Change:        historic.Change,
+		CreatedAt:     historic.CreatedAt,
+	}
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal historic_stock sync payload: %w", err)
+	}
+
+	return outboxRepo.Append(ctx, &dto.SyncOutboxEntry{
+		OpID:         historic.OpID,
+		OriginNodeID: nodeID,
+		EntityType:   dto.SyncEntityHistoricStock,
+		EntityID:     historic.OpID,
+		Operation:    dto.SyncOperationCreate,
 		Payload:      payloadBytes,
 	})
 }

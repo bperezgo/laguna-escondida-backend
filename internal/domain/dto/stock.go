@@ -36,7 +36,11 @@ type BulkStockCreationOrUpdatingRequest struct {
 }
 
 type HistoricStock struct {
-	ID            int           `json:"id"`
+	ID int `json:"id"`
+	// OpID is the ledger row's cross-node identity, generated when the row is created and
+	// reused as the sync op id so the movement replicates edge → cloud. Empty for legacy
+	// rows written before sync was enabled.
+	OpID          string        `json:"op_id,omitempty"`
 	ProductID     string        `json:"product_id"`
 	UnitOfMeasure UnitOfMeasure `json:"unit_of_measure"`
 	CreatedAt     time.Time     `json:"created_at"`

@@ -35,6 +35,7 @@ func (stockModel) TableName() string {
 
 type historicStockModel struct {
 	ID            int       `gorm:"type:serial;primaryKey"`
+	OpID          *string   `gorm:"type:uuid;column:op_id"`
 	ProductID     string    `gorm:"type:uuid;not null"`
 	UnitOfMeasure string    `gorm:"type:varchar(10);not null;default:'unit'"`
 	CreatedAt     time.Time `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
@@ -155,6 +156,9 @@ func (r *StockRepository) CreateHistoricRecord(ctx context.Context, historicStoc
 		CreatedAt:     historicStock.CreatedAt,
 		Change:        historicStock.Change,
 	}
+	if historicStock.OpID != "" {
+		model.OpID = &historicStock.OpID
+	}
 
 	return postgres.GetTxOrDB(ctx, r.db).Create(model).Error
 }
@@ -188,8 +192,13 @@ func (r *StockRepository) toDTO(model *stockModel) *dto.Stock {
 }
 
 func (r *StockRepository) historicToDTO(model *historicStockModel) *dto.HistoricStock {
+	opID := ""
+	if model.OpID != nil {
+		opID = *model.OpID
+	}
 	return &dto.HistoricStock{
 		ID:            model.ID,
+		OpID:          opID,
 		ProductID:     model.ProductID,
 		UnitOfMeasure: dto.UnitOfMeasure(model.UnitOfMeasure),
 		CreatedAt:     model.CreatedAt,

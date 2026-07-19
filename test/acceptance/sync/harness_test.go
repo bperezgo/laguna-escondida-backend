@@ -226,6 +226,7 @@ func newRig(t *testing.T) *rig {
 		dto.SyncEntityOpenBill:      repository.NewOpenBillSyncApplier(cloudGDB),
 		dto.SyncEntityPurchaseEntry: repository.NewPurchaseEntrySyncApplier(cloudGDB),
 		dto.SyncEntityStock:         repository.NewStockSyncApplier(cloudGDB),
+		dto.SyncEntityHistoricStock: repository.NewHistoricStockSyncApplier(cloudGDB),
 	}
 	cloudSync := service.NewSyncService(cloudUoW, cloudInbox, cloudAppliers, logger)
 	cloudRef := repository.NewSyncReferenceRepository(cloudGDB)
@@ -512,6 +513,31 @@ func (r *rig) stockOutboxEntry(productID string, version, amount int, op dto.Syn
 		EntityID:     productID,
 		Operation:    op,
 		Payload:      raw,
+	}
+}
+
+// historicStockOutboxEntry builds an append-only historic_stock create op for the given
+// (cloud-resident) product. The row's op_id doubles as the sync op id (1:1), matching how the
+// stock service produces it.
+func (r *rig) historicStockOutboxEntry(productID string, change int) *dto.SyncOutboxEntry {
+	r.t.Helper()
+	opID := uuid.NewString()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	b, err := json.Marshal(dto.HistoricStockSyncPayload{
+		OpID:          opID,
+		ProductID:     productID,
+		UnitOfMeasure: "unit",
+		Change:        change,
+		CreatedAt:     now,
+	})
+	require.NoError(r.t, err, "marshal historic_stock payload")
+	return &dto.SyncOutboxEntry{
+		OpID:         opID,
+		OriginNodeID: r.identity.NodeID,
+		EntityType:   dto.SyncEntityHistoricStock,
+		EntityID:     opID,
+		Operation:    dto.SyncOperationCreate,
+		Payload:      b,
 	}
 }
 

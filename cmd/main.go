@@ -132,6 +132,7 @@ func main() {
 		dto.SyncEntityBill:           repository.NewBillSyncApplier(db.DB),
 		dto.SyncEntityPendingInvoice: repository.NewPendingInvoiceSyncApplier(db.DB),
 		dto.SyncEntityStock:          repository.NewStockSyncApplier(db.DB),
+		dto.SyncEntityHistoricStock:  repository.NewHistoricStockSyncApplier(db.DB),
 	}
 	syncService := service.NewSyncService(unitOfWork, syncInboxRepo, syncAppliers, slogLogger)
 	syncReferenceService := service.NewSyncReferenceService(syncReferenceRepo, slogLogger)

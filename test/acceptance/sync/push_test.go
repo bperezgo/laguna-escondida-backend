@@ -172,3 +172,40 @@ func TestSync_Push_StockDeleteSoftDeletesMirror(t *testing.T) {
 	assert.Equal(t, int64(0), r.cloudCount("stock", "product_id = ? AND deleted_at IS NULL", productID), "mirror soft-deleted")
 	assert.Equal(t, int64(1), r.cloudCount("stock", "product_id = ? AND deleted_at IS NOT NULL", productID), "tombstone retained")
 }
+
+// The historic_stock movement ledger replicates edge → cloud as append-only create ops: each
+// delta lands as its own row (deltas, not absolutes), so the cloud accumulates the full history.
+
+func TestSync_Push_HistoricStockLedgerLandsOnCloud(t *testing.T) {
+	r := newRig(t)
+	productID := r.seedCloudProduct(t, "SKU-HIST-1")
+
+	r.appendEdgeOutbox(r.historicStockOutboxEntry(productID, -5))
+	r.appendEdgeOutbox(r.historicStockOutboxEntry(productID, 12))
+
+	res := r.push()
+
+	assert.Equal(t, 2, res.PushedOps, "both ledger ops pushed")
+	assert.Equal(t, int64(2), r.cloudCount("historic_stock", "product_id = ?", productID), "both movements landed")
+	assert.Equal(t, int64(1), r.cloudCount("historic_stock", "product_id = ? AND change = ?", productID, -5), "the -5 delta")
+	assert.Equal(t, int64(1), r.cloudCount("historic_stock", "product_id = ? AND change = ?", productID, 12), "the +12 delta")
+	assert.Equal(t, int64(0), r.edgeCount("sync_outbox", "synced_at IS NULL"), "edge outbox drained")
+}
+
+// Replaying a ledger op (lost-ack retry) appends exactly once: deduped by op_id via sync_inbox,
+// with ON CONFLICT (op_id) as the applier's safety net.
+func TestSync_Push_HistoricStockReplayIsIdempotent(t *testing.T) {
+	r := newRig(t)
+	productID := r.seedCloudProduct(t, "SKU-HIST-2")
+
+	entry := r.historicStockOutboxEntry(productID, 7)
+	req := &dto.SyncPushRequest{NodeID: r.identity.NodeID, Ops: []dto.SyncOutboxEntry{*entry}}
+
+	first := r.cloudApply(req)
+	second := r.cloudApply(req) // a retried, previously-acked batch
+
+	assert.Len(t, first.AckedOpIDs, 1, "first apply acks the op")
+	assert.Len(t, second.AckedOpIDs, 1, "replay still acks (idempotent)")
+	assert.Equal(t, int64(1), r.cloudCount("historic_stock", "op_id = ?", entry.OpID), "appended exactly once")
+	assert.Equal(t, int64(1), r.cloudCount("sync_inbox", "op_id = ?", entry.OpID), "deduped in inbox")
+}

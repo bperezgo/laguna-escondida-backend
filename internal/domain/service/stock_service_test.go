@@ -146,8 +146,9 @@ func TestCreateStock_RepositoryError(t *testing.T) {
 }
 
 // TestCreateStock_WritesOutboxRowInTransaction asserts the transactional outbox
-// (Option A): creating stock appends exactly one stock outbox row, stamped with this
-// node's id and the create operation, and the payload snapshot carries the amount.
+// (Option A): creating stock appends both a historic_stock ledger op and a stock
+// snapshot op, each stamped with this node's id and the create operation, with the
+// stock payload carrying the on-hand amount and the historic payload the delta.
 func TestCreateStock_WritesOutboxRowInTransaction(t *testing.T) {
 	ctx := context.Background()
 	mockStockRepo := mocks.NewMockStockRepository(t)
@@ -171,29 +172,49 @@ func TestCreateStock_WritesOutboxRowInTransaction(t *testing.T) {
 	mockStockRepo.On("Create", ctx, mock.AnythingOfType("*dto.Stock")).Return(nil).Once()
 	mockStockRepo.On("CreateHistoricRecord", ctx, mock.AnythingOfType("*dto.HistoricStock")).Return(nil).Once()
 
-	var captured *dto.SyncOutboxEntry
+	var captured []*dto.SyncOutboxEntry
 	mockOutbox.EXPECT().
 		Append(mock.Anything, mock.AnythingOfType("*dto.SyncOutboxEntry")).
-		Run(func(_ context.Context, entry *dto.SyncOutboxEntry) { captured = entry }).
-		Return(nil).
-		Once()
+		Run(func(_ context.Context, entry *dto.SyncOutboxEntry) { captured = append(captured, entry) }).
+		Return(nil)
 
 	result, err := service.CreateStock(ctx, req)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	require.NotNil(t, captured)
-	assert.NotEmpty(t, captured.OpID, "service must set a client-generated op_id")
-	assert.Equal(t, testNodeID, captured.OriginNodeID)
-	assert.Equal(t, dto.SyncEntityStock, captured.EntityType)
-	assert.Equal(t, dto.SyncOperationCreate, captured.Operation)
-	assert.Equal(t, productID, captured.EntityID)
+	stockOp := findOutboxEntry(captured, dto.SyncEntityStock)
+	require.NotNil(t, stockOp, "a stock snapshot op must be appended")
+	assert.NotEmpty(t, stockOp.OpID, "service must set a client-generated op_id")
+	assert.Equal(t, testNodeID, stockOp.OriginNodeID)
+	assert.Equal(t, dto.SyncOperationCreate, stockOp.Operation)
+	assert.Equal(t, productID, stockOp.EntityID)
 
 	var snapshot dto.StockSyncPayload
-	require.NoError(t, json.Unmarshal(captured.Payload, &snapshot))
+	require.NoError(t, json.Unmarshal(stockOp.Payload, &snapshot))
 	assert.Equal(t, productID, snapshot.ProductID)
 	assert.Equal(t, req.Amount, snapshot.Amount)
 	assert.Equal(t, product.Version, snapshot.Version)
+
+	historicOp := findOutboxEntry(captured, dto.SyncEntityHistoricStock)
+	require.NotNil(t, historicOp, "a historic_stock ledger op must be appended")
+	assert.Equal(t, testNodeID, historicOp.OriginNodeID)
+	assert.Equal(t, dto.SyncOperationCreate, historicOp.Operation)
+
+	var historic dto.HistoricStockSyncPayload
+	require.NoError(t, json.Unmarshal(historicOp.Payload, &historic))
+	assert.Equal(t, productID, historic.ProductID)
+	assert.Equal(t, req.Amount, historic.Change)
+	assert.Equal(t, historicOp.OpID, historic.OpID, "historic op reuses the row's op_id (1:1)")
+}
+
+// findOutboxEntry returns the first captured outbox entry of the given entity type, or nil.
+func findOutboxEntry(entries []*dto.SyncOutboxEntry, entityType dto.SyncEntityType) *dto.SyncOutboxEntry {
+	for _, e := range entries {
+		if e.EntityType == entityType {
+			return e
+		}
+	}
+	return nil
 }
 
 // AddOrDecreaseStock Tests

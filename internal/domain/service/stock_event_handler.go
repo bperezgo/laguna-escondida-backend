@@ -297,7 +297,7 @@ func (h *StockEventHandler) updateStock(ctx context.Context, productID string, c
 
 		// Unlike before, a failed historic write now rolls back the stock write (and the
 		// outbox row) instead of being logged and swallowed.
-		if err := h.stockRepo.CreateHistoricRecord(ctx, &dto.HistoricStock{
+		if err := createAndSyncHistoric(ctx, h.stockRepo, h.outboxRepo, h.syncIdentity.NodeID, &dto.HistoricStock{
 			ProductID:     productID,
 			UnitOfMeasure: product.UnitOfMeasure,
 			Change:        change,

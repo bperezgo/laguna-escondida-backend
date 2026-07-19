@@ -37,6 +37,7 @@ const (
 	SyncEntityBill           SyncEntityType = "bill"
 	SyncEntityPendingInvoice SyncEntityType = "pending_invoice"
 	SyncEntityStock          SyncEntityType = "stock"
+	SyncEntityHistoricStock  SyncEntityType = "historic_stock"
 )
 
 // SyncOutboxEntry is one durable change queued for replication to a peer node.
@@ -242,6 +243,18 @@ type StockSyncPayload struct {
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`
 	DeletedAt     *time.Time `json:"deleted_at,omitempty"`
+}
+
+// HistoricStockSyncPayload carries one historic_stock movement row edge → cloud. The ledger
+// is append-only, so it replicates as a create op keyed by OpID (the row's cross-node identity,
+// also the sync op id); the cloud inserts it once for analytics. Amounts are deltas (Change),
+// not absolutes — no on-hand reconciliation, just the movement history.
+type HistoricStockSyncPayload struct {
+	OpID          string    `json:"op_id"`
+	ProductID     string    `json:"product_id"`
+	UnitOfMeasure string    `json:"unit_of_measure"`
+	Change        int       `json:"change"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 // OpenBillSyncPayload is the row snapshot carried in a sync_outbox entry for an
