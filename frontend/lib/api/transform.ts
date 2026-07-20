@@ -35,7 +35,6 @@ export function transformProductListResponse(
 
 export function transformStock(stock: any): Stock {
   return {
-    id: stock.id,
     product_id: stock.product_id,
     amount: stock.amount,
     created_at: stock.created_at,

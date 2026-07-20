@@ -16,6 +16,8 @@ import {
 } from "@/lib/api/orders";
 import type { OpenBill, OpenBillWithProducts } from "@/types/order";
 import { PermissionGate } from "@/components/permissions";
+import { PinConfirmModal } from "@/components/ui";
+import { isOrderActionPinRequired } from "@/lib/orders/actionPin";
 import { PERMISSIONS, usePermissions } from "@/lib/permissions";
 import {
   type OrderViewMode,
@@ -40,6 +42,12 @@ export default function OrdersPageClient() {
     null
   );
   const [isLoadingBill, setIsLoadingBill] = useState(false);
+  // Bill awaiting PIN-confirmed removal. Removing is irreversible, so a single
+  // tap must never delete a bill — the confirm gate holds it here first.
+  const [billPendingRemoval, setBillPendingRemoval] = useState<OpenBill | null>(
+    null
+  );
+  const [isRemoving, setIsRemoving] = useState(false);
   const [viewMode, setViewMode] = useState<OrderViewMode>("mine");
   // Primary tab: live open bills vs. today's closed (paid) bills.
   const [mainView, setMainView] = useState<"open" | "closed">("open");
@@ -141,14 +149,38 @@ export default function OrdersPageClient() {
     }
   };
 
-  const handleRemoveClick = async (bill: OpenBill) => {
+  const removeBill = async (bill: OpenBill) => {
+    setIsRemoving(true);
+    setError(null);
     try {
       await removeOpenBill(bill.id);
       setOpenBills((prev) => prev.filter((b) => b.id !== bill.id));
+      setBillPendingRemoval(null);
+      // If the bill was being edited, close that modal too.
+      setEditingBill((current) =>
+        current && current.id === bill.id ? null : current
+      );
     } catch (err) {
       console.error("Error removing bill:", err);
       setError(err instanceof Error ? err.message : "Failed to remove bill");
+      setBillPendingRemoval(null);
+    } finally {
+      setIsRemoving(false);
     }
+  };
+
+  // With a PIN configured (edge), stage the bill and open the confirm gate;
+  // without one (cloud), remove immediately — no extra validation.
+  const handleRemoveClick = (bill: OpenBill) => {
+    if (isOrderActionPinRequired) {
+      setBillPendingRemoval(bill);
+    } else {
+      removeBill(bill);
+    }
+  };
+
+  const confirmRemoval = () => {
+    if (billPendingRemoval) removeBill(billPendingRemoval);
   };
 
   return (
@@ -435,6 +467,22 @@ export default function OrdersPageClient() {
           onSuccess={handleCreateSuccess}
         />
       )}
+
+      {/* Confirm + PIN gate before removing a bill (irreversible) */}
+      <PinConfirmModal
+        open={!!billPendingRemoval}
+        onClose={() => setBillPendingRemoval(null)}
+        onConfirm={confirmRemoval}
+        isProcessing={isRemoving}
+        title="Eliminar cuenta"
+        confirmLabel="Eliminar"
+        confirmVariant="danger"
+        message={
+          billPendingRemoval
+            ? `Vas a eliminar la cuenta "${billPendingRemoval.temporal_identifier}". Esta acción no se puede deshacer.`
+            : undefined
+        }
+      />
 
       {/* Loading overlay when fetching bill details */}
       {isLoadingBill && (

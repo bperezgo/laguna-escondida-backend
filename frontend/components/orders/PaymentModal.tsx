@@ -7,9 +7,10 @@ import { useEdgeStatus } from "@/lib/edge/context";
 import { useReceiptPrint } from "@/lib/hooks/useReceiptPrint";
 import ReceiptPrintContent from "@/components/orders/ReceiptPrintContent";
 import { calculateReceiptTotals, groupBillProducts } from "@/lib/orders/receipt";
+import { isOrderActionPinRequired } from "@/lib/orders/actionPin";
 import type { OpenBillWithProducts } from "@/types/order";
 import type { PaymentType, PayOrderRequest } from "@/types/billOwner";
-import { Button, Input, Modal, Select } from "@/components/ui";
+import { Button, Input, Modal, PinConfirmModal, Select } from "@/components/ui";
 
 // Card payment types require internet (cleared by the bank in real time).
 const CARD_PAYMENT_TYPES: PaymentType[] = ["credit_card", "debit_card"];
@@ -32,6 +33,9 @@ export default function PaymentModal({
   const { printRef, isPrinting, print } = useReceiptPrint(openBill);
   const [isPaying, setIsPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Paying closes the bill and cannot be undone, so require a PIN before the
+  // final submit fires.
+  const [showPinConfirm, setShowPinConfirm] = useState(false);
 
   // Printing only works from a computer (browser print / edge printer), so the
   // "Imprimir Cuenta" button is hidden on the waitress phone (<768px) where it
@@ -106,12 +110,31 @@ export default function PaymentModal({
     }
   };
 
+  // Validate first, then gate on the PIN. Keeping the offline check here means
+  // we never even prompt for a PIN on an invalid selection. Without a PIN
+  // configured (cloud), pay immediately; with one (edge), open the gate.
+  const requestPayment = () => {
+    if (isOffline && isCardPaymentType(paymentType)) {
+      setError(
+        "No se puede pagar con tarjeta sin conexión. Selecciona efectivo o transferencia.",
+      );
+      return;
+    }
+    setError(null);
+    if (isOrderActionPinRequired) {
+      setShowPinConfirm(true);
+    } else {
+      handlePayment();
+    }
+  };
+
   const handlePayment = async () => {
     // Defense in depth: never submit a card payment while offline.
     if (isOffline && isCardPaymentType(paymentType)) {
       setError(
         "No se puede pagar con tarjeta sin conexión. Selecciona efectivo o transferencia.",
       );
+      setShowPinConfirm(false);
       return;
     }
 
@@ -141,6 +164,8 @@ export default function PaymentModal({
       setError(
         err instanceof Error ? err.message : "Failed to process payment",
       );
+      // Drop back to the bill so the error banner is visible.
+      setShowPinConfirm(false);
     } finally {
       setIsPaying(false);
     }
@@ -165,6 +190,7 @@ export default function PaymentModal({
   };
 
   return (
+    <>
     <Modal
       open
       onClose={onClose}
@@ -199,7 +225,7 @@ export default function PaymentModal({
           >
             {isPrinting ? "Imprimiendo..." : "Imprimir Cuenta"}
           </Button>
-          <Button onClick={handlePayment} disabled={isPaying}>
+          <Button onClick={requestPayment} disabled={isPaying}>
             {isPaying ? "Procesando..." : "Pagar y Cerrar Cuenta"}
           </Button>
         </>
@@ -528,5 +554,19 @@ export default function PaymentModal({
         <ReceiptPrintContent ref={printRef} openBill={openBill} />
       </div>
     </Modal>
+
+    {/* Confirm + PIN gate before closing the bill (irreversible) */}
+    <PinConfirmModal
+      open={showPinConfirm}
+      onClose={() => setShowPinConfirm(false)}
+      onConfirm={handlePayment}
+      isProcessing={isPaying}
+      title="Confirmar pago"
+      confirmLabel="Pagar y Cerrar"
+      message={`Vas a cerrar la cuenta "${openBill.temporal_identifier}" por un total de $${total.toFixed(
+        2,
+      )}. Esta acción no se puede deshacer.`}
+    />
+    </>
   );
 }

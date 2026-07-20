@@ -98,7 +98,7 @@ export default function StockList({
           </thead>
           <tbody>
             {filteredStocks.map((stock) => (
-              <tr key={stock.id}>
+              <tr key={stock.product_id}>
                 <td style={{ fontWeight: 600 }}>
                   {productMap.get(stock.product_id) || `Producto ${stock.product_id}`}
                 </td>

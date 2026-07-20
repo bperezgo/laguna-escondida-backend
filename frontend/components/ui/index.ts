@@ -16,5 +16,8 @@ export type { TableProps } from "./Table";
 export { default as Modal } from "./Modal";
 export type { ModalProps, ModalSize } from "./Modal";
 
+export { default as PinConfirmModal } from "./PinConfirmModal";
+export type { PinConfirmModalProps } from "./PinConfirmModal";
+
 export { default as StatCard } from "./StatCard";
 export type { StatCardProps } from "./StatCard";

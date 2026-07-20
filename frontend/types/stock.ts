@@ -1,5 +1,4 @@
 export interface Stock {
-  id: string;
   product_id: string;
   amount: number;
   created_at: string;
