@@ -80,6 +80,14 @@ const navItems = [
     accent: "var(--color-success)",
   },
   {
+    href: "/close",
+    title: "Cierre de Caja",
+    description: "Cuadre diario del dinero por método de pago",
+    permission: PERMISSIONS.FINANCIAL_SUMMARY_READ,
+    accent: "var(--color-success)",
+    cloudAdminOnly: true,
+  },
+  {
     href: "/users",
     title: "Usuarios",
     description: "Crear y administrar usuarios del sistema",

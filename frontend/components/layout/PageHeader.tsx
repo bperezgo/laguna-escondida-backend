@@ -18,6 +18,7 @@ export default function PageHeader() {
     if (pathname.startsWith("/suppliers")) return "Proveedores";
     if (pathname.startsWith("/purchase-entries")) return "Entradas de Compra";
     if (pathname.startsWith("/expenses")) return "Gastos";
+    if (pathname.startsWith("/close")) return "Cierre de Caja";
     if (pathname.startsWith("/users")) return "Usuarios";
     return "Laguna Escondida";
   };
