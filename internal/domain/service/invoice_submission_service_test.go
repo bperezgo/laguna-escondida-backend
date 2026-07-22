@@ -155,6 +155,51 @@ func TestSubmitDue_NoLineItems_DoesNotConsumeConsecutive(t *testing.T) {
 	invoiceClient.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 }
 
+// TestSubmitDue_RebuildsPayloadReusingConsecutive covers the operator recovery path: a row
+// whose request_payload was cleared (to recover from an older bad payload) but whose
+// consecutive is already assigned must rebuild from current bill data and re-submit with the
+// SAME consecutive — no new number is claimed, so the fiscal sequence stays gap-free.
+func TestSubmitDue_RebuildsPayloadReusingConsecutive(t *testing.T) {
+	ctx := context.Background()
+	pendingRepo := mocks.NewMockPendingInvoiceRepository(t)
+	billRepo := mocks.NewMockBillRepository(t)
+	invoiceClient := mocks.NewMockElectronicInvoiceClient(t)
+	outboxRepo := mocks.NewMockSyncOutboxRepository(t)
+
+	consecutive := 151
+	pending := &dto.PendingInvoice{
+		ID:             "pending-4",
+		BillID:         "bill-4",
+		PaymentCode:    dto.ElectronicInvoicePaymentCodeCreditCard,
+		Consecutive:    &consecutive,
+		RequestPayload: nil, // operator cleared it to force a rebuild
+		Status:         dto.PendingInvoiceStatusPending,
+	}
+	pendingRepo.EXPECT().ListDue(ctx, mock.AnythingOfType("int")).Return([]*dto.PendingInvoice{pending}, nil)
+
+	hydratedBill := &dto.Bill{
+		ID: "bill-4",
+		Products: []dto.BillProduct{
+			{ProductID: "prod-1", Quantity: 2, UnitPrice: decimal.RequireFromString("100"), Name: "X"},
+		},
+	}
+	billRepo.EXPECT().FindBillForInvoice(ctx, "bill-4").Return(hydratedBill, nil)
+	pendingRepo.EXPECT().UpdateRequestPayload(ctx, "pending-4", mock.AnythingOfType("json.RawMessage")).Return(nil)
+	invoiceClient.EXPECT().Create(mock.Anything, mock.MatchedBy(func(req *dto.CreateElectronicInvoiceRequest) bool {
+		return req.Consecutive == 151 && req.Bill != nil && len(req.Bill.Products) == 1
+	})).Return(&dto.CreateElectronicInvoiceResponse{CUFE: "cufe-4", Tascode: "tas-4"}, nil)
+	billRepo.EXPECT().SetInvoiceResult(mock.Anything, "bill-4", "cufe-4", "tas-4").Return(nil)
+	pendingRepo.EXPECT().MarkSubmitted(mock.Anything, "pending-4").Return(nil)
+	outboxRepo.EXPECT().Append(mock.Anything, mock.Anything).Return(nil)
+
+	service := newSubmissionService(t, pendingRepo, billRepo, invoiceClient, outboxRepo)
+	require.NoError(t, service.SubmitDue(ctx))
+
+	// A rebuild must NOT claim a new fiscal number.
+	billRepo.AssertNotCalled(t, "GetNextConsecutive", mock.Anything, mock.Anything)
+	pendingRepo.AssertNotCalled(t, "AssignConsecutive", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
 func TestSubmitDue_ProviderError_MarksFailedWithBackoff(t *testing.T) {
 	ctx := context.Background()
 	pendingRepo := mocks.NewMockPendingInvoiceRepository(t)

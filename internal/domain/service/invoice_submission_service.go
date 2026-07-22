@@ -78,12 +78,15 @@ func (s *InvoiceSubmissionService) SubmitDue(ctx context.Context) error {
 }
 
 func (s *InvoiceSubmissionService) submitOne(ctx context.Context, pending *dto.PendingInvoice) {
-	// Assign the consecutive and build the request payload on first encounter. This is the
-	// centralization point: all consecutive numbers come from the cloud's invoice_sequences,
-	// never from the edge, so edge and cloud bills cannot produce duplicate numbers.
-	if pending.Consecutive == nil {
-		if err := s.reserveConsecutive(ctx, pending); err != nil {
-			s.logger.Warn("failed to assign invoice consecutive; will retry",
+	// Build the request payload when it hasn't been built yet. This fires on a freshly-created
+	// row (first submission) AND on a rebuild: clearing request_payload (e.g. an operator sets
+	// it to NULL to recover a batch broken by an older bug) forces a fresh build from current
+	// bill data while keeping the already-assigned consecutive, so a stale/broken payload is
+	// regenerated without skipping a fiscal number. The first build is also the centralization
+	// point — the consecutive comes from the cloud's invoice_sequences, never from the edge.
+	if pending.RequestPayload == nil {
+		if err := s.buildRequestPayload(ctx, pending); err != nil {
+			s.logger.Warn("failed to build invoice request payload; will retry",
 				zap.String("pending_invoice_id", pending.ID),
 				zap.String("bill_id", pending.BillID),
 				zap.Error(err))
@@ -141,11 +144,12 @@ func (s *InvoiceSubmissionService) submitOne(ctx context.Context, pending *dto.P
 	}
 }
 
-// reserveConsecutive assigns the next consecutive from the cloud's invoice_sequences,
-// fetches the bill and its products, builds the full CreateElectronicInvoiceRequest, and
-// persists it to the pending_invoice row. After this call, pending.Consecutive and
-// pending.RequestPayload are populated and ready for submission.
-func (s *InvoiceSubmissionService) reserveConsecutive(ctx context.Context, pending *dto.PendingInvoice) error {
+// buildRequestPayload builds the CreateElectronicInvoiceRequest for a pending row from the
+// current bill data and persists it. On the first build it claims the next consecutive from
+// the centralized invoice_sequences; on a rebuild (consecutive already set, payload cleared) it
+// reuses the existing consecutive so the fiscal sequence stays gap-free. After this call
+// pending.Consecutive and pending.RequestPayload are populated and ready for submission.
+func (s *InvoiceSubmissionService) buildRequestPayload(ctx context.Context, pending *dto.PendingInvoice) error {
 	billForInvoice, err := s.billRepo.FindBillForInvoice(ctx, pending.BillID)
 	if err != nil {
 		return fmt.Errorf("load bill for invoice: %w", err)
@@ -153,15 +157,22 @@ func (s *InvoiceSubmissionService) reserveConsecutive(ctx context.Context, pendi
 	// Guard before claiming a consecutive: the provider request is built from the bill's line
 	// items (Bill.Products), so an empty list — e.g. the cloud's products table doesn't yet
 	// have the IDs referenced by bill_products because pull sync hasn't run — would produce an
-	// "items empty" rejection. Returning an error here keeps consecutive IS NULL so the next
-	// tick retries — no sequence number is wasted and no broken payload is stored permanently.
+	// "items empty" rejection. Returning an error here leaves the row unbuilt so the next tick
+	// retries — no sequence number is wasted and no broken payload is stored permanently.
 	if len(billForInvoice.Products) == 0 {
 		return fmt.Errorf("no products found for bill %s: products may not yet be synced to cloud", pending.BillID)
 	}
 
-	consecutive, err := s.billRepo.GetNextConsecutive(ctx, s.config.ElectronicInvoicePrefix)
-	if err != nil {
-		return fmt.Errorf("get next consecutive: %w", err)
+	// Reuse the already-assigned consecutive on a rebuild; only claim a new one the first time.
+	firstAssignment := pending.Consecutive == nil
+	consecutive := 0
+	if firstAssignment {
+		consecutive, err = s.billRepo.GetNextConsecutive(ctx, s.config.ElectronicInvoicePrefix)
+		if err != nil {
+			return fmt.Errorf("get next consecutive: %w", err)
+		}
+	} else {
+		consecutive = *pending.Consecutive
 	}
 
 	reqPayload, err := json.Marshal(&dto.CreateElectronicInvoiceRequest{
@@ -174,8 +185,13 @@ func (s *InvoiceSubmissionService) reserveConsecutive(ctx context.Context, pendi
 		return fmt.Errorf("marshal invoice request: %w", err)
 	}
 
-	if err := s.pendingRepo.AssignConsecutive(ctx, pending.ID, consecutive, reqPayload); err != nil {
-		return fmt.Errorf("persist assigned consecutive: %w", err)
+	if firstAssignment {
+		// WHERE consecutive IS NULL keeps this idempotent against concurrent cron ticks.
+		if err := s.pendingRepo.AssignConsecutive(ctx, pending.ID, consecutive, reqPayload); err != nil {
+			return fmt.Errorf("persist assigned consecutive: %w", err)
+		}
+	} else if err := s.pendingRepo.UpdateRequestPayload(ctx, pending.ID, reqPayload); err != nil {
+		return fmt.Errorf("persist rebuilt payload: %w", err)
 	}
 	pending.Consecutive = &consecutive
 	pending.RequestPayload = reqPayload

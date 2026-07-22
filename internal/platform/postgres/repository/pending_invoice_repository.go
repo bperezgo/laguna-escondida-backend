@@ -99,6 +99,23 @@ func (r *PendingInvoiceRepository) AssignConsecutive(ctx context.Context, id str
 	return nil
 }
 
+// UpdateRequestPayload overwrites request_payload for a row while leaving its consecutive
+// untouched. Used to rebuild a stale/broken payload (e.g. after an operator sets
+// request_payload = NULL) so the invoice re-submits with the SAME fiscal number — no gap.
+func (r *PendingInvoiceRepository) UpdateRequestPayload(ctx context.Context, id string, requestPayload json.RawMessage) error {
+	db := postgres.GetTxOrDB(ctx, r.db)
+	payload := string(requestPayload)
+	if err := db.Model(&pendingInvoiceModel{}).
+		Where("id = ?", id).
+		Updates(map[string]any{
+			"request_payload": payload,
+			"updated_at":      time.Now(),
+		}).Error; err != nil {
+		return fmt.Errorf("update pending invoice request payload: %w", err)
+	}
+	return nil
+}
+
 // MarkSubmitted flips a row to submitted after the provider accepts it.
 func (r *PendingInvoiceRepository) MarkSubmitted(ctx context.Context, id string) error {
 	db := postgres.GetTxOrDB(ctx, r.db)

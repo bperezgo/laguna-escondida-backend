@@ -276,6 +276,54 @@ func (_c *MockPendingInvoiceRepository_MarkSubmitted_Call) RunAndReturn(run func
 	return _c
 }
 
+// UpdateRequestPayload provides a mock function with given fields: ctx, id, requestPayload
+func (_m *MockPendingInvoiceRepository) UpdateRequestPayload(ctx context.Context, id string, requestPayload json.RawMessage) error {
+	ret := _m.Called(ctx, id, requestPayload)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateRequestPayload")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, json.RawMessage) error); ok {
+		r0 = rf(ctx, id, requestPayload)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockPendingInvoiceRepository_UpdateRequestPayload_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateRequestPayload'
+type MockPendingInvoiceRepository_UpdateRequestPayload_Call struct {
+	*mock.Call
+}
+
+// UpdateRequestPayload is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+//   - requestPayload json.RawMessage
+func (_e *MockPendingInvoiceRepository_Expecter) UpdateRequestPayload(ctx interface{}, id interface{}, requestPayload interface{}) *MockPendingInvoiceRepository_UpdateRequestPayload_Call {
+	return &MockPendingInvoiceRepository_UpdateRequestPayload_Call{Call: _e.mock.On("UpdateRequestPayload", ctx, id, requestPayload)}
+}
+
+func (_c *MockPendingInvoiceRepository_UpdateRequestPayload_Call) Run(run func(ctx context.Context, id string, requestPayload json.RawMessage)) *MockPendingInvoiceRepository_UpdateRequestPayload_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(json.RawMessage))
+	})
+	return _c
+}
+
+func (_c *MockPendingInvoiceRepository_UpdateRequestPayload_Call) Return(_a0 error) *MockPendingInvoiceRepository_UpdateRequestPayload_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockPendingInvoiceRepository_UpdateRequestPayload_Call) RunAndReturn(run func(context.Context, string, json.RawMessage) error) *MockPendingInvoiceRepository_UpdateRequestPayload_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockPendingInvoiceRepository creates a new instance of MockPendingInvoiceRepository. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockPendingInvoiceRepository(t interface {

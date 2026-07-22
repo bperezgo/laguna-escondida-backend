@@ -22,6 +22,11 @@ type PendingInvoiceRepository interface {
 	// AssignConsecutive persists the cloud-assigned consecutive and the built request payload.
 	// A WHERE consecutive IS NULL guard makes it idempotent against concurrent cron ticks.
 	AssignConsecutive(ctx context.Context, id string, consecutive int, requestPayload json.RawMessage) error
+	// UpdateRequestPayload overwrites the built request payload, leaving the already-assigned
+	// consecutive untouched. It is the rebuild path: an operator (or the code) can clear
+	// request_payload to force a fresh build from current bill data while preserving the fiscal
+	// number, so a stale/broken payload is regenerated without leaving a gap in the sequence.
+	UpdateRequestPayload(ctx context.Context, id string, requestPayload json.RawMessage) error
 	MarkSubmitted(ctx context.Context, id string) error
 	// MarkFailed increments attempts and records the error and the next eligible time.
 	MarkFailed(ctx context.Context, id string, errMsg string, nextAttemptAt time.Time) error
