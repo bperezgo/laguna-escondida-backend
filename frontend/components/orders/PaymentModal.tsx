@@ -14,9 +14,8 @@ import { Button, Input, Modal, PinConfirmModal, Select } from "@/components/ui";
 
 // Card payment types require internet (cleared by the bank in real time).
 const CARD_PAYMENT_TYPES: PaymentType[] = ["credit_card", "debit_card"];
-const isCardPaymentType = (type: PaymentType) =>
-  CARD_PAYMENT_TYPES.includes(type);
-const DEFAULT_PAYMENT_TYPE: PaymentType = "transfer_debit_bank";
+const isCardPaymentType = (type: PaymentType | "") =>
+  CARD_PAYMENT_TYPES.includes(type as PaymentType);
 
 interface PaymentModalProps {
   openBill: OpenBillWithProducts;
@@ -60,16 +59,15 @@ export default function PaymentModal({
   const [customerIdentificationType, setCustomerIdentificationType] =
     useState("");
 
-  // Payment type
-  const [paymentType, setPaymentType] = useState<PaymentType>(
-    DEFAULT_PAYMENT_TYPE,
-  );
+  // Payment type — no default. The cashier must consciously pick one so a bill
+  // is never closed under a pre-selected method that doesn't match reality.
+  const [paymentType, setPaymentType] = useState<PaymentType | "">("");
 
-  // If we go offline while a card type is selected, reset to a usable default so
-  // submit can't fire on a disabled option.
+  // If we go offline while a card type is selected, clear it so submit can't
+  // fire on a now-disabled option; the cashier re-picks a usable method.
   useEffect(() => {
     if (isOffline && isCardPaymentType(paymentType)) {
-      setPaymentType(DEFAULT_PAYMENT_TYPE);
+      setPaymentType("");
     }
   }, [isOffline, paymentType]);
 
@@ -114,6 +112,10 @@ export default function PaymentModal({
   // we never even prompt for a PIN on an invalid selection. Without a PIN
   // configured (cloud), pay immediately; with one (edge), open the gate.
   const requestPayment = () => {
+    if (!paymentType) {
+      setError("Selecciona un tipo de pago.");
+      return;
+    }
     if (isOffline && isCardPaymentType(paymentType)) {
       setError(
         "No se puede pagar con tarjeta sin conexión. Selecciona efectivo o transferencia.",
@@ -129,6 +131,13 @@ export default function PaymentModal({
   };
 
   const handlePayment = async () => {
+    // Defense in depth: never submit without a payment type (also narrows the
+    // type so payment_type below is a concrete PaymentType).
+    if (!paymentType) {
+      setError("Selecciona un tipo de pago.");
+      setShowPinConfirm(false);
+      return;
+    }
     // Defense in depth: never submit a card payment while offline.
     if (isOffline && isCardPaymentType(paymentType)) {
       setError(
@@ -280,9 +289,12 @@ export default function PaymentModal({
         <Select
           label="Tipo de Pago *"
           value={paymentType}
-          onChange={(e) => setPaymentType(e.target.value as PaymentType)}
+          onChange={(e) => setPaymentType(e.target.value as PaymentType | "")}
           disabled={isPaying}
         >
+          <option value="" disabled>
+            Selecciona un tipo de pago...
+          </option>
           <option value="cash">Efectivo</option>
           <option value="credit_card" disabled={isOffline}>
             Tarjeta de Crédito{isOffline ? " (no disponible sin conexión)" : ""}

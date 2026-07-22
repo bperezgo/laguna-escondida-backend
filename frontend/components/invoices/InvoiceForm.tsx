@@ -46,7 +46,9 @@ export default function InvoiceForm({
   const [pendingSubmitData, setPendingSubmitData] =
     useState<CreateElectronicInvoiceRequest | null>(null);
   const [formData, setFormData] = useState({
-    payment_code: "cash" as ElectronicInvoicePaymentCode,
+    // No default: the user must consciously pick a payment code before creating
+    // the invoice.
+    payment_code: "" as ElectronicInvoicePaymentCode | "",
     customer: {
       id: "",
       document_type: "CC" as DocumentType,
@@ -197,6 +199,10 @@ export default function InvoiceForm({
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
 
+    if (!formData.payment_code) {
+      newErrors.payment_code = "Selecciona un código de pago";
+    }
+
     // Validate customer (optional - if any field is filled, all are required)
     const hasCustomerData =
       formData.customer.id.trim() ||
@@ -249,7 +255,8 @@ export default function InvoiceForm({
       formData.customer.email.trim();
 
     return {
-      payment_code: formData.payment_code,
+      // validate() guarantees a non-empty selection before we reach here.
+      payment_code: formData.payment_code as ElectronicInvoicePaymentCode,
       ...(hasCustomerData && {
         customer: {
           id: formData.customer.id.trim(),
@@ -466,6 +473,7 @@ export default function InvoiceForm({
             <Select
               label="Código de Pago *"
               value={formData.payment_code}
+              error={errors.payment_code}
               onChange={(e) =>
                 handleChange(
                   "payment_code",
@@ -473,6 +481,9 @@ export default function InvoiceForm({
                 )
               }
             >
+              <option value="" disabled>
+                Selecciona un código de pago...
+              </option>
               {PAYMENT_CODES.map((code) => (
                 <option key={code.value} value={code.value}>
                   {code.label}

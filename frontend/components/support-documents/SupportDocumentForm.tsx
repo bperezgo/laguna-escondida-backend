@@ -49,7 +49,9 @@ export default function SupportDocumentForm({
   const [pendingSubmitData, setPendingSubmitData] =
     useState<CreateSupportDocumentRequest | null>(null);
   const [formData, setFormData] = useState({
-    payment_code: "cash" as SupportDocumentPaymentCode,
+    // No default: the user must consciously pick a payment code before creating
+    // the support document.
+    payment_code: "" as SupportDocumentPaymentCode | "",
     provider: {
       id: "",
       document_type: "CC" as ProviderDocumentType,
@@ -76,6 +78,10 @@ export default function SupportDocumentForm({
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
+
+    if (!formData.payment_code) {
+      newErrors.payment_code = "Selecciona un código de pago";
+    }
 
     if (!formData.provider.id.trim()) {
       newErrors["provider.id"] =
@@ -120,7 +126,8 @@ export default function SupportDocumentForm({
 
   const buildSubmitData = (): CreateSupportDocumentRequest => {
     return {
-      payment_code: formData.payment_code,
+      // validate() guarantees a non-empty selection before we reach here.
+      payment_code: formData.payment_code as SupportDocumentPaymentCode,
       provider: {
         id: formData.provider.id.trim(),
         document_type: formData.provider.document_type,
@@ -266,6 +273,7 @@ export default function SupportDocumentForm({
             <Select
               label="Código de Pago *"
               value={formData.payment_code}
+              error={errors.payment_code}
               onChange={(e) =>
                 handleChange(
                   "payment_code",
@@ -273,6 +281,9 @@ export default function SupportDocumentForm({
                 )
               }
             >
+              <option value="" disabled>
+                Selecciona un código de pago...
+              </option>
               {PAYMENT_CODES.map((code) => (
                 <option key={code.value} value={code.value}>
                   {code.label}
