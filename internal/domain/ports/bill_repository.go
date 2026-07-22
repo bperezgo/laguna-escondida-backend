@@ -30,4 +30,8 @@ type BillRepository interface {
 	UpdateDocumentURL(ctx context.Context, billID string, documentURL string) error
 	UpdateStoragePaths(ctx context.Context, billID string, pdfPath *string, xmlPath *string) error
 	GetRevenueSummary(ctx context.Context, startDate time.Time, endDate time.Time) (*dto.RevenueSummary, error)
+	// GetSalesByPaymentMethod returns the gross collected (SUM(pay_amount)) and bill count
+	// grouped by payment_method for the [startDate, endDate] range — the daily-close money
+	// split, one row per payment_code (cards are not bucketed).
+	GetSalesByPaymentMethod(ctx context.Context, startDate time.Time, endDate time.Time) ([]dto.PaymentMethodBreakdown, error)
 }

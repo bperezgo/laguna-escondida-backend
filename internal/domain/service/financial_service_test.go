@@ -134,6 +134,98 @@ func TestGetFinancialSummary_ExpenseError(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to get expense summary")
 }
 
+func dailyCloseRange() (time.Time, time.Time) {
+	from := time.Date(2026, 7, 21, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 7, 21, 23, 59, 59, 0, time.UTC)
+	return from, to
+}
+
+func TestGetDailyClose_Success(t *testing.T) {
+	ctx := context.Background()
+	svc, br, _, _ := createTestFinancialService(t)
+	from, to := dailyCloseRange()
+
+	rev := &dto.RevenueSummary{
+		TotalAmount:   decimal.NewFromFloat(2000000), // net of tax
+		TotalVAT:      decimal.NewFromFloat(300000),
+		TotalICO:      decimal.NewFromFloat(50000),
+		TotalDiscount: decimal.NewFromFloat(20000),
+		TotalTip:      decimal.Zero,
+		Count:         12,
+	}
+	// One row per payment kind — cards NOT bucketed.
+	breakdown := []dto.PaymentMethodBreakdown{
+		{PaymentMethod: "cash", Collected: decimal.NewFromFloat(1240000), Net: decimal.NewFromFloat(1050000), Count: 7},
+		{PaymentMethod: "credit_card", Collected: decimal.NewFromFloat(420000), Net: decimal.NewFromFloat(360000), Count: 3},
+		{PaymentMethod: "debit_card", Collected: decimal.NewFromFloat(260000), Net: decimal.NewFromFloat(220000), Count: 2},
+	}
+
+	br.On("GetRevenueSummary", ctx, from, to).Return(rev, nil)
+	br.On("GetSalesByPaymentMethod", ctx, from, to).Return(breakdown, nil)
+
+	result, err := svc.GetDailyClose(ctx, from, to)
+
+	require.NoError(t, err)
+	assert.Equal(t, from, result.StartDate)
+	assert.Equal(t, to, result.EndDate)
+	assert.Equal(t, 12, result.TotalOrders)
+	// TotalCollected = sum of per-method gross = 1240000 + 420000 + 260000 = 1920000.
+	assert.True(t, result.TotalCollected.Equal(decimal.NewFromFloat(1920000)),
+		"TotalCollected must reconcile to the breakdown; got %s", result.TotalCollected)
+	assert.True(t, result.TotalNet.Equal(decimal.NewFromFloat(2000000)))
+	assert.True(t, result.TotalVAT.Equal(decimal.NewFromFloat(300000)))
+	assert.True(t, result.TotalICO.Equal(decimal.NewFromFloat(50000)))
+	assert.True(t, result.TotalDiscount.Equal(decimal.NewFromFloat(20000)))
+	assert.True(t, result.TotalTip.Equal(decimal.Zero))
+	assert.Equal(t, 3, len(result.ByPaymentMethod), "one row per payment kind, not bucketed")
+	assert.Equal(t, "credit_card", result.ByPaymentMethod[1].PaymentMethod)
+}
+
+func TestGetDailyClose_Empty(t *testing.T) {
+	ctx := context.Background()
+	svc, br, _, _ := createTestFinancialService(t)
+	from, to := dailyCloseRange()
+
+	br.On("GetRevenueSummary", ctx, from, to).Return(&dto.RevenueSummary{}, nil)
+	br.On("GetSalesByPaymentMethod", ctx, from, to).Return([]dto.PaymentMethodBreakdown{}, nil)
+
+	result, err := svc.GetDailyClose(ctx, from, to)
+
+	require.NoError(t, err)
+	assert.Equal(t, 0, result.TotalOrders)
+	assert.True(t, result.TotalCollected.Equal(decimal.Zero))
+	assert.Equal(t, 0, len(result.ByPaymentMethod))
+}
+
+func TestGetDailyClose_RevenueError(t *testing.T) {
+	ctx := context.Background()
+	svc, br, _, _ := createTestFinancialService(t)
+	from, to := dailyCloseRange()
+
+	br.On("GetRevenueSummary", ctx, from, to).Return(nil, errors.New("db error"))
+
+	result, err := svc.GetDailyClose(ctx, from, to)
+
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "failed to get revenue summary")
+}
+
+func TestGetDailyClose_PaymentMethodError(t *testing.T) {
+	ctx := context.Background()
+	svc, br, _, _ := createTestFinancialService(t)
+	from, to := dailyCloseRange()
+
+	br.On("GetRevenueSummary", ctx, from, to).Return(&dto.RevenueSummary{Count: 1}, nil)
+	br.On("GetSalesByPaymentMethod", ctx, from, to).Return(nil, errors.New("db error"))
+
+	result, err := svc.GetDailyClose(ctx, from, to)
+
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "failed to get sales by payment method")
+}
+
 func TestGetFinancialSummary_PurchaseError(t *testing.T) {
 	ctx := context.Background()
 	svc, br, er, pr := createTestFinancialService(t)

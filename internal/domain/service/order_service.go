@@ -590,6 +590,8 @@ func (s *OrderService) appendBillCreateOutbox(ctx context.Context, billDTO *dto.
 		Customer:       billDTO.Customer,
 		TotalAmount:    billDTO.TotalAmount,
 		DiscountAmount: billDTO.DiscountAmount,
+		PayAmount:      billDTO.PayAmount,
+		PaymentMethod:  billDTO.PaymentMethod,
 		VAT:            billDTO.VAT,
 		ICO:            billDTO.ICO,
 		Tip:            billDTO.Tip,

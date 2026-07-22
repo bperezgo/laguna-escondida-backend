@@ -99,6 +99,7 @@ func (a *Aggregate) ToDTO() *dto.Bill {
 		DiscountAmount: a.discountAmount,
 		TaxAmount:      a.taxAmount,
 		PayAmount:      a.payAmount,
+		PaymentMethod:  string(a.paymentCode.Value()),
 		CreatedAt:      a.createdAt,
 		UpdatedAt:      a.updatedAt,
 		VAT:            a.vat,

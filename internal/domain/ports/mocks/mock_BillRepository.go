@@ -491,6 +491,66 @@ func (_c *MockBillRepository_GetRevenueSummary_Call) RunAndReturn(run func(conte
 	return _c
 }
 
+// GetSalesByPaymentMethod provides a mock function with given fields: ctx, startDate, endDate
+func (_m *MockBillRepository) GetSalesByPaymentMethod(ctx context.Context, startDate time.Time, endDate time.Time) ([]dto.PaymentMethodBreakdown, error) {
+	ret := _m.Called(ctx, startDate, endDate)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetSalesByPaymentMethod")
+	}
+
+	var r0 []dto.PaymentMethodBreakdown
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time, time.Time) ([]dto.PaymentMethodBreakdown, error)); ok {
+		return rf(ctx, startDate, endDate)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time, time.Time) []dto.PaymentMethodBreakdown); ok {
+		r0 = rf(ctx, startDate, endDate)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]dto.PaymentMethodBreakdown)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, time.Time, time.Time) error); ok {
+		r1 = rf(ctx, startDate, endDate)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockBillRepository_GetSalesByPaymentMethod_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetSalesByPaymentMethod'
+type MockBillRepository_GetSalesByPaymentMethod_Call struct {
+	*mock.Call
+}
+
+// GetSalesByPaymentMethod is a helper method to define mock.On call
+//   - ctx context.Context
+//   - startDate time.Time
+//   - endDate time.Time
+func (_e *MockBillRepository_Expecter) GetSalesByPaymentMethod(ctx interface{}, startDate interface{}, endDate interface{}) *MockBillRepository_GetSalesByPaymentMethod_Call {
+	return &MockBillRepository_GetSalesByPaymentMethod_Call{Call: _e.mock.On("GetSalesByPaymentMethod", ctx, startDate, endDate)}
+}
+
+func (_c *MockBillRepository_GetSalesByPaymentMethod_Call) Run(run func(ctx context.Context, startDate time.Time, endDate time.Time)) *MockBillRepository_GetSalesByPaymentMethod_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(time.Time), args[2].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockBillRepository_GetSalesByPaymentMethod_Call) Return(_a0 []dto.PaymentMethodBreakdown, _a1 error) *MockBillRepository_GetSalesByPaymentMethod_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockBillRepository_GetSalesByPaymentMethod_Call) RunAndReturn(run func(context.Context, time.Time, time.Time) ([]dto.PaymentMethodBreakdown, error)) *MockBillRepository_GetSalesByPaymentMethod_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // SetInvoiceResult provides a mock function with given fields: ctx, billID, cufe, tascode
 func (_m *MockBillRepository) SetInvoiceResult(ctx context.Context, billID string, cufe string, tascode string) error {
 	ret := _m.Called(ctx, billID, cufe, tascode)

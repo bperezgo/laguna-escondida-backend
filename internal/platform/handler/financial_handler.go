@@ -56,3 +56,32 @@ func (h *FinancialHandler) GetFinancialSummaryHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, summary)
 }
+
+// GetDailyCloseHandler returns the read-only end-of-day money reconciliation for one
+// business day (America/Bogota). ?date=YYYY-MM-DD selects the day; it defaults to today.
+func (h *FinancialHandler) GetDailyCloseHandler(c *gin.Context) {
+	dateStr := c.Query("date")
+	if dateStr == "" {
+		dateStr = time.Now().In(utcMinus5).Format(simpleDateLayout)
+	}
+
+	from, err := parseStartDate(dateStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid date format. Use YYYY-MM-DD"})
+		return
+	}
+	to, err := parseEndDate(dateStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid date format. Use YYYY-MM-DD"})
+		return
+	}
+
+	report, err := h.financialService.GetDailyClose(c.Request.Context(), from, to)
+	if err != nil {
+		log.Printf("Error getting daily close: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get daily close"})
+		return
+	}
+
+	c.JSON(http.StatusOK, report)
+}

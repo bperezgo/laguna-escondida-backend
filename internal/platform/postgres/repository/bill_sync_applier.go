@@ -59,6 +59,8 @@ func (a *BillSyncApplier) applyCreate(ctx context.Context, op *dto.SyncOutboxEnt
 		BillOwnerID:    billOwnerID,
 		TotalAmount:    payload.TotalAmount,
 		DiscountAmount: payload.DiscountAmount,
+		PayAmount:      payload.PayAmount,
+		PaymentMethod:  payload.PaymentMethod,
 		VAT:            payload.VAT,
 		ICO:            payload.ICO,
 		Tip:            payload.Tip,
@@ -72,8 +74,8 @@ func (a *BillSyncApplier) applyCreate(ctx context.Context, op *dto.SyncOutboxEnt
 	if err := db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "id"}},
 		DoUpdates: clause.AssignmentColumns([]string{
-			"bill_owner_id", "total_amount", "discount_amount", "vat", "ico", "tip",
-			"document_url", "cufe", "tascode", "updated_at", "deleted_at",
+			"bill_owner_id", "total_amount", "discount_amount", "pay_amount", "payment_method",
+			"vat", "ico", "tip", "document_url", "cufe", "tascode", "updated_at", "deleted_at",
 		}),
 	}).Create(header).Error; err != nil {
 		return fmt.Errorf("upsert bill: %w", err)

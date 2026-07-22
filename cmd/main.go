@@ -425,6 +425,9 @@ func main() {
 	// Financial routes
 	router.GET("/api/financial/summary", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.FinancialRead), financialHandler.GetFinancialSummaryHandler)
 
+	// Reports routes
+	router.GET("/api/reports/daily-close", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.FinancialRead), financialHandler.GetDailyCloseHandler)
+
 	// SSE routes for real-time open bill product notifications
 	router.GET("/api/sse/commands/:area", handler.SSEMiddleware(), handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SSECommandsRead), sseHandler.StreamCommandsHandler)
 	router.GET("/api/sse/open-bill-products/:area", handler.SSEMiddleware(), handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SSECommandItemsRead), sseHandler.StreamOpenBillProductsHandler)

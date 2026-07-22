@@ -221,6 +221,8 @@ type BillSyncPayload struct {
 	Customer       *Customer         `json:"customer,omitempty"`
 	TotalAmount    decimal.Decimal   `json:"total_amount"`
 	DiscountAmount decimal.Decimal   `json:"discount_amount"`
+	PayAmount      decimal.Decimal   `json:"pay_amount"`
+	PaymentMethod  string            `json:"payment_method"`
 	VAT            decimal.Decimal   `json:"vat"`
 	ICO            decimal.Decimal   `json:"ico"`
 	Tip            decimal.Decimal   `json:"tip"`

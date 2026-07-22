@@ -3,9 +3,12 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
+
+	"github.com/shopspring/decimal"
 )
 
 type FinancialService struct {
@@ -51,5 +54,39 @@ func (s *FinancialService) GetFinancialSummary(ctx context.Context, req *dto.Fin
 		Expenses:  *expenses,
 		Purchases: *purchases,
 		NetIncome: netIncome,
+	}, nil
+}
+
+// GetDailyClose builds the read-only end-of-day money reconciliation for the [from, to]
+// business-day range. Totals reuse GetRevenueSummary; the per-method split reuses
+// GetSalesByPaymentMethod. TotalCollected is the sum of the gross per method, so the
+// breakdown always reconciles to the total.
+func (s *FinancialService) GetDailyClose(ctx context.Context, from, to time.Time) (*dto.DailyCloseReport, error) {
+	revenue, err := s.billRepo.GetRevenueSummary(ctx, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get revenue summary: %w", err)
+	}
+
+	breakdown, err := s.billRepo.GetSalesByPaymentMethod(ctx, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sales by payment method: %w", err)
+	}
+
+	totalCollected := decimal.Zero
+	for _, b := range breakdown {
+		totalCollected = totalCollected.Add(b.Collected)
+	}
+
+	return &dto.DailyCloseReport{
+		StartDate:       from,
+		EndDate:         to,
+		TotalOrders:     revenue.Count,
+		TotalCollected:  totalCollected,
+		TotalNet:        revenue.TotalAmount,
+		TotalVAT:        revenue.TotalVAT,
+		TotalICO:        revenue.TotalICO,
+		TotalDiscount:   revenue.TotalDiscount,
+		TotalTip:        revenue.TotalTip,
+		ByPaymentMethod: breakdown,
 	}, nil
 }

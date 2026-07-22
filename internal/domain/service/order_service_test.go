@@ -1583,6 +1583,80 @@ func TestPayOrder_Success(t *testing.T) {
 	mockOpenBillRepo.AssertCalled(t, "Delete", ctx, openBillID)
 }
 
+// TestPayOrder_PersistsPaymentMethodAndGrossPayAmount locks in the two facts the daily-close
+// ("Cierre de Caja") reconciliation depends on: the finalized bill carries (1) the payment
+// method it was paid with, and (2) pay_amount = the GROSS the customer paid (net total plus
+// taxes, minus discount, plus tip) — not the tax-exclusive total_amount.
+func TestPayOrder_PersistsPaymentMethodAndGrossPayAmount(t *testing.T) {
+	ctx := createTestContext()
+	mockProductRepo := mocks.NewMockProductRepository(t)
+	mockOpenBillRepo := mocks.NewMockOpenBillRepository(t)
+	mockBillRepo := mocks.NewMockBillRepository(t)
+	mockBillOwnerRepo := mocks.NewMockBillOwnerRepository(t)
+	service := createTestService(t, mockProductRepo, mockOpenBillRepo, mockBillRepo, mockBillOwnerRepo)
+
+	openBillID := openBillID1
+	// A non-cash code proves payment_method comes from the payment, not a hardcoded default.
+	paymentCode := dto.ElectronicInvoicePaymentCodeCreditCard
+
+	// Absolute VAT/ICO amounts make the gross exceed the net total, which is precisely the
+	// case that summing total_amount would under-count.
+	openBillWithProducts := &dto.OpenBillWithProducts{
+		ID:                 openBillID,
+		TemporalIdentifier: "TABLE-01",
+		TotalAmount:        decimal.NewFromFloat(100.0),
+		Products: []dto.OpenBillProductDetail{
+			{
+				Product: dto.Product{
+					ID:                  productID1,
+					Name:                "Product 1",
+					Category:            "Category 1",
+					ProductType:         dto.ProductTypeSellable,
+					UnitOfMeasure:       dto.UnitOfMeasureUnit,
+					Version:             1,
+					UnitPrice:           decimal.NewFromFloat(39.37),
+					VAT:                 decimal.NewFromFloat(0.19),
+					VATAmount:           decimal.NewFromFloat(7.48),
+					ICO:                 decimal.NewFromFloat(0.08),
+					ICOAmount:           decimal.NewFromFloat(3.15),
+					SKU:                 "SKU001",
+					TotalPriceWithTaxes: decimal.NewFromFloat(50.0),
+				},
+				Quantity: 2,
+			},
+		},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	payOrderCmd := command.PayOrderCommand{
+		OpenBillID:  openBillID,
+		PaymentCode: paymentCode,
+		Customer:    nil,
+	}
+
+	var captured interface{ ToDTO() *dto.Bill }
+	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(openBillWithProducts, nil)
+	mockBillRepo.On("Create", ctx, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			captured, _ = args.Get(1).(interface{ ToDTO() *dto.Bill })
+		}).Return(nil)
+	mockOpenBillRepo.On("Delete", ctx, openBillID).Return(nil)
+
+	err := service.PayOrder(ctx, payOrderCmd)
+	require.NoError(t, err)
+	require.NotNil(t, captured)
+
+	got := captured.ToDTO()
+	assert.Equal(t, string(dto.ElectronicInvoicePaymentCodeCreditCard), got.PaymentMethod)
+
+	expectedGross := got.TotalAmount.Add(got.VAT).Add(got.ICO).Sub(got.DiscountAmount).Add(got.Tip)
+	assert.True(t, got.PayAmount.Equal(expectedGross),
+		"pay_amount %s should equal gross %s (total+vat+ico-discount+tip)", got.PayAmount, expectedGross)
+	assert.True(t, got.PayAmount.GreaterThan(got.TotalAmount),
+		"pay_amount %s should exceed the tax-exclusive total_amount %s", got.PayAmount, got.TotalAmount)
+}
+
 func TestPayOrder_SuccessWithoutCustomer(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := mocks.NewMockProductRepository(t)

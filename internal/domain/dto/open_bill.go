@@ -104,6 +104,7 @@ type Bill struct {
 	DiscountAmount decimal.Decimal `json:"discount_amount"`
 	TaxAmount      decimal.Decimal `json:"tax_amount"`
 	PayAmount      decimal.Decimal `json:"pay_amount"`
+	PaymentMethod  string          `json:"payment_method"`
 	VAT            decimal.Decimal `json:"vat"`
 	ICO            decimal.Decimal `json:"ico"`
 	Tip            decimal.Decimal `json:"tip"`

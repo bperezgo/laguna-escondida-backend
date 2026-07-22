@@ -99,6 +99,8 @@ func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, produ
 			BillOwnerID:    billOwnerID,
 			TotalAmount:    billDTO.TotalAmount,
 			DiscountAmount: billDTO.DiscountAmount,
+			PayAmount:      billDTO.PayAmount,
+			PaymentMethod:  billDTO.PaymentMethod,
 			VAT:            billDTO.VAT,
 			ICO:            billDTO.ICO,
 			Tip:            billDTO.Tip,
@@ -415,6 +417,44 @@ func (r *BillRepository) GetRevenueSummary(ctx context.Context, startDate time.T
 		TotalTip:      decimal.NewFromFloat(result.TotalTip),
 		Count:         result.Count,
 	}, nil
+}
+
+// GetSalesByPaymentMethod returns the gross collected and bill count grouped by
+// payment_method for the range. Collected sums pay_amount — the GROSS the customer paid,
+// persisted at pay time — NOT total_amount, which is net of tax. Soft-deleted bills
+// (refunds/voids) are excluded. One row per payment_code; cards are not bucketed.
+func (r *BillRepository) GetSalesByPaymentMethod(ctx context.Context, startDate time.Time, endDate time.Time) ([]dto.PaymentMethodBreakdown, error) {
+	var rows []struct {
+		PaymentMethod string  `gorm:"column:payment_method"`
+		Collected     float64 `gorm:"column:collected"`
+		Net           float64 `gorm:"column:net"`
+		Count         int     `gorm:"column:count"`
+	}
+
+	err := r.db.WithContext(ctx).
+		Model(&billModel{}).
+		Select(`payment_method,
+			COALESCE(SUM(pay_amount), 0) as collected,
+			COALESCE(SUM(total_amount), 0) as net,
+			COUNT(*) as count`).
+		Where("created_at >= ? AND created_at <= ? AND deleted_at IS NULL", startDate, endDate).
+		Group("payment_method").
+		Order("payment_method").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]dto.PaymentMethodBreakdown, len(rows))
+	for i, row := range rows {
+		result[i] = dto.PaymentMethodBreakdown{
+			PaymentMethod: row.PaymentMethod,
+			Collected:     decimal.NewFromFloat(row.Collected),
+			Net:           decimal.NewFromFloat(row.Net),
+			Count:         row.Count,
+		}
+	}
+	return result, nil
 }
 
 func (r *BillRepository) UpdateStoragePaths(ctx context.Context, billID string, pdfPath *string, xmlPath *string) error {

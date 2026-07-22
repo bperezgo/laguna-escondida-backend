@@ -61,6 +61,8 @@ type billModel struct {
 	BillOwnerID    *string         `gorm:"type:varchar(255)"`
 	TotalAmount    decimal.Decimal `gorm:"type:numeric(19,4);not null;column:total_amount"`
 	DiscountAmount decimal.Decimal `gorm:"type:numeric(19,4);not null;default:0;column:discount_amount"`
+	PayAmount      decimal.Decimal `gorm:"type:numeric(19,4);not null;default:0;column:pay_amount"`
+	PaymentMethod  string          `gorm:"type:varchar;not null;default:'';column:payment_method"`
 	VAT            decimal.Decimal `gorm:"type:numeric(19,4);not null"`
 	ICO            decimal.Decimal `gorm:"type:numeric(19,4);not null"`
 	Tip            decimal.Decimal `gorm:"type:numeric(19,4);not null"`
