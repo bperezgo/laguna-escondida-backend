@@ -1711,6 +1711,124 @@ func TestPayOrder_SuccessWithoutCustomer(t *testing.T) {
 	mockOpenBillRepo.AssertCalled(t, "Delete", ctx, openBillID)
 }
 
+// singleProductOpenBill builds a minimal paid-order fixture (one product, qty 2) used by the
+// cash-invoicing tests below.
+func singleProductOpenBill(openBillID string) *dto.OpenBillWithProducts {
+	return &dto.OpenBillWithProducts{
+		ID:                 openBillID,
+		TemporalIdentifier: "TABLE-01",
+		TotalAmount:        decimal.NewFromFloat(100.0),
+		Products: []dto.OpenBillProductDetail{
+			{
+				Product: dto.Product{
+					ID:                  productID1,
+					Name:                "Product 1",
+					Category:            "Category 1",
+					ProductType:         dto.ProductTypeSellable,
+					UnitOfMeasure:       dto.UnitOfMeasureUnit,
+					Version:             1,
+					UnitPrice:           decimal.NewFromFloat(39.37),
+					VAT:                 decimal.NewFromFloat(0.19),
+					ICO:                 decimal.NewFromFloat(0.08),
+					SKU:                 "SKU001",
+					TotalPriceWithTaxes: decimal.NewFromFloat(50.0),
+				},
+				Quantity: 2,
+			},
+		},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+}
+
+// TestRequiresElectronicInvoice locks the rule that drives cash invoicing: every non-cash
+// payment is invoiced, and a cash sale is invoiced only when the customer identified
+// themselves with a document number.
+func TestRequiresElectronicInvoice(t *testing.T) {
+	withDoc := &dto.Customer{DocumentNumber: "123456789", DocumentType: dto.DocumentTypeNationalIdentificationNumber, Name: "Jane"}
+	emptyDoc := &dto.Customer{DocumentNumber: "", Name: "Jane"}
+
+	cases := []struct {
+		name        string
+		paymentCode dto.ElectronicInvoicePaymentCode
+		customer    *dto.Customer
+		want        bool
+	}{
+		{"card without customer is invoiced", dto.ElectronicInvoicePaymentCodeCreditCard, nil, true},
+		{"card with customer is invoiced", dto.ElectronicInvoicePaymentCodeCreditCard, withDoc, true},
+		{"debit card without customer is invoiced", dto.ElectronicInvoicePaymentCodeDebitCard, nil, true},
+		{"transfer without customer is invoiced", dto.ElectronicInvoicePaymentCodeTransferCreditBank, nil, true},
+		{"cash without customer is NOT invoiced", dto.ElectronicInvoicePaymentCodeCash, nil, false},
+		{"cash with empty document is NOT invoiced", dto.ElectronicInvoicePaymentCodeCash, emptyDoc, false},
+		{"cash with identified customer IS invoiced", dto.ElectronicInvoicePaymentCodeCash, withDoc, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.want, requiresElectronicInvoice(c.paymentCode, c.customer))
+		})
+	}
+}
+
+// TestPayOrder_CashWithCustomer_QueuesElectronicInvoice verifies a cash sale IS queued for the
+// fiscal provider when the customer identified themselves.
+func TestPayOrder_CashWithCustomer_QueuesElectronicInvoice(t *testing.T) {
+	ctx := createTestContext()
+	mockProductRepo := mocks.NewMockProductRepository(t)
+	mockOpenBillRepo := mocks.NewMockOpenBillRepository(t)
+	mockBillRepo := mocks.NewMockBillRepository(t)
+	mockBillOwnerRepo := mocks.NewMockBillOwnerRepository(t)
+	mockPendingInvoiceRepo := mocks.NewMockPendingInvoiceRepository(t)
+	service := NewOrderService(mockOpenBillRepo, mockProductRepo, mockBillRepo, mockPendingInvoiceRepo,
+		dto.PendingInvoiceStatusPending, mockBillOwnerRepo, createMockUnitOfWork(t), createMockEventBus(t),
+		createMockSyncOutboxRepository(t), dto.SyncIdentity{NodeID: testNodeID})
+
+	openBillID := openBillID1
+	customer := &dto.Customer{DocumentNumber: "123456789", DocumentType: dto.DocumentTypeNationalIdentificationNumber, Name: "John Doe", Email: "john@example.com"}
+
+	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(singleProductOpenBill(openBillID), nil)
+	mockBillOwnerRepo.On("FindByID", ctx, customer.DocumentNumber).Return(nil, orderError.ErrBillOwnerNotFound)
+	mockBillOwnerRepo.On("Create", ctx, mock.AnythingOfType("*customer.Aggregate")).Return(nil)
+	mockBillRepo.On("Create", ctx, mock.Anything, mock.Anything).Return(nil)
+	mockOpenBillRepo.On("Delete", ctx, openBillID).Return(nil)
+	mockPendingInvoiceRepo.EXPECT().Create(ctx, mock.MatchedBy(func(p *dto.PendingInvoice) bool {
+		return p.PaymentCode == dto.ElectronicInvoicePaymentCodeCash && p.BillID != ""
+	})).Return(nil).Once()
+
+	err := service.PayOrder(ctx, command.PayOrderCommand{
+		OpenBillID:  openBillID,
+		PaymentCode: dto.ElectronicInvoicePaymentCodeCash,
+		Customer:    customer,
+	})
+	require.NoError(t, err)
+}
+
+// TestPayOrder_CashWithoutCustomer_SkipsElectronicInvoice verifies an anonymous cash sale is
+// NOT queued. The pending-invoice mock has no Create expectation, so any call fails the test.
+func TestPayOrder_CashWithoutCustomer_SkipsElectronicInvoice(t *testing.T) {
+	ctx := createTestContext()
+	mockProductRepo := mocks.NewMockProductRepository(t)
+	mockOpenBillRepo := mocks.NewMockOpenBillRepository(t)
+	mockBillRepo := mocks.NewMockBillRepository(t)
+	mockBillOwnerRepo := mocks.NewMockBillOwnerRepository(t)
+	mockPendingInvoiceRepo := mocks.NewMockPendingInvoiceRepository(t)
+	service := NewOrderService(mockOpenBillRepo, mockProductRepo, mockBillRepo, mockPendingInvoiceRepo,
+		dto.PendingInvoiceStatusPending, mockBillOwnerRepo, createMockUnitOfWork(t), createMockEventBus(t),
+		createMockSyncOutboxRepository(t), dto.SyncIdentity{NodeID: testNodeID})
+
+	openBillID := openBillID1
+	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(singleProductOpenBill(openBillID), nil)
+	mockBillRepo.On("Create", ctx, mock.Anything, mock.Anything).Return(nil)
+	mockOpenBillRepo.On("Delete", ctx, openBillID).Return(nil)
+
+	err := service.PayOrder(ctx, command.PayOrderCommand{
+		OpenBillID:  openBillID,
+		PaymentCode: dto.ElectronicInvoicePaymentCodeCash,
+		Customer:    nil,
+	})
+	require.NoError(t, err)
+	mockPendingInvoiceRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+}
+
 func TestPayOrder_RepeatedProductsWithDifferentNotes(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := mocks.NewMockProductRepository(t)

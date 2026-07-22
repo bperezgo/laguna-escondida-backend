@@ -513,10 +513,10 @@ func (s *OrderService) PayOrder(ctx context.Context, payOrderCommand command.Pay
 			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
 		}
 
-		// Cash payments do not require an electronic invoice from the fiscal provider,
-		// so we skip creating a pending_invoice row and its outbox entry.
-		// TODO: remove this exception once cash invoicing is required.
-		if payOrderCommand.PaymentCode != dto.ElectronicInvoicePaymentCodeCash {
+		// Non-cash payments always require an electronic invoice. A cash sale is invoiced only
+		// when the customer identified themselves (i.e. asked for an invoice); anonymous cash
+		// sales stay as "consumidor final" and are not reported to the fiscal provider.
+		if requiresElectronicInvoice(payOrderCommand.PaymentCode, payOrderCommand.Customer) {
 			pendingInvoiceID, err := uuid.NewV7()
 			if err != nil {
 				return fmt.Errorf("%w: generate pending invoice id: %w", orderError.ErrOrderPaymentFailed, err)
@@ -537,6 +537,17 @@ func (s *OrderService) PayOrder(ctx context.Context, payOrderCommand command.Pay
 
 		return nil
 	})
+}
+
+// requiresElectronicInvoice reports whether a paid order must be queued for the fiscal
+// provider. Every non-cash payment is invoiced. A cash sale is invoiced only when the
+// customer identified themselves with a document number — anonymous cash sales
+// ("consumidor final") are not reported.
+func requiresElectronicInvoice(paymentCode dto.ElectronicInvoicePaymentCode, customer *dto.Customer) bool {
+	if paymentCode != dto.ElectronicInvoicePaymentCodeCash {
+		return true
+	}
+	return customer != nil && customer.DocumentNumber != ""
 }
 
 // appendPendingInvoiceCreateOutbox writes one sync_outbox row so the cloud can create a
