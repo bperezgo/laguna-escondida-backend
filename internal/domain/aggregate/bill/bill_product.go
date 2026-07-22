@@ -97,6 +97,23 @@ func (bp *BillProduct) Name() string {
 	return bp.name
 }
 
+// ToDTO maps a single line item (with its computed taxes) to the transport DTO. It is the
+// single source of truth for the line-item shape the fiscal provider request is built from,
+// reused by Aggregate.ToDTO and by the cloud submission path that rebuilds the request.
+func (bp *BillProduct) ToDTO() dto.BillProduct {
+	return dto.BillProduct{
+		ProductID:   bp.id,
+		Quantity:    bp.quantity,
+		UnitPrice:   bp.unitPrice,
+		Name:        bp.name,
+		Description: bp.description,
+		Category:    bp.category,
+		Code:        bp.code,
+		Allowance:   bp.allowance,
+		Taxes:       bp.taxes,
+	}
+}
+
 func (bp *BillProduct) Description() *string {
 	return bp.description
 }

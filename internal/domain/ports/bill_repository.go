@@ -17,9 +17,12 @@ type BillRepository interface {
 	// Called only by the cloud submission service — never at bill-creation time — so that
 	// consecutive numbers are always assigned from a single centralized counter.
 	GetNextConsecutive(ctx context.Context, prefix string) (int, error)
-	// FindProductsByBillID returns the full product records for a bill's line items,
-	// used by the cloud submission service to build the provider request at submission time.
-	FindProductsByBillID(ctx context.Context, billID string) ([]*dto.Product, error)
+	// FindBillForInvoice returns a fully-hydrated bill for the cloud submission service to
+	// build the provider request at submission time: header amounts (incl. PayAmount and the
+	// tax total), the Customer, and the line items as []BillProduct with quantities and the
+	// per-item taxes the provider needs. This is the shape the fiscal provider request is
+	// built from, so nil/empty Products means the invoice cannot be issued yet.
+	FindBillForInvoice(ctx context.Context, billID string) (*dto.Bill, error)
 	// SetInvoiceResult stores the CUFE/Tascode returned by the provider once the queued
 	// invoice is submitted (called by the background submitter).
 	SetInvoiceResult(ctx context.Context, billID string, cufe string, tascode string) error

@@ -11,6 +11,7 @@ import (
 	"laguna-escondida/backend/internal/domain/ports/mocks"
 	"laguna-escondida/backend/internal/platform/config"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -73,6 +74,85 @@ func TestSubmitDue_SubmitsAndMarksSubmitted(t *testing.T) {
 
 	service := newSubmissionService(t, pendingRepo, billRepo, invoiceClient, outboxRepo)
 	require.NoError(t, service.SubmitDue(ctx))
+}
+
+// TestSubmitDue_AssignsConsecutiveAndBuildsRequestWithLineItems covers the cloud path where a
+// synced row arrives with no consecutive/payload: the service must assign the consecutive and
+// build the provider request from the hydrated bill. The regression guard is that the request
+// carries the bill's line items on Bill.Products (the bug shipped an empty items array).
+func TestSubmitDue_AssignsConsecutiveAndBuildsRequestWithLineItems(t *testing.T) {
+	ctx := context.Background()
+	pendingRepo := mocks.NewMockPendingInvoiceRepository(t)
+	billRepo := mocks.NewMockBillRepository(t)
+	invoiceClient := mocks.NewMockElectronicInvoiceClient(t)
+	outboxRepo := mocks.NewMockSyncOutboxRepository(t)
+
+	pending := &dto.PendingInvoice{
+		ID:          "pending-2",
+		BillID:      "bill-2",
+		PaymentCode: dto.ElectronicInvoicePaymentCodeCreditCard,
+		Status:      dto.PendingInvoiceStatusPending,
+	}
+	pendingRepo.EXPECT().ListDue(ctx, mock.AnythingOfType("int")).Return([]*dto.PendingInvoice{pending}, nil)
+
+	hydratedBill := &dto.Bill{
+		ID:          "bill-2",
+		TotalAmount: decimal.RequireFromString("201851.87"),
+		PayAmount:   decimal.RequireFromString("218000"),
+		TaxAmount:   decimal.RequireFromString("16148.13"),
+		Products: []dto.BillProduct{
+			{ProductID: "prod-1", Quantity: 3, UnitPrice: decimal.RequireFromString("37037.04"), Name: "Tilapia frita"},
+		},
+	}
+	billRepo.EXPECT().FindBillForInvoice(ctx, "bill-2").Return(hydratedBill, nil)
+	billRepo.EXPECT().GetNextConsecutive(ctx, "LAG").Return(151, nil)
+	pendingRepo.EXPECT().AssignConsecutive(ctx, "pending-2", 151, mock.AnythingOfType("json.RawMessage")).Return(nil)
+
+	invoiceClient.EXPECT().Create(mock.Anything, mock.MatchedBy(func(req *dto.CreateElectronicInvoiceRequest) bool {
+		return req.Consecutive == 151 &&
+			req.PaymentCode == dto.ElectronicInvoicePaymentCodeCreditCard &&
+			req.Bill != nil &&
+			len(req.Bill.Products) == 1 &&
+			req.Bill.Products[0].Quantity == 3
+	})).Return(&dto.CreateElectronicInvoiceResponse{CUFE: "cufe-2", Tascode: "tas-2"}, nil)
+
+	billRepo.EXPECT().SetInvoiceResult(mock.Anything, "bill-2", "cufe-2", "tas-2").Return(nil)
+	pendingRepo.EXPECT().MarkSubmitted(mock.Anything, "pending-2").Return(nil)
+	outboxRepo.EXPECT().Append(mock.Anything, mock.MatchedBy(func(e *dto.SyncOutboxEntry) bool {
+		return e.EntityType == dto.SyncEntityBill && e.Operation == dto.SyncOperationUpdate && e.EntityID == "bill-2"
+	})).Return(nil)
+
+	service := newSubmissionService(t, pendingRepo, billRepo, invoiceClient, outboxRepo)
+	require.NoError(t, service.SubmitDue(ctx))
+}
+
+// TestSubmitDue_NoLineItems_DoesNotConsumeConsecutive verifies that when the bill's products
+// haven't synced yet, the row is backed off WITHOUT claiming a consecutive — so no fiscal
+// number is wasted and no broken empty-items payload is stored.
+func TestSubmitDue_NoLineItems_DoesNotConsumeConsecutive(t *testing.T) {
+	ctx := context.Background()
+	pendingRepo := mocks.NewMockPendingInvoiceRepository(t)
+	billRepo := mocks.NewMockBillRepository(t)
+	invoiceClient := mocks.NewMockElectronicInvoiceClient(t)
+	outboxRepo := mocks.NewMockSyncOutboxRepository(t)
+
+	pending := &dto.PendingInvoice{
+		ID:          "pending-3",
+		BillID:      "bill-3",
+		PaymentCode: dto.ElectronicInvoicePaymentCodeCreditCard,
+		Status:      dto.PendingInvoiceStatusPending,
+	}
+	pendingRepo.EXPECT().ListDue(ctx, mock.AnythingOfType("int")).Return([]*dto.PendingInvoice{pending}, nil)
+	billRepo.EXPECT().FindBillForInvoice(ctx, "bill-3").Return(&dto.Bill{ID: "bill-3"}, nil)
+	pendingRepo.EXPECT().MarkFailed(ctx, "pending-3", mock.AnythingOfType("string"),
+		mock.MatchedBy(func(next time.Time) bool { return next.After(time.Now()) })).Return(nil)
+
+	service := newSubmissionService(t, pendingRepo, billRepo, invoiceClient, outboxRepo)
+	require.NoError(t, service.SubmitDue(ctx))
+
+	billRepo.AssertNotCalled(t, "GetNextConsecutive", mock.Anything, mock.Anything)
+	pendingRepo.AssertNotCalled(t, "AssignConsecutive", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	invoiceClient.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 }
 
 func TestSubmitDue_ProviderError_MarksFailedWithBackoff(t *testing.T) {

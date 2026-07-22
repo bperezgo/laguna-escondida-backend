@@ -132,6 +132,65 @@ func (_c *MockBillRepository_FindAllByCriteria_Call) RunAndReturn(run func(conte
 	return _c
 }
 
+// FindBillForInvoice provides a mock function with given fields: ctx, billID
+func (_m *MockBillRepository) FindBillForInvoice(ctx context.Context, billID string) (*dto.Bill, error) {
+	ret := _m.Called(ctx, billID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindBillForInvoice")
+	}
+
+	var r0 *dto.Bill
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*dto.Bill, error)); ok {
+		return rf(ctx, billID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *dto.Bill); ok {
+		r0 = rf(ctx, billID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*dto.Bill)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, billID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockBillRepository_FindBillForInvoice_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindBillForInvoice'
+type MockBillRepository_FindBillForInvoice_Call struct {
+	*mock.Call
+}
+
+// FindBillForInvoice is a helper method to define mock.On call
+//   - ctx context.Context
+//   - billID string
+func (_e *MockBillRepository_Expecter) FindBillForInvoice(ctx interface{}, billID interface{}) *MockBillRepository_FindBillForInvoice_Call {
+	return &MockBillRepository_FindBillForInvoice_Call{Call: _e.mock.On("FindBillForInvoice", ctx, billID)}
+}
+
+func (_c *MockBillRepository_FindBillForInvoice_Call) Run(run func(ctx context.Context, billID string)) *MockBillRepository_FindBillForInvoice_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockBillRepository_FindBillForInvoice_Call) Return(_a0 *dto.Bill, _a1 error) *MockBillRepository_FindBillForInvoice_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockBillRepository_FindBillForInvoice_Call) RunAndReturn(run func(context.Context, string) (*dto.Bill, error)) *MockBillRepository_FindBillForInvoice_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // FindByCriteria provides a mock function with given fields: ctx, criteria
 func (_m *MockBillRepository) FindByCriteria(ctx context.Context, criteria *dto.BillCriteria) ([]dto.InvoiceListItem, int64, error) {
 	ret := _m.Called(ctx, criteria)
@@ -311,65 +370,6 @@ func (_c *MockBillRepository_FindByNullDocumentURL_Call) Return(_a0 []*dto.BillW
 }
 
 func (_c *MockBillRepository_FindByNullDocumentURL_Call) RunAndReturn(run func(context.Context) ([]*dto.BillWithTascode, error)) *MockBillRepository_FindByNullDocumentURL_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// FindProductsByBillID provides a mock function with given fields: ctx, billID
-func (_m *MockBillRepository) FindProductsByBillID(ctx context.Context, billID string) ([]*dto.Product, error) {
-	ret := _m.Called(ctx, billID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for FindProductsByBillID")
-	}
-
-	var r0 []*dto.Product
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) ([]*dto.Product, error)); ok {
-		return rf(ctx, billID)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) []*dto.Product); ok {
-		r0 = rf(ctx, billID)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*dto.Product)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, billID)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// MockBillRepository_FindProductsByBillID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindProductsByBillID'
-type MockBillRepository_FindProductsByBillID_Call struct {
-	*mock.Call
-}
-
-// FindProductsByBillID is a helper method to define mock.On call
-//   - ctx context.Context
-//   - billID string
-func (_e *MockBillRepository_Expecter) FindProductsByBillID(ctx interface{}, billID interface{}) *MockBillRepository_FindProductsByBillID_Call {
-	return &MockBillRepository_FindProductsByBillID_Call{Call: _e.mock.On("FindProductsByBillID", ctx, billID)}
-}
-
-func (_c *MockBillRepository_FindProductsByBillID_Call) Run(run func(ctx context.Context, billID string)) *MockBillRepository_FindProductsByBillID_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
-	})
-	return _c
-}
-
-func (_c *MockBillRepository_FindProductsByBillID_Call) Return(_a0 []*dto.Product, _a1 error) *MockBillRepository_FindProductsByBillID_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *MockBillRepository_FindProductsByBillID_Call) RunAndReturn(run func(context.Context, string) ([]*dto.Product, error)) *MockBillRepository_FindProductsByBillID_Call {
 	_c.Call.Return(run)
 	return _c
 }

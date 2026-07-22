@@ -65,12 +65,14 @@ type ElectronicInvoice struct {
 	Items       []InvoiceItem                `json:"items"`
 }
 
+// CreateElectronicInvoiceRequest is the input to the fiscal provider client. The line items
+// the provider needs live on Bill.Products (built at submission time from bill_products + the
+// product master); there is intentionally no separate product list here.
 type CreateElectronicInvoiceRequest struct {
 	Prefix      string
 	Consecutive int
 	PaymentCode ElectronicInvoicePaymentCode
 	Bill        *Bill
-	Products    []*Product
 }
 
 type CreateElectronicInvoiceResponse struct {

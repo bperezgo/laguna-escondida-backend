@@ -108,17 +108,7 @@ func (a *Aggregate) ToDTO() *dto.Bill {
 		DocumentURL:    a.documentURL,
 		Customer:       a.customer,
 		Products: lo.Map(a.products, func(product *BillProduct, _ int) dto.BillProduct {
-			return dto.BillProduct{
-				ProductID:   product.id,
-				Quantity:    product.quantity,
-				UnitPrice:   product.unitPrice,
-				Name:        product.name,
-				Description: product.description,
-				Category:    product.category,
-				Code:        product.code,
-				Allowance:   product.allowance,
-				Taxes:       product.taxes,
-			}
+			return product.ToDTO()
 		}),
 	}
 }

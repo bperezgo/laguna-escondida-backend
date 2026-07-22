@@ -146,21 +146,16 @@ func (s *InvoiceSubmissionService) submitOne(ctx context.Context, pending *dto.P
 // persists it to the pending_invoice row. After this call, pending.Consecutive and
 // pending.RequestPayload are populated and ready for submission.
 func (s *InvoiceSubmissionService) reserveConsecutive(ctx context.Context, pending *dto.PendingInvoice) error {
-	bill, err := s.billRepo.FindByID(ctx, pending.BillID)
+	billForInvoice, err := s.billRepo.FindBillForInvoice(ctx, pending.BillID)
 	if err != nil {
 		return fmt.Errorf("load bill for invoice: %w", err)
 	}
-
-	products, err := s.billRepo.FindProductsByBillID(ctx, pending.BillID)
-	if err != nil {
-		return fmt.Errorf("load products for invoice: %w", err)
-	}
-	// Guard before claiming a consecutive: if the cloud's products table doesn't yet have
-	// the product IDs referenced by bill_products (e.g. edge-created products whose pull
-	// sync hasn't run), building the provider request would produce an invalid empty-items
-	// payload. Returning an error here keeps consecutive IS NULL so the next tick retries —
-	// no sequence number is wasted and no broken payload is stored permanently.
-	if len(products) == 0 {
+	// Guard before claiming a consecutive: the provider request is built from the bill's line
+	// items (Bill.Products), so an empty list — e.g. the cloud's products table doesn't yet
+	// have the IDs referenced by bill_products because pull sync hasn't run — would produce an
+	// "items empty" rejection. Returning an error here keeps consecutive IS NULL so the next
+	// tick retries — no sequence number is wasted and no broken payload is stored permanently.
+	if len(billForInvoice.Products) == 0 {
 		return fmt.Errorf("no products found for bill %s: products may not yet be synced to cloud", pending.BillID)
 	}
 
@@ -173,8 +168,7 @@ func (s *InvoiceSubmissionService) reserveConsecutive(ctx context.Context, pendi
 		Prefix:      s.config.ElectronicInvoicePrefix,
 		Consecutive: consecutive,
 		PaymentCode: pending.PaymentCode,
-		Bill:        bill,
-		Products:    products,
+		Bill:        billForInvoice,
 	})
 	if err != nil {
 		return fmt.Errorf("marshal invoice request: %w", err)

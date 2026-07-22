@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -46,39 +47,99 @@ func (r *BillRepository) GetNextConsecutive(ctx context.Context, prefix string) 
 	return lastConsecutive, nil
 }
 
-// FindProductsByBillID returns full product records for a bill's line items. Used by the
-// cloud submission service to build the provider request at submission time.
-func (r *BillRepository) FindProductsByBillID(ctx context.Context, billID string) ([]*dto.Product, error) {
-	var models []productModel
-	if err := r.db.WithContext(ctx).
-		Joins("JOIN bill_products bp ON bp.product_id = products.id").
-		Where("bp.bill_id = ? AND products.deleted_at IS NULL", billID).
-		Find(&models).Error; err != nil {
+// billLineItemRow is the join of a bill's line items (bill_products) with the product master
+// data the fiscal provider request needs. Quantity comes from bill_products; the price, name,
+// category, code and tax rates/amounts come from the product row.
+type billLineItemRow struct {
+	ProductID   string
+	Quantity    int
+	Name        string
+	Category    string
+	SKU         string
+	Description *string
+	UnitPrice   decimal.Decimal
+	VAT         decimal.Decimal
+	VATAmount   decimal.Decimal
+	ICO         decimal.Decimal
+	ICOAmount   decimal.Decimal
+}
+
+// FindBillForInvoice returns a fully-hydrated bill for the cloud submission service. Unlike
+// FindByID (which loads only the header columns), this hydrates the fields the provider
+// request is built from: PayAmount, the tax total, the Customer, and the line items as
+// []BillProduct (with quantities and per-item taxes). Line-item DTOs are built through the
+// bill aggregate's NewBillProduct/ToDTO so the taxes match exactly what the edge produced.
+func (r *BillRepository) FindBillForInvoice(ctx context.Context, billID string) (*dto.Bill, error) {
+	var bm billModel
+	if err := r.db.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", billID).First(&bm).Error; err != nil {
 		return nil, err
 	}
 
-	result := make([]*dto.Product, len(models))
-	for i := range models {
-		result[i] = &dto.Product{
-			ID:                  models[i].ID,
-			Name:                models[i].Name,
-			Category:            models[i].Category,
-			ProductType:         dto.ProductType(models[i].ProductType),
-			UnitOfMeasure:       dto.UnitOfMeasure(models[i].UnitOfMeasure),
-			Version:             models[i].Version,
-			UnitPrice:           models[i].UnitPrice,
-			VAT:                 models[i].VAT,
-			VATAmount:           models[i].VATAmount,
-			ICO:                 models[i].ICO,
-			ICOAmount:           models[i].ICOAmount,
-			Description:         models[i].Description,
-			SKU:                 models[i].SKU,
-			TotalPriceWithTaxes: models[i].TotalPriceWithTaxes,
-			CreatedAt:           models[i].CreatedAt,
-			UpdatedAt:           models[i].UpdatedAt,
+	var rows []billLineItemRow
+	if err := r.db.WithContext(ctx).
+		Table("bill_products AS bp").
+		Select("bp.product_id, bp.quantity, p.name, p.category, p.sku, p.description, "+
+			"p.unit_price, p.vat, p.vat_amount, p.ico, p.ico_amount").
+		Joins("JOIN products p ON p.id = bp.product_id").
+		Where("bp.bill_id = ? AND bp.deleted_at IS NULL AND p.deleted_at IS NULL", billID).
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	products := make([]dto.BillProduct, 0, len(rows))
+	for i := range rows {
+		row := rows[i]
+		products = append(products, bill.NewBillProduct(
+			row.ProductID,
+			row.Quantity,
+			row.UnitPrice,
+			row.Name,
+			row.Description,
+			row.Category,
+			row.SKU,
+			[]dto.InvoiceAllowance{},
+			row.VAT,
+			row.VATAmount,
+			row.ICO,
+			row.ICOAmount,
+		).ToDTO())
+	}
+
+	var customer *dto.Customer
+	if bm.BillOwnerID != nil {
+		var owner billOwnerModel
+		if err := r.db.WithContext(ctx).Where("id = ?", *bm.BillOwnerID).First(&owner).Error; err == nil {
+			var documentType dto.DocumentType
+			if owner.IdentificationType != nil {
+				documentType = dto.DocumentType(*owner.IdentificationType)
+			}
+			customer = &dto.Customer{
+				DocumentNumber: owner.ID,
+				DocumentType:   documentType,
+				Name:           owner.Name,
+				Email:          owner.Email,
+			}
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
 		}
 	}
-	return result, nil
+
+	return &dto.Bill{
+		ID:             bm.ID,
+		TotalAmount:    bm.TotalAmount,
+		DiscountAmount: bm.DiscountAmount,
+		TaxAmount:      bm.VAT.Add(bm.ICO),
+		PayAmount:      bm.PayAmount,
+		PaymentMethod:  bm.PaymentMethod,
+		VAT:            bm.VAT,
+		ICO:            bm.ICO,
+		Tip:            bm.Tip,
+		DocumentURL:    bm.DocumentURL,
+		Customer:       customer,
+		Products:       products,
+		CreatedAt:      bm.CreatedAt,
+		UpdatedAt:      bm.UpdatedAt,
+	}, nil
 }
 
 // Create persists the finalized bill (header, owner, line items) in a single transaction.
