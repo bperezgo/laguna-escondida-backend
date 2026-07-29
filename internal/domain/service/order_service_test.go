@@ -2519,6 +2519,19 @@ func TestUncompleteOpenBillProduct_SyncsStatusToOutbox(t *testing.T) {
 	assert.Equal(t, dto.CommandStatusCreated, payload.Products[0].Status)
 }
 
+// Un-pinning: a cook clears an "in progress" line, reverting it to created. The kitchen
+// board reuses the uncomplete transition for this, so in_progress → created must be allowed.
+func TestUncompleteOpenBillProduct_FromInProgress_SyncsStatusToOutbox(t *testing.T) {
+	captured := captureStatusOutbox(t, dto.CommandStatusInProgress,
+		func(s *OrderService, ctx context.Context, openBillID, productID string) error {
+			return s.UncompleteOpenBillProduct(ctx, openBillID, productID)
+		})
+
+	payload := decodeOpenBillPayload(t, captured)
+	require.Len(t, payload.Products, 1)
+	assert.Equal(t, dto.CommandStatusCreated, payload.Products[0].Status)
+}
+
 func TestSetOpenBillProductInProgress_SyncsStatusToOutbox(t *testing.T) {
 	captured := captureStatusOutbox(t, dto.CommandStatusCreated,
 		func(s *OrderService, ctx context.Context, openBillID, productID string) error {

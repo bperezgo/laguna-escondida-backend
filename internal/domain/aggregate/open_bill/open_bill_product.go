@@ -149,10 +149,12 @@ func (p *OpenBillProduct) Complete() error {
 	return nil
 }
 
-// Uncomplete reverts a completed product back to "created" (undo a strike-through
-// in the kitchen). Only a completed product can be uncompleted.
+// Uncomplete reverts a product back to "created". It undoes a kitchen strike-through
+// (completed → created) and also un-pins an in-progress line (in_progress → created),
+// so a cook can clear a product they marked as "cooking now". A product that is already
+// created — or cancelled — cannot be uncompleted.
 func (p *OpenBillProduct) Uncomplete() error {
-	if !p.status.IsCompleted() {
+	if !p.status.IsCompleted() && !p.status.IsInProgress() {
 		return openBillError.ErrProductNotCompleted
 	}
 
