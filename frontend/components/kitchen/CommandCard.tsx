@@ -240,6 +240,27 @@ export default function CommandCard({
               >
                 <span
                   style={{
+                    fontSize: isMultiple ? "1.6rem" : "1.4rem",
+                    fontWeight: "bold",
+                    lineHeight: 1.1,
+                    color: "white",
+                    backgroundColor: "var(--color-primary)",
+                    padding: "0.25rem 0.75rem",
+                    borderRadius: "var(--radius-sm)",
+                    minWidth: "3rem",
+                    textAlign: "center",
+                    flexShrink: 0,
+                    boxShadow: isMultiple
+                      ? "0 0 0 3px var(--color-primary-light)"
+                      : "none",
+                  }}
+                  title={`Cantidad: ${item.quantity}`}
+                >
+                  x{item.quantity}
+                </span>
+
+                <span
+                  style={{
                     fontSize: "1.1rem",
                     fontWeight: "600",
                     color: "var(--color-text-primary)",
@@ -286,26 +307,6 @@ export default function CommandCard({
                     {formatCountdown(remainingMs)}
                   </span>
                 )}
-
-                <span
-                  style={{
-                    fontSize: isMultiple ? "1.6rem" : "1.4rem",
-                    fontWeight: "bold",
-                    lineHeight: 1.1,
-                    color: "white",
-                    backgroundColor: "var(--color-primary)",
-                    padding: "0.25rem 0.75rem",
-                    borderRadius: "var(--radius-sm)",
-                    minWidth: "3rem",
-                    textAlign: "center",
-                    boxShadow: isMultiple
-                      ? "0 0 0 3px var(--color-primary-light)"
-                      : "none",
-                  }}
-                  title={`Cantidad: ${item.quantity}`}
-                >
-                  x{item.quantity}
-                </span>
 
                 {/* Per-line action: strike (✓) when pending, undo (↶) when done.
                     Mutations are blocked from cloud — kitchen is read-only there. */}
