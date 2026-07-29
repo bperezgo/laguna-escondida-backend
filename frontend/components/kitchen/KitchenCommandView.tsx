@@ -2,9 +2,11 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import CommandCard from "./CommandCard";
+import InProgressStrip, { type InProgressGroup } from "./InProgressStrip";
 import {
   completeOpenBillProduct,
   uncompleteOpenBillProduct,
+  setOpenBillProductInProgress,
 } from "@/lib/api/openBillProducts";
 import type {
   OpenBillProductFromSSE,
@@ -108,6 +110,42 @@ export default function KitchenCommandView() {
     );
 
     return grouped;
+  }, [products]);
+
+  // In-progress lines aggregated by product for the top "En Progreso" strip. Grouped
+  // by product_name (the SSE payload carries no product_id), summing quantity and
+  // keeping a per-table breakdown. Biggest batches first so the largest cook-together
+  // opportunities lead.
+  const inProgressGroups = useMemo((): InProgressGroup[] => {
+    const map = new Map<string, InProgressGroup>();
+
+    products.forEach((p) => {
+      if (p.status !== "in_progress") return;
+      let group = map.get(p.product_name);
+      if (!group) {
+        group = { product_name: p.product_name, totalQuantity: 0, entries: [] };
+        map.set(p.product_name, group);
+      }
+      group.totalQuantity += p.quantity;
+      group.entries.push({
+        open_bill_product_id: p.open_bill_product_id,
+        temporal_identifier: p.temporal_identifier,
+        quantity: p.quantity,
+        notes: p.notes,
+        priority: p.priority,
+        created_at: p.created_at,
+      });
+    });
+
+    const groups = Array.from(map.values());
+    groups.forEach((g) =>
+      g.entries.sort(
+        (a, b) =>
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      )
+    );
+    groups.sort((a, b) => b.totalQuantity - a.totalQuantity);
+    return groups;
   }, [products]);
 
   useEffect(() => {
@@ -279,6 +317,43 @@ export default function KitchenCommandView() {
     } catch (error) {
       setProductStatus(productId, "completed"); // revert — no timestamp recovery needed
       showError(error, "Error al deshacer");
+    } finally {
+      markBusy(productId, false);
+    }
+  };
+
+  // Pin/unpin a line as "cooking now". Persisted via the in_progress status so every
+  // cook screen sees it (the backend's SSE `updated` event flows back through
+  // handleUpdatedProduct and replaces the line in place).
+  const handleToggleInProgress = async (
+    openBillId: string,
+    productId: string
+  ) => {
+    const product = products.find((p) => p.open_bill_product_id === productId);
+    if (!product) return;
+    const wasInProgress = product.status === "in_progress";
+
+    markBusy(productId, true);
+    setProductStatus(productId, wasInProgress ? "created" : "in_progress", null);
+    try {
+      if (wasInProgress) {
+        // "uncomplete" is the existing "back to created" transition.
+        await uncompleteOpenBillProduct(openBillId, productId);
+      } else {
+        await setOpenBillProductInProgress(openBillId, productId);
+      }
+    } catch (error) {
+      setProductStatus(
+        productId,
+        wasInProgress ? "in_progress" : "created",
+        null
+      );
+      showError(
+        error,
+        wasInProgress
+          ? "Error al quitar de en progreso"
+          : "Error al marcar en progreso"
+      );
     } finally {
       markBusy(productId, false);
     }
@@ -497,6 +572,10 @@ export default function KitchenCommandView() {
           </div>
         )}
 
+        {/* "En Progreso" strip — products being cooked right now, batched across
+            tables. Only shows when at least one line is pinned. */}
+        <InProgressStrip groups={inProgressGroups} now={now} />
+
         {/* Commands Grid */}
         {commands.length > 0 && (
           <div
@@ -513,6 +592,7 @@ export default function KitchenCommandView() {
                 command={command}
                 onCompleteLine={handleCompleteLine}
                 onUndoLine={handleUndoLine}
+                onToggleInProgress={handleToggleInProgress}
                 completingIds={completingIds}
                 isReady={readyGroups.has(command.id)}
                 now={now}

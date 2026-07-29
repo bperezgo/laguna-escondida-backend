@@ -10,12 +10,19 @@ import {
   getCountdownRowStyle,
 } from "@/lib/kitchen/countdown";
 
+// "In progress" blue — mirrors STATUS_CONFIG.in_progress (orderTakingParts.tsx) so
+// the kitchen board and the order-taking status badge speak the same visual language.
+const IN_PROGRESS_ACCENT = "#1d4ed8";
+const IN_PROGRESS_TINT = "#dbeafe";
+
 interface CommandCardProps {
   command: GroupedCommand;
   /** Strike a single line. */
   onCompleteLine: (openBillId: string, productId: string) => void;
   /** Undo a struck line. */
   onUndoLine: (openBillId: string, productId: string) => void;
+  /** Toggle a line's in-progress ("pinned") state — shared across all cook screens. */
+  onToggleInProgress: (openBillId: string, productId: string) => void;
   /** Line IDs with an in-flight request. */
   completingIds: Set<string>;
   /** All lines struck — flashing "✓ Lista" before the card leaves the board. */
@@ -28,6 +35,7 @@ export default function CommandCard({
   command,
   onCompleteLine,
   onUndoLine,
+  onToggleInProgress,
   completingIds,
   isReady = false,
   now,
@@ -203,6 +211,9 @@ export default function CommandCard({
       >
         {sortedItems.map((item, index) => {
           const isDone = item.status === "completed";
+          // "Pinned" by a cook: this line is being cooked right now. Shared across
+          // screens via the in_progress status on the SSE feed.
+          const isInProgress = !isDone && item.status === "in_progress";
           const isBusy = completingIds.has(item.id);
           // x1 is the common default; multi-quantity is where dispatch mistakes
           // happen, so make >1 pop harder (larger + a ring).
@@ -213,11 +224,16 @@ export default function CommandCard({
             now
           );
           const countdownColors = getCountdownColor(remainingMs);
-          // Ambient urgency for the whole line: solid left stripe + faint tint so a
-          // near-due/urgent item is spottable without reading each badge. Skipped for
-          // struck (done) lines. Healthy lines get a transparent stripe of the same
+          // Row treatment: solid left stripe + faint tint. Precedence:
+          //   done (no tint, struck) > in-progress (blue "cooking now") > urgency.
+          // The blue overrides urgency so a pinned line reads as claimed even when
+          // it's also near-due. Healthy lines get a transparent stripe of the same
           // width so nothing shifts as a line crosses a threshold.
-          const rowStyle = isDone ? null : getCountdownRowStyle(remainingMs);
+          const rowStyle = isDone
+            ? null
+            : isInProgress
+            ? { accent: IN_PROGRESS_ACCENT, background: IN_PROGRESS_TINT }
+            : getCountdownRowStyle(remainingMs);
           return (
             <div
               key={item.id || index}
@@ -312,10 +328,47 @@ export default function CommandCard({
                   </span>
                 )}
 
-                {/* Per-line action: strike (✓) when pending, undo (↶) when done.
+                {/* Per-line actions: pin (📌) to mark "cooking now" — shared to every
+                    cook screen — and strike (✓) when pending / undo (↶) when done.
                     Mutations are blocked from cloud — kitchen is read-only there. */}
                 {isEdge && (
                 <PermissionGate permission={PERMISSIONS.COMMANDS_UPDATE}>
+                  {!isDone && (
+                    <button
+                      onClick={() =>
+                        onToggleInProgress(item.open_bill_id, item.id)
+                      }
+                      disabled={isBusy}
+                      title={
+                        isInProgress
+                          ? "Quitar de en progreso"
+                          : "Marcar en progreso"
+                      }
+                      style={{
+                        width: "2.75rem",
+                        height: "2.75rem",
+                        flexShrink: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "1.25rem",
+                        border: isInProgress
+                          ? "none"
+                          : "1px solid var(--color-border)",
+                        borderRadius: "var(--radius-sm)",
+                        backgroundColor: isInProgress
+                          ? IN_PROGRESS_ACCENT
+                          : "transparent",
+                        // Grey the icon out when inactive so the filled blue state
+                        // is unmistakable at a glance on a busy board.
+                        filter: isInProgress ? "none" : "grayscale(1) opacity(0.6)",
+                        cursor: isBusy ? "not-allowed" : "pointer",
+                        transition: "all 0.2s ease",
+                      }}
+                    >
+                      📌
+                    </button>
+                  )}
                   <button
                     onClick={() =>
                       isDone
