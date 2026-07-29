@@ -77,6 +77,10 @@ export default function CommandCard({
 
   const statusStyle = getStatusColor(command.status);
 
+  // Highest-priority lines rise to the top of the ticket so cooks fire them first.
+  // Stable sort: same-priority lines keep their existing (created_at) order.
+  const sortedItems = [...command.items].sort((a, b) => b.priority - a.priority);
+
   return (
     <div
       style={{
@@ -197,7 +201,7 @@ export default function CommandCard({
           gap: "0.75rem",
         }}
       >
-        {command.items.map((item, index) => {
+        {sortedItems.map((item, index) => {
           const isDone = item.status === "completed";
           const isBusy = completingIds.has(item.id);
           // x1 is the common default; multi-quantity is where dispatch mistakes
