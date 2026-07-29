@@ -92,3 +92,15 @@ sync-down:
 sync-reset:
 	@echo "Stopping local sync rig and wiping volumes..."
 	docker compose -f docker-compose.sync.yml down -v
+
+# --- MCP server -----------------------------------------------------------
+# Exposes the backend API as MCP tools over Streamable HTTP for Claude Code.
+# Requires LAGUNA_API_URL, LAGUNA_USERNAME, LAGUNA_PASSWORD in the environment
+# (or a .env file). Optional: MCP_ADDR (default :8090), LAGUNA_ADMIN_API_KEY.
+run-mcp:
+	@echo "Running the MCP server"
+	go run ./cmd/mcp-server
+
+build-mcp:
+	@echo "Building the MCP server binary"
+	go build -o bin/mcp-server ./cmd/mcp-server
