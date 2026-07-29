@@ -21,7 +21,7 @@ import { isOrderActionPinRequired } from "@/lib/orders/actionPin";
 import { PERMISSIONS, usePermissions } from "@/lib/permissions";
 import {
   type OrderViewMode,
-  billMatchesQuery,
+  filterBillsByQuery,
   canDefaultToAllOrders,
   groupBillsByWaitress,
   isMyBill,
@@ -87,9 +87,9 @@ export default function OrdersPageClient() {
     fetchOpenBills();
   }, []);
 
-  // Bills matching the search query (by table identifier OR waitress name).
+  // Bills matching the search query (fuzzy, by table identifier OR waitress name).
   const searchedBills = useMemo(
-    () => openBills.filter((bill) => billMatchesQuery(bill, searchQuery)),
+    () => filterBillsByQuery(openBills, searchQuery),
     [openBills, searchQuery]
   );
 

@@ -1,5 +1,6 @@
 import type { OpenBill } from "@/types/order";
 import type { AuthUser } from "@/lib/permissions";
+import { fuzzyFilter } from "@/lib/search/fuzzy";
 
 /** Which slice of open bills the Orders page is showing. */
 export type OrderViewMode = "mine" | "all";
@@ -57,13 +58,18 @@ export function canDefaultToAllOrders(user: AuthUser | null): boolean {
   return isManagerialUser(user);
 }
 
-/** Search predicate: match by table identifier OR waitress name. */
-export function billMatchesQuery(bill: OpenBill, query: string): boolean {
-  const q = query.trim().toLowerCase();
-  if (!q) return true;
-  const identifier = bill.temporal_identifier?.toLowerCase() ?? "";
-  const waitress = bill.created_by?.name?.toLowerCase() ?? "";
-  return identifier.includes(q) || waitress.includes(q);
+/**
+ * Filter bills by a fuzzy, accent-insensitive query over the table identifier
+ * and waitress name. Empty query returns the list unchanged. Callers re-sort or
+ * group the result, so the relevance order Fuse returns here is not relied upon.
+ */
+export function filterBillsByQuery(bills: OpenBill[], query: string): OpenBill[] {
+  return fuzzyFilter(bills, query, {
+    keys: [
+      { name: "temporal_identifier", weight: 2 },
+      { name: "created_by.name", weight: 1 },
+    ],
+  });
 }
 
 /**

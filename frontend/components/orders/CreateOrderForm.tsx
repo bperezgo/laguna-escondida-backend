@@ -5,6 +5,7 @@ import { productsApi } from "@/lib/api/products";
 import { createOrder } from "@/lib/api/orders";
 import type { Product } from "@/types/product";
 import type { OrderProductItem } from "@/types/order";
+import { fuzzyFilter } from "@/lib/search/fuzzy";
 import { Button, Input, Textarea } from "@/components/ui";
 import {
   ProductCard,
@@ -109,28 +110,19 @@ export default function CreateOrderForm({
     return uniqueCategories;
   }, [products]);
 
-  // Filter products based on search query and category
+  // Narrow by the selected category first, then fuzzy-match the search query
+  // (accent-insensitive, typo-tolerant) over product name and category.
   const filteredProducts = useMemo(() => {
-    let filtered = products;
-
-    // Filter by category
-    if (selectedCategory !== "all") {
-      filtered = filtered.filter(
-        (product) => product.category === selectedCategory
-      );
-    }
-
-    // Filter by search query
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (product) =>
-          product.name.toLowerCase().includes(query) ||
-          product.category.toLowerCase().includes(query)
-      );
-    }
-
-    return filtered;
+    const byCategory =
+      selectedCategory !== "all"
+        ? products.filter((product) => product.category === selectedCategory)
+        : products;
+    return fuzzyFilter(byCategory, searchQuery, {
+      keys: [
+        { name: "name", weight: 2 },
+        { name: "category", weight: 1 },
+      ],
+    });
   }, [products, searchQuery, selectedCategory]);
 
   const handleProductSelect = (product: Product) => {

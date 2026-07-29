@@ -6,7 +6,7 @@ import OpenBillSearch from "./OpenBillSearch";
 import ClosedOrderDetailModal from "./ClosedOrderDetailModal";
 import { getClosedBills, getClosedBillById } from "@/lib/api/orders";
 import type { OpenBill, OpenBillWithProducts } from "@/types/order";
-import { billMatchesQuery, sortBillsByRecency } from "@/lib/orders/grouping";
+import { filterBillsByQuery, sortBillsByRecency } from "@/lib/orders/grouping";
 
 /**
  * Today's closed (paid) orders, shown inside the Orders page under the "Cerradas hoy"
@@ -45,9 +45,7 @@ export default function ClosedOrdersPanel() {
 
   const visibleBills = useMemo(
     () =>
-      sortBillsByRecency(
-        closedBills.filter((bill) => billMatchesQuery(bill, searchQuery)),
-      ),
+      sortBillsByRecency(filterBillsByQuery(closedBills, searchQuery)),
     [closedBills, searchQuery],
   );
 

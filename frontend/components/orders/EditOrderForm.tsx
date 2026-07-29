@@ -8,6 +8,7 @@ import { generateInvoicePrintHTML } from "@/lib/templates/invoicePrint";
 import { PermissionGate } from "@/components/permissions";
 import { PERMISSIONS, usePermissions } from "@/lib/permissions";
 import { canOverrideItemLock, isItemPastGrace } from "@/lib/orders/itemLock";
+import { fuzzyFilter } from "@/lib/search/fuzzy";
 import { Button, Input, Textarea } from "@/components/ui";
 import {
   ProductCard,
@@ -220,21 +221,19 @@ export default function EditOrderForm({
     ).sort();
   }, [products]);
 
-  // Filter products by active category pill and search query
+  // Narrow by the active category pill first, then fuzzy-match the search query
+  // (accent-insensitive, typo-tolerant) over product name and category.
   const filteredProducts = useMemo(() => {
-    let list = products;
-    if (activeCategory !== "all") {
-      list = list.filter((product) => product.category === activeCategory);
-    }
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      list = list.filter(
-        (product) =>
-          product.name.toLowerCase().includes(query) ||
-          product.category.toLowerCase().includes(query),
-      );
-    }
-    return list;
+    const byCategory =
+      activeCategory !== "all"
+        ? products.filter((product) => product.category === activeCategory)
+        : products;
+    return fuzzyFilter(byCategory, searchQuery, {
+      keys: [
+        { name: "name", weight: 2 },
+        { name: "category", weight: 1 },
+      ],
+    });
   }, [products, searchQuery, activeCategory]);
 
   const handleProductSelect = (product: Product) => {
@@ -382,6 +381,14 @@ export default function EditOrderForm({
 
   const selectedProductsArray = Array.from(selectedProducts.values());
   const orderCount = selectedProductsArray.length;
+  // Live total from the current lines, so it grows as the waitress adds
+  // products. `openBill.total_amount` is the stale server value from load and
+  // must not be shown while editing.
+  const orderTotal = selectedProductsArray.reduce(
+    (sum, { product, quantity }) =>
+      sum + parseFloat(product.total_price_with_taxes) * quantity,
+    0,
+  );
 
   // Has the waitress changed anything since load / last save? Drives the update
   // button colour: gray when nothing's changed, green once there are edits.
@@ -1051,7 +1058,7 @@ export default function EditOrderForm({
                     fontVariantNumeric: "tabular-nums",
                   }}
                 >
-                  {formatCOP(openBill.total_amount)}
+                  {formatCOP(orderTotal)}
                 </span>
               </div>
               {pendingWeightHint}
@@ -1485,7 +1492,7 @@ export default function EditOrderForm({
                     fontVariantNumeric: "tabular-nums",
                   }}
                 >
-                  {formatCOP(openBill.total_amount)}
+                  {formatCOP(orderTotal)}
                 </span>
               </div>
               {pendingWeightHint}

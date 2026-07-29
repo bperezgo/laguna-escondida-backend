@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { Product, ProductType } from "@/types/product";
+import { fuzzyFilter } from "@/lib/search/fuzzy";
 import {
   PRODUCT_TYPES,
   UNITS_OF_MEASURE,
@@ -69,15 +70,20 @@ export default function ProductList({
     new Set(products.map((p) => p.category))
   ).sort();
 
-  // Filter products based on search term and category
-  const filteredProducts = products.filter((product) => {
-    const matchesSearch =
-      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.category.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory =
-      !filterCategory || product.category === filterCategory;
-    return matchesSearch && matchesCategory;
-  });
+  // Narrow by the category dropdown first, then fuzzy-match the search term
+  // (accent-insensitive, typo-tolerant) over name, category and SKU.
+  const filteredProducts = useMemo(() => {
+    const byCategory = filterCategory
+      ? products.filter((product) => product.category === filterCategory)
+      : products;
+    return fuzzyFilter(byCategory, searchTerm, {
+      keys: [
+        { name: "name", weight: 2 },
+        { name: "category", weight: 1 },
+        { name: "sku", weight: 1 },
+      ],
+    });
+  }, [products, searchTerm, filterCategory]);
 
   if (isLoading) {
     return (
