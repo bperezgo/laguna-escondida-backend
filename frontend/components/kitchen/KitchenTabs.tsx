@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 
-export type KitchenView = "commands" | "command_items" | "ready";
+export type KitchenView = "commands" | "ready";
 
 interface KitchenTabsProps {
   currentView: KitchenView;
@@ -10,7 +10,6 @@ interface KitchenTabsProps {
 
 const TABS: { view: KitchenView; label: string }[] = [
   { view: "commands", label: "Comandas" },
-  { view: "command_items", label: "Comandas Individuales" },
   { view: "ready", label: "Comandas Listas" },
 ];
 
