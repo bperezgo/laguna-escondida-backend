@@ -20,6 +20,7 @@ import (
 	"laguna-escondida/backend/internal/platform/device"
 	"laguna-escondida/backend/internal/platform/handler"
 	"laguna-escondida/backend/internal/platform/httpclient"
+	"laguna-escondida/backend/internal/platform/observability"
 	"laguna-escondida/backend/internal/platform/postgres"
 	"laguna-escondida/backend/internal/platform/postgres/migrations"
 	"laguna-escondida/backend/internal/platform/postgres/repository"
@@ -28,12 +29,14 @@ import (
 	"laguna-escondida/backend/internal/platform/syncstatus"
 	"laguna-escondida/backend/pkg/eventbus"
 
+	"github.com/ThreeDotsLabs/watermill"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/joho/godotenv"
-	"go.uber.org/zap"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
 func main() {
@@ -42,16 +45,31 @@ func main() {
 		log.Println("No .env file found, using system environment variables")
 	}
 
-	// Initialize Zap logger (production config uses JSON format)
-	logger, err := zap.NewProduction()
+	cfg, err := config.NewConfig()
 	if err != nil {
-		log.Fatalf("Failed to initialize logger: %v", err)
+		log.Fatalf("Failed to load config: %v", err)
 	}
-	defer func() {
-		if errLogger := logger.Sync(); errLogger != nil {
-			log.Printf("Failed to sync logger: %v", errLogger)
-		}
-	}()
+
+	// Observability bootstrap: traces + logs export over OTLP to the local Alloy sidecar.
+	// No-op when OBSERVABILITY_ENABLED is false or no endpoint is set. Installed before the
+	// logger so the slog OTLP bridge picks up the global logger provider.
+	rootCtx := context.Background()
+	providers, err := observability.Init(rootCtx, observability.InitConfig{
+		Enabled:          cfg.ObservabilityEnabled,
+		ServiceName:      cfg.ServiceName,
+		ServiceVersion:   cfg.ServiceVersion,
+		Environment:      cfg.Environment,
+		OTLPEndpoint:     cfg.OTLPEndpoint,
+		TraceSampleRatio: cfg.TraceSampleRatio,
+	})
+	if err != nil {
+		log.Fatalf("Failed to initialize observability: %v", err)
+	}
+
+	// The application logger: slog with JSON to stdout, plus an OTLP bridge to Loki when
+	// observability is enabled. This single logger is passed to every component; batched
+	// OTLP records are flushed by providers.Shutdown on exit (slog needs no Sync).
+	logger := observability.NewSlogLogger(cfg.ObservabilityEnabled)
 
 	// Database connection
 	dsn := getDSN()
@@ -65,11 +83,6 @@ func main() {
 	db, err := repository.NewDatabase(dsn)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
-	}
-
-	cfg, err := config.NewConfig()
-	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
 	}
 
 	httpClient := httpclient.NewClient(logger)
@@ -102,7 +115,7 @@ func main() {
 	openBillProductHub := sse.NewOpenBillProductHub(logger)
 
 	// Initialize Watermill Event Bus for pub/sub messaging
-	watermillLogger := eventbus.NewZapLoggerAdapter(logger)
+	watermillLogger := watermill.NewSlogLogger(logger)
 	eventBusImpl := eventbus.NewGoChannelEventBus(watermillLogger)
 	defer func() {
 		if errEventBus := eventBusImpl.Close(); errEventBus != nil {
@@ -112,9 +125,6 @@ func main() {
 
 	// Initialize JWT service
 	jwtService := service.NewJWTService(cfg.JWTSecret)
-
-	// Initialize slog logger for services
-	slogLogger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 	// Initialize services
 	unitOfWork := postgres.NewUnitOfWork(db.DB)
@@ -134,8 +144,8 @@ func main() {
 		dto.SyncEntityStock:          repository.NewStockSyncApplier(db.DB),
 		dto.SyncEntityHistoricStock:  repository.NewHistoricStockSyncApplier(db.DB),
 	}
-	syncService := service.NewSyncService(unitOfWork, syncInboxRepo, syncAppliers, slogLogger)
-	syncReferenceService := service.NewSyncReferenceService(syncReferenceRepo, slogLogger)
+	syncService := service.NewSyncService(unitOfWork, syncInboxRepo, syncAppliers, logger)
+	syncReferenceService := service.NewSyncReferenceService(syncReferenceRepo, logger)
 	// This install's sync identity, built once and injected as a unit into every
 	// sync-participating component (order/purchase outbox writers + push/pull loops).
 	syncIdentity := dto.SyncIdentity{NodeID: cfg.NodeID, CloudNodeID: cfg.CloudNodeID}
@@ -166,7 +176,7 @@ func main() {
 	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, jwtService, unitOfWork)
 	billOwnerService := service.NewBillOwnerService(billOwnerRepo)
 	supplierService := service.NewSupplierService(supplierRepo, supplierCatalogRepo, productRepo)
-	purchaseEntryService := service.NewPurchaseEntryService(purchaseEntryRepo, supplierRepo, supplierCatalogRepo, productRepo, storageClient, eventBusImpl, unitOfWork, syncOutboxRepo, syncIdentity, slogLogger, cfg.OrganizationID)
+	purchaseEntryService := service.NewPurchaseEntryService(purchaseEntryRepo, supplierRepo, supplierCatalogRepo, productRepo, storageClient, eventBusImpl, unitOfWork, syncOutboxRepo, syncIdentity, logger, cfg.OrganizationID)
 	expenseService := service.NewExpenseService(expenseCategoryRepo, expenseRepo, supplierRepo, storageClient, cfg.OrganizationID)
 	productIngredientService := service.NewProductIngredientService(productIngredientRepo, productRepo)
 	financialService := service.NewFinancialService(billRepo, expenseRepo, purchaseEntryRepo)
@@ -212,7 +222,7 @@ func main() {
 	go func() {
 		logger.Info("SSE event subscriber goroutine started")
 		if errEventSubscriber := eventSubscriber.Start(context.Background()); errEventSubscriber != nil {
-			logger.Error("Event subscriber stopped", zap.Error(errEventSubscriber))
+			logger.Error("Event subscriber stopped", slog.Any("error", errEventSubscriber))
 		} else {
 			logger.Info("Event subscriber completed successfully")
 		}
@@ -228,7 +238,7 @@ func main() {
 		unitOfWork,
 		syncOutboxRepo,
 		syncIdentity,
-		slogLogger,
+		logger,
 	)
 
 	// Create separate subscriber for stock handlers
@@ -281,7 +291,7 @@ func main() {
 	go func() {
 		logger.Info("Stock event subscriber goroutine started")
 		if errStockSubscriber := stockSubscriber.Start(context.Background()); errStockSubscriber != nil {
-			logger.Error("Stock subscriber stopped", zap.Error(errStockSubscriber))
+			logger.Error("Stock subscriber stopped", slog.Any("error", errStockSubscriber))
 		} else {
 			logger.Info("Stock subscriber completed successfully")
 		}
@@ -308,11 +318,20 @@ func main() {
 	// Setup routes
 	router := gin.Default()
 
+	// Server spans + trace-context propagation. otelgin puts the active span in
+	// c.Request.Context(); handlers/services already take context first, so spans flow
+	// through the existing call chain with no signature changes. No-op tracer when
+	// observability is disabled.
+	router.Use(otelgin.Middleware(cfg.ServiceName))
+
 	// Apply CORS middleware globally
 	router.Use(handler.CORSMiddleware())
 
 	// Apply Logger middleware globally
 	router.Use(handler.LoggerMiddleware(logger))
+
+	// Record request counts/latencies for Prometheus (scraped by Alloy on :METRICS_PORT).
+	router.Use(handler.MetricsMiddleware())
 
 	// Health check
 	router.GET("/api/health", handler.HealthCheckHandler)
@@ -446,7 +465,7 @@ func main() {
 	// Both branches only log today so the seam is observable and lint-clean.
 	switch cfg.AppMode {
 	case config.ModeEdge:
-		logger.Info("Running in EDGE mode", zap.String("app_mode", string(cfg.AppMode)))
+		logger.Info("Running in EDGE mode", slog.String("app_mode", string(cfg.AppMode)))
 
 		// Stock writes are edge-only: the edge is the single writer for on-hand stock and
 		// each mutation appends a sync op that replicates the new amount to the cloud mirror.
@@ -467,7 +486,7 @@ func main() {
 			Cut:       cfg.PrinterCut,
 		}
 		if receiptPrinter, printerErr := device.NewReceiptPrinterFromConfig(deviceCfg); printerErr != nil {
-			logger.Error("Ticket printing disabled: failed to init printer transport", zap.Error(printerErr))
+			logger.Error("Ticket printing disabled: failed to init printer transport", slog.Any("error", printerErr))
 		} else {
 			printService := service.NewPrintService(openBillRepo, receiptPrinter, dto.TicketBusinessInfo{
 				Name:        cfg.BusinessName,
@@ -478,22 +497,22 @@ func main() {
 			})
 			deviceHandler := handler.NewDeviceHandler(printService)
 			router.POST("/api/device/print", handler.JWTAuthMiddleware(jwtService, permissions.RoleAdmin, permissions.RoleManager), deviceHandler.PrintTicketHandler)
-			logger.Info("Ticket printing enabled", zap.String("transport", deviceCfg.Transport))
+			logger.Info("Ticket printing enabled", slog.String("transport", deviceCfg.Transport))
 		}
 
 		if cfg.CloudSyncURL == "" || cfg.NodeSyncKey == "" {
-			logger.Fatal("Edge sync push disabled: set CLOUD_SYNC_URL and NODE_SYNC_KEY to enable it")
-			break
+			logger.Error("Edge sync push disabled: set CLOUD_SYNC_URL and NODE_SYNC_KEY to enable it")
+			os.Exit(1)
 		}
 		syncPushClient := httpclient.NewSyncPushClient(httpClient, cfg.CloudSyncURL, cfg.NodeSyncKey)
 		syncPushService := service.NewSyncPushService(
 			unitOfWork, syncOutboxRepo, syncStateRepo, syncPushClient,
-			syncIdentity, 0, slogLogger,
+			syncIdentity, 0, logger,
 		)
 		syncPullClient := httpclient.NewSyncPullClient(httpClient, cfg.CloudSyncURL, cfg.NodeSyncKey)
 		syncPullService := service.NewSyncPullService(
 			unitOfWork, syncPullClient, syncReferenceRepo, syncStateRepo,
-			syncIdentity, slogLogger,
+			syncIdentity, logger,
 		)
 		edgeScheduler, edgeErr := cron.NewEdgeSyncScheduler(syncPushService, syncPullService, syncStatusTracker, cfg.SyncPushCron, cfg.SyncPullCron, logger)
 		if edgeErr != nil {
@@ -508,7 +527,7 @@ func main() {
 			}
 		}()
 	case config.ModeCloud:
-		logger.Info("Running in CLOUD mode", zap.String("app_mode", string(cfg.AppMode)))
+		logger.Info("Running in CLOUD mode", slog.String("app_mode", string(cfg.AppMode)))
 
 		electronicInvoiceClient := httpclient.NewElectronicInvoiceClient(cfg, httpClient)
 		invoiceService := service.NewInvoiceService(
@@ -561,6 +580,22 @@ func main() {
 		panic("PORT is not set")
 	}
 
+	// Metrics listener on a separate internal port so /metrics is never exposed via the
+	// public Gin server / Cloudflare Tunnel. Alloy scrapes localhost:METRICS_PORT/metrics.
+	metricsMux := http.NewServeMux()
+	metricsMux.Handle("/metrics", promhttp.Handler())
+	metricsSrv := &http.Server{
+		Addr:              ":" + cfg.MetricsPort,
+		Handler:           metricsMux,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+	go func() {
+		log.Printf("Metrics server starting on port %s", cfg.MetricsPort)
+		if errMetrics := metricsSrv.ListenAndServe(); errMetrics != nil && errMetrics != http.ErrServerClosed {
+			logger.Error("metrics server failed", slog.Any("error", errMetrics))
+		}
+	}()
+
 	// Create HTTP server
 	srv := &http.Server{
 		Addr:              ":" + port,
@@ -596,7 +631,16 @@ func main() {
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatalf("Server forced to shutdown: %v", err)
+		log.Printf("Server forced to shutdown: %v", err)
+	}
+
+	// Stop the metrics listener, then flush batched spans/logs so nothing is dropped on
+	// SIGTERM. Order: stop HTTP servers → flush providers → exit.
+	if err := metricsSrv.Shutdown(ctx); err != nil {
+		log.Printf("Metrics server forced to shutdown: %v", err)
+	}
+	if err := providers.Shutdown(ctx); err != nil {
+		log.Printf("observability shutdown: %v", err)
 	}
 
 	log.Println("Server exited")

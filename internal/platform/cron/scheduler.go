@@ -2,11 +2,11 @@ package cron
 
 import (
 	"context"
+	"log/slog"
 
 	"laguna-escondida/backend/internal/domain/service"
 
 	"github.com/go-co-op/gocron/v2"
-	"go.uber.org/zap"
 )
 
 type Scheduler struct {
@@ -17,7 +17,7 @@ type Scheduler struct {
 	invoiceCron              string
 	supportDocumentCron      string
 	invoiceSubmitCron        string
-	logger                   *zap.Logger
+	logger                   *slog.Logger
 }
 
 func NewScheduler(
@@ -27,7 +27,7 @@ func NewScheduler(
 	invoiceCron string,
 	supportDocumentCron string,
 	invoiceSubmitCron string,
-	logger *zap.Logger,
+	logger *slog.Logger,
 ) (*Scheduler, error) {
 	scheduler, err := gocron.NewScheduler()
 	if err != nil {
@@ -66,33 +66,33 @@ func (s *Scheduler) registerJobs() error {
 		gocron.NewTask(s.updateMissingDocumentURLsJob),
 	)
 	if err != nil {
-		s.logger.Error("Failed to register updateMissingDocumentURLs cron job", zap.Error(err))
+		s.logger.Error("Failed to register updateMissingDocumentURLs cron job", slog.Any("error", err))
 		return err
 	}
 
-	s.logger.Info("Registered cron job: updateMissingDocumentURLs", zap.String("cron", s.invoiceCron))
+	s.logger.Info("Registered cron job: updateMissingDocumentURLs", slog.String("cron", s.invoiceCron))
 
 	_, err = s.scheduler.NewJob(
 		gocron.CronJob(s.supportDocumentCron, false),
 		gocron.NewTask(s.updateMissingSupportDocumentURLsJob),
 	)
 	if err != nil {
-		s.logger.Error("Failed to register updateMissingSupportDocumentURLs cron job", zap.Error(err))
+		s.logger.Error("Failed to register updateMissingSupportDocumentURLs cron job", slog.Any("error", err))
 		return err
 	}
 
-	s.logger.Info("Registered cron job: updateMissingSupportDocumentURLs", zap.String("cron", s.supportDocumentCron))
+	s.logger.Info("Registered cron job: updateMissingSupportDocumentURLs", slog.String("cron", s.supportDocumentCron))
 
 	_, err = s.scheduler.NewJob(
 		gocron.CronJob(s.invoiceSubmitCron, false),
 		gocron.NewTask(s.submitPendingInvoicesJob),
 	)
 	if err != nil {
-		s.logger.Error("Failed to register submitPendingInvoices cron job", zap.Error(err))
+		s.logger.Error("Failed to register submitPendingInvoices cron job", slog.Any("error", err))
 		return err
 	}
 
-	s.logger.Info("Registered cron job: submitPendingInvoices", zap.String("cron", s.invoiceSubmitCron))
+	s.logger.Info("Registered cron job: submitPendingInvoices", slog.String("cron", s.invoiceSubmitCron))
 	return nil
 }
 
@@ -101,11 +101,11 @@ func (s *Scheduler) submitPendingInvoicesJob() {
 
 	ctx := context.Background()
 	if err := s.invoiceSubmissionService.SubmitDue(ctx); err != nil {
-		s.logger.Error("Cron job submitPendingInvoices failed", zap.Error(err))
+		s.logger.ErrorContext(ctx, "Cron job submitPendingInvoices failed", slog.Any("error", err))
 		return
 	}
 
-	s.logger.Info("Cron job submitPendingInvoices completed")
+	s.logger.InfoContext(ctx, "Cron job submitPendingInvoices completed")
 }
 
 func (s *Scheduler) updateMissingDocumentURLsJob() {
@@ -114,16 +114,16 @@ func (s *Scheduler) updateMissingDocumentURLsJob() {
 	ctx := context.Background()
 	response, err := s.invoiceService.UpdateMissingDocumentURLs(ctx)
 	if err != nil {
-		s.logger.Error("Cron job updateMissingDocumentURLs failed", zap.Error(err))
+		s.logger.ErrorContext(ctx, "Cron job updateMissingDocumentURLs failed", slog.Any("error", err))
 		return
 	}
 
-	s.logger.Info("Cron job updateMissingDocumentURLs completed",
-		zap.Int("updated_count", response.UpdatedCount),
+	s.logger.InfoContext(ctx, "Cron job updateMissingDocumentURLs completed",
+		slog.Int("updated_count", response.UpdatedCount),
 	)
 	if len(response.FailedBills) > 0 {
-		s.logger.Warn("Cron job updateMissingDocumentURLs: some bills failed to update",
-			zap.Int("failed_count", len(response.FailedBills)),
+		s.logger.WarnContext(ctx, "Cron job updateMissingDocumentURLs: some bills failed to update",
+			slog.Int("failed_count", len(response.FailedBills)),
 		)
 	}
 }
@@ -134,16 +134,16 @@ func (s *Scheduler) updateMissingSupportDocumentURLsJob() {
 	ctx := context.Background()
 	response, err := s.supportDocumentService.UpdateMissingDocumentURLs(ctx)
 	if err != nil {
-		s.logger.Error("Cron job updateMissingSupportDocumentURLs failed", zap.Error(err))
+		s.logger.ErrorContext(ctx, "Cron job updateMissingSupportDocumentURLs failed", slog.Any("error", err))
 		return
 	}
 
-	s.logger.Info("Cron job updateMissingSupportDocumentURLs completed",
-		zap.Int("updated_count", response.UpdatedCount),
+	s.logger.InfoContext(ctx, "Cron job updateMissingSupportDocumentURLs completed",
+		slog.Int("updated_count", response.UpdatedCount),
 	)
 	if len(response.FailedBills) > 0 {
-		s.logger.Warn("Cron job updateMissingSupportDocumentURLs: some documents failed to update",
-			zap.Int("failed_count", len(response.FailedBills)),
+		s.logger.WarnContext(ctx, "Cron job updateMissingSupportDocumentURLs: some documents failed to update",
+			slog.Int("failed_count", len(response.FailedBills)),
 		)
 	}
 }

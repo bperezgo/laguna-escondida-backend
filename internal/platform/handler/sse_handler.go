@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -11,7 +12,6 @@ import (
 	"laguna-escondida/backend/internal/platform/sse"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 )
 
 // businessDayRange returns [start, end) of "today" in the restaurant's local time
@@ -36,10 +36,10 @@ type SSEHandler struct {
 	hub                *sse.Hub
 	openBillProductHub *sse.OpenBillProductHub
 	orderService       *service.OrderService
-	logger             *zap.Logger
+	logger             *slog.Logger
 }
 
-func NewSSEHandler(hub *sse.Hub, openBillProductHub *sse.OpenBillProductHub, orderService *service.OrderService, logger *zap.Logger) *SSEHandler {
+func NewSSEHandler(hub *sse.Hub, openBillProductHub *sse.OpenBillProductHub, orderService *service.OrderService, logger *slog.Logger) *SSEHandler {
 	return &SSEHandler{
 		hub:                hub,
 		openBillProductHub: openBillProductHub,
@@ -61,18 +61,18 @@ func (h *SSEHandler) StreamCommandsHandler(c *gin.Context) {
 	client := sse.NewClient(area)
 	h.hub.Register(client)
 
-	h.logger.Info("SSE connection established",
-		zap.String("handler", "StreamCommands"),
-		zap.String("area", area),
-		zap.String("client_ip", c.ClientIP()),
+	h.logger.InfoContext(c.Request.Context(), "SSE connection established",
+		slog.String("handler", "StreamCommands"),
+		slog.String("area", area),
+		slog.String("client_ip", c.ClientIP()),
 	)
 
 	defer func() {
 		h.hub.Unregister(client)
-		h.logger.Info("SSE connection closed",
-			zap.String("handler", "StreamCommands"),
-			zap.String("area", area),
-			zap.String("client_ip", c.ClientIP()),
+		h.logger.InfoContext(c.Request.Context(), "SSE connection closed",
+			slog.String("handler", "StreamCommands"),
+			slog.String("area", area),
+			slog.String("client_ip", c.ClientIP()),
 		)
 	}()
 
@@ -89,28 +89,28 @@ func (h *SSEHandler) StreamCommandsHandler(c *gin.Context) {
 			}
 			data, err := event.ToSSEFormat()
 			if err != nil {
-				h.logger.Error("Failed to format SSE event",
-					zap.String("handler", "StreamCommands"),
-					zap.String("area", area),
-					zap.String("event_type", event.Type),
-					zap.Error(err),
+				h.logger.ErrorContext(ctx, "Failed to format SSE event",
+					slog.String("handler", "StreamCommands"),
+					slog.String("area", area),
+					slog.String("event_type", event.Type),
+					slog.Any("error", err),
 				)
 				return true
 			}
 			_, err = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event.Type, data)
 			if err != nil {
-				h.logger.Error("Failed to write SSE event",
-					zap.String("handler", "StreamCommands"),
-					zap.String("area", area),
-					zap.String("event_type", event.Type),
-					zap.Error(err),
+				h.logger.ErrorContext(ctx, "Failed to write SSE event",
+					slog.String("handler", "StreamCommands"),
+					slog.String("area", area),
+					slog.String("event_type", event.Type),
+					slog.Any("error", err),
 				)
 				return true
 			}
-			h.logger.Debug("SSE event sent",
-				zap.String("handler", "StreamCommands"),
-				zap.String("area", area),
-				zap.String("event_type", event.Type),
+			h.logger.DebugContext(ctx, "SSE event sent",
+				slog.String("handler", "StreamCommands"),
+				slog.String("area", area),
+				slog.String("event_type", event.Type),
 			)
 			return true
 		case <-heartbeat.C:
@@ -118,18 +118,18 @@ func (h *SSEHandler) StreamCommandsHandler(c *gin.Context) {
 			// but keeps bytes flowing so the Next.js proxy / intermediaries don't
 			// time out an idle stream. A write failure means the client is gone.
 			if _, err := fmt.Fprint(w, ": heartbeat\n\n"); err != nil {
-				h.logger.Info("SSE heartbeat write failed; closing stream",
-					zap.String("handler", "StreamCommands"),
-					zap.String("area", area),
-					zap.Error(err),
+				h.logger.InfoContext(ctx, "SSE heartbeat write failed; closing stream",
+					slog.String("handler", "StreamCommands"),
+					slog.String("area", area),
+					slog.Any("error", err),
 				)
 				return false
 			}
 			return true
 		case <-ctx.Done():
-			h.logger.Info("SSE connection context done",
-				zap.String("handler", "StreamCommands"),
-				zap.String("area", area),
+			h.logger.InfoContext(ctx, "SSE connection context done",
+				slog.String("handler", "StreamCommands"),
+				slog.String("area", area),
 			)
 			return false
 		}
@@ -187,18 +187,18 @@ func (h *SSEHandler) StreamOpenBillProductsHandler(c *gin.Context) {
 	client := sse.NewOpenBillProductClient(area)
 	h.openBillProductHub.Register(client)
 
-	h.logger.Info("SSE connection established",
-		zap.String("handler", "StreamOpenBillProducts"),
-		zap.String("area", area),
-		zap.String("client_ip", c.ClientIP()),
+	h.logger.InfoContext(c.Request.Context(), "SSE connection established",
+		slog.String("handler", "StreamOpenBillProducts"),
+		slog.String("area", area),
+		slog.String("client_ip", c.ClientIP()),
 	)
 
 	defer func() {
 		h.openBillProductHub.Unregister(client)
-		h.logger.Info("SSE connection closed",
-			zap.String("handler", "StreamOpenBillProducts"),
-			zap.String("area", area),
-			zap.String("client_ip", c.ClientIP()),
+		h.logger.InfoContext(c.Request.Context(), "SSE connection closed",
+			slog.String("handler", "StreamOpenBillProducts"),
+			slog.String("area", area),
+			slog.String("client_ip", c.ClientIP()),
 		)
 	}()
 
@@ -214,27 +214,27 @@ func (h *SSEHandler) StreamOpenBillProductsHandler(c *gin.Context) {
 		if !pendingSent {
 			pendingSent = true
 			if err == nil && len(pendingProducts) > 0 {
-				h.logger.Info("Sending pending products on connection",
-					zap.String("handler", "StreamOpenBillProducts"),
-					zap.String("area", area),
-					zap.Int("count", len(pendingProducts)),
+				h.logger.InfoContext(ctx, "Sending pending products on connection",
+					slog.String("handler", "StreamOpenBillProducts"),
+					slog.String("area", area),
+					slog.Int("count", len(pendingProducts)),
 				)
 				for _, product := range pendingProducts {
 					data, err := json.Marshal(product)
 					if err != nil {
-						h.logger.Error("Failed to marshal pending product",
-							zap.String("handler", "StreamOpenBillProducts"),
-							zap.String("area", area),
-							zap.Error(err),
+						h.logger.ErrorContext(ctx, "Failed to marshal pending product",
+							slog.String("handler", "StreamOpenBillProducts"),
+							slog.String("area", area),
+							slog.Any("error", err),
 						)
 						continue
 					}
 					_, err = fmt.Fprintf(w, "event: open_bill_product.created\ndata: %s\n\n", data)
 					if err != nil {
-						h.logger.Error("Failed to write pending product",
-							zap.String("handler", "StreamOpenBillProducts"),
-							zap.String("area", area),
-							zap.Error(err),
+						h.logger.ErrorContext(ctx, "Failed to write pending product",
+							slog.String("handler", "StreamOpenBillProducts"),
+							slog.String("area", area),
+							slog.Any("error", err),
 						)
 						continue
 					}
@@ -250,28 +250,28 @@ func (h *SSEHandler) StreamOpenBillProductsHandler(c *gin.Context) {
 			}
 			data, err := json.Marshal(event.Data)
 			if err != nil {
-				h.logger.Error("Failed to marshal SSE event",
-					zap.String("handler", "StreamOpenBillProducts"),
-					zap.String("area", area),
-					zap.String("event_type", event.Type),
-					zap.Error(err),
+				h.logger.ErrorContext(ctx, "Failed to marshal SSE event",
+					slog.String("handler", "StreamOpenBillProducts"),
+					slog.String("area", area),
+					slog.String("event_type", event.Type),
+					slog.Any("error", err),
 				)
 				return true
 			}
 			_, err = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event.Type, data)
 			if err != nil {
-				h.logger.Error("Failed to write SSE event",
-					zap.String("handler", "StreamOpenBillProducts"),
-					zap.String("area", area),
-					zap.String("event_type", event.Type),
-					zap.Error(err),
+				h.logger.ErrorContext(ctx, "Failed to write SSE event",
+					slog.String("handler", "StreamOpenBillProducts"),
+					slog.String("area", area),
+					slog.String("event_type", event.Type),
+					slog.Any("error", err),
 				)
 				return true
 			}
-			h.logger.Debug("SSE event sent",
-				zap.String("handler", "StreamOpenBillProducts"),
-				zap.String("area", area),
-				zap.String("event_type", event.Type),
+			h.logger.DebugContext(ctx, "SSE event sent",
+				slog.String("handler", "StreamOpenBillProducts"),
+				slog.String("area", area),
+				slog.String("event_type", event.Type),
 			)
 			return true
 		case <-heartbeat.C:
@@ -279,18 +279,18 @@ func (h *SSEHandler) StreamOpenBillProductsHandler(c *gin.Context) {
 			// but keeps bytes flowing so the Next.js proxy / intermediaries don't
 			// time out an idle stream. A write failure means the client is gone.
 			if _, err := fmt.Fprint(w, ": heartbeat\n\n"); err != nil {
-				h.logger.Info("SSE heartbeat write failed; closing stream",
-					zap.String("handler", "StreamOpenBillProducts"),
-					zap.String("area", area),
-					zap.Error(err),
+				h.logger.InfoContext(ctx, "SSE heartbeat write failed; closing stream",
+					slog.String("handler", "StreamOpenBillProducts"),
+					slog.String("area", area),
+					slog.Any("error", err),
 				)
 				return false
 			}
 			return true
 		case <-ctx.Done():
-			h.logger.Info("SSE connection context done",
-				zap.String("handler", "StreamOpenBillProducts"),
-				zap.String("area", area),
+			h.logger.InfoContext(ctx, "SSE connection context done",
+				slog.String("handler", "StreamOpenBillProducts"),
+				slog.String("area", area),
 			)
 			return false
 		}

@@ -194,3 +194,67 @@ func TestNewConfig_SyncPullCron_FromEnv(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "*/2 * * * *", cfg.SyncPullCron)
 }
+
+func TestNewConfig_Observability_Defaults(t *testing.T) {
+	setRequiredEnv(t)
+	// Clear the observability env so the test asserts the defaults regardless of the shell.
+	t.Setenv("OBSERVABILITY_ENABLED", "")
+	t.Setenv("OTEL_SERVICE_NAME", "")
+	t.Setenv("ENVIRONMENT", "")
+	t.Setenv("SERVICE_VERSION", "")
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
+	t.Setenv("OTEL_TRACES_SAMPLER_ARG", "")
+	t.Setenv("METRICS_PORT", "")
+
+	cfg, err := NewConfig()
+
+	require.NoError(t, err)
+	assert.False(t, cfg.ObservabilityEnabled)
+	assert.Equal(t, "laguna-backend", cfg.ServiceName)
+	assert.Equal(t, "dev", cfg.Environment)
+	assert.Equal(t, "dev", cfg.ServiceVersion)
+	assert.Empty(t, cfg.OTLPEndpoint)
+	assert.Equal(t, 1.0, cfg.TraceSampleRatio)
+	assert.Equal(t, "9090", cfg.MetricsPort)
+}
+
+func TestNewConfig_Observability_Enabled(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("OBSERVABILITY_ENABLED", "true")
+	t.Setenv("OTEL_SERVICE_NAME", "laguna-cloud")
+	t.Setenv("ENVIRONMENT", "prod")
+	t.Setenv("SERVICE_VERSION", "v1.2.3")
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+	t.Setenv("METRICS_PORT", "9091")
+
+	cfg, err := NewConfig()
+
+	require.NoError(t, err)
+	assert.True(t, cfg.ObservabilityEnabled)
+	assert.Equal(t, "laguna-cloud", cfg.ServiceName)
+	assert.Equal(t, "prod", cfg.Environment)
+	assert.Equal(t, "v1.2.3", cfg.ServiceVersion)
+	assert.Equal(t, "localhost:4317", cfg.OTLPEndpoint)
+	assert.Equal(t, "9091", cfg.MetricsPort)
+}
+
+func TestNewConfig_TraceSampleRatio_FromEnv(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("OTEL_TRACES_SAMPLER_ARG", "0.25")
+
+	cfg, err := NewConfig()
+
+	require.NoError(t, err)
+	assert.Equal(t, 0.25, cfg.TraceSampleRatio)
+}
+
+func TestNewConfig_TraceSampleRatio_InvalidReturnsError(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("OTEL_TRACES_SAMPLER_ARG", "not-a-number")
+
+	cfg, err := NewConfig()
+
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "invalid OTEL_TRACES_SAMPLER_ARG")
+}

@@ -3,18 +3,17 @@ package httpclient
 import (
 	"bytes"
 	"io"
+	"log/slog"
 	"net/http"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 type LoggingTransport struct {
 	transport http.RoundTripper
-	logger    *zap.Logger
+	logger    *slog.Logger
 }
 
-func NewLoggingTransport(logger *zap.Logger) *LoggingTransport {
+func NewLoggingTransport(logger *slog.Logger) *LoggingTransport {
 	return &LoggingTransport{
 		transport: http.DefaultTransport,
 		logger:    logger,
@@ -30,21 +29,21 @@ func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		req.Body = io.NopCloser(bytes.NewBuffer(requestBody))
 	}
 
-	t.logger.Info("HTTP Client Request",
-		zap.String("method", req.Method),
-		zap.String("url", req.URL.String()),
-		zap.String("body", string(requestBody)),
+	t.logger.InfoContext(req.Context(), "HTTP Client Request",
+		slog.String("method", req.Method),
+		slog.String("url", req.URL.String()),
+		slog.String("body", string(requestBody)),
 	)
 
 	resp, err := t.transport.RoundTrip(req)
 	duration := time.Since(start)
 
 	if err != nil {
-		t.logger.Error("HTTP Client Request Failed",
-			zap.String("method", req.Method),
-			zap.String("url", req.URL.String()),
-			zap.Duration("duration", duration),
-			zap.Error(err),
+		t.logger.ErrorContext(req.Context(), "HTTP Client Request Failed",
+			slog.String("method", req.Method),
+			slog.String("url", req.URL.String()),
+			slog.Duration("duration", duration),
+			slog.Any("error", err),
 		)
 		return nil, err
 	}
@@ -55,12 +54,12 @@ func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		resp.Body = io.NopCloser(bytes.NewBuffer(responseBody))
 	}
 
-	t.logger.Info("HTTP Client Response",
-		zap.String("method", req.Method),
-		zap.String("url", req.URL.String()),
-		zap.Int("status_code", resp.StatusCode),
-		zap.Duration("duration", duration),
-		zap.String("body", string(responseBody)),
+	t.logger.InfoContext(req.Context(), "HTTP Client Response",
+		slog.String("method", req.Method),
+		slog.String("url", req.URL.String()),
+		slog.Int("status_code", resp.StatusCode),
+		slog.Duration("duration", duration),
+		slog.String("body", string(responseBody)),
 	)
 
 	return resp, nil

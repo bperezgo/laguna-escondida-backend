@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -15,7 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func newSubmissionService(
@@ -33,7 +33,7 @@ func newSubmissionService(
 		outboxRepo,
 		dto.SyncIdentity{NodeID: testNodeID},
 		&config.Config{ElectronicInvoicePrefix: "LAG"},
-		zap.NewNop(),
+		slog.New(slog.DiscardHandler),
 	)
 }
 

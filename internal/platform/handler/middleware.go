@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log/slog"
 	"net/http"
 	"slices"
 	"strings"
@@ -10,7 +11,6 @@ import (
 	"laguna-escondida/backend/internal/platform/config"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 )
 
 // CORSMiddleware handles CORS headers and OPTIONS requests
@@ -115,8 +115,8 @@ func JWTAuthMiddleware(jwtService *service.JWTService, requiredRoles ...int) gin
 	}
 }
 
-// LoggerMiddleware logs HTTP requests using Zap logger in JSON format
-func LoggerMiddleware(logger *zap.Logger) gin.HandlerFunc {
+// LoggerMiddleware logs HTTP requests using the slog logger in JSON format
+func LoggerMiddleware(logger *slog.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 		path := c.Request.URL.Path
@@ -129,12 +129,16 @@ func LoggerMiddleware(logger *zap.Logger) gin.HandlerFunc {
 
 		success := statusCode >= 200 && statusCode < 400
 
-		logger.Info("HTTP Request",
-			zap.String("method", method),
-			zap.String("path", path),
-			zap.Int("status_code", statusCode),
-			zap.Duration("duration", duration),
-			zap.Bool("success", success),
+		// Pass the request context to InfoContext so the slog handler can attach the
+		// active trace_id/span_id (set by otelgin) to the emitted OTLP log record,
+		// giving log↔trace correlation in Grafana. slog is context-native, so the
+		// context goes as the first argument rather than being smuggled as a field.
+		logger.InfoContext(c.Request.Context(), "HTTP Request",
+			slog.String("method", method),
+			slog.String("path", path),
+			slog.Int("status_code", statusCode),
+			slog.Duration("duration", duration),
+			slog.Bool("success", success),
 		)
 	}
 }

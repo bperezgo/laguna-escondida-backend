@@ -1,10 +1,9 @@
 package httpclient
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 type Client struct {
@@ -19,7 +18,7 @@ func WithTimeout(timeout time.Duration) ClientOption {
 	}
 }
 
-func NewClient(logger *zap.Logger, opts ...ClientOption) *Client {
+func NewClient(logger *slog.Logger, opts ...ClientOption) *Client {
 	client := &Client{
 		Client: &http.Client{
 			Transport: NewLoggingTransport(logger),

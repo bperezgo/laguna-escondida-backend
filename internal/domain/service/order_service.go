@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"laguna-escondida/backend/internal/domain/aggregate/bill"
@@ -20,7 +21,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
-	"go.uber.org/zap"
 )
 
 const OpenBillProductCreatedEventType = "open_bill_product.created"
@@ -28,7 +28,7 @@ const OpenBillProductCancelledEventType = "open_bill_product.cancelled"
 const OpenBillProductUpdatedEventType = "open_bill_product.updated"
 
 type OrderService struct {
-	logger                      *zap.Logger
+	logger                      *slog.Logger
 	openBillRepo                ports.OpenBillRepository
 	productRepo                 ports.ProductRepository
 	billRepo                    ports.BillRepository
@@ -72,7 +72,7 @@ func NewOrderService(
 }
 
 func NewOrderServiceWithSSE(
-	logger *zap.Logger,
+	logger *slog.Logger,
 	openBillRepo ports.OpenBillRepository,
 	productRepo ports.ProductRepository,
 	billRepo ports.BillRepository,
@@ -233,7 +233,7 @@ func (s *OrderService) CreateOrder(
 			req.Products,
 		)
 		if err := s.eventBus.Publish(ctx, event); err != nil {
-			s.logger.Error("failed to publish order created event", zap.Error(err))
+			s.logger.ErrorContext(ctx, "failed to publish order created event", slog.Any("error", err))
 		}
 	}
 
@@ -455,7 +455,7 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 		req.Products,
 	)
 	if err := s.eventBus.Publish(ctx, event); err != nil {
-		s.logger.Error("failed to publish order updated event", zap.Error(err))
+		s.logger.ErrorContext(ctx, "failed to publish order updated event", slog.Any("error", err))
 	}
 
 	return updatedBill, nil
@@ -724,7 +724,7 @@ func (s *OrderService) DeleteOrder(ctx context.Context, openBillID string) error
 	// lines ride on the event so the stock handler restores inventory (voids return stock).
 	event := dto.NewOrderDeletedEvent(openBillID, existingOpenBill.Products)
 	if err := s.eventBus.Publish(ctx, event); err != nil {
-		s.logger.Error("failed to publish order deleted event", zap.Error(err))
+		s.logger.ErrorContext(ctx, "failed to publish order deleted event", slog.Any("error", err))
 	}
 
 	return nil
@@ -823,14 +823,14 @@ func (s *OrderService) CancelOpenBillProduct(ctx context.Context, openBillID, op
 
 // HandleOrderCreatedSSE notifies frontend via SSE when products with preparation areas are created
 func (s *OrderService) HandleOrderCreatedSSE(ctx context.Context, event dto.OrderCreatedEvent) error {
-	s.logger.Info("HandleOrderCreatedSSE called",
-		zap.String("open_bill_id", event.OpenBillID),
-		zap.String("temporal_identifier", event.TemporalIdentifier),
-		zap.Int("product_count", len(event.Products)),
+	s.logger.InfoContext(ctx, "HandleOrderCreatedSSE called",
+		slog.String("open_bill_id", event.OpenBillID),
+		slog.String("temporal_identifier", event.TemporalIdentifier),
+		slog.Int("product_count", len(event.Products)),
 	)
 
 	if len(event.Products) == 0 {
-		s.logger.Info("HandleOrderCreatedSSE: no products to process")
+		s.logger.InfoContext(ctx, "HandleOrderCreatedSSE: no products to process")
 		return nil
 	}
 
@@ -839,19 +839,19 @@ func (s *OrderService) HandleOrderCreatedSSE(ctx context.Context, event dto.Orde
 		productIDs[i] = p.ProductID
 	}
 
-	s.logger.Debug("Fetching product preparation responsibilities", zap.Strings("product_ids", productIDs))
+	s.logger.DebugContext(ctx, "Fetching product preparation responsibilities", slog.Any("product_ids", productIDs))
 	responsibilities, err := s.openBillRepo.GetProductPreparationResponsibilities(ctx, productIDs)
 	if err != nil {
-		s.logger.Error("Failed to get product preparation responsibilities", zap.Error(err))
+		s.logger.ErrorContext(ctx, "Failed to get product preparation responsibilities", slog.Any("error", err))
 		return fmt.Errorf("failed to get product preparation responsibilities: %w", err)
 	}
 
-	s.logger.Info("Product preparation responsibilities retrieved",
-		zap.Int("responsibility_count", len(responsibilities)),
+	s.logger.InfoContext(ctx, "Product preparation responsibilities retrieved",
+		slog.Int("responsibility_count", len(responsibilities)),
 	)
 
 	if len(responsibilities) == 0 {
-		s.logger.Warn("No preparation responsibilities found for products")
+		s.logger.WarnContext(ctx, "No preparation responsibilities found for products")
 		return nil
 	}
 
@@ -859,7 +859,7 @@ func (s *OrderService) HandleOrderCreatedSSE(ctx context.Context, event dto.Orde
 	if event.CreatedByID != "" {
 		user, err := s.userRepo.FindByID(ctx, event.CreatedByID)
 		if err != nil {
-			s.logger.Error("failed to get user", zap.Error(err))
+			s.logger.ErrorContext(ctx, "failed to get user", slog.Any("error", err))
 		} else {
 			createdByName = user.Name
 		}
@@ -874,7 +874,7 @@ func (s *OrderService) HandleOrderCreatedSSE(ctx context.Context, event dto.Orde
 	for _, p := range event.Products {
 		responsibility, exists := responsibilityMap[p.ProductID]
 		if !exists {
-			s.logger.Debug("No responsibility found for product", zap.String("product_id", p.ProductID))
+			s.logger.DebugContext(ctx, "No responsibility found for product", slog.String("product_id", p.ProductID))
 			continue
 		}
 
@@ -895,28 +895,28 @@ func (s *OrderService) HandleOrderCreatedSSE(ctx context.Context, event dto.Orde
 			CreatedByName: createdByName,
 		}
 
-		s.logger.Info("Notifying SSE clients",
-			zap.String("area", responsibility.Area),
-			zap.String("event_type", OpenBillProductCreatedEventType),
-			zap.String("product_name", responsibility.ProductName),
-			zap.Int("quantity", p.Quantity),
+		s.logger.InfoContext(ctx, "Notifying SSE clients",
+			slog.String("area", responsibility.Area),
+			slog.String("event_type", OpenBillProductCreatedEventType),
+			slog.String("product_name", responsibility.ProductName),
+			slog.Int("quantity", p.Quantity),
 		)
 
 		if err := s.openBillProductSSENotifier.NotifyArea(ctx, responsibility.Area, OpenBillProductCreatedEventType, sseData); err != nil {
-			s.logger.Error("failed to notify open bill product created", zap.Error(err))
+			s.logger.ErrorContext(ctx, "failed to notify open bill product created", slog.Any("error", err))
 		} else {
 			notifiedCount++
-			s.logger.Debug("SSE notification sent successfully",
-				zap.String("area", responsibility.Area),
-				zap.String("product_name", responsibility.ProductName),
+			s.logger.DebugContext(ctx, "SSE notification sent successfully",
+				slog.String("area", responsibility.Area),
+				slog.String("product_name", responsibility.ProductName),
 			)
 		}
 
 	}
 
-	s.logger.Info("HandleOrderCreatedSSE completed",
-		zap.Int("products_notified", notifiedCount),
-		zap.Int("total_products", len(event.Products)),
+	s.logger.InfoContext(ctx, "HandleOrderCreatedSSE completed",
+		slog.Int("products_notified", notifiedCount),
+		slog.Int("total_products", len(event.Products)),
 	)
 
 	return nil
@@ -928,7 +928,7 @@ func (s *OrderService) HandleOrderUpdatedSSE(ctx context.Context, event dto.Orde
 	if event.CreatedByID != "" {
 		user, err := s.userRepo.FindByID(ctx, event.CreatedByID)
 		if err != nil {
-			s.logger.Error("failed to get user", zap.Error(err))
+			s.logger.ErrorContext(ctx, "failed to get user", slog.Any("error", err))
 		} else {
 			createdByName = user.Name
 		}
@@ -958,7 +958,7 @@ func (s *OrderService) HandleOrderUpdatedSSE(ctx context.Context, event dto.Orde
 	if len(allProductIDs) > 0 {
 		responsibilities, err := s.openBillRepo.GetProductPreparationResponsibilities(ctx, allProductIDs)
 		if err != nil {
-			s.logger.Error("failed to get product preparation responsibilities", zap.Error(err))
+			s.logger.ErrorContext(ctx, "failed to get product preparation responsibilities", slog.Any("error", err))
 		} else {
 			responsibilityMap = make(map[string]*dto.ProductPreparationResponsibilityWithProduct)
 			for i := range responsibilities {
@@ -976,8 +976,8 @@ func (s *OrderService) HandleOrderUpdatedSSE(ctx context.Context, event dto.Orde
 	// with the refresh path. Mirrors the create-path fix in HandleOrderCreatedSSE.
 	createdAtMap := make(map[string]time.Time)
 	if openBillWithProducts, err := s.openBillRepo.FindByIDWithProducts(ctx, event.OpenBillID); err != nil {
-		s.logger.Error("failed to load open bill for created_at stamping",
-			zap.String("open_bill_id", event.OpenBillID), zap.Error(err))
+		s.logger.ErrorContext(ctx, "failed to load open bill for created_at stamping",
+			slog.String("open_bill_id", event.OpenBillID), slog.Any("error", err))
 	} else {
 		for _, p := range openBillWithProducts.Products {
 			createdAtMap[p.OpenBillProductID] = p.CreatedAt
@@ -1006,7 +1006,7 @@ func (s *OrderService) HandleOrderUpdatedSSE(ctx context.Context, event dto.Orde
 			}
 
 			if err := s.openBillProductSSENotifier.NotifyArea(ctx, responsibility.Area, OpenBillProductCancelledEventType, sseData); err != nil {
-				s.logger.Error("failed to notify open bill product cancelled", zap.Error(err))
+				s.logger.ErrorContext(ctx, "failed to notify open bill product cancelled", slog.Any("error", err))
 			}
 
 		}
@@ -1037,7 +1037,7 @@ func (s *OrderService) HandleOrderUpdatedSSE(ctx context.Context, event dto.Orde
 			}
 
 			if err := s.openBillProductSSENotifier.NotifyArea(ctx, responsibility.Area, OpenBillProductCreatedEventType, sseData); err != nil {
-				s.logger.Error("failed to notify open bill product created", zap.Error(err))
+				s.logger.ErrorContext(ctx, "failed to notify open bill product created", slog.Any("error", err))
 			}
 		} else {
 			// Check if modified
@@ -1062,7 +1062,7 @@ func (s *OrderService) HandleOrderUpdatedSSE(ctx context.Context, event dto.Orde
 				}
 
 				if err := s.openBillProductSSENotifier.NotifyArea(ctx, responsibility.Area, OpenBillProductUpdatedEventType, sseData); err != nil {
-					s.logger.Error("failed to notify open bill product updated", zap.Error(err))
+					s.logger.ErrorContext(ctx, "failed to notify open bill product updated", slog.Any("error", err))
 				}
 			}
 		}
@@ -1075,7 +1075,7 @@ func (s *OrderService) HandleOrderUpdatedSSE(ctx context.Context, event dto.Orde
 func (s *OrderService) HandleOrderDeletedSSE(ctx context.Context, event dto.OrderDeletedEvent) error {
 	openBill, err := s.openBillRepo.FindByIDWithProducts(ctx, event.OpenBillID)
 	if err != nil {
-		s.logger.Error("failed to find open bill for deletion event", zap.String("open_bill_id", event.OpenBillID), zap.Error(err))
+		s.logger.ErrorContext(ctx, "failed to find open bill for deletion event", slog.String("open_bill_id", event.OpenBillID), slog.Any("error", err))
 		return nil
 	}
 
@@ -1098,9 +1098,9 @@ func (s *OrderService) HandleOrderDeletedSSE(ctx context.Context, event dto.Orde
 		}
 
 		if err := s.openBillProductSSENotifier.NotifyArea(ctx, *product.Area, OpenBillProductCancelledEventType, sseData); err != nil {
-			s.logger.Error("failed to notify open bill product cancelled",
-				zap.String("area", *product.Area),
-				zap.Error(err),
+			s.logger.ErrorContext(ctx, "failed to notify open bill product cancelled",
+				slog.String("area", *product.Area),
+				slog.Any("error", err),
 			)
 		}
 	}

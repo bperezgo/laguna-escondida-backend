@@ -29,7 +29,6 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 	gormpg "gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
@@ -241,7 +240,7 @@ func newRig(t *testing.T) *rig {
 	server := httptest.NewServer(router)
 
 	// --- edge side: real HTTP clients pointed at the cloud server ---
-	httpClient := httpclient.NewClient(zap.NewNop())
+	httpClient := httpclient.NewClient(slog.New(slog.DiscardHandler))
 	edgeUoW := postgres.NewUnitOfWork(edgeGDB)
 	edgeOutbox := repository.NewSyncOutboxRepository(edgeGDB)
 	edgeState := repository.NewSyncStateRepository(edgeGDB)

@@ -61,6 +61,18 @@ type Config struct {
 	BusinessAddress   string
 	TicketFooter      string
 	TicketLegalNotice string
+
+	// Observability. When ObservabilityEnabled is false (default) the OTLP exporters are
+	// not started, so local dev / docker-compose boots with no collector present. The
+	// /metrics endpoint is cheap and always served. OTLPEndpoint points at the Alloy
+	// sidecar on localhost in ECS; the SDK also honors OTEL_EXPORTER_OTLP_ENDPOINT.
+	ObservabilityEnabled bool
+	ServiceName          string  // OTEL_SERVICE_NAME, default "laguna-backend"
+	ServiceVersion       string  // image tag / build; default "dev"
+	Environment          string  // deployment.environment; default "dev"
+	OTLPEndpoint         string  // e.g. "localhost:4317"; empty => exporters off
+	TraceSampleRatio     float64 // 1.0 dev; lower in prod
+	MetricsPort          string  // internal scrape port, default "9090"
 }
 
 func NewConfig() (*Config, error) {
@@ -234,6 +246,40 @@ func NewConfig() (*Config, error) {
 		printerCut = "partial"
 	}
 
+	// Observability. All optional so local dev and non-cloud installs boot unchanged. The
+	// OTLP exporters only start when OBSERVABILITY_ENABLED=true and an endpoint is set (the
+	// ECS cloud task sets both); otherwise only the cheap /metrics listener runs. We lean on
+	// the standard OTEL_* env vars where the SDK already reads them.
+	observabilityEnabled := os.Getenv("OBSERVABILITY_ENABLED") == "true"
+
+	serviceName := os.Getenv("OTEL_SERVICE_NAME")
+	if serviceName == "" {
+		serviceName = "laguna-backend"
+	}
+	environment := os.Getenv("ENVIRONMENT")
+	if environment == "" {
+		environment = "dev"
+	}
+	serviceVersion := os.Getenv("SERVICE_VERSION")
+	if serviceVersion == "" {
+		serviceVersion = "dev"
+	}
+	otlpEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") // e.g. localhost:4317
+
+	traceSampleRatio := 1.0
+	if v := os.Getenv("OTEL_TRACES_SAMPLER_ARG"); v != "" {
+		parsed, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid OTEL_TRACES_SAMPLER_ARG %q: %w", v, err)
+		}
+		traceSampleRatio = parsed
+	}
+
+	metricsPort := os.Getenv("METRICS_PORT")
+	if metricsPort == "" {
+		metricsPort = "9090"
+	}
+
 	return &Config{
 		AppMode:                   appMode,
 		NodeID:                    nodeID,
@@ -273,5 +319,12 @@ func NewConfig() (*Config, error) {
 		BusinessAddress:           os.Getenv("BUSINESS_ADDRESS"),
 		TicketFooter:              os.Getenv("TICKET_FOOTER"),
 		TicketLegalNotice:         os.Getenv("TICKET_LEGAL_NOTICE"),
+		ObservabilityEnabled:      observabilityEnabled,
+		ServiceName:               serviceName,
+		ServiceVersion:            serviceVersion,
+		Environment:               environment,
+		OTLPEndpoint:              otlpEndpoint,
+		TraceSampleRatio:          traceSampleRatio,
+		MetricsPort:               metricsPort,
 	}, nil
 }

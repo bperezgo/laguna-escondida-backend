@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"laguna-escondida/backend/internal/domain/dto"
@@ -11,7 +12,6 @@ import (
 	"laguna-escondida/backend/internal/platform/config"
 
 	"github.com/google/uuid"
-	"go.uber.org/zap"
 )
 
 const (
@@ -38,7 +38,7 @@ type InvoiceSubmissionService struct {
 	outboxRepo    ports.SyncOutboxRepository
 	syncIdentity  dto.SyncIdentity
 	config        *config.Config
-	logger        *zap.Logger
+	logger        *slog.Logger
 }
 
 func NewInvoiceSubmissionService(
@@ -49,7 +49,7 @@ func NewInvoiceSubmissionService(
 	outboxRepo ports.SyncOutboxRepository,
 	syncIdentity dto.SyncIdentity,
 	cfg *config.Config,
-	logger *zap.Logger,
+	logger *slog.Logger,
 ) *InvoiceSubmissionService {
 	return &InvoiceSubmissionService{
 		pendingRepo:   pendingRepo,
@@ -86,10 +86,10 @@ func (s *InvoiceSubmissionService) submitOne(ctx context.Context, pending *dto.P
 	// point — the consecutive comes from the cloud's invoice_sequences, never from the edge.
 	if pending.RequestPayload == nil {
 		if err := s.buildRequestPayload(ctx, pending); err != nil {
-			s.logger.Warn("failed to build invoice request payload; will retry",
-				zap.String("pending_invoice_id", pending.ID),
-				zap.String("bill_id", pending.BillID),
-				zap.Error(err))
+			s.logger.WarnContext(ctx, "failed to build invoice request payload; will retry",
+				slog.String("pending_invoice_id", pending.ID),
+				slog.String("bill_id", pending.BillID),
+				slog.Any("error", err))
 			s.markFailed(ctx, pending, err)
 			return
 		}
@@ -97,10 +97,10 @@ func (s *InvoiceSubmissionService) submitOne(ctx context.Context, pending *dto.P
 
 	var req dto.CreateElectronicInvoiceRequest
 	if err := json.Unmarshal(pending.RequestPayload, &req); err != nil {
-		s.logger.Error("invalid pending invoice payload; backing off",
-			zap.String("pending_invoice_id", pending.ID),
-			zap.String("bill_id", pending.BillID),
-			zap.Error(err))
+		s.logger.ErrorContext(ctx, "invalid pending invoice payload; backing off",
+			slog.String("pending_invoice_id", pending.ID),
+			slog.String("bill_id", pending.BillID),
+			slog.Any("error", err))
 		s.markFailed(ctx, pending, err)
 		return
 	}
@@ -111,13 +111,13 @@ func (s *InvoiceSubmissionService) submitOne(ctx context.Context, pending *dto.P
 		// TODO(decision 7): once the provider's "consecutive already used" response is known,
 		// detect it here and call markSubmitted instead of retrying, so a crash that issued the
 		// invoice but missed the ack self-heals rather than looping.
-		s.logger.Warn("electronic invoice submission failed; will retry",
-			zap.String("pending_invoice_id", pending.ID),
-			zap.String("bill_id", pending.BillID),
-			zap.String("prefix", s.config.ElectronicInvoicePrefix),
-			zap.Int("consecutive", *pending.Consecutive),
-			zap.Int("attempts", pending.Attempts),
-			zap.Error(err))
+		s.logger.WarnContext(ctx, "electronic invoice submission failed; will retry",
+			slog.String("pending_invoice_id", pending.ID),
+			slog.String("bill_id", pending.BillID),
+			slog.String("prefix", s.config.ElectronicInvoicePrefix),
+			slog.Int("consecutive", *pending.Consecutive),
+			slog.Int("attempts", pending.Attempts),
+			slog.Any("error", err))
 		s.markFailed(ctx, pending, err)
 		return
 	}
@@ -136,11 +136,11 @@ func (s *InvoiceSubmissionService) submitOne(ctx context.Context, pending *dto.P
 		// The provider already issued the invoice but we failed to record it. Leave the row
 		// pending: the next attempt re-submits the same prefix+consecutive, which the provider
 		// deduplicates, so this self-corrects without a double issue.
-		s.logger.Error("invoice submitted but persisting the result failed; will retry",
-			zap.String("pending_invoice_id", pending.ID),
-			zap.String("bill_id", pending.BillID),
-			zap.String("cufe", resp.CUFE),
-			zap.Error(err))
+		s.logger.ErrorContext(ctx, "invoice submitted but persisting the result failed; will retry",
+			slog.String("pending_invoice_id", pending.ID),
+			slog.String("bill_id", pending.BillID),
+			slog.String("cufe", resp.CUFE),
+			slog.Any("error", err))
 	}
 }
 
@@ -201,9 +201,9 @@ func (s *InvoiceSubmissionService) buildRequestPayload(ctx context.Context, pend
 func (s *InvoiceSubmissionService) markFailed(ctx context.Context, pending *dto.PendingInvoice, cause error) {
 	nextAttemptAt := time.Now().Add(invoiceBackoff(pending.Attempts))
 	if err := s.pendingRepo.MarkFailed(ctx, pending.ID, cause.Error(), nextAttemptAt); err != nil {
-		s.logger.Error("failed to record pending invoice failure",
-			zap.String("pending_invoice_id", pending.ID),
-			zap.Error(err))
+		s.logger.ErrorContext(ctx, "failed to record pending invoice failure",
+			slog.String("pending_invoice_id", pending.ID),
+			slog.Any("error", err))
 	}
 }
 
