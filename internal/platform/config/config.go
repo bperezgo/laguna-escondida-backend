@@ -264,7 +264,7 @@ func NewConfig() (*Config, error) {
 	if serviceVersion == "" {
 		serviceVersion = "dev"
 	}
-	otlpEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") // e.g. localhost:4317
+	otlpEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") // URL form, e.g. "http://127.0.0.1:4317" (bare host:port also accepted)
 
 	traceSampleRatio := 1.0
 	if v := os.Getenv("OTEL_TRACES_SAMPLER_ARG"); v != "" {

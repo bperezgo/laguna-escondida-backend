@@ -30,6 +30,23 @@ func TestInit_EnabledButNoEndpoint_ReturnsNoopShutdown(t *testing.T) {
 	assert.NoError(t, providers.Shutdown(context.Background()))
 }
 
+// otlpEndpointURL must produce a scheme-qualified URL for otlp*grpc.WithEndpointURL. The
+// prod contract from aws-infra is the OTel-standard URL form ("http://127.0.0.1:4317"); a
+// bare "host:port" (local/dev) is treated as plaintext. Passing the raw URL to the old
+// WithEndpoint made gRPC append :443 -> "too many colons in address", dropping all
+// traces/logs — this pins the regression.
+func TestOTLPEndpointURL(t *testing.T) {
+	cases := map[string]string{
+		"http://127.0.0.1:4317":  "http://127.0.0.1:4317", // prod contract, unchanged
+		"127.0.0.1:4317":         "http://127.0.0.1:4317", // bare host:port -> plaintext
+		"localhost:4317":         "http://localhost:4317",
+		"https://collector:4317": "https://collector:4317", // scheme preserved (future TLS)
+	}
+	for in, want := range cases {
+		assert.Equal(t, want, otlpEndpointURL(in), "input %q", in)
+	}
+}
+
 // The slog logger constructor must return a working logger on the disabled path without
 // needing any global provider installed.
 func TestNewSlogLogger_Disabled(t *testing.T) {
