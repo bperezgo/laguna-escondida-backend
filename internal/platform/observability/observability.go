@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
@@ -60,10 +61,10 @@ func Init(ctx context.Context, cfg InitConfig) (*Providers, error) {
 		// Phase 2 (edge): tenant.id is injected by the backend proxy, not here.
 	)
 
-	// Traces.
+	// Traces. WithEndpointURL (not WithEndpoint) parses the scheme and derives TLS from it
+	// (http => plaintext), so the localhost sidecar needs no separate WithInsecure().
 	traceExp, err := otlptracegrpc.New(ctx,
-		otlptracegrpc.WithEndpoint(cfg.OTLPEndpoint),
-		otlptracegrpc.WithInsecure(), // localhost sidecar, plaintext
+		otlptracegrpc.WithEndpointURL(otlpEndpointURL(cfg.OTLPEndpoint)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("otlp trace exporter: %w", err)
@@ -76,10 +77,9 @@ func Init(ctx context.Context, cfg InitConfig) (*Providers, error) {
 	otel.SetTracerProvider(tp)
 	otel.SetTextMapPropagator(propagation.TraceContext{})
 
-	// Logs.
+	// Logs. Same endpoint handling as traces (see above).
 	logExp, err := otlploggrpc.New(ctx,
-		otlploggrpc.WithEndpoint(cfg.OTLPEndpoint),
-		otlploggrpc.WithInsecure(),
+		otlploggrpc.WithEndpointURL(otlpEndpointURL(cfg.OTLPEndpoint)),
 	)
 	if err != nil {
 		// Roll back the tracer provider we already registered before failing.
@@ -97,4 +97,20 @@ func Init(ctx context.Context, cfg InitConfig) (*Providers, error) {
 			return errors.Join(tp.Shutdown(ctx), lp.Shutdown(ctx))
 		},
 	}, nil
+}
+
+// otlpEndpointURL returns endpoint in the URL form otlp*grpc.WithEndpointURL expects. The
+// OTel-standard OTEL_EXPORTER_OTLP_ENDPOINT is a URL with a scheme (aws-infra sets
+// "http://127.0.0.1:4317"); a bare "host:port" is also accepted here for local/dev and is
+// treated as plaintext, since the Alloy sidecar speaks gRPC without TLS on localhost.
+//
+// This exists to avoid the WithEndpoint trap: WithEndpoint wants a bare "host:port", so
+// handing it a full URL makes gRPC treat the whole string as the host and append the default
+// :443, failing every export with "too many colons in address". WithEndpointURL instead
+// parses the scheme (http => insecure, https => TLS), so no separate WithInsecure() is needed.
+func otlpEndpointURL(endpoint string) string {
+	if strings.Contains(endpoint, "://") {
+		return endpoint
+	}
+	return "http://" + endpoint
 }
