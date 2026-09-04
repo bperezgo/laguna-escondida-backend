@@ -1,0 +1,6 @@
+# Transient TDD guardrail state — never commit
+.tdd-escalate
+.tdd-block-count
+
+# Local, machine-specific overrides
+settings.local.json
