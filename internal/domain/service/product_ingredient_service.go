@@ -65,6 +65,14 @@ func (s *ProductIngredientService) AddIngredient(ctx context.Context, compositeP
 		return nil, fmt.Errorf("%w: quantity must be greater than zero", domainError.ErrInvalidIngredientQuantity)
 	}
 
+	cycle, err := s.wouldCreateCycle(ctx, compositeProductID, req.IngredientProductID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check ingredient cycle: %w", err)
+	}
+	if cycle {
+		return nil, domainError.ErrIngredientCycle
+	}
+
 	now := time.Now()
 	ingredient := &dto.ProductIngredient{
 		ID:                  uuid.Must(uuid.NewV7()).String(),
@@ -80,6 +88,42 @@ func (s *ProductIngredientService) AddIngredient(ctx context.Context, compositeP
 	}
 
 	return ingredient, nil
+}
+
+// wouldCreateCycle reports whether adding the edge compositeProductID -> ingredientProductID
+// would create a cycle in the recipe graph. It walks the prospective ingredient's existing
+// subtree; if any path reaches compositeProductID, the new edge closes a loop. A visited set
+// keeps the walk bounded even if the current graph already contains a cycle.
+func (s *ProductIngredientService) wouldCreateCycle(ctx context.Context, compositeProductID, ingredientProductID string) (bool, error) {
+	visited := make(map[string]struct{})
+
+	var reaches func(productID string) (bool, error)
+	reaches = func(productID string) (bool, error) {
+		if productID == compositeProductID {
+			return true, nil
+		}
+		if _, seen := visited[productID]; seen {
+			return false, nil
+		}
+		visited[productID] = struct{}{}
+
+		edges, err := s.productIngredientRepo.FindByCompositeProductID(ctx, productID)
+		if err != nil {
+			return false, err
+		}
+		for _, edge := range edges {
+			found, err := reaches(edge.IngredientProductID)
+			if err != nil {
+				return false, err
+			}
+			if found {
+				return true, nil
+			}
+		}
+		return false, nil
+	}
+
+	return reaches(ingredientProductID)
 }
 
 func (s *ProductIngredientService) UpdateIngredient(ctx context.Context, compositeProductID, ingredientID string, req *dto.UpdateIngredientRequest) (*dto.ProductIngredient, error) {

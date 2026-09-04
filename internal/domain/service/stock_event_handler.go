@@ -165,82 +165,114 @@ func (h *StockEventHandler) HandlePurchaseEntryCreated(ctx context.Context, even
 	return nil
 }
 
+// maxCompositeDepth bounds recipe expansion. It is a defensive backstop only: the visited-set
+// cycle guard already terminates cyclic graphs; this caps pathologically deep (or cyclic, if
+// the visited set were ever bypassed) recipes so a sale can never hang.
+const maxCompositeDepth = 32
+
 func (h *StockEventHandler) decreaseStockForProduct(ctx context.Context, productID string, quantity int) error {
+	return h.adjustStockForProduct(ctx, productID, decimal.NewFromInt(int64(quantity)), -1)
+}
+
+func (h *StockEventHandler) increaseStockForProduct(ctx context.Context, productID string, quantity int) error {
+	return h.adjustStockForProduct(ctx, productID, decimal.NewFromInt(int64(quantity)), 1)
+}
+
+// adjustStockForProduct applies a stock change for a single top-level order line. A COMPOSITE
+// is expanded into its recipe (recursively, so composite-as-ingredient sub-recipes expand too)
+// and only leaf ingredients touch a stock row; any other product type decrements/increments its
+// own stock. sign is -1 to consume stock (sale/add) and +1 to restore it (void/remove).
+func (h *StockEventHandler) adjustStockForProduct(ctx context.Context, productID string, quantity decimal.Decimal, sign int) error {
 	product, err := h.productRepo.FindByID(ctx, productID)
 	if err != nil {
 		return fmt.Errorf("product not found: %w", err)
 	}
 
 	if product.ProductType == dto.ProductTypeComposite {
-		ingredients, err := h.productIngredientRepo.FindByCompositeProductID(ctx, productID)
-		if err != nil {
-			return fmt.Errorf("failed to get ingredients: %w", err)
-		}
-		if len(ingredients) == 0 {
-			h.logger.Warn("composite product has no ingredients",
-				slog.String("product_id", productID),
-			)
-			return nil
-		}
-		for _, ingredient := range ingredients {
-			totalQty := ingredient.Quantity.Mul(decimal.NewFromInt(int64(quantity)))
-			if err := h.updateStock(ctx, ingredient.IngredientProductID, -int(totalQty.IntPart())); err != nil {
-				return fmt.Errorf("failed to decrease ingredient stock: %w", err)
-			}
-		}
-
-		return nil
+		return h.expandComposite(ctx, product, quantity, sign, make(map[string]struct{}), 0)
 	}
 
-	if err := h.updateStock(ctx, productID, -quantity); err != nil {
-		return fmt.Errorf("failed to decrease stock: %w", err)
+	if err := h.updateStock(ctx, productID, sign*int(quantity.IntPart())); err != nil {
+		return fmt.Errorf("failed to adjust stock: %w", err)
 	}
 
 	return nil
 }
 
-func (h *StockEventHandler) increaseStockForProduct(ctx context.Context, productID string, quantity int) error {
-	product, err := h.productRepo.FindByID(ctx, productID)
-	if err != nil {
-		return fmt.Errorf("product not found: %w", err)
+// expandComposite walks a composite's recipe, multiplying quantity down the tree and writing
+// stock only at leaf ingredients (a BOTH ingredient is a finished item, so it is consumed, not
+// expanded). Quantity stays decimal along the path and is truncated to int only at the leaf
+// write, so whole-unit recipes never compound rounding. path holds the composites currently on
+// the expansion stack: revisiting one is a cycle, which is logged and skipped rather than failing
+// the sale, so a cyclic graph always terminates.
+func (h *StockEventHandler) expandComposite(ctx context.Context, composite *dto.Product, quantity decimal.Decimal, sign int, path map[string]struct{}, depth int) error {
+	if _, onPath := path[composite.ID]; onPath {
+		h.logger.Warn("ingredient cycle detected while expanding composite; stopping expansion",
+			slog.String("product_id", composite.ID),
+		)
+		return nil
 	}
-
-	if product.ProductType == dto.ProductTypeComposite {
-		ingredients, err := h.productIngredientRepo.FindByCompositeProductID(ctx, productID)
-		if err != nil {
-			return fmt.Errorf("failed to get ingredients: %w", err)
-		}
-		if len(ingredients) == 0 {
-			h.logger.Warn("composite product has no ingredients",
-				slog.String("product_id", productID),
-			)
-			return nil
-		}
-		for _, ingredient := range ingredients {
-			totalQty := ingredient.Quantity.Mul(decimal.NewFromInt(int64(quantity)))
-			if err := h.updateStock(ctx, ingredient.IngredientProductID, int(totalQty.IntPart())); err != nil {
-				return fmt.Errorf("failed to increase ingredient stock: %w", err)
-			}
-		}
-
+	if depth >= maxCompositeDepth {
+		h.logger.Warn("composite recipe exceeds max depth; stopping expansion",
+			slog.String("product_id", composite.ID),
+			slog.Int("max_depth", maxCompositeDepth),
+		)
 		return nil
 	}
 
-	if err := h.updateStock(ctx, productID, quantity); err != nil {
-		return fmt.Errorf("failed to increase stock: %w", err)
+	ingredients, err := h.productIngredientRepo.FindByCompositeProductID(ctx, composite.ID)
+	if err != nil {
+		return fmt.Errorf("failed to get ingredients: %w", err)
+	}
+	if len(ingredients) == 0 {
+		h.logger.Warn("composite product has no ingredients",
+			slog.String("product_id", composite.ID),
+		)
+		return nil
+	}
+
+	path[composite.ID] = struct{}{}
+	defer delete(path, composite.ID)
+
+	for _, ingredient := range ingredients {
+		childQty := ingredient.Quantity.Mul(quantity)
+
+		ingredientProduct, err := h.productRepo.FindByID(ctx, ingredient.IngredientProductID)
+		if err != nil {
+			return fmt.Errorf("ingredient product not found: %w", err)
+		}
+
+		if ingredientProduct.ProductType == dto.ProductTypeComposite {
+			if err := h.expandComposite(ctx, ingredientProduct, childQty, sign, path, depth+1); err != nil {
+				return err
+			}
+			continue
+		}
+
+		if err := h.updateStockForProduct(ctx, ingredientProduct, sign*int(childQty.IntPart())); err != nil {
+			return fmt.Errorf("failed to adjust ingredient stock: %w", err)
+		}
 	}
 
 	return nil
 }
 
 func (h *StockEventHandler) updateStock(ctx context.Context, productID string, change int) error {
-	h.lockManager.Lock(productID)
-	defer h.lockManager.Unlock(productID)
-
 	product, prodErr := h.productRepo.FindByID(ctx, productID)
 	if prodErr != nil {
 		return fmt.Errorf("product not found: %w", prodErr)
 	}
+
+	return h.updateStockForProduct(ctx, product, change)
+}
+
+// updateStockForProduct is updateStock for a product already loaded by the caller, so recipe
+// expansion (which fetches each ingredient to decide expand-vs-write) does not fetch it twice.
+func (h *StockEventHandler) updateStockForProduct(ctx context.Context, product *dto.Product, change int) error {
+	productID := product.ID
+
+	h.lockManager.Lock(productID)
+	defer h.lockManager.Unlock(productID)
 
 	existingStock, findErr := h.stockRepo.FindByProductID(ctx, productID)
 
