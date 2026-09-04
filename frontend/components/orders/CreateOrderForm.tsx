@@ -89,8 +89,11 @@ export default function CreateOrderForm({
     const fetchProducts = async () => {
       setIsLoading(true);
       try {
-        // Only show products that can be sold to customers
-        const fetchedProducts = await productsApi.getAll("SELLABLE");
+        const fetchedProducts = await productsApi.getAll([
+          "SELLABLE",
+          "COMPOSITE",
+          "BOTH",
+        ]);
         setProducts(fetchedProducts);
       } catch (err) {
         console.error("Error fetching products:", err);

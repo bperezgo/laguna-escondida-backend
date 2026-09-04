@@ -11,6 +11,7 @@ import type {
 import { PRODUCT_TYPES, UNITS_OF_MEASURE, PREPARATION_AREAS, PRIORITY_LEVELS, requiresPricing } from "@/types/product";
 import { productsApi } from "@/lib/api/products";
 import { Modal, Input, Select, Textarea, Button } from "@/components/ui";
+import IngredientsEditor from "@/components/products/IngredientsEditor";
 
 interface ProductFormProps {
   product?: Product | null;
@@ -644,6 +645,28 @@ export default function ProductForm({
             Los ingredientes no requieren información de precios ya que no se venden directamente.
           </div>
         )}
+
+        {/* Recipe / ingredient management — only for composite products.
+            The recipe endpoints are keyed by product id, so the product must be
+            saved as COMPOSITE before its recipe can be edited. */}
+        {formData.product_type === "COMPOSITE" &&
+          (product && product.product_type === "COMPOSITE" ? (
+            <IngredientsEditor product={product} />
+          ) : (
+            <div
+              style={{
+                padding: "1rem",
+                backgroundColor: "var(--color-primary-light)",
+                borderRadius: "var(--radius-sm)",
+                border: "1px solid var(--color-primary)",
+                color: "var(--color-text-primary)",
+                fontSize: "0.875rem",
+              }}
+            >
+              Guarda el producto como “Compuesto” para gestionar su receta de
+              ingredientes.
+            </div>
+          ))}
 
         {/* Description */}
         <Textarea

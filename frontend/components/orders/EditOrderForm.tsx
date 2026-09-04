@@ -155,8 +155,14 @@ export default function EditOrderForm({
     const fetchProducts = async () => {
       setIsLoading(true);
       try {
-        // Only show products that can be sold to customers
-        const fetchedProducts = await productsApi.getAll("SELLABLE");
+        // Products that can be sold to customers directly: plain sellables,
+        // composites (sold directly, decrement their ingredients' stock), and
+        // BOTH (sellable + usable as an ingredient). INGREDIENT-only is excluded.
+        const fetchedProducts = await productsApi.getAll([
+          "SELLABLE",
+          "COMPOSITE",
+          "BOTH",
+        ]);
         setProducts(fetchedProducts);
 
         // Pre-populate selected products from the order

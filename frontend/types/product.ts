@@ -121,3 +121,34 @@ export interface UpdateProductResponsibilityRequest {
   area: string;
   priority: number;
 }
+
+// Composite product recipe (ingredient) types.
+// A COMPOSITE product is sold directly but decrements its ingredients' stock via a recipe.
+// Backend endpoints: /products/:id/ingredients (see BSP-29 / BSP-18).
+export interface ProductIngredient {
+  id: string;
+  composite_product_id: string;
+  ingredient_product_id: string;
+  // Sent as a string; may come back as a string ("3") from the backend's decimal type.
+  quantity: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Recipe row as returned by GET /products/:id/ingredients — includes the joined ingredient product.
+export interface ProductIngredientWithProduct extends ProductIngredient {
+  ingredient_product?: Product | null;
+}
+
+export interface AddIngredientRequest {
+  ingredient_product_id: string;
+  quantity: string;
+}
+
+export interface UpdateIngredientRequest {
+  quantity: string;
+}
+
+export interface ProductIngredientListResponse {
+  ingredients: ProductIngredientWithProduct[];
+}
