@@ -17,6 +17,7 @@ import (
 	"laguna-escondida/backend/internal/platform/postgres"
 	"laguna-escondida/backend/internal/platform/postgres/repository"
 	"laguna-escondida/backend/pkg/eventbus"
+	"laguna-escondida/backend/test/acceptance/testsupport"
 
 	migrate "github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -48,6 +49,7 @@ const (
 var (
 	edgeGDB       *gorm.DB
 	migrationsDir string
+	pgContainer   *testsupport.PostgresContainer
 )
 
 func gateEnabled() bool { return os.Getenv("RUN_ACCEPTANCE_TESTS") == "true" }
@@ -58,10 +60,12 @@ func TestMain(m *testing.M) {
 	}
 	if err := provision(); err != nil {
 		fmt.Fprintln(os.Stderr, "acceptance DB provisioning failed:", err)
-		fmt.Fprintln(os.Stderr, "ensure a local Postgres is reachable (DB_HOST/DB_PORT/DB_USER/DB_PASSWORD).")
+		fmt.Fprintln(os.Stderr, "start Docker (testcontainers boots Postgres automatically), or set DB_HOST to point at an external Postgres.")
 		os.Exit(1)
 	}
-	os.Exit(m.Run())
+	code := m.Run()
+	teardown()
+	os.Exit(code)
 }
 
 type connParams struct {
@@ -75,6 +79,34 @@ func baseConnParams() connParams {
 		user:     envOr("DB_USER", "postgres"),
 		password: envOr("DB_PASSWORD", "postgres"),
 		sslmode:  envOr("DB_SSLMODE", "disable"),
+	}
+}
+
+// resolveBaseConnParams decides which Postgres the acceptance database runs on. When DB_HOST
+// is set it uses that external server (e.g. a CI service container); otherwise it boots a
+// throwaway postgres:16-alpine via testcontainers, so the suite needs no manually-started DB.
+func resolveBaseConnParams() (connParams, error) {
+	if os.Getenv("DB_HOST") != "" {
+		return baseConnParams(), nil
+	}
+	ctr, err := testsupport.StartPostgres(context.Background())
+	if err != nil {
+		return connParams{}, fmt.Errorf("boot postgres testcontainer (is Docker running? set DB_HOST to use an external DB instead): %w", err)
+	}
+	pgContainer = ctr
+	return connParams{
+		host:     ctr.Host,
+		port:     ctr.Port,
+		user:     ctr.User,
+		password: ctr.Password,
+		sslmode:  ctr.SSLMode,
+	}, nil
+}
+
+// teardown stops the throwaway Postgres container, if one was started.
+func teardown() {
+	if pgContainer != nil {
+		_ = pgContainer.Terminate(context.Background())
 	}
 }
 
@@ -96,7 +128,10 @@ func provision() error {
 	}
 	migrationsDir = dir
 
-	base := baseConnParams()
+	base, err := resolveBaseConnParams()
+	if err != nil {
+		return err
+	}
 	if err = recreateDatabase(base, edgeDBName); err != nil {
 		return fmt.Errorf("recreate %s: %w", edgeDBName, err)
 	}

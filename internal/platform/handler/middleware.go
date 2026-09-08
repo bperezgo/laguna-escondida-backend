@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"crypto/subtle"
 	"log/slog"
 	"net/http"
 	"slices"
@@ -57,7 +58,9 @@ func AdminAPIKeyMiddleware(cfg *config.Config) gin.HandlerFunc {
 func NodeAuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		nodeKey := c.GetHeader("X-Node-Key")
-		if cfg.NodeSyncKey == "" || nodeKey == "" || nodeKey != cfg.NodeSyncKey {
+		// Constant-time compare so a wrong key can't be recovered byte-by-byte via a timing
+		// side-channel. ConstantTimeCompare also returns 0 on a length mismatch (empty header).
+		if cfg.NodeSyncKey == "" || subtle.ConstantTimeCompare([]byte(nodeKey), []byte(cfg.NodeSyncKey)) != 1 {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid node key"})
 			c.Abort()
 			return

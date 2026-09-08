@@ -1,0 +1,42 @@
+# Git hooks, managed by lefthook (https://lefthook.dev).
+#
+#   Install once per clone:   make install-hooks       (installs lefthook if missing, then wires the hooks)
+#   Bypass in an emergency:   git commit --no-verify    /    git push --no-verify
+#
+# Split of work:
+#   - pre-commit: fast guardrails on every commit — secret scan, build, lint. No test suite.
+#   - pre-push:   the full test suite (race + coverage) plus a vulnerability scan.
+#
+# Security scans (gitleaks, govulncheck) run BEST-EFFORT locally: if the tool isn't installed
+# the job prints a hint and passes, because CI enforces both hard. So a missing local tool
+# never blocks your commit — it just means the enforcement happens at the PR instead.
+
+pre-commit:
+  parallel: false
+  jobs:
+    - name: secret-scan
+      run: |
+        if command -v gitleaks >/dev/null 2>&1; then
+          gitleaks protect --staged --redact --no-banner
+        else
+          echo "⚠  gitleaks not installed — skipping local secret scan (CI enforces it)."
+          echo "   Install: brew install gitleaks"
+        fi
+    - name: build
+      run: go build ./...
+    - name: lint
+      run: make lint
+
+pre-push:
+  parallel: false
+  jobs:
+    - name: test
+      run: make test
+    - name: vuln-scan
+      run: |
+        if command -v govulncheck >/dev/null 2>&1; then
+          govulncheck ./... || echo "⚠  govulncheck reported findings (advisory, non-blocking) — review above."
+        else
+          echo "⚠  govulncheck not installed — skipping local vuln scan (also run in CI)."
+          echo "   Install: go install golang.org/x/vuln/cmd/govulncheck@latest"
+        fi
