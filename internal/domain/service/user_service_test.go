@@ -355,6 +355,58 @@ func TestUpdateUser_CannotDeactivateSelf(t *testing.T) {
 	userRepo.AssertNotCalled(t, "Update")
 }
 
+// A missing user is surfaced as an opaque ErrInvalidCredentials (so callers can't
+// enumerate usernames) while still wrapping ErrUserNotFound for server-side logging.
+func TestSignIn_UserNotFound(t *testing.T) {
+	ctx := context.Background()
+	service, userRepo, _, _ := createTestUserService(t)
+
+	userRepo.On("FindByUsername", ctx, "ghost").Return(nil, domainError.ErrUserNotFound)
+
+	result, err := service.SignIn(ctx, &dto.SignInRequest{Username: "ghost", Password: "password123"})
+
+	assert.Nil(t, result)
+	assert.True(t, errors.Is(err, domainError.ErrInvalidCredentials))
+	assert.True(t, errors.Is(err, domainError.ErrUserNotFound))
+}
+
+// A wrong password is surfaced as ErrInvalidCredentials.
+func TestSignIn_WrongPassword(t *testing.T) {
+	ctx := context.Background()
+	service, userRepo, _, _ := createTestUserService(t)
+
+	hashed, err := useragg.HashPassword("correct-password")
+	require.NoError(t, err)
+
+	userRepo.On("FindByUsername", ctx, "bob").Return(&dto.User{
+		ID:       "bob-id",
+		Username: "bob",
+		Password: hashed,
+		Active:   true,
+	}, nil)
+
+	result, err := service.SignIn(ctx, &dto.SignInRequest{Username: "bob", Password: "wrong-password"})
+
+	assert.Nil(t, result)
+	assert.True(t, errors.Is(err, domainError.ErrInvalidCredentials))
+}
+
+// An infrastructure error from the repository must NOT be masked as invalid
+// credentials; it propagates so the handler reports a 500 instead of a silent 401.
+func TestSignIn_RepositoryError(t *testing.T) {
+	ctx := context.Background()
+	service, userRepo, _, _ := createTestUserService(t)
+
+	repoErr := errors.New("connection refused")
+	userRepo.On("FindByUsername", ctx, "bob").Return(nil, repoErr)
+
+	result, err := service.SignIn(ctx, &dto.SignInRequest{Username: "bob", Password: "password123"})
+
+	assert.Nil(t, result)
+	assert.False(t, errors.Is(err, domainError.ErrInvalidCredentials))
+	assert.True(t, errors.Is(err, repoErr))
+}
+
 // An inactive user cannot sign in even with the correct password.
 func TestSignIn_InactiveUser(t *testing.T) {
 	ctx := context.Background()

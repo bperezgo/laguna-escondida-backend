@@ -248,12 +248,15 @@ func (s *UserService) ListRoles(ctx context.Context) (*dto.RolesListResponse, er
 func (s *UserService) SignIn(ctx context.Context, req *dto.SignInRequest) (*dto.SignInResponse, error) {
 	userDTO, err := s.userRepo.FindByUsername(ctx, req.Username)
 	if err != nil {
-		return nil, domainError.ErrInvalidCredentials
+		if errors.Is(err, domainError.ErrUserNotFound) {
+			return nil, fmt.Errorf("%w: %w", domainError.ErrInvalidCredentials, err)
+		}
+		return nil, fmt.Errorf("sign-in: failed to look up user: %w", err)
 	}
 
 	userAggregate := user.NewAggregateFromDTO(userDTO)
 	if err = userAggregate.ComparePassword(req.Password); err != nil {
-		return nil, domainError.ErrInvalidCredentials
+		return nil, fmt.Errorf("%w: %w", domainError.ErrInvalidCredentials, err)
 	}
 
 	if !userDTO.Active {
