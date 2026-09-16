@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"errors"
+	"flag"
 	"log"
 	"net/http"
 	"os"
@@ -19,6 +20,9 @@ import (
 )
 
 func main() {
+	stdioMode := flag.Bool("stdio", false, "serve MCP over stdio (for Claude Desktop) instead of HTTP")
+	flag.Parse()
+
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, using system environment variables")
 	}
@@ -30,6 +34,15 @@ func main() {
 
 	client := mcpserver.NewClient(cfg)
 	server := mcpserver.NewMCPServer(client)
+
+	if *stdioMode {
+		runStdio(server, cfg.APIBaseURL)
+		return
+	}
+
+	if cfg.AuthToken == "" {
+		log.Fatal("mcp-server config: MCP_AUTH_TOKEN is not set (required for the HTTP transport; pass --stdio for local Claude Desktop use)")
+	}
 
 	mcpHandler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
 		return server
@@ -67,6 +80,20 @@ func main() {
 	defer cancel()
 	if err := httpServer.Shutdown(ctx); err != nil {
 		log.Printf("mcp-server shutdown: %v", err)
+	}
+	log.Println("mcp-server stopped")
+}
+
+// runStdio serves the MCP server over stdio for a local client such as Claude
+// Desktop, which launches this binary as a subprocess. The transport owns
+// stdout for JSON-RPC frames, so all logging must stay on stderr (log's default).
+func runStdio(server *mcp.Server, apiBaseURL string) {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	log.Printf("laguna-escondida MCP server on stdio — backend %s", apiBaseURL)
+	if err := server.Run(ctx, &mcp.StdioTransport{}); err != nil && !errors.Is(err, context.Canceled) {
+		log.Fatalf("mcp-server stdio: %v", err)
 	}
 	log.Println("mcp-server stopped")
 }

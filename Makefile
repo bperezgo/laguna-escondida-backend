@@ -22,12 +22,13 @@ test-ci:
 	@echo "Running tests for CI..."
 	gotestsum --format standard-verbose --junitfile test-report.xml -- ./... -race -coverprofile=coverage.out
 
-# Tier-1 sync acceptance tests (in-process two-node rig). Needs a local Postgres reachable
-# via DB_HOST/DB_PORT/DB_USER/DB_PASSWORD (defaults: localhost:5432/postgres/postgres); it
-# creates and migrates throwaway laguna_accept_cloud / laguna_accept_edge databases.
+# Acceptance tests (in-process rigs over real SQL). By default each package boots its own
+# throwaway postgres:16-alpine via testcontainers, so all you need is a running Docker daemon
+# — no manually-started database. To use an external Postgres instead (e.g. a CI service),
+# set DB_HOST/DB_PORT/DB_USER/DB_PASSWORD and that server is used directly.
 # See docs/playbooks/SYNC_ACCEPTANCE_SPEC.md.
 test-acceptance:
-	@echo "Running sync acceptance tests (Tier-1)..."
+	@echo "Running acceptance tests (testcontainers-backed)..."
 	RUN_ACCEPTANCE_TESTS=true go test ./test/acceptance/... -count=1 -v
 
 lint:
@@ -45,18 +46,23 @@ pre-push:
 	@$(MAKE) test
 	@echo "All checks passed!"
 
-# Install git hooks
-install-hooks:
-	@echo "Installing git hooks..."
-	@chmod +x scripts/hooks/*
-	@cp scripts/hooks/pre-push .git/hooks/pre-push
-	@chmod +x .git/hooks/pre-push
-	@echo "Git hooks installed successfully!"
+# Install git hooks via lefthook (config: lefthook.yml). Installs lefthook with `go install`
+# if it isn't already on PATH or in $(HOME)/go/bin, then wires the hooks into this clone.
+LEFTHOOK := $(shell command -v lefthook 2>/dev/null || echo $(HOME)/go/bin/lefthook)
 
-# Uninstall git hooks
+install-hooks:
+	@echo "Installing git hooks (lefthook)..."
+	@command -v lefthook >/dev/null 2>&1 || [ -x "$(HOME)/go/bin/lefthook" ] || { \
+		echo "lefthook not found — installing via 'go install' (or use 'brew install lefthook')..."; \
+		go install github.com/evilmartians/lefthook@latest; \
+	}
+	@$(LEFTHOOK) install
+	@echo "Git hooks installed: commit runs build+lint, push runs the test suite."
+
+# Uninstall git hooks (removes the lefthook-managed hooks from .git/hooks)
 uninstall-hooks:
-	@echo "Uninstalling git hooks..."
-	@rm -f .git/hooks/pre-push
+	@echo "Uninstalling git hooks (lefthook)..."
+	@$(LEFTHOOK) uninstall || true
 	@echo "Git hooks uninstalled!"
 
 # Generate mocks from port interfaces using mockery

@@ -37,10 +37,9 @@ func NewConfig() (*Config, error) {
 	if password == "" {
 		return nil, errors.New("LAGUNA_PASSWORD is not set")
 	}
+	// AuthToken guards the HTTP endpoint only; the stdio transport is local and
+	// needs no shared secret, so main enforces this per-transport.
 	authToken := os.Getenv("MCP_AUTH_TOKEN")
-	if authToken == "" {
-		return nil, errors.New("MCP_AUTH_TOKEN is not set (shared secret clients send as a bearer token)")
-	}
 
 	addr := os.Getenv("MCP_ADDR")
 	if addr == "" {

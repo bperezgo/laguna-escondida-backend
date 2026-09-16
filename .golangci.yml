@@ -35,6 +35,9 @@ linters:
     - gosec         # Security checks
     - bodyclose     # Check for HTTP body close
     - nilerr        # Finds code that returns nil even if it checks err != nil
+    - bidichk       # Dangerous Unicode bidi / trojan-source sequences
+    - sqlclosecheck # Ensure sql.Rows/Stmt are closed
+    - rowserrcheck  # Ensure sql.Rows.Err() is checked
 
   settings:
     errcheck:

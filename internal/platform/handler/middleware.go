@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"crypto/subtle"
 	"log/slog"
 	"net/http"
 	"slices"
@@ -57,7 +58,9 @@ func AdminAPIKeyMiddleware(cfg *config.Config) gin.HandlerFunc {
 func NodeAuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		nodeKey := c.GetHeader("X-Node-Key")
-		if cfg.NodeSyncKey == "" || nodeKey == "" || nodeKey != cfg.NodeSyncKey {
+		// Constant-time compare so a wrong key can't be recovered byte-by-byte via a timing
+		// side-channel. ConstantTimeCompare also returns 0 on a length mismatch (empty header).
+		if cfg.NodeSyncKey == "" || subtle.ConstantTimeCompare([]byte(nodeKey), []byte(cfg.NodeSyncKey)) != 1 {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid node key"})
 			c.Abort()
 			return
@@ -126,19 +129,32 @@ func LoggerMiddleware(logger *slog.Logger) gin.HandlerFunc {
 
 		statusCode := c.Writer.Status()
 		duration := time.Since(start)
-
 		success := statusCode >= 200 && statusCode < 400
 
-		// Pass the request context to InfoContext so the slog handler can attach the
-		// active trace_id/span_id (set by otelgin) to the emitted OTLP log record,
-		// giving log↔trace correlation in Grafana. slog is context-native, so the
-		// context goes as the first argument rather than being smuggled as a field.
-		logger.InfoContext(c.Request.Context(), "HTTP Request",
+		attrs := []slog.Attr{
 			slog.String("method", method),
 			slog.String("path", path),
 			slog.Int("status_code", statusCode),
 			slog.Duration("duration", duration),
 			slog.Bool("success", success),
-		)
+		}
+
+		// Handlers attach the failure reason via c.Error(); surface it here so the single
+		// access-log line carries the detail, correlated with the request's trace_id.
+		if len(c.Errors) > 0 {
+			attrs = append(attrs, slog.String("error", c.Errors.String()))
+		}
+
+		level := slog.LevelInfo
+		switch {
+		case statusCode >= 500:
+			level = slog.LevelError
+		case !success:
+			level = slog.LevelWarn
+		}
+
+		// slog is context-native: passing the request context lets otelgin's active
+		// trace_id/span_id attach to the OTLP log record for log↔trace correlation.
+		logger.LogAttrs(c.Request.Context(), level, "HTTP Request", attrs...)
 	}
 }

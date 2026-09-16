@@ -6,9 +6,11 @@ the system conversationally.
 
 - **Binary:** `cmd/mcp-server`
 - **Adapter package:** `internal/platform/mcpserver`
-- **Transport:** Streamable HTTP (`POST /mcp`)
-- **Coverage:** 82 tools — one per request/response endpoint (streaming SSE,
-  node-to-node sync, and edge ticket printing are intentionally excluded).
+- **Transport:** Streamable HTTP (`POST /mcp`) for remote clients, or stdio
+  (`--stdio`) for a local client that launches the binary directly (Claude Desktop)
+- **Coverage:** 83 tools — one per request/response endpoint (streaming SSE,
+  node-to-node sync, and edge ticket printing are intentionally excluded), plus
+  one host-local file utility (`extract_archive`).
 
 ## Architecture
 
@@ -32,7 +34,7 @@ the assistant cannot mutate anything, regardless of which tools exist.
 | `LAGUNA_API_URL`       | yes      | —       | Backend base URL, e.g. `http://localhost:8080`                      |
 | `LAGUNA_USERNAME`      | yes      | —       | Service-account username used to obtain a JWT                       |
 | `LAGUNA_PASSWORD`      | yes      | —       | Service-account password                                            |
-| `MCP_AUTH_TOKEN`       | yes      | —       | Shared secret clients send as `Authorization: Bearer <token>` to `/mcp` |
+| `MCP_AUTH_TOKEN`       | HTTP only | —      | Shared secret clients send as `Authorization: Bearer <token>` to `/mcp`. Not needed with `--stdio` (the transport is local). |
 | `MCP_ADDR`             | no       | `:8090` | Listen address for the MCP HTTP endpoint                            |
 | `LAGUNA_ADMIN_API_KEY` | no       | —       | Only needed by the two `update_*_document_urls` admin tools         |
 
@@ -82,6 +84,37 @@ make run-mcp        # serves http://localhost:8090/mcp  (also GET /health)
 
 Verify connection status any time with `claude mcp list` or `/mcp` in-session.
 
+## Using it in Claude Desktop (stdio)
+
+Claude Desktop launches MCP servers as subprocesses over stdio, so point it at
+the built binary with `--stdio` — no HTTP listener, no `MCP_AUTH_TOKEN`. Run the
+server locally (not on ECS) so the `upload_*_document` tools can read invoice
+files from paths on your own machine.
+
+1. `make build-mcp` → `./bin/mcp-server`.
+2. Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+   ```json
+   {
+     "mcpServers": {
+       "laguna-escondida": {
+         "command": "/absolute/path/to/bin/mcp-server",
+         "args": ["--stdio"],
+         "env": {
+           "LAGUNA_API_URL": "http://localhost:8080",
+           "LAGUNA_USERNAME": "mcp-service",
+           "LAGUNA_PASSWORD": "…"
+         }
+       }
+     }
+   }
+   ```
+
+   Use absolute paths (Desktop's `PATH` is minimal). Point `LAGUNA_API_URL` at a
+   local or deployed backend. Pair with the official `@modelcontextprotocol/server-filesystem`
+   server (scoped to e.g. `~/Downloads`) so Claude can locate invoice files itself.
+3. Fully quit and reopen Claude Desktop; the tools appear under the connectors icon.
+
 ## Authentication
 
 - **Client → MCP endpoint:** shared-secret bearer token (`MCP_AUTH_TOKEN`),
@@ -108,6 +141,7 @@ Verify connection status any time with `claude mcp list` or `/mcp` in-session.
 - **Support documents (4):** `create_support_document`, `list_support_documents`, `export_support_documents_csv`, `update_support_document_urls`
 - **Users & roles (8):** `create_user`, `list_users`, `get_user`, `update_user`, `reset_user_password`, `delete_user`, `list_roles`, `get_current_user`
 - **Misc (5):** `backend_health`, `get_edge_status`, `get_bill_owner`, `list_pending_products_by_area`, `list_completed_products_by_area`
+- **Files (1):** `extract_archive` — unzip a `.zip` on the MCP host (e.g. a DIAN invoice bundle), returning file paths and inlined XML. Host-local, not a backend call.
 
 ## Notes & known limitations
 

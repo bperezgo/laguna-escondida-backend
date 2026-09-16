@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"log"
+	"log/slog"
 	"net/http"
 
 	"laguna-escondida/backend/internal/domain/dto"
@@ -14,11 +15,13 @@ import (
 
 type UserHandler struct {
 	userService *service.UserService
+	logger      *slog.Logger
 }
 
-func NewUserHandler(userService *service.UserService) *UserHandler {
+func NewUserHandler(userService *service.UserService, logger *slog.Logger) *UserHandler {
 	return &UserHandler{
 		userService: userService,
+		logger:      logger,
 	}
 }
 
@@ -58,21 +61,30 @@ func (h *UserHandler) CreateUserHandler(c *gin.Context) {
 }
 
 func (h *UserHandler) SignInHandler(c *gin.Context) {
+	ctx := c.Request.Context()
+
 	var req dto.SignInRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Printf("Error decoding request: %v", err)
+		h.logger.WarnContext(ctx, "sign-in request decode failed", slog.String("error", err.Error()))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
 
-	signInResponse, err := h.userService.SignIn(c.Request.Context(), &req)
+	signInResponse, err := h.userService.SignIn(ctx, &req)
 	if err != nil {
-		log.Printf("Error signing in: %v", err)
-
 		if errors.Is(err, domainError.ErrInvalidCredentials) {
+			h.logger.WarnContext(ctx, "sign-in rejected",
+				slog.String("username", req.Username),
+				slog.String("reason", err.Error()),
+			)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid username or password"})
 			return
 		}
+
+		h.logger.ErrorContext(ctx, "sign-in failed",
+			slog.String("username", req.Username),
+			slog.String("error", err.Error()),
+		)
 		RespondError(c, err)
 		return
 	}

@@ -8,22 +8,29 @@ on:
     branches:
       - main
 
+# Least privilege by default; jobs opt into more only where they need it.
+permissions:
+  contents: read
+
+# Actions are pinned to a commit SHA (with the human-readable tag in a comment) so a
+# re-tagged/compromised action can't silently change what runs. Dependabot (github-actions
+# ecosystem) bumps both the SHA and the comment on its weekly PRs.
 jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v9
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9
         with:
           version: v2.6.2
           args: --timeout=5m
@@ -37,10 +44,10 @@ jobs:
       contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
@@ -52,7 +59,7 @@ jobs:
         run: gotestsum --format standard-verbose --junitfile test-report.xml -- ./... -race -coverprofile=coverage.out
 
       - name: Test Report
-        uses: dorny/test-reporter@v3
+        uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3
         if: always()
         with:
           name: Go Tests
@@ -60,10 +67,61 @@ jobs:
           reporter: java-junit
 
       - name: Upload coverage reports
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
         if: always()
         with:
           files: ./coverage.out
           flags: unittests
           name: codecov-umbrella
           fail_ci_if_error: false
+
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0 # gitleaks scans full history
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      # INFORMATIONAL for now: the existing codebase already has reachable known-vuln
+      # dependencies (run `govulncheck ./...` locally to see them). Clear that baseline,
+      # then remove `continue-on-error` so reachable CVEs gate the build. govulncheck is
+      # call-graph aware (low false positives), so it's safe to enforce once green.
+      - name: govulncheck
+        continue-on-error: true
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+      # GATING: no secret may enter the history. Fails the job on any finding.
+      - name: gitleaks (secret scan)
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # INFORMATIONAL: Dockerfile lint. Advisory to avoid style noise blocking merges;
+      # remove continue-on-error to enforce once the Dockerfile is clean.
+      - name: hadolint (Dockerfile)
+        uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf # v3.1.0
+        continue-on-error: true
+        with:
+          dockerfile: Dockerfile
+
+      # INFORMATIONAL: filesystem scan (dependency lockfiles + IaC/Dockerfile misconfig).
+      # exit-code 0 keeps it advisory; govulncheck is the gating Go-vuln check. Tighten by
+      # setting exit-code '1' once the baseline is clean.
+      - name: Trivy (filesystem)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "0"

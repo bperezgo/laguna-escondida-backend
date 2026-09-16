@@ -1,0 +1,29 @@
+# Dependabot keeps dependencies patched automatically by opening PRs.
+# Docs: https://docs.github.com/code-security/dependabot
+version: 2
+updates:
+  # Go modules — grouped into a single weekly PR to keep the noise down.
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      go-modules:
+        patterns:
+          - "*"
+
+  # GitHub Actions — understands SHA-pinned `uses:` and bumps both the SHA and the
+  # trailing version comment, so pinning and auto-updates coexist.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+
+  # Base image in the Dockerfile.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
