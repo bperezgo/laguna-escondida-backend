@@ -36,6 +36,7 @@ func NewMCPServer(c *Client) *mcp.Server {
 	registerSupportDocumentTools(s, c)
 	registerUserTools(s, c)
 	registerMiscTools(s, c)
+	registerFileTools(s)
 
 	return s
 }
