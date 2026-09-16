@@ -47,7 +47,7 @@ jobs:
       # Fargate here runs amd64, so build for linux/amd64 explicitly. The image
       # tag is the git tag that triggered this run (github.ref_name = "v1.0.0").
       - name: Build and push
-        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           file: ./Dockerfile
