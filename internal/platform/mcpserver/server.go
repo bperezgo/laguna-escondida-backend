@@ -37,6 +37,7 @@ func NewMCPServer(c *Client) *mcp.Server {
 	registerUserTools(s, c)
 	registerMiscTools(s, c)
 	registerFileTools(s)
+	registerPlaybookTools(s)
 
 	return s
 }

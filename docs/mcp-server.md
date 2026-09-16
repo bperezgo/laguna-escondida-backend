@@ -10,7 +10,8 @@ the system conversationally.
   (`--stdio`) for a local client that launches the binary directly (Claude Desktop)
 - **Coverage:** 83 tools — one per request/response endpoint (streaming SSE,
   node-to-node sync, and edge ticket printing are intentionally excluded), plus
-  one host-local file utility (`extract_archive`).
+  one host-local file utility (`extract_archive`) and two read-only playbook
+  discovery tools (`list_playbooks`, `get_playbook` — see [Playbooks](#playbooks)).
 
 ## Architecture
 
@@ -142,6 +143,37 @@ files from paths on your own machine.
 - **Users & roles (8):** `create_user`, `list_users`, `get_user`, `update_user`, `reset_user_password`, `delete_user`, `list_roles`, `get_current_user`
 - **Misc (5):** `backend_health`, `get_edge_status`, `get_bill_owner`, `list_pending_products_by_area`, `list_completed_products_by_area`
 - **Files (1):** `extract_archive` — unzip a `.zip` on the MCP host (e.g. a DIAN invoice bundle), returning file paths and inlined XML. Host-local, not a backend call.
+- **Playbooks (2):** `list_playbooks`, `get_playbook` — discover and read the server's bundled procedures. Static content embedded in the binary, not a backend call. See [Playbooks](#playbooks).
+
+## Playbooks
+
+A **playbook** is a versioned, step-by-step procedure for correctly performing a
+multi-step task with this server's tools — its trigger conditions, ordered steps
+with example request shapes, confirmation gates, and a running list of gotchas
+learned in production (e.g. how to ingest a supplier invoice end to end). The
+low-level tools are correct but leave the *sequence* up to the caller; a playbook
+captures that sequence once so every connected client (Claude Desktop, Claude
+Code, a custom agent) can read it over MCP instead of each keeping its own copy.
+
+- **Where they live:** `internal/playbooks/*.md`. Each file is one playbook with
+  YAML frontmatter (`name`, `description`) followed by a Markdown body. The
+  `name` must match the filename stem (`ingest-invoice.md` → `name: ingest-invoice`).
+- **Shipped with the binary:** the directory is embedded via `go:embed`, so a
+  playbook and the tool behavior it documents live in the same repo, are reviewed
+  in the same PRs, and can't drift apart silently. A malformed or misnamed
+  playbook fails at startup, not on first request.
+- **Two read-only tools expose them:**
+  - `list_playbooks` → the catalog (`name` + `description` only, so listing stays
+    cheap).
+  - `get_playbook(name)` → one playbook's `name`, `description`, and full Markdown
+    `content` (frontmatter stripped). An unknown name returns an error that lists
+    the valid names, so a wrong guess self-corrects without another round trip.
+
+**Add a playbook whenever you work out a new multi-step or domain procedure** for
+this system — write it here as `internal/playbooks/<name>.md` rather than leaving
+it as prose in a chat or a one-off Claude Skill, so there is exactly one place the
+knowledge is edited going forward. There are no write tools; playbooks change via
+normal code review.
 
 ## Notes & known limitations
 

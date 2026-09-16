@@ -482,6 +482,57 @@ curl -X DELETE "$BASE_URL/products/COMPOSITE_PRODUCT_ID/ingredients/INGREDIENT_I
   -H "Authorization: Bearer $TOKEN"
 ```
 
+### Mark an Ingredient as a Side Dish (default 1, min 0, max 2)
+
+```bash
+curl -X PUT "$BASE_URL/products/COMPOSITE_PRODUCT_ID/ingredients/INGREDIENT_ID/side-dish" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "default_quantity": 1,
+    "min_quantity": 0,
+    "max_quantity": 2
+  }'
+```
+
+### Clear an Ingredient's Side-Dish Flag
+
+```bash
+curl -X DELETE "$BASE_URL/products/COMPOSITE_PRODUCT_ID/ingredients/INGREDIENT_ID/side-dish" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### List a Composite's Side-Dish Options
+
+```bash
+curl -X GET "$BASE_URL/products/COMPOSITE_PRODUCT_ID/side-dishes" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Create an Order with Side-Dish Selections (drop salad, 3 canasta)
+
+```bash
+curl -X POST "$BASE_URL/orders" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "open_bill_id": "550e8400-e29b-41d4-a716-446655440000",
+    "temporal_identifier": "660e8400-e29b-41d4-a716-446655440001",
+    "descriptor": "Mesa 5",
+    "products": [
+      {
+        "open_bill_product_id": "770e8400-e29b-41d4-a716-446655440002",
+        "product_id": "COMPOSITE_PRODUCT_ID",
+        "quantity": 1,
+        "side_dishes": [
+          { "ingredient_product_id": "SALAD_INGREDIENT_ID", "quantity": 0 },
+          { "ingredient_product_id": "CANASTA_INGREDIENT_ID", "quantity": 3 }
+        ]
+      }
+    ]
+  }'
+```
+
 ---
 
 ## Financial Summary
