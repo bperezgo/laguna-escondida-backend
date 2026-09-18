@@ -78,7 +78,7 @@ func (s *ProductIngredientService) AddIngredient(ctx context.Context, compositeP
 		ID:                  uuid.Must(uuid.NewV7()).String(),
 		CompositeProductID:  compositeProductID,
 		IngredientProductID: req.IngredientProductID,
-		Quantity:            quantity,
+		DefaultQuantity:     quantity,
 		CreatedAt:           now,
 		UpdatedAt:           now,
 	}
@@ -147,7 +147,7 @@ func (s *ProductIngredientService) UpdateIngredient(ctx context.Context, composi
 		return nil, fmt.Errorf("%w: quantity must be greater than zero", domainError.ErrInvalidIngredientQuantity)
 	}
 
-	existing.Quantity = quantity
+	existing.DefaultQuantity = quantity
 	existing.UpdatedAt = time.Now()
 
 	if err := s.productIngredientRepo.Update(ctx, ingredientID, existing); err != nil {
@@ -175,6 +175,99 @@ func (s *ProductIngredientService) RemoveIngredient(ctx context.Context, composi
 	}
 
 	return nil
+}
+
+// ConfigureSideDish marks an existing composite ingredient as a customer-configurable side
+// dish and sets its default/min/max quantities. Bounds must satisfy 0 <= min <= default <= max
+// so a resolved selection always has a valid range.
+func (s *ProductIngredientService) ConfigureSideDish(ctx context.Context, compositeProductID, ingredientID string, req *dto.ConfigureSideDishRequest) (*dto.ProductIngredient, error) {
+	existing, err := s.productIngredientRepo.FindByID(ctx, ingredientID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, domainError.ErrProductIngredientNotFound
+		}
+		return nil, fmt.Errorf("%w: %w", domainError.ErrProductIngredientNotFound, err)
+	}
+
+	if existing.CompositeProductID != compositeProductID {
+		return nil, domainError.ErrProductIngredientNotFound
+	}
+
+	if !validSideDishBounds(req.MinQuantity, req.DefaultQuantity, req.MaxQuantity) {
+		return nil, domainError.ErrInvalidSideDishBounds
+	}
+
+	existing.IsSideDish = true
+	existing.DefaultQuantity = decimal.NewFromInt(int64(req.DefaultQuantity))
+	existing.MinQuantity = req.MinQuantity
+	existing.MaxQuantity = req.MaxQuantity
+	existing.UpdatedAt = time.Now()
+
+	if err := s.productIngredientRepo.Update(ctx, ingredientID, existing); err != nil {
+		return nil, fmt.Errorf("%w: %w", domainError.ErrProductIngredientUpdateFailed, err)
+	}
+
+	return existing, nil
+}
+
+// ClearSideDish reverts an ingredient to a fixed (non-configurable) recipe row. Its
+// DefaultQuantity is preserved as the exact amount always consumed.
+func (s *ProductIngredientService) ClearSideDish(ctx context.Context, compositeProductID, ingredientID string) (*dto.ProductIngredient, error) {
+	existing, err := s.productIngredientRepo.FindByID(ctx, ingredientID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, domainError.ErrProductIngredientNotFound
+		}
+		return nil, fmt.Errorf("%w: %w", domainError.ErrProductIngredientNotFound, err)
+	}
+
+	if existing.CompositeProductID != compositeProductID {
+		return nil, domainError.ErrProductIngredientNotFound
+	}
+
+	existing.IsSideDish = false
+	existing.MinQuantity = 0
+	existing.MaxQuantity = 0
+	existing.UpdatedAt = time.Now()
+
+	if err := s.productIngredientRepo.Update(ctx, ingredientID, existing); err != nil {
+		return nil, fmt.Errorf("%w: %w", domainError.ErrProductIngredientUpdateFailed, err)
+	}
+
+	return existing, nil
+}
+
+// GetSideDishOptions returns the composite's side-dish options with each option's default,
+// min, and max so a client can render the +/- controls and enforce bounds.
+func (s *ProductIngredientService) GetSideDishOptions(ctx context.Context, compositeProductID string) ([]*dto.SideDishOption, error) {
+	if _, err := s.productRepo.FindByID(ctx, compositeProductID); err != nil {
+		return nil, fmt.Errorf("%w: %w", domainError.ErrProductNotFound, err)
+	}
+
+	ingredients, err := s.productIngredientRepo.FindByCompositeProductIDWithProducts(ctx, compositeProductID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get side-dish options: %w", err)
+	}
+
+	options := make([]*dto.SideDishOption, 0, len(ingredients))
+	for _, ingredient := range ingredients {
+		if !ingredient.IsSideDish {
+			continue
+		}
+		options = append(options, &dto.SideDishOption{
+			IngredientProductID: ingredient.IngredientProductID,
+			IngredientProduct:   ingredient.IngredientProduct,
+			DefaultQuantity:     int(ingredient.DefaultQuantity.IntPart()),
+			MinQuantity:         ingredient.MinQuantity,
+			MaxQuantity:         ingredient.MaxQuantity,
+		})
+	}
+
+	return options, nil
+}
+
+func validSideDishBounds(minQty, defaultQty, maxQty int) bool {
+	return 0 <= minQty && minQty <= defaultQty && defaultQty <= maxQty
 }
 
 func (s *ProductIngredientService) GetIngredients(ctx context.Context, compositeProductID string) ([]*dto.ProductIngredientWithProduct, error) {

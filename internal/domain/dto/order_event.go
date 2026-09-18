@@ -11,11 +11,16 @@ const OrderCreatedEventName = "order.created"
 const OrderDeletedEventName = "order.deleted"
 const OrderUpdatedEventName = "order.updated"
 
+// OrderCreatedEventProduct mirrors OrderProductItem field-for-field (same names, types, order)
+// so NewOrderCreatedEvent/NewOrderUpdatedEvent can build it via a direct struct conversion
+// (OrderCreatedEventProduct(p)). SideDishes carries the full resolved set (design D7) so both
+// the stock handler and the SSE consumer read the same per-line selection off one event.
 type OrderCreatedEventProduct struct {
-	OpenBillProductID string  `json:"open_bill_product_id"`
-	ProductID         string  `json:"product_id"`
-	Quantity          int     `json:"quantity"`
-	Notes             *string `json:"notes,omitempty"`
+	OpenBillProductID string              `json:"open_bill_product_id"`
+	ProductID         string              `json:"product_id"`
+	Quantity          int                 `json:"quantity"`
+	Notes             *string             `json:"notes,omitempty"`
+	SideDishes        []SideDishSelection `json:"side_dishes,omitempty"`
 }
 
 type OrderCreatedEvent struct {
@@ -100,6 +105,7 @@ func NewOrderDeletedEvent(openBillID string, products []OpenBillProductDetail) O
 			ProductID:         p.Product.ID,
 			Quantity:          p.Quantity,
 			Notes:             p.Notes,
+			SideDishes:        p.SideDishes,
 		}
 	}
 
@@ -155,6 +161,7 @@ func NewOrderUpdatedEvent(
 			ProductID:         p.Product.ID,
 			Quantity:          p.Quantity,
 			Notes:             p.Notes,
+			SideDishes:        p.SideDishes,
 		}
 	}
 

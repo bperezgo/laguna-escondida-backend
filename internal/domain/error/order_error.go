@@ -12,4 +12,6 @@ var (
 	ErrOrderPaymentFailed          = errors.New("failed to pay order")
 	ErrOrderDeletionFailed         = errors.New("failed to delete order")
 	ErrBillOwnerNotFound           = errors.New("bill owner not found")
+	ErrInvalidSideDishSelection    = errors.New("side-dish selection references an ingredient that is not a side-dish option of the product")
+	ErrSideDishQuantityOutOfBounds = errors.New("side-dish quantity is outside the configured min/max bounds")
 )

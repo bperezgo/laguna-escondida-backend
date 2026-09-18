@@ -8,6 +8,7 @@ import (
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports/mocks"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
@@ -86,4 +87,115 @@ func TestAddIngredient_IndirectCycle_Rejected_AC6(t *testing.T) {
 	require.ErrorIs(t, err, domainError.ErrIngredientCycle)
 	require.Nil(t, got)
 	mockIngredientRepo.AssertNotCalled(t, "Create")
+}
+
+func TestConfigureSideDish_Accept(t *testing.T) {
+	ctx := context.Background()
+	svc, mockIngredientRepo, _ := createTestProductIngredientService(t)
+
+	plateID := "plate-1"
+	saladID := "salad-1"
+	edge := createTestIngredient("edge-salad", plateID, saladID, 1.0)
+
+	mockIngredientRepo.On("FindByID", ctx, edge.ID).Return(edge, nil)
+	mockIngredientRepo.On("Update", ctx, edge.ID, mock.MatchedBy(func(ing *dto.ProductIngredient) bool {
+		return ing.IsSideDish && ing.MinQuantity == 0 && ing.MaxQuantity == 2 &&
+			ing.DefaultQuantity.Equal(decimal.NewFromInt(1))
+	})).Return(nil)
+
+	got, err := svc.ConfigureSideDish(ctx, plateID, edge.ID, &dto.ConfigureSideDishRequest{
+		DefaultQuantity: 1, MinQuantity: 0, MaxQuantity: 2,
+	})
+
+	require.NoError(t, err)
+	require.True(t, got.IsSideDish)
+	require.Equal(t, 0, got.MinQuantity)
+	require.Equal(t, 2, got.MaxQuantity)
+	require.True(t, got.DefaultQuantity.Equal(decimal.NewFromInt(1)))
+}
+
+func TestConfigureSideDish_RejectMaxBelowDefault(t *testing.T) {
+	ctx := context.Background()
+	svc, mockIngredientRepo, _ := createTestProductIngredientService(t)
+
+	plateID := "plate-1"
+	edge := createTestIngredient("edge-1", plateID, "salad-1", 1.0)
+	mockIngredientRepo.On("FindByID", ctx, edge.ID).Return(edge, nil)
+
+	got, err := svc.ConfigureSideDish(ctx, plateID, edge.ID, &dto.ConfigureSideDishRequest{
+		DefaultQuantity: 2, MinQuantity: 0, MaxQuantity: 1,
+	})
+
+	require.ErrorIs(t, err, domainError.ErrInvalidSideDishBounds)
+	require.Nil(t, got)
+	mockIngredientRepo.AssertNotCalled(t, "Update")
+}
+
+func TestConfigureSideDish_RejectMinAboveDefault(t *testing.T) {
+	ctx := context.Background()
+	svc, mockIngredientRepo, _ := createTestProductIngredientService(t)
+
+	plateID := "plate-1"
+	edge := createTestIngredient("edge-1", plateID, "salad-1", 1.0)
+	mockIngredientRepo.On("FindByID", ctx, edge.ID).Return(edge, nil)
+
+	got, err := svc.ConfigureSideDish(ctx, plateID, edge.ID, &dto.ConfigureSideDishRequest{
+		DefaultQuantity: 1, MinQuantity: 2, MaxQuantity: 3,
+	})
+
+	require.ErrorIs(t, err, domainError.ErrInvalidSideDishBounds)
+	require.Nil(t, got)
+	mockIngredientRepo.AssertNotCalled(t, "Update")
+}
+
+func TestConfigureSideDish_OfferedAlternative_DefaultZero(t *testing.T) {
+	ctx := context.Background()
+	svc, mockIngredientRepo, _ := createTestProductIngredientService(t)
+
+	plateID := "plate-1"
+	friesID := "fries-1"
+	edge := createTestIngredient("edge-fries", plateID, friesID, 1.0)
+
+	mockIngredientRepo.On("FindByID", ctx, edge.ID).Return(edge, nil)
+	mockIngredientRepo.On("Update", ctx, edge.ID, mock.Anything).Return(nil)
+
+	got, err := svc.ConfigureSideDish(ctx, plateID, edge.ID, &dto.ConfigureSideDishRequest{
+		DefaultQuantity: 0, MinQuantity: 0, MaxQuantity: 2,
+	})
+
+	require.NoError(t, err)
+	require.True(t, got.IsSideDish)
+	require.True(t, got.DefaultQuantity.Equal(decimal.Zero))
+}
+
+func TestGetSideDishOptions_ReturnsOnlySideDishes(t *testing.T) {
+	ctx := context.Background()
+	svc, mockIngredientRepo, mockProductRepo := createTestProductIngredientService(t)
+
+	plateID := "plate-1"
+	plate := createTestProductWithType(plateID, "Plate", "platos", 1, 100.0, 0, dto.ProductTypeComposite)
+	mockProductRepo.On("FindByID", ctx, plateID).Return(plate, nil)
+
+	salad := &dto.ProductIngredientWithProduct{
+		IngredientProductID: "salad-1",
+		DefaultQuantity:     decimal.NewFromInt(1),
+		IsSideDish:          true,
+		MinQuantity:         0,
+		MaxQuantity:         2,
+	}
+	protein := &dto.ProductIngredientWithProduct{
+		IngredientProductID: "protein-1",
+		DefaultQuantity:     decimal.NewFromInt(1),
+		IsSideDish:          false,
+	}
+	mockIngredientRepo.On("FindByCompositeProductIDWithProducts", ctx, plateID).
+		Return([]*dto.ProductIngredientWithProduct{salad, protein}, nil)
+
+	options, err := svc.GetSideDishOptions(ctx, plateID)
+
+	require.NoError(t, err)
+	require.Len(t, options, 1)
+	require.Equal(t, "salad-1", options[0].IngredientProductID)
+	require.Equal(t, 1, options[0].DefaultQuantity)
+	require.Equal(t, 2, options[0].MaxQuantity)
 }

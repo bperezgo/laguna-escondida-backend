@@ -9,6 +9,7 @@ import (
 	"laguna-escondida/backend/internal/domain/ports"
 	"laguna-escondida/backend/internal/platform/postgres"
 
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
@@ -54,6 +55,119 @@ type openBillProductModel struct {
 
 func (openBillProductModel) TableName() string {
 	return "open_bills_products"
+}
+
+type openBillProductSideDishModel struct {
+	ID                  string    `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	OpenBillProductID   string    `gorm:"type:uuid;not null;column:open_bill_product_id"`
+	IngredientProductID string    `gorm:"type:uuid;not null;column:ingredient_product_id"`
+	Quantity            int       `gorm:"type:integer;not null;column:quantity"`
+	CreatedAt           time.Time `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	UpdatedAt           time.Time `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+}
+
+func (openBillProductSideDishModel) TableName() string {
+	return "open_bill_product_side_dishes"
+}
+
+// replaceSideDishes rewrites the full resolved side-dish set for one order line (design D2:
+// the persisted set is an immutable snapshot, so replace-on-write is the natural operation).
+func replaceSideDishes(tx *gorm.DB, openBillProductID string, selections []dto.SideDishSelection) error {
+	if err := tx.Where("open_bill_product_id = ?", openBillProductID).
+		Delete(&openBillProductSideDishModel{}).Error; err != nil {
+		return err
+	}
+	if len(selections) == 0 {
+		return nil
+	}
+	now := time.Now()
+	rows := make([]openBillProductSideDishModel, len(selections))
+	for i, sel := range selections {
+		rows[i] = openBillProductSideDishModel{
+			ID:                  uuid.Must(uuid.NewV7()).String(),
+			OpenBillProductID:   openBillProductID,
+			IngredientProductID: sel.IngredientProductID,
+			Quantity:            sel.Quantity,
+			CreatedAt:           now,
+			UpdatedAt:           now,
+		}
+	}
+	return tx.Create(&rows).Error
+}
+
+// loadSideDishesByLine returns the resolved side-dish selections for each of the given order
+// lines, keyed by open_bill_product_id, in one query (avoids a per-line fetch).
+func loadSideDishesByLine(db *gorm.DB, openBillProductIDs []string) (map[string][]dto.SideDishSelection, error) {
+	result := make(map[string][]dto.SideDishSelection)
+	if len(openBillProductIDs) == 0 {
+		return result, nil
+	}
+	var rows []openBillProductSideDishModel
+	if err := db.Where("open_bill_product_id IN ?", openBillProductIDs).
+		Order("ingredient_product_id ASC").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		result[row.OpenBillProductID] = append(result[row.OpenBillProductID], dto.SideDishSelection{
+			IngredientProductID: row.IngredientProductID,
+			Quantity:            row.Quantity,
+		})
+	}
+	return result, nil
+}
+
+// loadSideDishSSEByLine returns each line's resolved side dishes (ingredient name + quantity)
+// for the kitchen feed, keyed by open_bill_product_id, in two queries. Names are resolved from
+// the products table at read time (design D7: names live on the product, not on the persisted
+// selection row), matching what the live created/updated events carry via buildSideDishSSE.
+func loadSideDishSSEByLine(db *gorm.DB, openBillProductIDs []string) (map[string][]dto.SideDishSSE, error) {
+	selectionsByLine, err := loadSideDishesByLine(db, openBillProductIDs)
+	if err != nil {
+		return nil, err
+	}
+	if len(selectionsByLine) == 0 {
+		return map[string][]dto.SideDishSSE{}, nil
+	}
+
+	// Collect the distinct ingredient ids referenced across all lines and resolve their
+	// names in a single query.
+	idSet := make(map[string]struct{})
+	for _, sels := range selectionsByLine {
+		for _, s := range sels {
+			idSet[s.IngredientProductID] = struct{}{}
+		}
+	}
+	ids := make([]string, 0, len(idSet))
+	for id := range idSet {
+		ids = append(ids, id)
+	}
+
+	type nameRow struct {
+		ID   string
+		Name string
+	}
+	var nameRows []nameRow
+	if err := db.Table("products").Select("id, name").Where("id IN ?", ids).Scan(&nameRows).Error; err != nil {
+		return nil, err
+	}
+	nameByID := make(map[string]string, len(nameRows))
+	for _, nr := range nameRows {
+		nameByID[nr.ID] = nr.Name
+	}
+
+	result := make(map[string][]dto.SideDishSSE, len(selectionsByLine))
+	for lineID, sels := range selectionsByLine {
+		out := make([]dto.SideDishSSE, 0, len(sels))
+		for _, s := range sels {
+			out = append(out, dto.SideDishSSE{
+				Name:     nameByID[s.IngredientProductID],
+				Quantity: s.Quantity,
+			})
+		}
+		result[lineID] = out
+	}
+	return result, nil
 }
 
 type billModel struct {
@@ -133,6 +247,9 @@ func (r *OpenBillRepository) Create(ctx context.Context, aggregate *openBill.Agg
 					UpdatedAt:  time.Now(),
 				}
 				if err := tx.Create(openBillProduct).Error; err != nil {
+					return err
+				}
+				if err := replaceSideDishes(tx, item.ID(), item.SideDishes()); err != nil {
 					return err
 				}
 			}
@@ -281,6 +398,15 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 		return nil, err
 	}
 
+	lineIDs := make([]string, len(productResults))
+	for i, pr := range productResults {
+		lineIDs[i] = pr.ID
+	}
+	sideDishesByLine, err := loadSideDishesByLine(r.db.WithContext(ctx), lineIDs)
+	if err != nil {
+		return nil, err
+	}
+
 	productDetails := make([]dto.OpenBillProductDetail, len(productResults))
 	for i, pr := range productResults {
 		productDetails[i] = dto.OpenBillProductDetail{
@@ -308,6 +434,7 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 			Status:        dto.CommandStatus(pr.Status),
 			Area:          pr.Area,
 			Priority:      pr.Priority,
+			SideDishes:    sideDishesByLine[pr.ID],
 			CreatedAt:     pr.CreatedAt,
 			CreatedByName: pr.ProductCreatedByName,
 		}
@@ -349,6 +476,15 @@ func (r *OpenBillRepository) FindAggregateByID(ctx context.Context, id string) (
 		return nil, err
 	}
 
+	lineIDs := make([]string, 0, len(productModels))
+	for _, pm := range productModels {
+		lineIDs = append(lineIDs, pm.ID)
+	}
+	sideDishesByLine, err := loadSideDishesByLine(db, lineIDs)
+	if err != nil {
+		return nil, err
+	}
+
 	products := make([]*openBill.OpenBillProduct, 0, len(productModels))
 	for _, pm := range productModels {
 		product, err := openBill.NewOpenBillProductFromRepository(
@@ -364,6 +500,7 @@ func (r *OpenBillRepository) FindAggregateByID(ctx context.Context, id string) (
 		if err != nil {
 			return nil, err
 		}
+		product.SetSideDishes(sideDishesByLine[pm.ID])
 		products = append(products, product)
 	}
 
@@ -473,6 +610,10 @@ func (r *OpenBillRepository) Update(ctx context.Context, aggregate *openBill.Agg
 					return err
 				}
 			}
+
+			if err := replaceSideDishes(tx, item.ID(), item.SideDishes()); err != nil {
+				return err
+			}
 		}
 
 		for openBillProductID, existing := range existingProductMap {
@@ -482,6 +623,10 @@ func (r *OpenBillRepository) Update(ctx context.Context, aggregate *openBill.Agg
 					"deleted_at": &now,
 					"updated_at": now,
 				}).Error; err != nil {
+					return err
+				}
+				if err := tx.Where("open_bill_product_id = ?", openBillProductID).
+					Delete(&openBillProductSideDishModel{}).Error; err != nil {
 					return err
 				}
 			}
@@ -729,6 +874,15 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 		return nil, err
 	}
 
+	lineIDs := make([]string, len(productResults))
+	for i, pr := range productResults {
+		lineIDs[i] = pr.ID
+	}
+	sideDishesByLine, err := loadSideDishesByLine(r.db.WithContext(ctx), lineIDs)
+	if err != nil {
+		return nil, err
+	}
+
 	productDetails := make([]dto.OpenBillProductDetail, len(productResults))
 	for i, pr := range productResults {
 		productDetails[i] = dto.OpenBillProductDetail{
@@ -754,6 +908,7 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 			Status:        dto.CommandStatus(pr.Status),
 			Area:          pr.Area,
 			Priority:      pr.Priority,
+			SideDishes:    sideDishesByLine[pr.ID],
 			CreatedAt:     pr.CreatedAt,
 			CreatedByName: pr.ProductCreatedByName,
 		}
@@ -959,6 +1114,15 @@ func (r *OpenBillRepository) FindByIDIncludingDeletedWithProducts(ctx context.Co
 		return nil, err
 	}
 
+	lineIDs := make([]string, len(productResults))
+	for i, pr := range productResults {
+		lineIDs[i] = pr.ID
+	}
+	sideDishesByLine, err := loadSideDishesByLine(r.db.WithContext(ctx), lineIDs)
+	if err != nil {
+		return nil, err
+	}
+
 	productDetails := make([]dto.OpenBillProductDetail, len(productResults))
 	for i, pr := range productResults {
 		productDetails[i] = dto.OpenBillProductDetail{
@@ -984,6 +1148,7 @@ func (r *OpenBillRepository) FindByIDIncludingDeletedWithProducts(ctx context.Co
 			Status:        dto.CommandStatus(pr.Status),
 			Area:          pr.Area,
 			Priority:      pr.Priority,
+			SideDishes:    sideDishesByLine[pr.ID],
 			CreatedAt:     pr.CreatedAt,
 			CreatedByName: pr.ProductCreatedByName,
 		}
@@ -1136,6 +1301,7 @@ func (r *OpenBillRepository) FindPendingByArea(ctx context.Context, area string)
 	}
 
 	sseProducts := make([]*dto.OpenBillProductSSE, len(results))
+	lineIDs := make([]string, len(results))
 	for i, r := range results {
 		var completedAt *time.Time
 		if r.Status == "completed" {
@@ -1155,6 +1321,17 @@ func (r *OpenBillRepository) FindPendingByArea(ctx context.Context, area string)
 			CreatedByName:      r.CreatedByName,
 			CompletedAt:        completedAt,
 		}
+		lineIDs[i] = r.OpenBillProductID
+	}
+
+	// Resolve each line's side dishes so the snapshot sent on (re)connect matches the
+	// live created/updated events — otherwise the kitchen board loses side dishes on reload.
+	sideDishesByLine, err := loadSideDishSSEByLine(db, lineIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range sseProducts {
+		p.SideDishes = sideDishesByLine[p.OpenBillProductID]
 	}
 
 	return sseProducts, nil
@@ -1222,6 +1399,7 @@ func (r *OpenBillRepository) FindCompletedByAreaBetween(ctx context.Context, are
 	}
 
 	sseProducts := make([]*dto.OpenBillProductSSE, len(results))
+	lineIDs := make([]string, len(results))
 	for i, res := range results {
 		completedAt := res.CompletedAt
 		sseProducts[i] = &dto.OpenBillProductSSE{
@@ -1238,6 +1416,16 @@ func (r *OpenBillRepository) FindCompletedByAreaBetween(ctx context.Context, are
 			CompletedAt:        &completedAt,
 			CreatedByName:      res.CreatedByName,
 		}
+		lineIDs[i] = res.OpenBillProductID
+	}
+
+	// Resolve side dishes so the "Comandas Listas" review feed shows them too.
+	sideDishesByLine, err := loadSideDishSSEByLine(db, lineIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range sseProducts {
+		p.SideDishes = sideDishesByLine[p.OpenBillProductID]
 	}
 
 	return sseProducts, nil

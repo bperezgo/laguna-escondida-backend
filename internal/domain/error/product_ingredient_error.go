@@ -12,4 +12,5 @@ var (
 	ErrProductNotComposite             = errors.New("product is not a composite product")
 	ErrIngredientCannotBeSelf          = errors.New("a product cannot be an ingredient of itself")
 	ErrIngredientCycle                 = errors.New("adding this ingredient would create a cycle in the recipe graph")
+	ErrInvalidSideDishBounds           = errors.New("invalid side-dish bounds: require 0 <= min <= default <= max")
 )

@@ -60,7 +60,7 @@ func createTestIngredient(id, compositeID, ingredientID string, quantity float64
 		ID:                  id,
 		CompositeProductID:  compositeID,
 		IngredientProductID: ingredientID,
-		Quantity:            decimal.NewFromFloat(quantity),
+		DefaultQuantity:     decimal.NewFromFloat(quantity),
 		CreatedAt:           now,
 		UpdatedAt:           now,
 	}

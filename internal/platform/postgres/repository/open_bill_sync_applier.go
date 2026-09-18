@@ -126,6 +126,9 @@ func (a *OpenBillSyncApplier) reconcileProducts(db *gorm.DB, payload *dto.OpenBi
 		}).Create(product).Error; err != nil {
 			return fmt.Errorf("upsert open_bill product: %w", err)
 		}
+		if err := replaceSideDishes(db, item.OpenBillProductID, item.SideDishes); err != nil {
+			return fmt.Errorf("upsert open_bill product side dishes: %w", err)
+		}
 		keepIDs = append(keepIDs, item.OpenBillProductID)
 	}
 

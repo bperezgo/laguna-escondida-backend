@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	openBill "laguna-escondida/backend/internal/domain/aggregate/open_bill"
 	"laguna-escondida/backend/internal/domain/aggregate/product"
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
@@ -297,7 +298,7 @@ func (r *edgeRig) seedRecipe(compositeID, ingredientID string, qty int) {
 		ID:                  uuid.NewString(),
 		CompositeProductID:  compositeID,
 		IngredientProductID: ingredientID,
-		Quantity:            decimal.NewFromInt(int64(qty)),
+		DefaultQuantity:     decimal.NewFromInt(int64(qty)),
 		CreatedAt:           now,
 		UpdatedAt:           now,
 	}), "seed recipe row")
@@ -366,6 +367,102 @@ func TestAcceptance_TwoLevelComposite_AC2(t *testing.T) {
 	require.False(t, hasB, "intermediate composite must not carry its own stock row")
 	_, hasC := r.stockAmount(cID)
 	require.False(t, hasC, "top composite must not carry its own stock row")
+}
+
+// SideDish round-trip: the real repository must persist and read back the side-dish fields
+// (is_side_dish, min/max, default_quantity) added by migration 000057.
+func TestAcceptance_SideDishOption_RoundTrip(t *testing.T) {
+	r := newEdge(t)
+
+	cID := uuid.NewString()
+	saladID := uuid.NewString()
+	proteinID := uuid.NewString()
+	r.seedProduct(cID, "Plate", dto.ProductTypeComposite)
+	r.seedProduct(saladID, "Salad", dto.ProductTypeIngredient)
+	r.seedProduct(proteinID, "Protein", dto.ProductTypeIngredient)
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	sideDishID := uuid.NewString()
+	require.NoError(t, r.ingredientRepo.Create(r.ctx, &dto.ProductIngredient{
+		ID:                  sideDishID,
+		CompositeProductID:  cID,
+		IngredientProductID: saladID,
+		DefaultQuantity:     decimal.NewFromInt(1),
+		IsSideDish:          true,
+		MinQuantity:         0,
+		MaxQuantity:         2,
+		CreatedAt:           now,
+		UpdatedAt:           now,
+	}), "create side-dish row")
+	require.NoError(t, r.ingredientRepo.Create(r.ctx, &dto.ProductIngredient{
+		ID:                  uuid.NewString(),
+		CompositeProductID:  cID,
+		IngredientProductID: proteinID,
+		DefaultQuantity:     decimal.NewFromInt(1),
+		CreatedAt:           now,
+		UpdatedAt:           now,
+	}), "create fixed row")
+
+	got, err := r.ingredientRepo.FindByID(r.ctx, sideDishID)
+	require.NoError(t, err)
+	require.True(t, got.IsSideDish)
+	require.Equal(t, 0, got.MinQuantity)
+	require.Equal(t, 2, got.MaxQuantity)
+	require.True(t, got.DefaultQuantity.Equal(decimal.NewFromInt(1)))
+
+	sideDishes, err := r.ingredientRepo.FindSideDishesByCompositeProductID(r.ctx, cID)
+	require.NoError(t, err)
+	require.Len(t, sideDishes, 1, "only the side-dish row is returned, not the fixed protein")
+	require.Equal(t, saladID, sideDishes[0].IngredientProductID)
+}
+
+// Order-line side dishes must survive a persist → read round trip through the real
+// open_bill repository (both the DTO reader and the aggregate reader).
+func TestAcceptance_OpenBillSideDishes_RoundTrip(t *testing.T) {
+	r := newEdge(t)
+	openBillRepo := repository.NewOpenBillRepository(edgeGDB)
+
+	userID := uuid.NewString()
+	require.NoError(t, edgeGDB.Exec(
+		`INSERT INTO users (id, username, password, name) VALUES (?, ?, 'x', 'Server')`,
+		userID, "server-"+userID[:8],
+	).Error, "seed user")
+
+	plateID := uuid.NewString()
+	saladID := uuid.NewString()
+	canastaID := uuid.NewString()
+	r.seedProduct(plateID, "Plate", dto.ProductTypeComposite)
+	r.seedProduct(saladID, "Salad", dto.ProductTypeIngredient)
+	r.seedProduct(canastaID, "Canasta", dto.ProductTypeIngredient)
+
+	lineID := uuid.NewString()
+	line, err := openBill.NewOpenBillProduct(lineID, plateID, 1, nil, nil, 0, userID)
+	require.NoError(t, err)
+	line.SetSideDishes([]dto.SideDishSelection{
+		{IngredientProductID: saladID, Quantity: 0},
+		{IngredientProductID: canastaID, Quantity: 3},
+	})
+
+	billID := uuid.NewString()
+	aggregate, err := openBill.NewAggregate(billID, uuid.NewString(), nil, decimal.NewFromInt(1000), []*openBill.OpenBillProduct{line}, userID)
+	require.NoError(t, err)
+	require.NoError(t, openBillRepo.Create(r.ctx, aggregate), "persist open bill with side dishes")
+
+	withProducts, err := openBillRepo.FindByIDWithProducts(r.ctx, billID)
+	require.NoError(t, err)
+	require.Len(t, withProducts.Products, 1)
+	require.Len(t, withProducts.Products[0].SideDishes, 2)
+	byIngredient := map[string]int{}
+	for _, sd := range withProducts.Products[0].SideDishes {
+		byIngredient[sd.IngredientProductID] = sd.Quantity
+	}
+	require.Equal(t, 0, byIngredient[saladID])
+	require.Equal(t, 3, byIngredient[canastaID])
+
+	readAggregate, err := openBillRepo.FindAggregateByID(r.ctx, billID)
+	require.NoError(t, err)
+	require.Len(t, readAggregate.Products(), 1)
+	require.Len(t, readAggregate.Products()[0].SideDishes(), 2, "aggregate reader also carries side dishes")
 }
 
 // envOr returns the env var or a fallback.

@@ -42,6 +42,11 @@ The `temporal_identifier` must be unique among **active** orders. An order is ac
 | products[].product_id           | string | Yes | Product UUID                         |
 | products[].quantity             | int    | Yes | Quantity (min 1)                     |
 | products[].notes                | string | No  | Optional notes for the item          |
+| products[].side_dishes          | array  | No  | Side-dish selections for a composite product (see below) |
+| products[].side_dishes[].ingredient_product_id | string | Yes | UUID of the side-dish ingredient |
+| products[].side_dishes[].quantity              | int    | Yes | Chosen quantity, within the option's `[min, max]` (0 removes it) |
+
+> **Side dishes:** For a composite product whose ingredients are configured as side dishes (see [Products API → Side Dishes](./products.md#side-dishes)), a line may carry `side_dishes` to override how much of each is served. Omitted side dishes resolve to their configured default, so a line with no `side_dishes` behaves exactly as before. A selection referencing a non-side-dish ingredient, or a quantity outside `[min, max]`, rejects the whole order. Side-dish changes never affect the plate price; stock consumption follows the selected quantities.
 
 ### Example Request
 
@@ -55,7 +60,11 @@ The `temporal_identifier` must be unique among **active** orders. An order is ac
       "open_bill_product_id": "770e8400-e29b-41d4-a716-446655440002",
       "product_id": "880e8400-e29b-41d4-a716-446655440003",
       "quantity": 2,
-      "notes": "Sin hielo"
+      "notes": "Sin hielo",
+      "side_dishes": [
+        { "ingredient_product_id": "aa0e8400-e29b-41d4-a716-446655440010", "quantity": 0 },
+        { "ingredient_product_id": "bb0e8400-e29b-41d4-a716-446655440011", "quantity": 3 }
+      ]
     }
   ]
 }
@@ -126,6 +135,7 @@ Updates an existing order's products, description, and/or temporal identifier. S
 | products[].product_id           | string | Yes | Product UUID                           |
 | products[].quantity             | int    | Yes | Quantity (min 1)                       |
 | products[].notes                | string | No  | Optional notes for the item            |
+| products[].side_dishes          | array  | No  | Side-dish selections (same shape as Create; editing them adjusts stock and re-notifies the kitchen) |
 
 ### Example Request
 
@@ -138,7 +148,10 @@ Updates an existing order's products, description, and/or temporal identifier. S
       "open_bill_product_id": "770e8400-e29b-41d4-a716-446655440002",
       "product_id": "880e8400-e29b-41d4-a716-446655440003",
       "quantity": 3,
-      "notes": "Con limón"
+      "notes": "Con limón",
+      "side_dishes": [
+        { "ingredient_product_id": "bb0e8400-e29b-41d4-a716-446655440011", "quantity": 1 }
+      ]
     }
   ]
 }

@@ -17,6 +17,7 @@ type OpenBillProduct struct {
 	area        *string
 	priority    int
 	createdByID string
+	sideDishes  []dto.SideDishSelection
 }
 
 func NewOpenBillProduct(id, productID string, quantity int, notes *string, area *string, priority int, createdByID string) (*OpenBillProduct, error) {
@@ -109,6 +110,17 @@ func (p *OpenBillProduct) Priority() int {
 
 func (p *OpenBillProduct) CreatedByID() string {
 	return p.createdByID
+}
+
+// SideDishes returns the line's resolved side-dish selections (the full set, per design D2).
+func (p *OpenBillProduct) SideDishes() []dto.SideDishSelection {
+	return p.sideDishes
+}
+
+// SetSideDishes records the resolved side-dish selections for this line. Kept as a mutator
+// rather than a constructor argument so the many existing call sites stay untouched.
+func (p *OpenBillProduct) SetSideDishes(sideDishes []dto.SideDishSelection) {
+	p.sideDishes = sideDishes
 }
 
 func (p *OpenBillProduct) IsCreated() bool {

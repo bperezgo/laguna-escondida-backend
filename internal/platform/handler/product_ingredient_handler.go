@@ -146,6 +146,103 @@ func (h *ProductIngredientHandler) RemoveIngredientHandler(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+func (h *ProductIngredientHandler) ConfigureSideDishHandler(c *gin.Context) {
+	productID := c.Param("id")
+	ingredientID := c.Param("ingredient_id")
+
+	if productID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Product ID is required"})
+		return
+	}
+	if ingredientID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Ingredient ID is required"})
+		return
+	}
+
+	var req dto.ConfigureSideDishRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("Error decoding request: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	ingredient, err := h.productIngredientService.ConfigureSideDish(c.Request.Context(), productID, ingredientID, &req)
+	if err != nil {
+		log.Printf("Error configuring side dish: %v", err)
+
+		if errors.Is(err, domainError.ErrProductIngredientNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Ingredient not found"})
+			return
+		}
+		if errors.Is(err, domainError.ErrInvalidSideDishBounds) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, domainError.ErrProductIngredientUpdateFailed) {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to configure side dish"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, ingredient)
+}
+
+func (h *ProductIngredientHandler) ClearSideDishHandler(c *gin.Context) {
+	productID := c.Param("id")
+	ingredientID := c.Param("ingredient_id")
+
+	if productID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Product ID is required"})
+		return
+	}
+	if ingredientID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Ingredient ID is required"})
+		return
+	}
+
+	ingredient, err := h.productIngredientService.ClearSideDish(c.Request.Context(), productID, ingredientID)
+	if err != nil {
+		log.Printf("Error clearing side dish: %v", err)
+
+		if errors.Is(err, domainError.ErrProductIngredientNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Ingredient not found"})
+			return
+		}
+		if errors.Is(err, domainError.ErrProductIngredientUpdateFailed) {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to clear side dish"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, ingredient)
+}
+
+func (h *ProductIngredientHandler) GetSideDishOptionsHandler(c *gin.Context) {
+	productID := c.Param("id")
+	if productID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Product ID is required"})
+		return
+	}
+
+	options, err := h.productIngredientService.GetSideDishOptions(c.Request.Context(), productID)
+	if err != nil {
+		log.Printf("Error getting side-dish options: %v", err)
+
+		if errors.Is(err, domainError.ErrProductNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Product not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get side-dish options"})
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.SideDishOptionListResponse{SideDishes: options})
+}
+
 func (h *ProductIngredientHandler) GetIngredientsHandler(c *gin.Context) {
 	productID := c.Param("id")
 	if productID == "" {

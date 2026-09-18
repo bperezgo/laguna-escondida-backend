@@ -42,6 +42,7 @@ type OrderService struct {
 	outboxRepo                  ports.SyncOutboxRepository
 	syncIdentity                dto.SyncIdentity
 	taxConfig                   dto.TaxConfig
+	productIngredientRepo       ports.ProductIngredientRepository
 }
 
 func NewOrderService(
@@ -55,6 +56,7 @@ func NewOrderService(
 	eventBus pkgports.EventBus,
 	outboxRepo ports.SyncOutboxRepository,
 	syncIdentity dto.SyncIdentity,
+	productIngredientRepo ports.ProductIngredientRepository,
 ) *OrderService {
 	return &OrderService{
 		openBillRepo:                openBillRepo,
@@ -68,6 +70,7 @@ func NewOrderService(
 		eventBus:                    eventBus,
 		outboxRepo:                  outboxRepo,
 		syncIdentity:                syncIdentity,
+		productIngredientRepo:       productIngredientRepo,
 	}
 }
 
@@ -85,6 +88,7 @@ func NewOrderServiceWithSSE(
 	openBillProductSSENotifier ports.OpenBillProductSSENotifier,
 	outboxRepo ports.SyncOutboxRepository,
 	syncIdentity dto.SyncIdentity,
+	productIngredientRepo ports.ProductIngredientRepository,
 ) *OrderService {
 	return &OrderService{
 		logger:                      logger,
@@ -101,6 +105,7 @@ func NewOrderServiceWithSSE(
 		openBillProductSSENotifier:  openBillProductSSENotifier,
 		outboxRepo:                  outboxRepo,
 		syncIdentity:                syncIdentity,
+		productIngredientRepo:       productIngredientRepo,
 	}
 }
 
@@ -156,8 +161,10 @@ func (s *OrderService) CreateOrder(
 			productPriceMap[product.ID] = product
 		}
 
+		resolvedProducts := make([]dto.OrderProductItem, 0, len(req.Products))
 		for _, item := range req.Products {
-			if product, exists := productPriceMap[item.ProductID]; exists {
+			product, productExists := productPriceMap[item.ProductID]
+			if productExists {
 				totalAmount = totalAmount.Add(product.TotalPriceWithTaxes.Mul(decimal.NewFromInt(int64(item.Quantity))))
 			}
 
@@ -166,6 +173,14 @@ func (s *OrderService) CreateOrder(
 			if resp, exists := responsibilityMap[item.ProductID]; exists {
 				area = &resp.Area
 				priority = resp.Priority
+			}
+
+			var resolvedSideDishes []dto.SideDishSelection
+			if productExists {
+				resolvedSideDishes, err = s.resolveSideDishSelections(ctx, product, item.SideDishes)
+				if err != nil {
+					return nil, err
+				}
 			}
 
 			openBillProduct, err := openBill.NewOpenBillProduct(
@@ -180,8 +195,14 @@ func (s *OrderService) CreateOrder(
 			if err != nil {
 				return nil, fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
 			}
+			openBillProduct.SetSideDishes(resolvedSideDishes)
 			openBillProducts = append(openBillProducts, openBillProduct)
+
+			resolvedItem := item
+			resolvedItem.SideDishes = resolvedSideDishes
+			resolvedProducts = append(resolvedProducts, resolvedItem)
 		}
+		req.Products = resolvedProducts
 	}
 
 	openBillAggregate, err := openBill.NewAggregate(
@@ -240,6 +261,60 @@ func (s *OrderService) CreateOrder(
 	return openBillDTO, nil
 }
 
+// resolveSideDishSelections validates a line's side-dish selections against the product's
+// configured options and returns the full resolved set (design D2): each side-dish option
+// carries its selected quantity, or its default when the line specified nothing for it. A
+// selection that references a non-side-dish ingredient, or whose quantity is outside the
+// option's [min, max], is rejected. Non-composite products (and composites with no side
+// dishes) resolve to nil, preserving today's behavior.
+func (s *OrderService) resolveSideDishSelections(ctx context.Context, product *dto.Product, provided []dto.SideDishSelection) ([]dto.SideDishSelection, error) {
+	if product.ProductType != dto.ProductTypeComposite {
+		if len(provided) > 0 {
+			return nil, orderError.ErrInvalidSideDishSelection
+		}
+		return nil, nil
+	}
+
+	options, err := s.productIngredientRepo.FindSideDishesByCompositeProductID(ctx, product.ID)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
+	}
+
+	optionByIngredient := make(map[string]*dto.ProductIngredient, len(options))
+	for _, opt := range options {
+		optionByIngredient[opt.IngredientProductID] = opt
+	}
+
+	providedByIngredient := make(map[string]int, len(provided))
+	for _, sel := range provided {
+		opt, ok := optionByIngredient[sel.IngredientProductID]
+		if !ok {
+			return nil, orderError.ErrInvalidSideDishSelection
+		}
+		if sel.Quantity < opt.MinQuantity || sel.Quantity > opt.MaxQuantity {
+			return nil, orderError.ErrSideDishQuantityOutOfBounds
+		}
+		providedByIngredient[sel.IngredientProductID] = sel.Quantity
+	}
+
+	if len(options) == 0 {
+		return nil, nil
+	}
+
+	resolved := make([]dto.SideDishSelection, 0, len(options))
+	for _, opt := range options {
+		qty := int(opt.DefaultQuantity.IntPart())
+		if providedQty, ok := providedByIngredient[opt.IngredientProductID]; ok {
+			qty = providedQty
+		}
+		resolved = append(resolved, dto.SideDishSelection{
+			IngredientProductID: opt.IngredientProductID,
+			Quantity:            qty,
+		})
+	}
+	return resolved, nil
+}
+
 // openBillSyncProducts snapshots an aggregate's line items — including each product's
 // kitchen status/area/priority — for an open_bill sync payload, so status transitions
 // (complete/cancel/in_progress) replicate to peers, not just header/quantity changes.
@@ -256,6 +331,7 @@ func openBillSyncProducts(aggregate *openBill.Aggregate) []dto.OpenBillSyncProdu
 			Area:              p.Area(),
 			Priority:          p.Priority(),
 			CreatedBy:         p.CreatedByID(),
+			SideDishes:        p.SideDishes(),
 		})
 	}
 	return items
@@ -379,9 +455,11 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 			existingProductsByID[p.ID()] = p
 		}
 
+		resolvedProducts := make([]dto.OrderProductItem, 0, len(req.Products))
 		for _, item := range req.Products {
-			if p, exists := productPriceMap[item.ProductID]; exists {
-				totalAmount = totalAmount.Add(p.TotalPriceWithTaxes.Mul(decimal.NewFromInt(int64(item.Quantity))))
+			product, productExists := productPriceMap[item.ProductID]
+			if productExists {
+				totalAmount = totalAmount.Add(product.TotalPriceWithTaxes.Mul(decimal.NewFromInt(int64(item.Quantity))))
 			}
 
 			var area *string
@@ -389,6 +467,14 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 			if resp, exists := responsibilityMap[item.ProductID]; exists {
 				area = &resp.Area
 				priority = resp.Priority
+			}
+
+			var resolvedSideDishes []dto.SideDishSelection
+			if productExists {
+				resolvedSideDishes, err = s.resolveSideDishSelections(ctx, product, item.SideDishes)
+				if err != nil {
+					return nil, err
+				}
 			}
 
 			var openBillProduct *openBill.OpenBillProduct
@@ -417,8 +503,14 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 			if err != nil {
 				return nil, fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
 			}
+			openBillProduct.SetSideDishes(resolvedSideDishes)
 			openBillProducts = append(openBillProducts, openBillProduct)
+
+			resolvedItem := item
+			resolvedItem.SideDishes = resolvedSideDishes
+			resolvedProducts = append(resolvedProducts, resolvedItem)
 		}
+		req.Products = resolvedProducts
 	}
 
 	existingBillAggregate.UpdateProducts(openBillProducts, totalAmount)
@@ -821,6 +913,60 @@ func (s *OrderService) CancelOpenBillProduct(ctx context.Context, openBillID, op
 	return s.persistAndSyncStatus(ctx, aggregate)
 }
 
+// resolveSideDishNames fetches, in one query per order, the display name for every ingredient
+// referenced by any line's side-dish selection. Names are product attributes resolved at the SSE
+// seam (design D7) rather than carried on the event, keeping the bus lean and names fresh.
+func (s *OrderService) resolveSideDishNames(ctx context.Context, products []dto.OrderCreatedEventProduct) map[string]string {
+	idSet := make(map[string]struct{})
+	for _, p := range products {
+		for _, sd := range p.SideDishes {
+			idSet[sd.IngredientProductID] = struct{}{}
+		}
+	}
+	if len(idSet) == 0 {
+		return nil
+	}
+
+	ids := make([]string, 0, len(idSet))
+	for id := range idSet {
+		ids = append(ids, id)
+	}
+
+	ingredientProducts, err := s.productRepo.FindByIDs(ctx, ids)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to resolve side-dish names", slog.Any("error", err))
+		return nil
+	}
+
+	nameByID := make(map[string]string, len(ingredientProducts))
+	for _, p := range ingredientProducts {
+		nameByID[p.ID] = p.Name
+	}
+	return nameByID
+}
+
+// buildSideDishSSE renders a line's resolved side dishes for the kitchen feed, pairing each
+// selected quantity with the ingredient name resolved by resolveSideDishNames.
+func buildSideDishSSE(line dto.OrderCreatedEventProduct, nameByID map[string]string) []dto.SideDishSSE {
+	if len(line.SideDishes) == 0 {
+		return nil
+	}
+	out := make([]dto.SideDishSSE, 0, len(line.SideDishes))
+	for _, sd := range line.SideDishes {
+		out = append(out, dto.SideDishSSE{
+			Name:     nameByID[sd.IngredientProductID],
+			Quantity: sd.Quantity,
+		})
+	}
+	return out
+}
+
+// sideDishesChanged reports whether a line's resolved side-dish selection differs between two
+// event snapshots, so an edit that touches only side dishes still re-notifies the kitchen.
+func sideDishesChanged(previous, current dto.OrderCreatedEventProduct) bool {
+	return consumptionKey(previous) != consumptionKey(current)
+}
+
 // HandleOrderCreatedSSE notifies frontend via SSE when products with preparation areas are created
 func (s *OrderService) HandleOrderCreatedSSE(ctx context.Context, event dto.OrderCreatedEvent) error {
 	s.logger.InfoContext(ctx, "HandleOrderCreatedSSE called",
@@ -870,6 +1016,8 @@ func (s *OrderService) HandleOrderCreatedSSE(ctx context.Context, event dto.Orde
 		responsibilityMap[responsibilities[i].ProductID] = &responsibilities[i]
 	}
 
+	sideDishNames := s.resolveSideDishNames(ctx, event.Products)
+
 	notifiedCount := 0
 	for _, p := range event.Products {
 		responsibility, exists := responsibilityMap[p.ProductID]
@@ -888,6 +1036,7 @@ func (s *OrderService) HandleOrderCreatedSSE(ctx context.Context, event dto.Orde
 			Status:             string(dto.CommandStatusCreated),
 			TemporalIdentifier: event.TemporalIdentifier,
 			Priority:           responsibility.Priority,
+			SideDishes:         buildSideDishSSE(p, sideDishNames),
 			// Stamp the live payload with the order's real creation instant so the
 			// kitchen countdown starts correctly. Without this it defaults to Go's
 			// zero time and the line shows "¡URGENTE!" until a refresh.
@@ -943,6 +1092,8 @@ func (s *OrderService) HandleOrderUpdatedSSE(ctx context.Context, event dto.Orde
 	for _, p := range event.CurrentProducts {
 		currentMap[p.OpenBillProductID] = p
 	}
+
+	sideDishNames := s.resolveSideDishNames(ctx, append(append([]dto.OrderCreatedEventProduct{}, event.PreviousProducts...), event.CurrentProducts...))
 
 	// Get responsibilities for all products
 	allProductIDs := make([]string, 0)
@@ -1002,6 +1153,7 @@ func (s *OrderService) HandleOrderUpdatedSSE(ctx context.Context, event dto.Orde
 				Status:             string(dto.CommandStatusCancelled),
 				TemporalIdentifier: event.TemporalIdentifier,
 				Priority:           responsibility.Priority,
+				SideDishes:         buildSideDishSSE(product, sideDishNames),
 				CreatedByName:      createdByName,
 			}
 
@@ -1032,6 +1184,7 @@ func (s *OrderService) HandleOrderUpdatedSSE(ctx context.Context, event dto.Orde
 				Status:             string(dto.CommandStatusCreated),
 				TemporalIdentifier: event.TemporalIdentifier,
 				Priority:           responsibility.Priority,
+				SideDishes:         buildSideDishSSE(currentProduct, sideDishNames),
 				CreatedAt:          createdAtMap[openBillProductID],
 				CreatedByName:      createdByName,
 			}
@@ -1046,7 +1199,7 @@ func (s *OrderService) HandleOrderUpdatedSSE(ctx context.Context, event dto.Orde
 				(previousProduct.Notes != nil && currentProduct.Notes == nil) ||
 				(previousProduct.Notes != nil && currentProduct.Notes != nil && *previousProduct.Notes != *currentProduct.Notes)
 
-			if quantityChanged || notesChanged {
+			if quantityChanged || notesChanged || sideDishesChanged(previousProduct, currentProduct) {
 				sseData := &dto.OpenBillProductSSE{
 					OpenBillProductID:  openBillProductID,
 					OpenBillID:         event.OpenBillID,
@@ -1057,6 +1210,7 @@ func (s *OrderService) HandleOrderUpdatedSSE(ctx context.Context, event dto.Orde
 					Status:             string(dto.CommandStatusCreated),
 					TemporalIdentifier: event.TemporalIdentifier,
 					Priority:           responsibility.Priority,
+					SideDishes:         buildSideDishSSE(currentProduct, sideDishNames),
 					CreatedAt:          createdAtMap[openBillProductID],
 					CreatedByName:      createdByName,
 				}

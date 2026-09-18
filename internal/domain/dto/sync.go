@@ -157,6 +157,23 @@ type ProductResponsibilitySyncPayload struct {
 	DeletedAt *time.Time `json:"deleted_at,omitempty"`
 }
 
+// ProductIngredientSyncPayload carries one product_ingredients row (a composite's recipe edge)
+// down to the edge, including the side-dish definition (is_side_dish + default/min/max). It
+// replicates as its own reference entity so a side-dish config change — which bumps only the
+// recipe row's updated_at, not the product's — reaches the edge that validates and consumes it.
+// The table is hard-deleted (no deleted_at), so only inserts/updates propagate via pull.
+type ProductIngredientSyncPayload struct {
+	ID                  string          `json:"id"`
+	CompositeProductID  string          `json:"composite_product_id"`
+	IngredientProductID string          `json:"ingredient_product_id"`
+	DefaultQuantity     decimal.Decimal `json:"default_quantity"`
+	IsSideDish          bool            `json:"is_side_dish"`
+	MinQuantity         int             `json:"min_quantity"`
+	MaxQuantity         int             `json:"max_quantity"`
+	CreatedAt           time.Time       `json:"created_at"`
+	UpdatedAt           time.Time       `json:"updated_at"`
+}
+
 // UserSyncPayload carries a user down to the edge plus its role assignments. RoleIDs are
 // the role ids from user_roles; the roles table itself is seeded identically by migration
 // on both nodes (role ids are stable cross-node constants — see permissions), so only the
@@ -181,6 +198,7 @@ type SyncPullResponse struct {
 	Users                   []UserSyncPayload                  `json:"users"`
 	Suppliers               []SupplierSyncPayload              `json:"suppliers"`
 	ProductResponsibilities []ProductResponsibilitySyncPayload `json:"product_responsibilities"`
+	ProductIngredients      []ProductIngredientSyncPayload     `json:"product_ingredients"`
 	Cursor                  time.Time                          `json:"cursor"`
 }
 
@@ -191,6 +209,7 @@ type SyncPullResult struct {
 	Users                   int
 	Suppliers               int
 	ProductResponsibilities int
+	ProductIngredients      int
 }
 
 // BillSyncProduct is one finalized line item carried in a bill sync payload: just the
@@ -279,12 +298,13 @@ type OpenBillSyncPayload struct {
 // the exact line state (created / in_progress / completed / cancelled) instead of
 // falling back to column defaults.
 type OpenBillSyncProduct struct {
-	OpenBillProductID string        `json:"open_bill_product_id"`
-	ProductID         string        `json:"product_id"`
-	Quantity          int           `json:"quantity"`
-	Notes             *string       `json:"notes,omitempty"`
-	Status            CommandStatus `json:"status"`
-	Area              *string       `json:"area,omitempty"`
-	Priority          int           `json:"priority"`
-	CreatedBy         string        `json:"created_by"`
+	OpenBillProductID string              `json:"open_bill_product_id"`
+	ProductID         string              `json:"product_id"`
+	Quantity          int                 `json:"quantity"`
+	Notes             *string             `json:"notes,omitempty"`
+	Status            CommandStatus       `json:"status"`
+	Area              *string             `json:"area,omitempty"`
+	Priority          int                 `json:"priority"`
+	CreatedBy         string              `json:"created_by"`
+	SideDishes        []SideDishSelection `json:"side_dishes,omitempty"`
 }

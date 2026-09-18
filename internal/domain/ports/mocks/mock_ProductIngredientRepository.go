@@ -352,6 +352,65 @@ func (_c *MockProductIngredientRepository_FindByIngredientProductID_Call) RunAnd
 	return _c
 }
 
+// FindSideDishesByCompositeProductID provides a mock function with given fields: ctx, compositeProductID
+func (_m *MockProductIngredientRepository) FindSideDishesByCompositeProductID(ctx context.Context, compositeProductID string) ([]*dto.ProductIngredient, error) {
+	ret := _m.Called(ctx, compositeProductID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindSideDishesByCompositeProductID")
+	}
+
+	var r0 []*dto.ProductIngredient
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]*dto.ProductIngredient, error)); ok {
+		return rf(ctx, compositeProductID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []*dto.ProductIngredient); ok {
+		r0 = rf(ctx, compositeProductID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*dto.ProductIngredient)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, compositeProductID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProductIngredientRepository_FindSideDishesByCompositeProductID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindSideDishesByCompositeProductID'
+type MockProductIngredientRepository_FindSideDishesByCompositeProductID_Call struct {
+	*mock.Call
+}
+
+// FindSideDishesByCompositeProductID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - compositeProductID string
+func (_e *MockProductIngredientRepository_Expecter) FindSideDishesByCompositeProductID(ctx interface{}, compositeProductID interface{}) *MockProductIngredientRepository_FindSideDishesByCompositeProductID_Call {
+	return &MockProductIngredientRepository_FindSideDishesByCompositeProductID_Call{Call: _e.mock.On("FindSideDishesByCompositeProductID", ctx, compositeProductID)}
+}
+
+func (_c *MockProductIngredientRepository_FindSideDishesByCompositeProductID_Call) Run(run func(ctx context.Context, compositeProductID string)) *MockProductIngredientRepository_FindSideDishesByCompositeProductID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockProductIngredientRepository_FindSideDishesByCompositeProductID_Call) Return(_a0 []*dto.ProductIngredient, _a1 error) *MockProductIngredientRepository_FindSideDishesByCompositeProductID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProductIngredientRepository_FindSideDishesByCompositeProductID_Call) RunAndReturn(run func(context.Context, string) ([]*dto.ProductIngredient, error)) *MockProductIngredientRepository_FindSideDishesByCompositeProductID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Update provides a mock function with given fields: ctx, id, ingredient
 func (_m *MockProductIngredientRepository) Update(ctx context.Context, id string, ingredient *dto.ProductIngredient) error {
 	ret := _m.Called(ctx, id, ingredient)

@@ -166,6 +166,67 @@ func (r *SyncReferenceRepository) FindChangedProductResponsibilities(ctx context
 	return out, nil
 }
 
+// FindChangedProductIngredients returns recipe rows updated after since. product_ingredients is
+// hard-deleted (no deleted_at column), so the filter is updated_at only and deletions do not
+// propagate via pull.
+func (r *SyncReferenceRepository) FindChangedProductIngredients(ctx context.Context, since time.Time) ([]dto.ProductIngredientSyncPayload, error) {
+	db := postgres.GetTxOrDB(ctx, r.db)
+
+	var models []productIngredientModel
+	if err := db.Where("updated_at > ?", since).Order("updated_at ASC").Find(&models).Error; err != nil {
+		return nil, fmt.Errorf("query changed product ingredients: %w", err)
+	}
+
+	out := make([]dto.ProductIngredientSyncPayload, len(models))
+	for i, m := range models {
+		out[i] = dto.ProductIngredientSyncPayload{
+			ID:                  m.ID,
+			CompositeProductID:  m.CompositeProductID,
+			IngredientProductID: m.IngredientProductID,
+			DefaultQuantity:     m.DefaultQuantity,
+			IsSideDish:          m.IsSideDish,
+			MinQuantity:         m.MinQuantity,
+			MaxQuantity:         m.MaxQuantity,
+			CreatedAt:           m.CreatedAt,
+			UpdatedAt:           m.UpdatedAt,
+		}
+	}
+	return out, nil
+}
+
+func (r *SyncReferenceRepository) UpsertProductIngredients(ctx context.Context, ingredients []dto.ProductIngredientSyncPayload) error {
+	if len(ingredients) == 0 {
+		return nil
+	}
+	db := postgres.GetTxOrDB(ctx, r.db)
+
+	models := make([]productIngredientModel, len(ingredients))
+	for i, ing := range ingredients {
+		models[i] = productIngredientModel{
+			ID:                  ing.ID,
+			CompositeProductID:  ing.CompositeProductID,
+			IngredientProductID: ing.IngredientProductID,
+			DefaultQuantity:     ing.DefaultQuantity,
+			IsSideDish:          ing.IsSideDish,
+			MinQuantity:         ing.MinQuantity,
+			MaxQuantity:         ing.MaxQuantity,
+			CreatedAt:           ing.CreatedAt,
+			UpdatedAt:           ing.UpdatedAt,
+		}
+	}
+
+	if err := db.Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "id"}},
+		DoUpdates: clause.AssignmentColumns([]string{
+			"composite_product_id", "ingredient_product_id", "default_quantity",
+			"is_side_dish", "min_quantity", "max_quantity", "updated_at",
+		}),
+	}).Create(&models).Error; err != nil {
+		return fmt.Errorf("upsert product ingredients: %w", err)
+	}
+	return nil
+}
+
 func (r *SyncReferenceRepository) UpsertProducts(ctx context.Context, products []dto.ProductSyncPayload) error {
 	if len(products) == 0 {
 		return nil

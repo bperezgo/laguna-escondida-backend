@@ -209,3 +209,23 @@ func TestSync_Push_HistoricStockReplayIsIdempotent(t *testing.T) {
 	assert.Equal(t, int64(1), r.cloudCount("historic_stock", "op_id = ?", entry.OpID), "appended exactly once")
 	assert.Equal(t, int64(1), r.cloudCount("sync_inbox", "op_id = ?", entry.OpID), "deduped in inbox")
 }
+
+// An order line's resolved side-dish selections replicate edge → cloud with the open_bill, so
+// the cloud mirror reflects what the customer actually got.
+func TestSync_Push_OrderLineSideDishesLandOnCloud(t *testing.T) {
+	r := newRig(t)
+	userID, plateID := r.seedCloudUserAndProduct(t)
+	saladID := r.seedCloudProduct(t, "SKU-SD-SALAD")
+
+	entry, orderID := r.openBillOutboxEntryWithSideDishes(userID, plateID, []dto.SideDishSelection{
+		{IngredientProductID: saladID, Quantity: 3},
+	})
+	r.appendEdgeOutbox(entry)
+
+	r.push()
+
+	assert.Equal(t, int64(1), r.cloudCount("open_bills", "id = ?", orderID), "order landed on cloud")
+	assert.Equal(t, int64(1),
+		r.cloudCount("open_bill_product_side_dishes", "ingredient_product_id = ? AND quantity = ?", saladID, 3),
+		"side-dish selection replicated to cloud")
+}

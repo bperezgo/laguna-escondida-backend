@@ -37,6 +37,9 @@ Manage products, including sellable items and ingredients.
 | GET    | `/api/products/:id/ingredients`               | List ingredients of a composite product |
 | PUT    | `/api/products/:id/ingredients/:ingredientId` | Update ingredient quantity              |
 | DELETE | `/api/products/:id/ingredients/:ingredientId` | Remove ingredient from product          |
+| GET    | `/api/products/:id/side-dishes`                        | List a composite's side-dish options |
+| PUT    | `/api/products/:id/ingredients/:ingredientId/side-dish` | Mark an ingredient as a side dish    |
+| DELETE | `/api/products/:id/ingredients/:ingredientId/side-dish` | Clear an ingredient's side-dish flag |
 
 ---
 
@@ -440,11 +443,16 @@ POST /api/products/:id/ingredients
   "id": "880e8400-e29b-41d4-a716-446655440003",
   "composite_product_id": "660e8400-e29b-41d4-a716-446655440001",
   "ingredient_product_id": "770e8400-e29b-41d4-a716-446655440002",
-  "quantity": "2.5",
+  "default_quantity": "2.5",
+  "is_side_dish": false,
+  "min_quantity": 0,
+  "max_quantity": 0,
   "created_at": "2024-01-26T16:00:00Z",
   "updated_at": "2024-01-26T16:00:00Z"
 }
 ```
+
+> **Note:** The recipe amount is `default_quantity` (renamed from `quantity`). A fixed ingredient keeps `is_side_dish: false`; `min_quantity`/`max_quantity` apply only to side dishes (see [Side Dishes](#side-dishes)).
 
 ### Error Responses
 
@@ -505,7 +513,10 @@ GET /api/products/:id/ingredients
       "id": "880e8400-e29b-41d4-a716-446655440003",
       "composite_product_id": "660e8400-e29b-41d4-a716-446655440001",
       "ingredient_product_id": "770e8400-e29b-41d4-a716-446655440002",
-      "quantity": "2.5",
+      "default_quantity": "2.5",
+      "is_side_dish": false,
+      "min_quantity": 0,
+      "max_quantity": 0,
       "created_at": "2024-01-26T16:00:00Z",
       "updated_at": "2024-01-26T16:00:00Z",
       "ingredient_product": {
@@ -569,7 +580,10 @@ PUT /api/products/:id/ingredients/:ingredientId
   "id": "880e8400-e29b-41d4-a716-446655440003",
   "composite_product_id": "660e8400-e29b-41d4-a716-446655440001",
   "ingredient_product_id": "770e8400-e29b-41d4-a716-446655440002",
-  "quantity": "3.0",
+  "default_quantity": "3.0",
+  "is_side_dish": false,
+  "min_quantity": 0,
+  "max_quantity": 0,
   "created_at": "2024-01-26T16:00:00Z",
   "updated_at": "2024-01-26T16:30:00Z"
 }
@@ -624,7 +638,7 @@ When a COMPOSITE product is ordered:
 
 1. The stock of the **composite product itself is NOT decreased**
 2. Instead, the stock of each **ingredient** is decreased
-3. The quantity decreased is: `ingredient.quantity * order_quantity`
+3. The quantity decreased is: `ingredient.default_quantity * order_quantity` for fixed ingredients, or `selected_quantity * order_quantity` for side dishes (see [Side Dishes](#side-dishes))
 
 ### Example
 
@@ -639,6 +653,161 @@ When 3 Fish Plates are ordered:
 - Lemon stock decreases by: 1 * 3 = 3 units
 
 This happens automatically via the event-driven stock management system.
+
+---
+
+# Side Dishes
+
+A composite product's ingredients can be marked as customer-configurable **side dishes** with `default`, `min`, and `max` quantities. A server can then adjust those side dishes on an order line within `[min, max]` (e.g. drop the salad, take 3 canasta instead of 2). Fixed ingredients (protein, oil, base) are unchanged and always consume their exact recipe amount. An "offered alternative" (e.g. fries) is a side dish whose `default_quantity` is `0`.
+
+Side-dish changes never affect the plate price; `min`/`max` are the guardrail against abuse. See the [Orders API](./orders.md) for how a line selects side-dish quantities.
+
+## Endpoints
+
+| Method | Endpoint                                                | Description                          |
+| ------ | ------------------------------------------------------- | ------------------------------------ |
+| GET    | `/api/products/:id/side-dishes`                         | List a composite's side-dish options |
+| PUT    | `/api/products/:id/ingredients/:ingredientId/side-dish` | Mark an ingredient as a side dish    |
+| DELETE | `/api/products/:id/ingredients/:ingredientId/side-dish` | Clear an ingredient's side-dish flag |
+
+---
+
+## Mark an Ingredient as a Side Dish
+
+Designates an existing composite ingredient as a side dish and sets its bounds. The configuration is rejected unless `0 <= min_quantity <= default_quantity <= max_quantity`.
+
+```
+PUT /api/products/:id/ingredients/:ingredientId/side-dish
+```
+
+### Path Parameters
+
+| Parameter    | Type | Description          |
+| ------------ | ---- | -------------------- |
+| id           | UUID | Composite product ID |
+| ingredientId | UUID | Ingredient (recipe row) ID |
+
+### Request Body
+
+| Field            | Type | Required | Description                              |
+| ---------------- | ---- | -------- | ---------------------------------------- |
+| default_quantity | int  | Yes      | Default quantity served on a plate       |
+| min_quantity     | int  | Yes      | Minimum a server may set (0 = removable) |
+| max_quantity     | int  | Yes      | Maximum a server may set                 |
+
+### Example Request
+
+```json
+{
+  "default_quantity": 1,
+  "min_quantity": 0,
+  "max_quantity": 2
+}
+```
+
+### Example Response (200 OK)
+
+```json
+{
+  "id": "880e8400-e29b-41d4-a716-446655440003",
+  "composite_product_id": "660e8400-e29b-41d4-a716-446655440001",
+  "ingredient_product_id": "770e8400-e29b-41d4-a716-446655440002",
+  "default_quantity": "1",
+  "is_side_dish": true,
+  "min_quantity": 0,
+  "max_quantity": 2,
+  "created_at": "2024-01-26T16:00:00Z",
+  "updated_at": "2024-01-26T17:00:00Z"
+}
+```
+
+### Error Responses
+
+**400 Bad Request** — bounds violate `0 <= min <= default <= max`
+
+```json
+{
+  "error": "invalid side-dish bounds: require 0 <= min <= default <= max"
+}
+```
+
+**404 Not Found** — ingredient not found on this product
+
+```json
+{
+  "error": "Ingredient not found"
+}
+```
+
+---
+
+## Clear an Ingredient's Side-Dish Flag
+
+Reverts a side dish back to a fixed ingredient. Its `default_quantity` is preserved as the exact amount always consumed; `min`/`max` reset to 0.
+
+```
+DELETE /api/products/:id/ingredients/:ingredientId/side-dish
+```
+
+### Path Parameters
+
+| Parameter    | Type | Description                |
+| ------------ | ---- | -------------------------- |
+| id           | UUID | Composite product ID       |
+| ingredientId | UUID | Ingredient (recipe row) ID |
+
+### Example Response (200 OK)
+
+```json
+{
+  "id": "880e8400-e29b-41d4-a716-446655440003",
+  "composite_product_id": "660e8400-e29b-41d4-a716-446655440001",
+  "ingredient_product_id": "770e8400-e29b-41d4-a716-446655440002",
+  "default_quantity": "1",
+  "is_side_dish": false,
+  "min_quantity": 0,
+  "max_quantity": 0,
+  "created_at": "2024-01-26T16:00:00Z",
+  "updated_at": "2024-01-26T17:05:00Z"
+}
+```
+
+---
+
+## List Side-Dish Options
+
+Returns a composite product's side-dish options with each option's default, min, and max, so a client can render the +/- controls and enforce bounds.
+
+```
+GET /api/products/:id/side-dishes
+```
+
+### Path Parameters
+
+| Parameter | Type | Description          |
+| --------- | ---- | -------------------- |
+| id        | UUID | Composite product ID |
+
+### Example Response (200 OK)
+
+```json
+{
+  "side_dishes": [
+    {
+      "ingredient_product_id": "770e8400-e29b-41d4-a716-446655440002",
+      "default_quantity": 1,
+      "min_quantity": 0,
+      "max_quantity": 2,
+      "ingredient_product": {
+        "id": "770e8400-e29b-41d4-a716-446655440002",
+        "name": "Ensalada",
+        "product_type": "INGREDIENT",
+        "unit_of_measure": "unit"
+      }
+    }
+  ]
+}
+```
 
 ---
 

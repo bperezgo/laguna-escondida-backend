@@ -46,6 +46,7 @@ func TestPullChanges_FirstPull_AppliesAndAdvances(t *testing.T) {
 
 	writer.EXPECT().UpsertProducts(mock.Anything, resp.Products).Return(nil).Once()
 	writer.EXPECT().UpsertProductResponsibilities(mock.Anything, resp.ProductResponsibilities).Return(nil).Once()
+	writer.EXPECT().UpsertProductIngredients(mock.Anything, mock.Anything).Return(nil).Once()
 	writer.EXPECT().UpsertUsers(mock.Anything, resp.Users).Return(nil).Once()
 	writer.EXPECT().UpsertSuppliers(mock.Anything, resp.Suppliers).Return(nil).Once()
 	state.EXPECT().AdvancePulledCursor(mock.Anything, testCloudNodeID, cursor).Return(nil).Once()
@@ -77,6 +78,7 @@ func TestPullChanges_UsesStoredCursor(t *testing.T) {
 		Return(resp, nil).Once()
 	writer.EXPECT().UpsertProducts(mock.Anything, mock.Anything).Return(nil).Once()
 	writer.EXPECT().UpsertProductResponsibilities(mock.Anything, mock.Anything).Return(nil).Once()
+	writer.EXPECT().UpsertProductIngredients(mock.Anything, mock.Anything).Return(nil).Once()
 	writer.EXPECT().UpsertUsers(mock.Anything, mock.Anything).Return(nil).Once()
 	writer.EXPECT().UpsertSuppliers(mock.Anything, mock.Anything).Return(nil).Once()
 	state.EXPECT().AdvancePulledCursor(mock.Anything, testCloudNodeID, newCursor).Return(nil).Once()
@@ -101,6 +103,7 @@ func TestPullChanges_NoChanges_DoesNotAdvanceCursor(t *testing.T) {
 	client.EXPECT().Pull(mock.Anything, mock.Anything).Return(resp, nil).Once()
 	writer.EXPECT().UpsertProducts(mock.Anything, mock.Anything).Return(nil).Once()
 	writer.EXPECT().UpsertProductResponsibilities(mock.Anything, mock.Anything).Return(nil).Once()
+	writer.EXPECT().UpsertProductIngredients(mock.Anything, mock.Anything).Return(nil).Once()
 	writer.EXPECT().UpsertUsers(mock.Anything, mock.Anything).Return(nil).Once()
 	writer.EXPECT().UpsertSuppliers(mock.Anything, mock.Anything).Return(nil).Once()
 

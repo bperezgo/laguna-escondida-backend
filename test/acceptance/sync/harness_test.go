@@ -356,6 +356,11 @@ func (r *rig) seedCloudProductResponsibilities(responsibilities ...dto.ProductRe
 	require.NoError(r.t, r.cloudRef.UpsertProductResponsibilities(r.ctx, responsibilities), "seed cloud product responsibilities")
 }
 
+func (r *rig) seedCloudProductIngredients(ingredients ...dto.ProductIngredientSyncPayload) {
+	r.t.Helper()
+	require.NoError(r.t, r.cloudRef.UpsertProductIngredients(r.ctx, ingredients), "seed cloud product ingredients")
+}
+
 // ---------------------------------------------------------------------------
 // Reading replicated edge reference data.
 // ---------------------------------------------------------------------------
@@ -394,6 +399,18 @@ func (r *rig) edgeProductResponsibilityByID(id string) (dto.ProductResponsibilit
 		}
 	}
 	return dto.ProductResponsibilitySyncPayload{}, false
+}
+
+func (r *rig) edgeProductIngredientByID(id string) (dto.ProductIngredientSyncPayload, bool) {
+	r.t.Helper()
+	rows, err := r.edgeRef.FindChangedProductIngredients(r.ctx, time.Time{})
+	require.NoError(r.t, err, "read edge product ingredients")
+	for _, ing := range rows {
+		if ing.ID == id {
+			return ing, true
+		}
+	}
+	return dto.ProductIngredientSyncPayload{}, false
 }
 
 func (r *rig) edgePulledCursor() *time.Time {
@@ -475,6 +492,20 @@ func newProductResponsibility(productID, area string, priority int, changedAt ti
 	}
 }
 
+func newSideDishIngredient(compositeID, ingredientID string, defaultQty, minQty, maxQty int, changedAt time.Time) dto.ProductIngredientSyncPayload {
+	return dto.ProductIngredientSyncPayload{
+		ID:                  uuid.NewString(),
+		CompositeProductID:  compositeID,
+		IngredientProductID: ingredientID,
+		DefaultQuantity:     decimal.NewFromInt(int64(defaultQty)),
+		IsSideDish:          true,
+		MinQuantity:         minQty,
+		MaxQuantity:         maxQty,
+		CreatedAt:           changedAt,
+		UpdatedAt:           changedAt,
+	}
+}
+
 func newUser(username, passwordHash string, changedAt time.Time) dto.UserSyncPayload {
 	return dto.UserSyncPayload{
 		ID:        uuid.NewString(),
@@ -500,6 +531,36 @@ func (r *rig) openBillOutboxEntry(createdByID, productID string) (entry *dto.Syn
 		CreatedByID:        createdByID,
 		Products: []dto.OpenBillSyncProduct{
 			{OpenBillProductID: uuid.NewString(), ProductID: productID, Quantity: 1, Status: dto.CommandStatusCreated},
+		},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	raw, err := json.Marshal(payload)
+	require.NoError(r.t, err, "marshal open_bill payload")
+	return &dto.SyncOutboxEntry{
+		OpID:         uuid.NewString(),
+		OriginNodeID: r.identity.NodeID,
+		EntityType:   dto.SyncEntityOpenBill,
+		EntityID:     orderID,
+		Operation:    dto.SyncOperationCreate,
+		Payload:      raw,
+	}, orderID
+}
+
+// openBillOutboxEntryWithSideDishes builds a create-op outbox row for an order whose single
+// line carries resolved side-dish selections, so the push path replicates them edge → cloud.
+func (r *rig) openBillOutboxEntryWithSideDishes(createdByID, productID string, sideDishes []dto.SideDishSelection) (entry *dto.SyncOutboxEntry, orderID string) {
+	r.t.Helper()
+	orderID = uuid.NewString()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	payload := dto.OpenBillSyncPayload{
+		ID:                 orderID,
+		TemporalIdentifier: uuid.NewString(),
+		TotalAmount:        decimal.NewFromInt(5000),
+		Status:             dto.CommandStatusCreated,
+		CreatedByID:        createdByID,
+		Products: []dto.OpenBillSyncProduct{
+			{OpenBillProductID: uuid.NewString(), ProductID: productID, Quantity: 1, Status: dto.CommandStatusCreated, SideDishes: sideDishes},
 		},
 		CreatedAt: now,
 		UpdatedAt: now,

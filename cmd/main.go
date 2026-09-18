@@ -170,6 +170,7 @@ func main() {
 		openBillProductHub,
 		syncOutboxRepo,
 		syncIdentity,
+		productIngredientRepo,
 	)
 	productService := service.NewProductService(productRepo, supplierRepo, supplierCatalogRepo, unitOfWork)
 	stockService := service.NewStockService(stockRepo, productRepo, unitOfWork, syncOutboxRepo, syncIdentity)
@@ -395,6 +396,11 @@ func main() {
 	router.GET("/api/products/:id/ingredients", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsRead), productIngredientHandler.GetIngredientsHandler)
 	router.PUT("/api/products/:id/ingredients/:ingredient_id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), productIngredientHandler.UpdateIngredientHandler)
 	router.DELETE("/api/products/:id/ingredients/:ingredient_id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), productIngredientHandler.RemoveIngredientHandler)
+
+	// Side-dish configuration routes
+	router.GET("/api/products/:id/side-dishes", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsRead), productIngredientHandler.GetSideDishOptionsHandler)
+	router.PUT("/api/products/:id/ingredients/:ingredient_id/side-dish", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), productIngredientHandler.ConfigureSideDishHandler)
+	router.DELETE("/api/products/:id/ingredients/:ingredient_id/side-dish", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), productIngredientHandler.ClearSideDishHandler)
 
 	// Stock routes — reads are served in both modes; the writes are wired edge-only in
 	// the mode switch below, because the edge is the single writer for on-hand stock and

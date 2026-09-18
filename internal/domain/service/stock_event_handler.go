@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"laguna-escondida/backend/internal/domain/dto"
@@ -54,7 +57,7 @@ func (h *StockEventHandler) HandleOrderCreated(ctx context.Context, event dto.Or
 	)
 
 	for _, item := range event.Products {
-		if err := h.decreaseStockForProduct(ctx, item.ProductID, item.Quantity); err != nil {
+		if err := h.decreaseStockForProduct(ctx, item.ProductID, item.Quantity, sideDishMap(item)); err != nil {
 			h.logger.Error("failed to decrease stock",
 				slog.String("product_id", item.ProductID),
 				slog.Int("quantity", item.Quantity),
@@ -66,6 +69,19 @@ func (h *StockEventHandler) HandleOrderCreated(ctx context.Context, event dto.Or
 	return nil
 }
 
+// sideDishMap indexes a line's resolved side-dish selections by ingredient product id, so
+// expansion can override those ingredients' per-plate quantity with the amount actually served.
+func sideDishMap(item dto.OrderCreatedEventProduct) map[string]int {
+	if len(item.SideDishes) == 0 {
+		return nil
+	}
+	m := make(map[string]int, len(item.SideDishes))
+	for _, sd := range item.SideDishes {
+		m[sd.IngredientProductID] = sd.Quantity
+	}
+	return m
+}
+
 // HandleOrderUpdated adjusts stock based on product changes between previous and current state.
 func (h *StockEventHandler) HandleOrderUpdated(ctx context.Context, event dto.OrderUpdatedEvent) error {
 	h.logger.Info("handling order updated event for stock",
@@ -74,42 +90,44 @@ func (h *StockEventHandler) HandleOrderUpdated(ctx context.Context, event dto.Or
 		slog.Int("current_count", len(event.CurrentProducts)),
 	)
 
-	previousQty := make(map[string]int)
-	for _, p := range event.PreviousProducts {
-		previousQty[p.ProductID] += p.Quantity
+	// Diff previous vs current keyed by (product + resolved side-dish selection), not product
+	// alone: editing only a side dish leaves the line quantity unchanged, so a product-only diff
+	// would net to zero and miss the stock change (design D4). A changed side dish surfaces as a
+	// restore of the previous key plus a consume of the current key.
+	type lineConsumption struct {
+		productID  string
+		sideDishes map[string]int
+		qty        int
 	}
-
-	currentQty := make(map[string]int)
-	for _, p := range event.CurrentProducts {
-		currentQty[p.ProductID] += p.Quantity
+	byKey := make(map[string]*lineConsumption)
+	accumulate := func(products []dto.OrderCreatedEventProduct, sign int) {
+		for _, p := range products {
+			key := consumptionKey(p)
+			entry, ok := byKey[key]
+			if !ok {
+				entry = &lineConsumption{productID: p.ProductID, sideDishes: sideDishMap(p)}
+				byKey[key] = entry
+			}
+			entry.qty += sign * p.Quantity
+		}
 	}
+	accumulate(event.PreviousProducts, -1)
+	accumulate(event.CurrentProducts, 1)
 
-	allProductIDs := make(map[string]struct{})
-	for id := range previousQty {
-		allProductIDs[id] = struct{}{}
-	}
-	for id := range currentQty {
-		allProductIDs[id] = struct{}{}
-	}
-
-	for productID := range allProductIDs {
-		prevQty := previousQty[productID]
-		currQty := currentQty[productID]
-		diff := currQty - prevQty
-
-		if diff > 0 {
-			if err := h.decreaseStockForProduct(ctx, productID, diff); err != nil {
+	for _, entry := range byKey {
+		if entry.qty > 0 {
+			if err := h.decreaseStockForProduct(ctx, entry.productID, entry.qty, entry.sideDishes); err != nil {
 				h.logger.Error("failed to decrease stock on order update",
-					slog.String("product_id", productID),
-					slog.Int("diff", diff),
+					slog.String("product_id", entry.productID),
+					slog.Int("diff", entry.qty),
 					slog.String("error", err.Error()),
 				)
 			}
-		} else if diff < 0 {
-			if err := h.increaseStockForProduct(ctx, productID, -diff); err != nil {
+		} else if entry.qty < 0 {
+			if err := h.increaseStockForProduct(ctx, entry.productID, -entry.qty, entry.sideDishes); err != nil {
 				h.logger.Error("failed to increase stock on order update",
-					slog.String("product_id", productID),
-					slog.Int("diff", -diff),
+					slog.String("product_id", entry.productID),
+					slog.Int("diff", -entry.qty),
 					slog.String("error", err.Error()),
 				)
 			}
@@ -117,6 +135,21 @@ func (h *StockEventHandler) HandleOrderUpdated(ctx context.Context, event dto.Or
 	}
 
 	return nil
+}
+
+// consumptionKey canonically identifies a line's stock consumption: the product plus its
+// resolved side-dish selection (sorted, so ordering never splits an otherwise-identical line).
+// Lines with matching keys aggregate; a side-dish change yields a different key.
+func consumptionKey(p dto.OrderCreatedEventProduct) string {
+	if len(p.SideDishes) == 0 {
+		return p.ProductID
+	}
+	pairs := make([]string, len(p.SideDishes))
+	for i, sd := range p.SideDishes {
+		pairs[i] = sd.IngredientProductID + ":" + strconv.Itoa(sd.Quantity)
+	}
+	sort.Strings(pairs)
+	return p.ProductID + "|" + strings.Join(pairs, ",")
 }
 
 // HandleOrderDeleted restores stock when an order is deleted (voided). It is the mirror
@@ -132,7 +165,7 @@ func (h *StockEventHandler) HandleOrderDeleted(ctx context.Context, event dto.Or
 	)
 
 	for _, item := range event.Products {
-		if err := h.increaseStockForProduct(ctx, item.ProductID, item.Quantity); err != nil {
+		if err := h.increaseStockForProduct(ctx, item.ProductID, item.Quantity, sideDishMap(item)); err != nil {
 			h.logger.Error("failed to restore stock on order deletion",
 				slog.String("product_id", item.ProductID),
 				slog.Int("quantity", item.Quantity),
@@ -170,26 +203,28 @@ func (h *StockEventHandler) HandlePurchaseEntryCreated(ctx context.Context, even
 // the visited set were ever bypassed) recipes so a sale can never hang.
 const maxCompositeDepth = 32
 
-func (h *StockEventHandler) decreaseStockForProduct(ctx context.Context, productID string, quantity int) error {
-	return h.adjustStockForProduct(ctx, productID, decimal.NewFromInt(int64(quantity)), -1)
+func (h *StockEventHandler) decreaseStockForProduct(ctx context.Context, productID string, quantity int, sideDishes map[string]int) error {
+	return h.adjustStockForProduct(ctx, productID, decimal.NewFromInt(int64(quantity)), -1, sideDishes)
 }
 
-func (h *StockEventHandler) increaseStockForProduct(ctx context.Context, productID string, quantity int) error {
-	return h.adjustStockForProduct(ctx, productID, decimal.NewFromInt(int64(quantity)), 1)
+func (h *StockEventHandler) increaseStockForProduct(ctx context.Context, productID string, quantity int, sideDishes map[string]int) error {
+	return h.adjustStockForProduct(ctx, productID, decimal.NewFromInt(int64(quantity)), 1, sideDishes)
 }
 
 // adjustStockForProduct applies a stock change for a single top-level order line. A COMPOSITE
 // is expanded into its recipe (recursively, so composite-as-ingredient sub-recipes expand too)
 // and only leaf ingredients touch a stock row; any other product type decrements/increments its
 // own stock. sign is -1 to consume stock (sale/add) and +1 to restore it (void/remove).
-func (h *StockEventHandler) adjustStockForProduct(ctx context.Context, productID string, quantity decimal.Decimal, sign int) error {
+// sideDishes overrides the per-plate quantity for the line's side-dish ingredients (design D4);
+// it applies only to the ordered composite's direct ingredients (sub-recipes use their defaults).
+func (h *StockEventHandler) adjustStockForProduct(ctx context.Context, productID string, quantity decimal.Decimal, sign int, sideDishes map[string]int) error {
 	product, err := h.productRepo.FindByID(ctx, productID)
 	if err != nil {
 		return fmt.Errorf("product not found: %w", err)
 	}
 
 	if product.ProductType == dto.ProductTypeComposite {
-		return h.expandComposite(ctx, product, quantity, sign, make(map[string]struct{}), 0)
+		return h.expandComposite(ctx, product, quantity, sign, make(map[string]struct{}), 0, sideDishes)
 	}
 
 	if err := h.updateStock(ctx, productID, sign*int(quantity.IntPart())); err != nil {
@@ -205,7 +240,7 @@ func (h *StockEventHandler) adjustStockForProduct(ctx context.Context, productID
 // write, so whole-unit recipes never compound rounding. path holds the composites currently on
 // the expansion stack: revisiting one is a cycle, which is logged and skipped rather than failing
 // the sale, so a cyclic graph always terminates.
-func (h *StockEventHandler) expandComposite(ctx context.Context, composite *dto.Product, quantity decimal.Decimal, sign int, path map[string]struct{}, depth int) error {
+func (h *StockEventHandler) expandComposite(ctx context.Context, composite *dto.Product, quantity decimal.Decimal, sign int, path map[string]struct{}, depth int, sideDishes map[string]int) error {
 	if _, onPath := path[composite.ID]; onPath {
 		h.logger.Warn("ingredient cycle detected while expanding composite; stopping expansion",
 			slog.String("product_id", composite.ID),
@@ -235,7 +270,17 @@ func (h *StockEventHandler) expandComposite(ctx context.Context, composite *dto.
 	defer delete(path, composite.ID)
 
 	for _, ingredient := range ingredients {
-		childQty := ingredient.Quantity.Mul(quantity)
+		perUnit := ingredient.DefaultQuantity
+		if selectedQty, ok := sideDishes[ingredient.IngredientProductID]; ok {
+			perUnit = decimal.NewFromInt(int64(selectedQty))
+		}
+		childQty := perUnit.Mul(quantity)
+
+		// A side dish set to 0 (or a default-0 offered alternative) consumes nothing: skip it
+		// so it neither writes a no-op stock row nor emits a historic/outbox record.
+		if childQty.IsZero() {
+			continue
+		}
 
 		ingredientProduct, err := h.productRepo.FindByID(ctx, ingredient.IngredientProductID)
 		if err != nil {
@@ -243,7 +288,7 @@ func (h *StockEventHandler) expandComposite(ctx context.Context, composite *dto.
 		}
 
 		if ingredientProduct.ProductType == dto.ProductTypeComposite {
-			if err := h.expandComposite(ctx, ingredientProduct, childQty, sign, path, depth+1); err != nil {
+			if err := h.expandComposite(ctx, ingredientProduct, childQty, sign, path, depth+1, nil); err != nil {
 				return err
 			}
 			continue

@@ -66,6 +66,10 @@ func (s *SyncPullService) PullChanges(ctx context.Context) (*dto.SyncPullResult,
 		if err := s.writer.UpsertProductResponsibilities(ctx, resp.ProductResponsibilities); err != nil {
 			return fmt.Errorf("upsert product responsibilities: %w", err)
 		}
+		// Recipe rows reference products (composite + ingredient) via FK, so they land after products.
+		if err := s.writer.UpsertProductIngredients(ctx, resp.ProductIngredients); err != nil {
+			return fmt.Errorf("upsert product ingredients: %w", err)
+		}
 		if err := s.writer.UpsertUsers(ctx, resp.Users); err != nil {
 			return fmt.Errorf("upsert users: %w", err)
 		}
@@ -88,5 +92,6 @@ func (s *SyncPullService) PullChanges(ctx context.Context) (*dto.SyncPullResult,
 		Users:                   len(resp.Users),
 		Suppliers:               len(resp.Suppliers),
 		ProductResponsibilities: len(resp.ProductResponsibilities),
+		ProductIngredients:      len(resp.ProductIngredients),
 	}, nil
 }

@@ -192,3 +192,28 @@ func TestSync_Pull_SecondPullIsIncremental(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "Jugo", got.Name)
 }
+
+// A composite's side-dish definition (a product_ingredients row with is_side_dish + bounds)
+// replicates cloud → edge so the edge can validate and consume order-line selections offline.
+func TestSync_Pull_ReplicatesSideDishIngredient(t *testing.T) {
+	r := newRig(t)
+	t0 := time.Now().UTC().Truncate(time.Microsecond)
+	plate := newProduct("SKU-PLATE-SD", "Bandeja", t0)
+	salad := newProduct("SKU-SALAD-SD", "Ensalada", t0)
+	r.seedCloudProducts(plate, salad)
+
+	ing := newSideDishIngredient(plate.ID, salad.ID, 1, 0, 2, t0)
+	r.seedCloudProductIngredients(ing)
+
+	res := r.pull()
+	assert.Equal(t, 1, res.ProductIngredients, "one side-dish option pulled")
+
+	got, ok := r.edgeProductIngredientByID(ing.ID)
+	require.True(t, ok, "side-dish option replicated to edge")
+	assert.Equal(t, plate.ID, got.CompositeProductID)
+	assert.Equal(t, salad.ID, got.IngredientProductID)
+	assert.True(t, got.IsSideDish)
+	assert.Equal(t, 0, got.MinQuantity)
+	assert.Equal(t, 2, got.MaxQuantity)
+	assert.Equal(t, int64(1), got.DefaultQuantity.IntPart(), "default quantity replicated")
+}

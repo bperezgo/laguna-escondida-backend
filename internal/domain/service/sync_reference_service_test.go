@@ -33,6 +33,8 @@ func TestChangesSince_AdvancesCursorToMaxChangeTime(t *testing.T) {
 		Return([]dto.SupplierSyncPayload{}, nil).Once()
 	reader.EXPECT().FindChangedProductResponsibilities(mock.Anything, since).
 		Return([]dto.ProductResponsibilitySyncPayload{}, nil).Once()
+	reader.EXPECT().FindChangedProductIngredients(mock.Anything, since).
+		Return([]dto.ProductIngredientSyncPayload{}, nil).Once()
 
 	resp, err := NewSyncReferenceService(reader, slog.Default()).ChangesSince(context.Background(), since)
 	require.NoError(t, err)
@@ -54,11 +56,33 @@ func TestChangesSince_ResponsibilityChangeDrivesCursor(t *testing.T) {
 	reader.EXPECT().FindChangedSuppliers(mock.Anything, since).Return(nil, nil).Once()
 	reader.EXPECT().FindChangedProductResponsibilities(mock.Anything, since).
 		Return([]dto.ProductResponsibilitySyncPayload{{ID: "pr1", ProductID: "p1", UpdatedAt: respUpdated}}, nil).Once()
+	reader.EXPECT().FindChangedProductIngredients(mock.Anything, since).Return(nil, nil).Once()
 
 	resp, err := NewSyncReferenceService(reader, slog.Default()).ChangesSince(context.Background(), since)
 	require.NoError(t, err)
 	assert.Equal(t, respUpdated, resp.Cursor, "a responsibility change advances the cursor")
 	assert.Len(t, resp.ProductResponsibilities, 1)
+}
+
+// TestChangesSince_IngredientChangeDrivesCursor verifies a side-dish/recipe change is returned
+// and moves the cursor even when nothing else changed, so a config-only edit reaches the edge.
+func TestChangesSince_IngredientChangeDrivesCursor(t *testing.T) {
+	reader := mocks.NewMockSyncReferenceReader(t)
+	since := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	ingUpdated := since.Add(4 * time.Hour)
+
+	reader.EXPECT().FindChangedProducts(mock.Anything, since).Return(nil, nil).Once()
+	reader.EXPECT().FindChangedUsers(mock.Anything, since).Return(nil, nil).Once()
+	reader.EXPECT().FindChangedSuppliers(mock.Anything, since).Return(nil, nil).Once()
+	reader.EXPECT().FindChangedProductResponsibilities(mock.Anything, since).Return(nil, nil).Once()
+	reader.EXPECT().FindChangedProductIngredients(mock.Anything, since).
+		Return([]dto.ProductIngredientSyncPayload{{ID: "pi1", CompositeProductID: "plate", IngredientProductID: "salad", IsSideDish: true, MinQuantity: 0, MaxQuantity: 2, UpdatedAt: ingUpdated}}, nil).Once()
+
+	resp, err := NewSyncReferenceService(reader, slog.Default()).ChangesSince(context.Background(), since)
+	require.NoError(t, err)
+	assert.Equal(t, ingUpdated, resp.Cursor, "a side-dish/recipe change advances the cursor")
+	require.Len(t, resp.ProductIngredients, 1)
+	assert.True(t, resp.ProductIngredients[0].IsSideDish)
 }
 
 func TestChangesSince_NoChanges_CursorUnchanged(t *testing.T) {
@@ -69,6 +93,7 @@ func TestChangesSince_NoChanges_CursorUnchanged(t *testing.T) {
 	reader.EXPECT().FindChangedUsers(mock.Anything, since).Return(nil, nil).Once()
 	reader.EXPECT().FindChangedSuppliers(mock.Anything, since).Return(nil, nil).Once()
 	reader.EXPECT().FindChangedProductResponsibilities(mock.Anything, since).Return(nil, nil).Once()
+	reader.EXPECT().FindChangedProductIngredients(mock.Anything, since).Return(nil, nil).Once()
 
 	resp, err := NewSyncReferenceService(reader, slog.Default()).ChangesSince(context.Background(), since)
 	require.NoError(t, err)

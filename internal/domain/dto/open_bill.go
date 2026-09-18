@@ -36,13 +36,14 @@ type OpenBillWithCreator struct {
 }
 
 type OpenBillProductDetail struct {
-	OpenBillProductID string        `json:"open_bill_product_id"`
-	Product           Product       `json:"product"`
-	Quantity          int           `json:"quantity"`
-	Notes             *string       `json:"notes,omitempty"`
-	Status            CommandStatus `json:"status"`
-	Area              *string       `json:"area,omitempty"`
-	Priority          int           `json:"priority"`
+	OpenBillProductID string              `json:"open_bill_product_id"`
+	Product           Product             `json:"product"`
+	Quantity          int                 `json:"quantity"`
+	Notes             *string             `json:"notes,omitempty"`
+	Status            CommandStatus       `json:"status"`
+	Area              *string             `json:"area,omitempty"`
+	Priority          int                 `json:"priority"`
+	SideDishes        []SideDishSelection `json:"side_dishes,omitempty"`
 	// CreatedAt is when this line item was first added. Preserved across order
 	// updates (the repository upserts by id), so it reflects original creation.
 	CreatedAt     time.Time `json:"created_at"`
@@ -74,10 +75,19 @@ type CreateOrderRequest struct {
 }
 
 type OrderProductItem struct {
-	OpenBillProductID string  `json:"open_bill_product_id" validate:"required,uuid"`
-	ProductID         string  `json:"product_id" validate:"required,uuid"`
-	Quantity          int     `json:"quantity" validate:"required,min=1"`
-	Notes             *string `json:"notes,omitempty"`
+	OpenBillProductID string              `json:"open_bill_product_id" validate:"required,uuid"`
+	ProductID         string              `json:"product_id" validate:"required,uuid"`
+	Quantity          int                 `json:"quantity" validate:"required,min=1"`
+	Notes             *string             `json:"notes,omitempty"`
+	SideDishes        []SideDishSelection `json:"side_dishes,omitempty" validate:"dive"`
+}
+
+// SideDishSelection is the resolved quantity chosen for one of a plate's side-dish options
+// on a specific order line. The full resolved set is persisted per line (see design D2), so
+// stock diffing and the kitchen ticket read concrete numbers independent of later config edits.
+type SideDishSelection struct {
+	IngredientProductID string `json:"ingredient_product_id" validate:"required,uuid"`
+	Quantity            int    `json:"quantity" validate:"min=0"`
 }
 
 type UpdateOrderRequest struct {
