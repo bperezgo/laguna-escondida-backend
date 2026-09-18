@@ -37,6 +37,8 @@ export interface GroupedCommand {
     status: OpenBillProductStatus;
     // Stamped client-side when the cook strikes the line.
     completed_at?: string | null;
+    // Resolved side dishes (names already resolved by the backend).
+    side_dishes?: { name: string; quantity: number }[];
   }[];
   created_at: string;
 }
@@ -99,6 +101,7 @@ export default function KitchenCommandView() {
           created_at: p.created_at,
           status: p.status,
           completed_at: p.completed_at,
+          side_dishes: p.side_dishes,
         })),
         created_at: firstProduct.created_at,
       });
@@ -134,6 +137,7 @@ export default function KitchenCommandView() {
         notes: p.notes,
         priority: p.priority,
         created_at: p.created_at,
+        side_dishes: p.side_dishes,
       });
     });
 

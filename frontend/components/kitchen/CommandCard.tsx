@@ -421,6 +421,44 @@ export default function CommandCard({
                   📝 {item.notes}
                 </div>
               )}
+
+              {/* Resolved side dishes (names already resolved by the backend).
+                  Only the ones actually being served show; a removed side dish
+                  (0×) is just omitted — the cook has nothing to do for it. */}
+              {(() => {
+                const activeSides =
+                  item.side_dishes?.filter((sd) => sd.quantity > 0) ?? [];
+                if (activeSides.length === 0) return null;
+                return (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: "0.4rem",
+                      marginTop: "0.35rem",
+                      paddingLeft: "0.5rem",
+                      borderLeft: "3px solid var(--color-primary)",
+                    }}
+                  >
+                    {activeSides.map((sd, sdIndex) => (
+                      <span
+                        key={`${sd.name}-${sdIndex}`}
+                        style={{
+                          fontSize: "0.95rem",
+                          fontWeight: 700,
+                          padding: "0.15rem 0.5rem",
+                          borderRadius: "var(--radius-sm)",
+                          backgroundColor: "var(--color-primary-light)",
+                          color: "var(--color-primary)",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {sd.quantity}× {sd.name}
+                      </span>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           );
         })}

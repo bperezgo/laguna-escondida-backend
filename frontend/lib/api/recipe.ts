@@ -5,6 +5,9 @@ import type {
   ProductIngredientListResponse,
   AddIngredientRequest,
   UpdateIngredientRequest,
+  SideDishOption,
+  SideDishOptionListResponse,
+  ConfigureSideDishRequest,
 } from "@/types/product";
 
 /**
@@ -64,6 +67,43 @@ export const recipeApi = {
       {
         method: "DELETE",
       },
+    );
+  },
+
+  /**
+   * List a composite product's side-dish options (with joined ingredient product for names).
+   */
+  async listSideDishes(productId: string): Promise<SideDishOption[]> {
+    const response = await apiRequest<SideDishOptionListResponse>(
+      `/products/${productId}/side-dishes`,
+    );
+    return response.side_dishes || [];
+  },
+
+  /**
+   * Mark an ingredient as a side dish (or update its bounds).
+   */
+  async configureSideDish(
+    productId: string,
+    ingredientId: string,
+    req: ConfigureSideDishRequest,
+  ): Promise<ProductIngredient> {
+    return apiRequest<ProductIngredient>(
+      `/products/${productId}/ingredients/${ingredientId}/side-dish`,
+      { method: "PUT", body: JSON.stringify(req) },
+    );
+  },
+
+  /**
+   * Revert an ingredient back to a fixed (non-configurable) recipe row.
+   */
+  async clearSideDish(
+    productId: string,
+    ingredientId: string,
+  ): Promise<ProductIngredient> {
+    return apiRequest<ProductIngredient>(
+      `/products/${productId}/ingredients/${ingredientId}/side-dish`,
+      { method: "DELETE" },
     );
   },
 };

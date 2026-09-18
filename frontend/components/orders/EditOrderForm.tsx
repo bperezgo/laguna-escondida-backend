@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { productsApi } from "@/lib/api/products";
 import { updateOrder } from "@/lib/api/orders";
+import { recipeApi } from "@/lib/api/recipe";
 import { printTicket } from "@/lib/api/device";
 import { generateInvoicePrintHTML } from "@/lib/templates/invoicePrint";
 import { PermissionGate } from "@/components/permissions";
@@ -17,9 +18,14 @@ import {
   formatCOP,
   sendIcon,
   isWeighedProduct,
+  defaultSelections,
 } from "./orderTakingParts";
-import type { Product } from "@/types/product";
-import type { OpenBillWithProducts, OrderProductItem } from "@/types/order";
+import type { Product, SideDishOption } from "@/types/product";
+import type {
+  OpenBillWithProducts,
+  OrderProductItem,
+  SideDishSelection,
+} from "@/types/order";
 import type { OpenBillProductStatus } from "@/types/commandItem";
 
 interface EditOrderFormProps {
@@ -48,6 +54,11 @@ interface ProductWithQuantity {
    * from the order creator — the modal shows it as contextual info.
    */
   createdByName?: string;
+  /**
+   * Per-line side-dish selection. Hydrated from the saved order for existing
+   * lines, empty for freshly added ones (steppers fall back to option defaults).
+   */
+  sideDishes: SideDishSelection[];
 }
 
 /**
@@ -63,7 +74,13 @@ function orderSignature(
   items: ProductWithQuantity[],
 ): string {
   const lines = items
-    .map((i) => `${i.product.id}|${i.quantity}|${i.notes.trim()}`)
+    .map((i) => {
+      const sd = i.sideDishes
+        .map((s) => `${s.ingredient_product_id}:${s.quantity}`)
+        .sort()
+        .join(",");
+      return `${i.product.id}|${i.quantity}|${i.notes.trim()}|${sd}`;
+    })
     .sort()
     .join("§");
   return `${identifier.trim()}¦${(descriptor || "").trim()}¦${lines}`;
@@ -102,6 +119,28 @@ export default function EditOrderForm({
   // says which line to focus. Set when a weighed product is (re)tapped in the menu.
   const [focusNonce, setFocusNonce] = useState(0);
   const [focusLineItemId, setFocusLineItemId] = useState<string | null>(null);
+  // product_id -> its side-dish options (empty array = composite with no side
+  // dishes, or a fetch that failed). Cached so a product on several lines is
+  // fetched once.
+  const [sideDishOptions, setSideDishOptions] = useState<
+    Map<string, SideDishOption[]>
+  >(new Map());
+
+  const ensureSideDishOptions = useCallback(
+    async (product: Product) => {
+      if (product.product_type !== "COMPOSITE") return; // only composites have side dishes
+      if (sideDishOptions.has(product.id)) return; // cached
+      try {
+        const opts = await recipeApi.listSideDishes(product.id);
+        setSideDishOptions((prev) => new Map(prev).set(product.id, opts));
+      } catch {
+        // Non-fatal: a fetch failure just means no steppers for this line;
+        // ordering still works (backend fills defaults).
+        setSideDishOptions((prev) => new Map(prev).set(product.id, []));
+      }
+    },
+    [sideDishOptions],
+  );
 
   // Who's editing — admins/managers bypass the per-item edit lock entirely.
   const { user } = usePermissions();
@@ -189,9 +228,38 @@ export default function EditOrderForm({
                 adderName && adderName !== orderCreatorName
                   ? adderName
                   : undefined,
+              // Resolved selections saved on the order (ids + quantities, no
+              // names). Steppers gain names once the options load below.
+              sideDishes: orderProduct.side_dishes ?? [],
             });
           }
         });
+
+        // Fetch side-dish options for each distinct composite product in the
+        // order so saved lines can render named steppers with bounds.
+        const compositeIds = Array.from(
+          new Set(
+            openBill.products
+              .filter((op) => op.product.product_type === "COMPOSITE")
+              .map((op) => op.product.id),
+          ),
+        );
+        if (compositeIds.length > 0) {
+          const results = await Promise.all(
+            compositeIds.map(async (pid) => {
+              try {
+                return [pid, await recipeApi.listSideDishes(pid)] as const;
+              } catch {
+                return [pid, [] as SideDishOption[]] as const;
+              }
+            }),
+          );
+          setSideDishOptions((prev) => {
+            const next = new Map(prev);
+            for (const [pid, opts] of results) next.set(pid, opts);
+            return next;
+          });
+        }
         if (
           openBill.products.length > 0 &&
           !openBill.products.some((p) => p.created_at)
@@ -243,6 +311,9 @@ export default function EditOrderForm({
   }, [products, searchQuery, activeCategory]);
 
   const handleProductSelect = (product: Product) => {
+    // Composite products may carry side dishes — fetch their options once so the
+    // line can render steppers.
+    ensureSideDishOptions(product);
     const weighed = isWeighedProduct(product);
     // Weighed products live on a single line — re-tapping focuses the existing
     // (still-editable) line instead of adding a duplicate. A locked old line is
@@ -270,6 +341,9 @@ export default function EditOrderForm({
           // scale reading. Unit products start at 1.
           quantity: weighed ? 0 : 1,
           notes: "",
+          // Seeded empty; the steppers display each option's default until the
+          // operator changes one, and the submit fills the full set.
+          sideDishes: [],
         });
         return newMap;
       });
@@ -334,6 +408,32 @@ export default function EditOrderForm({
     });
   };
 
+  // The quantity is already clamped to the option's [min, max] by the stepper.
+  const handleSideDishChange = (
+    lineItemId: string,
+    ingredientProductId: string,
+    quantity: number,
+  ) => {
+    const target = selectedProducts.get(lineItemId);
+    if (target && isLineLocked(target)) return;
+    setSelectedProducts((prev) => {
+      const newMap = new Map(prev);
+      const existing = newMap.get(lineItemId);
+      if (!existing) return prev;
+      const others = existing.sideDishes.filter(
+        (s) => s.ingredient_product_id !== ingredientProductId,
+      );
+      newMap.set(lineItemId, {
+        ...existing,
+        sideDishes: [
+          ...others,
+          { ingredient_product_id: ingredientProductId, quantity },
+        ],
+      });
+      return newMap;
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -353,12 +453,27 @@ export default function EditOrderForm({
     try {
       const orderProducts: OrderProductItem[] = Array.from(
         selectedProducts.values(),
-      ).map(({ openBillProductId, product, quantity, notes }) => ({
-        open_bill_product_id: openBillProductId,
-        product_id: product.id,
-        quantity,
-        notes: notes.trim() || null,
-      }));
+      ).map(({ openBillProductId, product, quantity, notes, sideDishes }) => {
+        const item: OrderProductItem = {
+          open_bill_product_id: openBillProductId,
+          product_id: product.id,
+          quantity,
+          notes: notes.trim() || null,
+        };
+        // Only send side_dishes for composite lines that actually have options.
+        const opts = sideDishOptions.get(product.id);
+        if (product.product_type === "COMPOSITE" && opts && opts.length > 0) {
+          // Drop any stale selection whose option no longer exists so it can't
+          // trigger a whole-order rejection.
+          const validIds = new Set(opts.map((o) => o.ingredient_product_id));
+          const chosen = sideDishes.filter((s) =>
+            validIds.has(s.ingredient_product_id),
+          );
+          item.side_dishes =
+            chosen.length > 0 ? chosen : defaultSelections(opts);
+        }
+        return item;
+      });
 
       await updateOrder(openBill.id, {
         temporal_identifier: temporalIdentifier.trim(),
@@ -965,11 +1080,15 @@ export default function EditOrderForm({
                     selectedProductsArray.map((item) => (
                       <OrderLineItem
                         key={item.lineItemId}
-                        item={item}
+                        item={{
+                          ...item,
+                          sideDishOptions: sideDishOptions.get(item.product.id),
+                        }}
                         locked={isLineLocked(item, now)}
                         onQuantityChange={handleQuantityChange}
                         onNotesChange={handleNotesChange}
                         onRemove={handleRemove}
+                        onSideDishChange={handleSideDishChange}
                         focusSignal={
                           focusLineItemId === item.lineItemId ? focusNonce : 0
                         }
@@ -1451,11 +1570,15 @@ export default function EditOrderForm({
                 selectedProductsArray.map((item) => (
                   <OrderLineItem
                     key={item.lineItemId}
-                    item={item}
+                    item={{
+                      ...item,
+                      sideDishOptions: sideDishOptions.get(item.product.id),
+                    }}
                     locked={isLineLocked(item, now)}
                     onQuantityChange={handleQuantityChange}
                     onNotesChange={handleNotesChange}
                     onRemove={handleRemove}
+                    onSideDishChange={handleSideDishChange}
                     focusSignal={
                       focusLineItemId === item.lineItemId ? focusNonce : 0
                     }

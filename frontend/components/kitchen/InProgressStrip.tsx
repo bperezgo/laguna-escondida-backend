@@ -17,6 +17,9 @@ export interface InProgressBreakdownEntry {
   // Countdown inputs — used to color the batch by its most-urgent line.
   priority: number;
   created_at: string;
+  // Resolved side dishes (names resolved by the backend). Only feeds the
+  // aggregate "Guarniciones a preparar" tally — not shown per table.
+  side_dishes?: { name: string; quantity: number }[];
 }
 
 /** All in-progress lines of one product, aggregated across tables. */
@@ -42,6 +45,26 @@ export default function InProgressStrip({ groups, now }: InProgressStripProps) {
   if (groups.length === 0) return null;
 
   const totalPlates = groups.reduce((sum, g) => sum + g.totalQuantity, 0);
+
+  // Total portions of each side dish across everything in progress, so the line
+  // knows how much rice / fries / patacones / salad to have ready. Portions scale
+  // with the number of plates on the line (3 plates × 2 arroz = 6 arroz). A
+  // removed side dish (qty 0) contributes nothing. Biggest tallies first.
+  const sideDishTotals = (() => {
+    const totals = new Map<string, number>();
+    for (const group of groups) {
+      for (const entry of group.entries) {
+        for (const sd of entry.side_dishes ?? []) {
+          if (sd.quantity <= 0) continue;
+          totals.set(
+            sd.name,
+            (totals.get(sd.name) ?? 0) + sd.quantity * entry.quantity,
+          );
+        }
+      }
+    }
+    return Array.from(totals.entries()).sort((a, b) => b[1] - a[1]);
+  })();
 
   return (
     <div
@@ -88,6 +111,50 @@ export default function InProgressStrip({ groups, now }: InProgressStripProps) {
           {totalPlates} cocinándose ahora
         </span>
       </div>
+
+      {/* Side-dish prep list: total portions of each guarnición to have ready. */}
+      {sideDishTotals.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: "0.5rem",
+            marginBottom: "1rem",
+            paddingBottom: "0.875rem",
+            borderBottom: `1px solid ${IN_PROGRESS_BORDER}`,
+          }}
+        >
+          <span
+            style={{
+              fontSize: "0.9rem",
+              fontWeight: "700",
+              color: IN_PROGRESS_ACCENT,
+            }}
+          >
+            🍽️ Guarniciones a preparar:
+          </span>
+          {sideDishTotals.map(([name, total]) => (
+            <span
+              key={name}
+              style={{
+                fontSize: "1.05rem",
+                fontWeight: "800",
+                color: "var(--color-text-primary)",
+                backgroundColor: "var(--color-surface)",
+                border: `1px solid ${IN_PROGRESS_BORDER}`,
+                borderLeft: `4px solid ${IN_PROGRESS_ACCENT}`,
+                padding: "0.25rem 0.7rem",
+                borderRadius: "var(--radius-sm)",
+                whiteSpace: "nowrap",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {total}× {name}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Batch tiles */}
       <div
@@ -168,11 +235,11 @@ export default function InProgressStrip({ groups, now }: InProgressStripProps) {
                     style={{
                       fontSize: "0.85rem",
                       fontWeight: "600",
+                      whiteSpace: "nowrap",
                       color: IN_PROGRESS_ACCENT,
                       backgroundColor: "#dbeafe",
                       padding: "0.2rem 0.5rem",
                       borderRadius: "var(--radius-sm)",
-                      whiteSpace: "nowrap",
                     }}
                   >
                     {entry.temporal_identifier}

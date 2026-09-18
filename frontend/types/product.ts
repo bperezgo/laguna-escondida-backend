@@ -129,8 +129,14 @@ export interface ProductIngredient {
   id: string;
   composite_product_id: string;
   ingredient_product_id: string;
-  // Sent as a string; may come back as a string ("3") from the backend's decimal type.
-  quantity: string;
+  // Recipe amount. Comes back as a string ("3") from the backend's decimal type.
+  // (Renamed from `quantity` in BSP-33; the add/update *request* bodies still use `quantity`.)
+  default_quantity: string;
+  // Whether this recipe row is a customer-selectable side dish (BSP-33).
+  is_side_dish: boolean;
+  // Selection bounds when it is a side dish; both 0 for a fixed ingredient. Integers.
+  min_quantity: number;
+  max_quantity: number;
   created_at: string;
   updated_at: string;
 }
@@ -151,4 +157,28 @@ export interface UpdateIngredientRequest {
 
 export interface ProductIngredientListResponse {
   ingredients: ProductIngredientWithProduct[];
+}
+
+// Side-dish (guarnición) configuration for COMPOSITE products (BSP-33).
+// A composite ingredient can be marked as a customer-selectable side dish with
+// integer default/min/max bounds. A default of 0 is an "offered alternative"
+// (not on the standard plate, addable up to max). Side dishes never affect price.
+
+// A composite ingredient configured as a customer-selectable side dish.
+export interface SideDishOption {
+  ingredient_product_id: string;
+  default_quantity: number; // int
+  min_quantity: number; // int
+  max_quantity: number; // int
+  ingredient_product?: Product | null; // present on the list endpoint (carries the name)
+}
+
+export interface SideDishOptionListResponse {
+  side_dishes: SideDishOption[];
+}
+
+export interface ConfigureSideDishRequest {
+  default_quantity: number; // int
+  min_quantity: number; // int
+  max_quantity: number; // int
 }

@@ -42,12 +42,21 @@ export interface OpenBill {
   deleted_at?: string | null;
 }
 
+// A resolved side-dish choice on one order line (ids + quantity; no names).
+export interface SideDishSelection {
+  ingredient_product_id: string;
+  quantity: number; // int, within the option's [min, max]
+}
+
 export interface OpenBillProduct {
   open_bill_product_id: string;
   product: Product;
   quantity: number;
   notes?: string | null;
   status: OpenBillProductStatus;
+  // Resolved side-dish selections for this line (ids + quantities, no names).
+  // Absent on non-composite lines. Join against GET /products/:id/side-dishes for names.
+  side_dishes?: SideDishSelection[];
   /**
    * When this line item was created (ISO 8601). The backend records it (it's in
    * the kitchen SSE feed, `OpenBillProductFromSSE.created_at`); when GET
@@ -84,6 +93,9 @@ export interface OrderProductItem {
   product_id: string;
   quantity: number;
   notes?: string | null;
+  // Optional per-line side-dish selections. Omitting (or []) keeps default behavior
+  // (backend fills defaults). Only sent for composite lines with configured options.
+  side_dishes?: SideDishSelection[];
 }
 
 // New Create Order Request matching backend

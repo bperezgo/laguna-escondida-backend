@@ -11,6 +11,8 @@ export interface ReadyCommand {
     product_name: string;
     quantity: number;
     notes?: string | null;
+    // Resolved side dishes (names already resolved by the backend).
+    side_dishes?: { name: string; quantity: number }[];
   }[];
 }
 
@@ -187,6 +189,38 @@ export default function ReadyCommandCard({ command }: ReadyCommandCardProps) {
                 }}
               >
                 📝 {item.notes}
+              </div>
+            )}
+
+            {/* Resolved side dishes (names resolved by the backend). Muted to
+                match the completed look; "sin {name}" marks a removed one. */}
+            {item.side_dishes && item.side_dishes.length > 0 && (
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "0.35rem",
+                  marginTop: "0.25rem",
+                  paddingLeft: "0.5rem",
+                  borderLeft: "3px solid var(--color-border)",
+                }}
+              >
+                {item.side_dishes.map((sd, sdIndex) => (
+                  <span
+                    key={`${sd.name}-${sdIndex}`}
+                    style={{
+                      fontSize: "0.85rem",
+                      fontWeight: 600,
+                      color: "var(--color-text-muted)",
+                      textDecoration: sd.quantity === 0 ? "line-through" : "none",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {sd.quantity === 0
+                      ? `sin ${sd.name}`
+                      : `${sd.quantity}× ${sd.name}`}
+                  </span>
+                ))}
               </div>
             )}
           </div>
