@@ -61,6 +61,9 @@ func main() {
 		Environment:      cfg.Environment,
 		OTLPEndpoint:     cfg.OTLPEndpoint,
 		TraceSampleRatio: cfg.TraceSampleRatio,
+		NodeID:           cfg.NodeID,
+		OrganizationID:   cfg.OrganizationID,
+		Mode:             string(cfg.AppMode),
 	})
 	if err != nil {
 		log.Fatalf("Failed to initialize observability: %v", err)
@@ -579,6 +582,21 @@ func main() {
 		syncHandler := handler.NewSyncHandler(syncService, syncReferenceService)
 		router.POST("/api/sync/push", handler.NodeAuthMiddleware(cfg), syncHandler.PushHandler)
 		router.GET("/api/sync/pull", handler.NodeAuthMiddleware(cfg), syncHandler.PullHandler)
+
+		// Edge telemetry relay: node-authenticated OTLP in, cloud Alloy sidecar out. The
+		// sidecar holds the Grafana Cloud credentials and does the queuing; an install
+		// without one simply doesn't serve these routes rather than failing to boot.
+		if !cfg.TelemetryIngestEnabled() {
+			logger.Info("Telemetry ingest disabled: set TELEMETRY_FORWARD_URL to the cloud Alloy OTLP/HTTP receiver to enable it")
+		} else {
+			telemetryForwarder := httpclient.NewTelemetryForwardClient(httpClient, cfg.TelemetryForwardURL)
+			telemetryIngestService := service.NewTelemetryIngestService(telemetryForwarder, cfg.TelemetryTenantID, cfg.OrganizationID)
+			telemetryHandler := handler.NewTelemetryHandler(telemetryIngestService)
+			router.POST("/api/telemetry/v1/logs", handler.NodeAuthMiddleware(cfg), telemetryHandler.IngestLogsHandler)
+			router.POST("/api/telemetry/v1/traces", handler.NodeAuthMiddleware(cfg), telemetryHandler.IngestTracesHandler)
+			router.POST("/api/telemetry/v1/metrics", handler.NodeAuthMiddleware(cfg), telemetryHandler.IngestMetricsHandler)
+			logger.Info("Telemetry ingest enabled", slog.String("collector", cfg.TelemetryForwardURL))
+		}
 	}
 
 	port := os.Getenv("PORT")

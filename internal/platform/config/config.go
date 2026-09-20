@@ -73,6 +73,19 @@ type Config struct {
 	OTLPEndpoint         string  // e.g. "localhost:4317"; empty => exporters off
 	TraceSampleRatio     float64 // 1.0 dev; lower in prod
 	MetricsPort          string  // internal scrape port, default "9090"
+
+	// Cloud telemetry ingest. Only the cloud reads these: edge nodes authenticate to the
+	// ingest with NODE_SYNC_KEY and never hold Grafana Cloud credentials. Relayed telemetry
+	// goes to the cloud Alloy sidecar, which owns the Grafana Cloud credentials and the
+	// retry/queue — so no secret is needed here. Optional: without the forward URL the
+	// ingest routes are not wired, so a cloud install without a sidecar still boots.
+	TelemetryForwardURL string // cloud Alloy OTLP/HTTP receiver base URL, e.g. "http://127.0.0.1:4319"
+	TelemetryTenantID   string // tenant.id stamped on relayed telemetry; defaults to OrganizationID
+}
+
+// TelemetryIngestEnabled reports whether the cloud has somewhere to relay edge telemetry to.
+func (c *Config) TelemetryIngestEnabled() bool {
+	return c.AppMode == ModeCloud && c.TelemetryForwardURL != ""
 }
 
 func NewConfig() (*Config, error) {
@@ -280,6 +293,18 @@ func NewConfig() (*Config, error) {
 		metricsPort = "9090"
 	}
 
+	// Where relayed edge telemetry goes: the cloud Alloy sidecar's OTLP/HTTP receiver, on a
+	// port of its own so edge data gets its own pipeline instead of the one Alloy uses for
+	// this service's own telemetry. Only the cloud sets it; an edge install leaves it empty.
+	telemetryForwardURL := os.Getenv("TELEMETRY_FORWARD_URL")
+
+	// TELEMETRY_TENANT_ID separates Grafana tenants when one stack serves several orgs;
+	// a single-org install needs no extra config.
+	telemetryTenantID := os.Getenv("TELEMETRY_TENANT_ID")
+	if telemetryTenantID == "" {
+		telemetryTenantID = organizationID
+	}
+
 	return &Config{
 		AppMode:                   appMode,
 		NodeID:                    nodeID,
@@ -326,5 +351,7 @@ func NewConfig() (*Config, error) {
 		OTLPEndpoint:              otlpEndpoint,
 		TraceSampleRatio:          traceSampleRatio,
 		MetricsPort:               metricsPort,
+		TelemetryForwardURL:       telemetryForwardURL,
+		TelemetryTenantID:         telemetryTenantID,
 	}, nil
 }

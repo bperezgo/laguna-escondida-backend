@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	logglobal "go.opentelemetry.io/otel/log/global"
@@ -34,6 +35,13 @@ type InitConfig struct {
 	Environment      string
 	OTLPEndpoint     string
 	TraceSampleRatio float64
+
+	// Per-instance identity. NodeID is this install's sync identity, so telemetry filters
+	// by the same id the sync path already uses; Mode is config.Mode's string form ("edge"
+	// or "cloud"), kept as a plain string so this package never imports config.
+	NodeID         string
+	OrganizationID string
+	Mode           string
 }
 
 // Providers holds the initialized OTel providers plus a Shutdown that flushes them so
@@ -53,13 +61,7 @@ func Init(ctx context.Context, cfg InitConfig) (*Providers, error) {
 		return &Providers{Shutdown: noopShutdown}, nil
 	}
 
-	res := resource.NewWithAttributes(
-		semconv.SchemaURL,
-		semconv.ServiceName(cfg.ServiceName),
-		semconv.ServiceVersion(cfg.ServiceVersion),
-		semconv.DeploymentEnvironmentName(cfg.Environment),
-		// Phase 2 (edge): tenant.id is injected by the backend proxy, not here.
-	)
+	res := newResource(cfg)
 
 	// Traces. WithEndpointURL (not WithEndpoint) parses the scheme and derives TLS from it
 	// (http => plaintext), so the localhost sidecar needs no separate WithInsecure().
@@ -97,6 +99,33 @@ func Init(ctx context.Context, cfg InitConfig) (*Providers, error) {
 			return errors.Join(tp.Shutdown(ctx), lp.Shutdown(ctx))
 		},
 	}, nil
+}
+
+// newResource builds the OTel resource every signal inherits. Identity lives here rather
+// than at call sites so logs and traces are attributable per box without touching any
+// emitting code; Alloy stamps the same values onto the metrics it scrapes.
+func newResource(cfg InitConfig) *resource.Resource {
+	attrs := []attribute.KeyValue{
+		semconv.ServiceName(cfg.ServiceName),
+		semconv.ServiceVersion(cfg.ServiceVersion),
+		semconv.DeploymentEnvironmentName(cfg.Environment),
+		// Phase 2 (edge): tenant.id is injected by the backend proxy, not here.
+	}
+	if cfg.NodeID != "" {
+		// service.instance.id is the standard "which instance" dimension, so stock Grafana
+		// panels group per box; node.id repeats it under the name the sync path uses.
+		attrs = append(attrs,
+			semconv.ServiceInstanceID(cfg.NodeID),
+			attribute.String("node.id", cfg.NodeID),
+		)
+	}
+	if cfg.OrganizationID != "" {
+		attrs = append(attrs, attribute.String("organization.id", cfg.OrganizationID))
+	}
+	if cfg.Mode != "" {
+		attrs = append(attrs, attribute.String("deployment.mode", cfg.Mode))
+	}
+	return resource.NewWithAttributes(semconv.SchemaURL, attrs...)
 }
 
 // otlpEndpointURL returns endpoint in the URL form otlp*grpc.WithEndpointURL expects. The
