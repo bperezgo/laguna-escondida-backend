@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // When observability is disabled, Init must return a usable no-op so callers never branch
@@ -53,4 +54,39 @@ func TestNewSlogLogger_Disabled(t *testing.T) {
 	slogLogger := NewSlogLogger(false)
 	require.NotNil(t, slogLogger)
 	slogLogger.Info("disabled slog logger works")
+}
+
+// Every signal inherits the resource, so per-instance identity is only filterable in
+// Grafana if the resource actually carries it. This pins all four identity attributes.
+func TestNewResource_CarriesInstanceIdentity(t *testing.T) {
+	res := newResource(InitConfig{
+		Enabled:        true,
+		ServiceName:    "laguna-backend",
+		ServiceVersion: "1.2.3",
+		Environment:    "prod",
+		NodeID:         "node-abc",
+		OrganizationID: "org-123",
+		Mode:           "edge",
+	})
+
+	got := map[attribute.Key]string{}
+	for _, kv := range res.Attributes() {
+		got[kv.Key] = kv.Value.AsString()
+	}
+
+	assert.Equal(t, "node-abc", got["service.instance.id"])
+	assert.Equal(t, "node-abc", got["node.id"])
+	assert.Equal(t, "org-123", got["organization.id"])
+	assert.Equal(t, "edge", got["deployment.mode"])
+	assert.Equal(t, "laguna-backend", got["service.name"])
+}
+
+// Identity is optional config: a cloud/dev install that sets none of it must still get a
+// valid resource rather than empty-string attributes that pollute Grafana's label values.
+func TestNewResource_OmitsEmptyIdentity(t *testing.T) {
+	res := newResource(InitConfig{Enabled: true, ServiceName: "laguna-backend"})
+
+	for _, kv := range res.Attributes() {
+		assert.NotContains(t, []attribute.Key{"service.instance.id", "node.id", "organization.id", "deployment.mode"}, kv.Key)
+	}
 }

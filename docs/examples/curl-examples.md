@@ -715,3 +715,60 @@ curl -X POST "$BASE_URL/device/print" \
   -H "Content-Type: application/json" \
   -d '{ "open_bill_id": "550e8400-e29b-41d4-a716-446655440099", "copies": 2 }'
 ```
+
+---
+
+## Telemetry Ingest
+
+> Cloud mode only (`APP_MODE=cloud`), and only when `TELEMETRY_FORWARD_URL` points at the
+> cloud Alloy sidecar. See `docs/api/telemetry.md`. The real client is the edge Alloy
+> sidecar — these examples are for smoke-testing the route.
+
+Set the node key the edge authenticates with:
+
+```bash
+export NODE_SYNC_KEY="your_node_sync_key"
+```
+
+### Relay an OTLP logs export
+
+The body is raw OTLP protobuf, so send it from a file rather than inline. `export.pb` is a
+serialized `ExportLogsServiceRequest` (e.g. captured from Alloy, or produced by
+`telemetrygen`).
+
+```bash
+curl -X POST "$BASE_URL/telemetry/v1/logs" \
+  -H "X-Node-Key: $NODE_SYNC_KEY" \
+  -H "Content-Type: application/x-protobuf" \
+  --data-binary @export.pb
+```
+
+### Relay a gzipped traces export (what Alloy sends)
+
+```bash
+gzip -c export.pb | curl -X POST "$BASE_URL/telemetry/v1/traces" \
+  -H "X-Node-Key: $NODE_SYNC_KEY" \
+  -H "Content-Type: application/x-protobuf" \
+  -H "Content-Encoding: gzip" \
+  --data-binary @-
+```
+
+### Relay a metrics export
+
+```bash
+curl -X POST "$BASE_URL/telemetry/v1/metrics" \
+  -H "X-Node-Key: $NODE_SYNC_KEY" \
+  -H "Content-Type: application/x-protobuf" \
+  --data-binary @export.pb
+```
+
+### Check auth is rejecting a bad node key (expects 401)
+
+```bash
+export BAD_NODE_KEY="not-the-real-key"
+
+curl -s -o /dev/null -w "%{http_code}\n" -X POST "$BASE_URL/telemetry/v1/logs" \
+  -H "X-Node-Key: $BAD_NODE_KEY" \
+  -H "Content-Type: application/x-protobuf" \
+  --data-binary @export.pb
+```

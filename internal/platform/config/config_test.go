@@ -258,3 +258,59 @@ func TestNewConfig_TraceSampleRatio_InvalidReturnsError(t *testing.T) {
 	assert.Nil(t, cfg)
 	assert.Contains(t, err.Error(), "invalid OTEL_TRACES_SAMPLER_ARG")
 }
+
+func setTelemetryForwardEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("TELEMETRY_FORWARD_URL", "http://127.0.0.1:4319")
+}
+
+func TestNewConfig_TelemetryForward_ReadFromEnv(t *testing.T) {
+	setRequiredEnv(t)
+	setTelemetryForwardEnv(t)
+	t.Setenv("APP_MODE", "cloud")
+	t.Setenv("TELEMETRY_TENANT_ID", "tenant-abc")
+
+	cfg, err := NewConfig()
+
+	require.NoError(t, err)
+	assert.Equal(t, "http://127.0.0.1:4319", cfg.TelemetryForwardURL)
+	assert.Equal(t, "tenant-abc", cfg.TelemetryTenantID)
+	assert.True(t, cfg.TelemetryIngestEnabled())
+}
+
+// A single-org install should not need a tenant id of its own.
+func TestNewConfig_TelemetryTenantID_DefaultsToOrganization(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("APP_MODE", "cloud")
+	t.Setenv("TELEMETRY_TENANT_ID", "")
+
+	cfg, err := NewConfig()
+
+	require.NoError(t, err)
+	assert.Equal(t, cfg.OrganizationID, cfg.TelemetryTenantID)
+}
+
+// The ingest is a cloud-only role: an edge box relays nothing, even if the forward URL
+// leaks into its environment.
+func TestNewConfig_TelemetryIngest_DisabledOnEdge(t *testing.T) {
+	setRequiredEnv(t)
+	setTelemetryForwardEnv(t)
+	t.Setenv("APP_MODE", "edge")
+
+	cfg, err := NewConfig()
+
+	require.NoError(t, err)
+	assert.False(t, cfg.TelemetryIngestEnabled())
+}
+
+// A cloud without an Alloy sidecar must still boot; it just serves no ingest.
+func TestNewConfig_TelemetryIngest_DisabledWhenForwardURLMissing(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("APP_MODE", "cloud")
+	t.Setenv("TELEMETRY_FORWARD_URL", "")
+
+	cfg, err := NewConfig()
+
+	require.NoError(t, err)
+	assert.False(t, cfg.TelemetryIngestEnabled())
+}

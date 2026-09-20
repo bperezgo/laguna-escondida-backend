@@ -4,10 +4,11 @@ package mocks
 
 import (
 	context "context"
-	open_bill "laguna-escondida/backend/internal/domain/aggregate/open_bill"
 	dto "laguna-escondida/backend/internal/domain/dto"
 
 	mock "github.com/stretchr/testify/mock"
+
+	open_bill "laguna-escondida/backend/internal/domain/aggregate/open_bill"
 
 	time "time"
 )
