@@ -1,0 +1,70 @@
+{
+  // Shows up in VS Code's bottom-left corner so you know you're working *inside* the
+  // box, not on your Mac. The worktree you opened is in LE_WORKTREE inside the box.
+  "name": "laguna-escondida-backend",
+
+  // --- Compose, not a bare image ---------------------------------------------
+  // Each workspace folder gets its own compose project, which is what makes one box
+  // per git worktree work: separate Postgres, separate MinIO, separate volumes.
+  // The second file is written by initializeCommand (below) and holds everything
+  // that depends on WHICH folder you opened — the repo mount, the main repo's git
+  // dir, and this box's host ports. It is generated and git-ignored.
+  "dockerComposeFile": [
+    "docker-compose.devcontainer.yml",
+    "docker-compose.generated.yml"
+  ],
+  "service": "devbox",
+
+  // Mount the repo at the SAME absolute path it has on the host. Under
+  // Docker-outside-of-Docker, `docker compose` and testcontainers hand bind-mount
+  // paths to the HOST daemon — if a path means something different on each side,
+  // Docker silently mounts an empty directory.
+  "workspaceFolder": "${localWorkspaceFolder}",
+
+  // Runs on the host before the container is created: resolves the main repo's git
+  // dir (a linked worktree's .git points outside the folder you opened) and picks
+  // free host ports for this worktree. See the script's header comment.
+  "initializeCommand": ["${localWorkspaceFolder}/.devcontainer/initialize.sh"],
+
+  // "features" are pre-packaged installers — declare the capability, the feature
+  // gets the paths, PATH entries and permissions right. Versions are pinned by
+  // devcontainer-lock.json next to this file.
+  "features": {
+    // Matches the `go 1.25.0` directive in go.mod, so the box compiles the code the
+    // same way CI does (CI reads go-version-file: go.mod).
+    "ghcr.io/devcontainers/features/go:1": { "version": "1.25" },
+
+    // Not for app code — this is a pure Go backend. Claude Code ships as an npm
+    // package, and the MCP inspector/tooling occasionally wants node.
+    "ghcr.io/devcontainers/features/node:1": { "version": "22" },
+
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {},
+
+    // Docker CLI + compose plugin inside the box, pointed at the HOST daemon via the
+    // socket mounted in docker-compose.devcontainer.yml. Required by
+    // `make test-acceptance`: testcontainers boots a throwaway postgres:16-alpine
+    // per package as a SIBLING container on the host.
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+  },
+
+  // Non-root on purpose: bypass mode refuses to start as root, and the container
+  // only auto-lifts that refusal for a normal user. The base image ships "vscode".
+  "remoteUser": "vscode",
+
+  // Tools installed by post-create.sh land in $GOPATH/bin. ${containerEnv:PATH}
+  // appends rather than replaces, so the Go/Node feature paths survive.
+  "remoteEnv": {
+    "PATH": "/home/vscode/go/bin:${containerEnv:PATH}"
+  },
+
+  // Installs the project's toolchain (golangci-lint, mockery, gotestsum, migrate,
+  // lefthook, govulncheck) — without these `make lint` / `make generate-mocks`,
+  // which AGENTS.md requires after every change, fail on the first run.
+  "postCreateCommand": "${containerWorkspaceFolder}/.devcontainer/post-create.sh",
+
+  // Apply the firewall on EVERY start: iptables rules live in the network namespace
+  // and are wiped on restart, so a run-once hook isn't enough. sudo here is scoped
+  // by the Dockerfile to this one script. The name is project-specific on purpose —
+  // see the Dockerfile for the collision this avoids.
+  "postStartCommand": "sudo /usr/local/bin/laguna-firewall.sh"
+}

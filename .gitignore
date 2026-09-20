@@ -40,3 +40,8 @@ main
 
 ai-plans/
 *.pdf
+
+# Written by .devcontainer/initialize.sh on the host: this worktree's repo mount,
+# git-dir mount and host ports. Machine-specific — never commit it.
+.devcontainer/docker-compose.generated.yml
+.devcontainer/.ports

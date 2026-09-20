@@ -1,0 +1,130 @@
+# The dev box plus the services it talks to, as ONE compose project.
+#
+# Why compose instead of a plain image-based devcontainer: the tooling gives each
+# workspace folder its own compose project, so every worktree automatically gets its
+# own Postgres, its own MinIO and its own data volumes — parallel ticket runs can't
+# migrate or seed over each other. The pieces that depend on WHICH worktree you
+# opened (the repo mount, the main repo's git dir, host ports) are appended by
+# .devcontainer/initialize.sh in docker-compose.generated.yml.
+#
+# Deliberately no `container_name:` anywhere — a fixed name is exactly what stops a
+# second worktree from starting (see the root docker-compose.yml, which is for
+# running the stack on the host, not in here).
+
+services:
+  devbox:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    init: true
+    command: sleep infinity
+
+    # The two capabilities iptables/ipset need to rewrite the egress rules.
+    # Not --privileged: these are enough, and they don't hand over the host.
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+
+    volumes:
+      # Docker-outside-of-Docker: the HOST daemon's socket. Landed on
+      # /var/run/docker-host.sock because the docker-outside-of-docker feature
+      # socat-proxies it to /var/run/docker.sock with ownership the vscode user can
+      # actually use. Needed for `make test-acceptance` (testcontainers) and for
+      # docker compose from inside the box. It is also the one real hole in this
+      # sandbox — see README "Safety model".
+      - /var/run/docker.sock:/var/run/docker-host.sock
+
+      # Shared across every worktree box (created by initialize.sh, `external` below):
+      # sign in to Claude once, download the Go module graph once.
+      - laguna-claude-config:/home/vscode/.claude
+      - laguna-go-mod:/home/vscode/go/pkg/mod
+      - laguna-go-build:/home/vscode/.cache/go-build
+      # The project toolchain (golangci-lint, mockery, gotestsum, migrate, lefthook)
+      # installed by post-create.sh — shared so a new worktree box has it instantly
+      # instead of re-installing everything on first create.
+      - laguna-go-bin:/home/vscode/go/bin
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    environment:
+      # Consolidates Claude Code's split state (~/.claude AND ~/.claude.json) under
+      # the persisted volume, so a rebuild doesn't log you out.
+      CLAUDE_CONFIG_DIR: /home/vscode/.claude
+
+      # The Makefile calls $(HOME)/go/bin/mockery and $(HOME)/go/bin/lefthook
+      # directly, so GOPATH must be the home one, not the feature's default.
+      GOPATH: /home/vscode/go
+
+      # testcontainers starts SIBLING containers on the host daemon, which publish on
+      # host ports — "localhost" from in here is this box, not where they are.
+      # Without this, every acceptance test hangs waiting for a port that never opens.
+      TESTCONTAINERS_HOST_OVERRIDE: host.docker.internal
+
+      # godotenv.Load() never overrides real env vars, so these win over .env and the
+      # app talks to this project's own services by service name.
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: laguna_escondida
+      DB_SSLMODE: disable
+      STORAGE_ENDPOINT: http://minio:9000
+      STORAGE_ACCESS_KEY: minioadmin
+      STORAGE_SECRET: minioadmin
+      STORAGE_BUCKET: laguna-escondida
+      STORAGE_REGION: us-east-1
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: laguna_escondida
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio-data:/data
+
+  # One-shot: create the bucket and make objects publicly readable, same contract as
+  # the root compose file so GetPublicURL behaves like a public S3 bucket.
+  createbuckets:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c " until mc alias set local http://minio:9000 minioadmin minioadmin; do
+        echo 'Waiting for MinIO to be ready...'; sleep 1;
+      done; mc mb --ignore-existing local/laguna-escondida; mc anonymous set download local/laguna-escondida; echo 'Bucket ready.'; exit 0; "
+
+volumes:
+  # Per worktree (compose namespaces these by project) — isolated data per ticket.
+  pg-data:
+  minio-data:
+  # Shared by every worktree — see initialize.sh, which creates them.
+  laguna-claude-config:
+    external: true
+  laguna-go-mod:
+    external: true
+  laguna-go-build:
+    external: true
+  laguna-go-bin:
+    external: true
