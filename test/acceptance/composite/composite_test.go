@@ -17,6 +17,7 @@ import (
 	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/platform/postgres"
 	"laguna-escondida/backend/internal/platform/postgres/repository"
+	"laguna-escondida/backend/internal/platform/stockmovement"
 	"laguna-escondida/backend/pkg/eventbus"
 	"laguna-escondida/backend/test/acceptance/testsupport"
 
@@ -235,8 +236,7 @@ func newEdge(t *testing.T) *edgeRig {
 		ingredientRepo,
 		lockManager,
 		uow,
-		outbox,
-		dto.SyncIdentity{NodeID: testNodeID},
+		stockmovement.NewOutboxEmitter(outbox, testNodeID),
 		logger,
 	)
 

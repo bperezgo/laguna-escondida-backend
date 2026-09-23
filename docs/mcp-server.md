@@ -189,6 +189,9 @@ normal code review.
   server host (`file_path`).
 - **Excluded endpoints:** SSE streams (`/api/sse/...`), node-to-node sync
   (`/api/sync/...`), and edge ticket printing (`/api/device/print`).
-- **Edge vs cloud:** stock writes are edge-only; invoices and support documents
-  are cloud-only. Those tools return the backend's error when called in the wrong
-  mode.
+- **Edge vs cloud:** stock writes (`create_stock`, `adjust_stock`, `delete_stock`,
+  `bulk_upsert_stock`) are **cloud-only**, as are invoices and support documents;
+  `list_stock` answers on both. Those tools return the backend's error when called in
+  the wrong mode. The cloud owns on-hand and derives it from the movements it receives
+  (`docs/api/stock.md`), so point the MCP server at the cloud to manage stock — an
+  edge node returns `404` for every stock write.

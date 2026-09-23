@@ -15,4 +15,8 @@ type SyncReferenceWriter interface {
 	UpsertSuppliers(ctx context.Context, suppliers []dto.SupplierSyncPayload) error
 	UpsertProductResponsibilities(ctx context.Context, responsibilities []dto.ProductResponsibilitySyncPayload) error
 	UpsertProductIngredients(ctx context.Context, ingredients []dto.ProductIngredientSyncPayload) error
+	// ReplaceStockAmounts overwrites the edge's on-hand from the cloud's numbers, applying
+	// deleted_at so a stock row removed in the office disappears here too. It replaces
+	// rather than merges: the cloud owns the amount and the edge only caches it.
+	ReplaceStockAmounts(ctx context.Context, stocks []dto.StockSyncPayload) error
 }

@@ -393,3 +393,63 @@ func (r *SyncReferenceRepository) UpsertProductResponsibilities(ctx context.Cont
 	}
 	return nil
 }
+
+// FindChangedStock returns stock rows whose amount, unit or tombstone changed after since.
+// It travels cloud → edge on the daily stock pull: what the edge receives is the cloud's own
+// on-hand, which the edge caches for display rather than treating as its own truth.
+func (r *SyncReferenceRepository) FindChangedStock(ctx context.Context, since time.Time) ([]dto.StockSyncPayload, error) {
+	db := postgres.GetTxOrDB(ctx, r.db)
+
+	var models []stockModel
+	if err := changedFilter(db, since).Find(&models).Error; err != nil {
+		return nil, fmt.Errorf("query changed stock: %w", err)
+	}
+
+	out := make([]dto.StockSyncPayload, len(models))
+	for i, m := range models {
+		out[i] = dto.StockSyncPayload{
+			ProductID:     m.ProductID,
+			Version:       m.Version,
+			Amount:        m.Amount,
+			UnitOfMeasure: m.UnitOfMeasure,
+			CreatedAt:     m.CreatedAt,
+			UpdatedAt:     m.UpdatedAt,
+			DeletedAt:     m.DeletedAt,
+		}
+	}
+	return out, nil
+}
+
+// ReplaceStockAmounts overwrites the edge's on-hand from the cloud's rows. It assigns rather
+// than accumulates — the opposite of the cloud's fold — because here the number *is* the
+// cloud's answer and the edge is only caching it. deleted_at rides along so a stock row
+// removed in the office disappears at the next refresh.
+func (r *SyncReferenceRepository) ReplaceStockAmounts(ctx context.Context, stocks []dto.StockSyncPayload) error {
+	if len(stocks) == 0 {
+		return nil
+	}
+	db := postgres.GetTxOrDB(ctx, r.db)
+
+	models := make([]stockModel, len(stocks))
+	for i, stock := range stocks {
+		models[i] = stockModel{
+			ProductID:     stock.ProductID,
+			Version:       stock.Version,
+			Amount:        stock.Amount,
+			UnitOfMeasure: stock.UnitOfMeasure,
+			CreatedAt:     stock.CreatedAt,
+			UpdatedAt:     stock.UpdatedAt,
+			DeletedAt:     stock.DeletedAt,
+		}
+	}
+
+	if err := db.Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "product_id"}, {Name: "version"}},
+		DoUpdates: clause.AssignmentColumns([]string{
+			"amount", "unit_of_measure", "updated_at", "deleted_at",
+		}),
+	}).Create(&models).Error; err != nil {
+		return fmt.Errorf("replace stock amounts: %w", err)
+	}
+	return nil
+}

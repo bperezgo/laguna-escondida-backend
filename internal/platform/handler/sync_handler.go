@@ -57,3 +57,36 @@ func (h *SyncHandler) PullHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, resp)
 }
+
+// PullStockHandler returns the stock rows that changed after the `since` cursor. It is a
+// separate endpoint from PullHandler because the edge refreshes stock daily and reference
+// data every minute, on cursors of their own.
+func (h *SyncHandler) PullStockHandler(c *gin.Context) {
+	since, ok := parseSinceCursor(c)
+	if !ok {
+		return
+	}
+
+	resp, err := h.referenceService.StockChangesSince(c.Request.Context(), since)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// parseSinceCursor reads the `since` query param. An empty or absent value means "from the
+// beginning of time" — a node's first pull.
+func parseSinceCursor(c *gin.Context) (time.Time, bool) {
+	raw := c.Query("since")
+	if raw == "" {
+		return time.Time{}, true
+	}
+	parsed, err := time.Parse(time.RFC3339Nano, raw)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid since timestamp"})
+		return time.Time{}, false
+	}
+	return parsed, true
+}

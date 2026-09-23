@@ -119,6 +119,54 @@ func (_c *MockSyncStateRepository_AdvancePushedSeq_Call) RunAndReturn(run func(c
 	return _c
 }
 
+// AdvanceStockPulledCursor provides a mock function with given fields: ctx, peerNodeID, cursor
+func (_m *MockSyncStateRepository) AdvanceStockPulledCursor(ctx context.Context, peerNodeID string, cursor time.Time) error {
+	ret := _m.Called(ctx, peerNodeID, cursor)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AdvanceStockPulledCursor")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, time.Time) error); ok {
+		r0 = rf(ctx, peerNodeID, cursor)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockSyncStateRepository_AdvanceStockPulledCursor_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AdvanceStockPulledCursor'
+type MockSyncStateRepository_AdvanceStockPulledCursor_Call struct {
+	*mock.Call
+}
+
+// AdvanceStockPulledCursor is a helper method to define mock.On call
+//   - ctx context.Context
+//   - peerNodeID string
+//   - cursor time.Time
+func (_e *MockSyncStateRepository_Expecter) AdvanceStockPulledCursor(ctx interface{}, peerNodeID interface{}, cursor interface{}) *MockSyncStateRepository_AdvanceStockPulledCursor_Call {
+	return &MockSyncStateRepository_AdvanceStockPulledCursor_Call{Call: _e.mock.On("AdvanceStockPulledCursor", ctx, peerNodeID, cursor)}
+}
+
+func (_c *MockSyncStateRepository_AdvanceStockPulledCursor_Call) Run(run func(ctx context.Context, peerNodeID string, cursor time.Time)) *MockSyncStateRepository_AdvanceStockPulledCursor_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockSyncStateRepository_AdvanceStockPulledCursor_Call) Return(_a0 error) *MockSyncStateRepository_AdvanceStockPulledCursor_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockSyncStateRepository_AdvanceStockPulledCursor_Call) RunAndReturn(run func(context.Context, string, time.Time) error) *MockSyncStateRepository_AdvanceStockPulledCursor_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetPulledCursor provides a mock function with given fields: ctx, peerNodeID
 func (_m *MockSyncStateRepository) GetPulledCursor(ctx context.Context, peerNodeID string) (*time.Time, error) {
 	ret := _m.Called(ctx, peerNodeID)
@@ -174,6 +222,65 @@ func (_c *MockSyncStateRepository_GetPulledCursor_Call) Return(_a0 *time.Time, _
 }
 
 func (_c *MockSyncStateRepository_GetPulledCursor_Call) RunAndReturn(run func(context.Context, string) (*time.Time, error)) *MockSyncStateRepository_GetPulledCursor_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetStockPulledCursor provides a mock function with given fields: ctx, peerNodeID
+func (_m *MockSyncStateRepository) GetStockPulledCursor(ctx context.Context, peerNodeID string) (*time.Time, error) {
+	ret := _m.Called(ctx, peerNodeID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetStockPulledCursor")
+	}
+
+	var r0 *time.Time
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*time.Time, error)); ok {
+		return rf(ctx, peerNodeID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *time.Time); ok {
+		r0 = rf(ctx, peerNodeID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*time.Time)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, peerNodeID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockSyncStateRepository_GetStockPulledCursor_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetStockPulledCursor'
+type MockSyncStateRepository_GetStockPulledCursor_Call struct {
+	*mock.Call
+}
+
+// GetStockPulledCursor is a helper method to define mock.On call
+//   - ctx context.Context
+//   - peerNodeID string
+func (_e *MockSyncStateRepository_Expecter) GetStockPulledCursor(ctx interface{}, peerNodeID interface{}) *MockSyncStateRepository_GetStockPulledCursor_Call {
+	return &MockSyncStateRepository_GetStockPulledCursor_Call{Call: _e.mock.On("GetStockPulledCursor", ctx, peerNodeID)}
+}
+
+func (_c *MockSyncStateRepository_GetStockPulledCursor_Call) Run(run func(ctx context.Context, peerNodeID string)) *MockSyncStateRepository_GetStockPulledCursor_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockSyncStateRepository_GetStockPulledCursor_Call) Return(_a0 *time.Time, _a1 error) *MockSyncStateRepository_GetStockPulledCursor_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockSyncStateRepository_GetStockPulledCursor_Call) RunAndReturn(run func(context.Context, string) (*time.Time, error)) *MockSyncStateRepository_GetStockPulledCursor_Call {
 	_c.Call.Return(run)
 	return _c
 }

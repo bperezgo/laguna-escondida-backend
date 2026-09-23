@@ -11,25 +11,29 @@ import (
 )
 
 // EdgeSyncScheduler runs the edge sync loops on timers: the push loop drains this node's
-// unsynced outbox to the cloud, and the pull loop applies the cloud's reference changes.
-// It owns its own gocron scheduler so the edge sync concern is started and stopped
-// independently of the cloud cron jobs.
+// unsynced outbox to the cloud, the pull loop applies the cloud's reference changes, and the
+// stock refresh adopts the cloud's on-hand once a day. It owns its own gocron scheduler so
+// the edge sync concern is started and stopped independently of the cloud cron jobs.
 type EdgeSyncScheduler struct {
-	scheduler   gocron.Scheduler
-	pushService *service.SyncPushService
-	pullService *service.SyncPullService
-	tracker     *syncstatus.Tracker
-	pushCron    string
-	pullCron    string
-	logger      *slog.Logger
+	scheduler        gocron.Scheduler
+	pushService      *service.SyncPushService
+	pullService      *service.SyncPullService
+	stockPullService *service.StockPullService
+	tracker          *syncstatus.Tracker
+	pushCron         string
+	pullCron         string
+	stockPullCron    string
+	logger           *slog.Logger
 }
 
 func NewEdgeSyncScheduler(
 	pushService *service.SyncPushService,
 	pullService *service.SyncPullService,
+	stockPullService *service.StockPullService,
 	tracker *syncstatus.Tracker,
 	pushCron string,
 	pullCron string,
+	stockPullCron string,
 	logger *slog.Logger,
 ) (*EdgeSyncScheduler, error) {
 	scheduler, err := gocron.NewScheduler()
@@ -38,17 +42,33 @@ func NewEdgeSyncScheduler(
 	}
 
 	return &EdgeSyncScheduler{
-		scheduler:   scheduler,
-		pushService: pushService,
-		pullService: pullService,
-		tracker:     tracker,
-		pushCron:    pushCron,
-		pullCron:    pullCron,
-		logger:      logger,
+		scheduler:        scheduler,
+		pushService:      pushService,
+		pullService:      pullService,
+		stockPullService: stockPullService,
+		tracker:          tracker,
+		pushCron:         pushCron,
+		pullCron:         pullCron,
+		stockPullCron:    stockPullCron,
+		logger:           logger,
 	}, nil
 }
 
 func (s *EdgeSyncScheduler) Start() error {
+	if err := s.registerJobs(); err != nil {
+		return err
+	}
+
+	s.scheduler.Start()
+	s.logger.Info("Edge sync scheduler started",
+		slog.String("push_cron", s.pushCron),
+		slog.String("pull_cron", s.pullCron),
+		slog.String("stock_pull_cron", s.stockPullCron),
+	)
+	return nil
+}
+
+func (s *EdgeSyncScheduler) registerJobs() error {
 	if _, err := s.scheduler.NewJob(
 		gocron.CronJob(s.pushCron, false),
 		gocron.NewTask(s.pushJob),
@@ -65,12 +85,31 @@ func (s *EdgeSyncScheduler) Start() error {
 		return err
 	}
 
-	s.scheduler.Start()
-	s.logger.Info("Edge sync scheduler started",
-		slog.String("push_cron", s.pushCron),
-		slog.String("pull_cron", s.pullCron),
-	)
+	if _, err := s.scheduler.NewJob(
+		gocron.CronJob(s.stockPullCron, false),
+		gocron.NewTask(s.stockPullJob),
+	); err != nil {
+		s.logger.Error("Failed to register stock pull cron job", slog.Any("error", err))
+		return err
+	}
+
 	return nil
+}
+
+// stockPullJob adopts the cloud's on-hand for the day. It is deliberately not wired into the
+// connectivity tracker: unlike the reference pull it runs once a day, so its silence says
+// nothing about whether the cloud is reachable right now. A failure leaves the previous
+// amounts in place and touches nothing else — selling never depends on this.
+func (s *EdgeSyncScheduler) stockPullJob() {
+	ctx := context.Background()
+	result, err := s.stockPullService.RefreshStock(ctx)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "Edge stock refresh job failed", slog.Any("error", err))
+		return
+	}
+	s.logger.InfoContext(ctx, "Edge stock refresh job completed",
+		slog.Int("stock_rows", result.Stock),
+	)
 }
 
 func (s *EdgeSyncScheduler) Stop() error {

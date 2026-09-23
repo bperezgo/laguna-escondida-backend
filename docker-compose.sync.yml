@@ -82,6 +82,9 @@ services:
       <<: *app-env
       APP_MODE: cloud
       DB_HOST: cloud-db
+      # Production re-sums the stock ledger once a day; here it runs every minute so a
+      # manual test can watch the invariant check report instead of waiting until 03:15.
+      STOCK_RECONCILE_CRON: "* * * * *"
       STORAGE_REGION: us-east-1
       STORAGE_ACCESS_KEY: minioadmin
       STORAGE_SECRET: minioadmin
@@ -131,6 +134,9 @@ services:
       CLOUD_SYNC_URL: http://cloud:8080
       SYNC_PUSH_CRON: "* * * * *" # every minute (5-field cron floor)
       SYNC_PULL_CRON: "* * * * *"
+      # Production refreshes stock once a day; here it runs every minute so a cutover dry
+      # run can watch the edge adopt the cloud's numbers without waiting until morning.
+      STOCK_PULL_CRON: "* * * * *"
       # Inert: edge storage is online-only. Placeholders satisfy config validation;
       # the lazy S3 client is never contacted by the sync tests.
       STORAGE_REGION: us-east-1

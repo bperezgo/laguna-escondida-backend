@@ -201,6 +201,65 @@ func (_c *MockSyncReferenceReader_FindChangedProducts_Call) RunAndReturn(run fun
 	return _c
 }
 
+// FindChangedStock provides a mock function with given fields: ctx, since
+func (_m *MockSyncReferenceReader) FindChangedStock(ctx context.Context, since time.Time) ([]dto.StockSyncPayload, error) {
+	ret := _m.Called(ctx, since)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindChangedStock")
+	}
+
+	var r0 []dto.StockSyncPayload
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time) ([]dto.StockSyncPayload, error)); ok {
+		return rf(ctx, since)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time) []dto.StockSyncPayload); ok {
+		r0 = rf(ctx, since)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]dto.StockSyncPayload)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, time.Time) error); ok {
+		r1 = rf(ctx, since)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockSyncReferenceReader_FindChangedStock_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindChangedStock'
+type MockSyncReferenceReader_FindChangedStock_Call struct {
+	*mock.Call
+}
+
+// FindChangedStock is a helper method to define mock.On call
+//   - ctx context.Context
+//   - since time.Time
+func (_e *MockSyncReferenceReader_Expecter) FindChangedStock(ctx interface{}, since interface{}) *MockSyncReferenceReader_FindChangedStock_Call {
+	return &MockSyncReferenceReader_FindChangedStock_Call{Call: _e.mock.On("FindChangedStock", ctx, since)}
+}
+
+func (_c *MockSyncReferenceReader_FindChangedStock_Call) Run(run func(ctx context.Context, since time.Time)) *MockSyncReferenceReader_FindChangedStock_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockSyncReferenceReader_FindChangedStock_Call) Return(_a0 []dto.StockSyncPayload, _a1 error) *MockSyncReferenceReader_FindChangedStock_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockSyncReferenceReader_FindChangedStock_Call) RunAndReturn(run func(context.Context, time.Time) ([]dto.StockSyncPayload, error)) *MockSyncReferenceReader_FindChangedStock_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // FindChangedSuppliers provides a mock function with given fields: ctx, since
 func (_m *MockSyncReferenceReader) FindChangedSuppliers(ctx context.Context, since time.Time) ([]dto.SupplierSyncPayload, error) {
 	ret := _m.Called(ctx, since)

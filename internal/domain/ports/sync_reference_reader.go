@@ -16,4 +16,8 @@ type SyncReferenceReader interface {
 	FindChangedSuppliers(ctx context.Context, since time.Time) ([]dto.SupplierSyncPayload, error)
 	FindChangedProductResponsibilities(ctx context.Context, since time.Time) ([]dto.ProductResponsibilitySyncPayload, error)
 	FindChangedProductIngredients(ctx context.Context, since time.Time) ([]dto.ProductIngredientSyncPayload, error)
+	// FindChangedStock is read by the stock pull, not the reference pull. stock.updated_at
+	// moves on every sale, so it travels on its own daily channel rather than adding a
+	// steady stream of rows to the every-minute reference pull (design D4).
+	FindChangedStock(ctx context.Context, since time.Time) ([]dto.StockSyncPayload, error)
 }

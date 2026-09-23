@@ -22,8 +22,7 @@ type StockEventHandler struct {
 	productIngredientRepo ports.ProductIngredientRepository
 	lockManager           *eventbus.ProductLockManager
 	unitOfWork            ports.UnitOfWork
-	outboxRepo            ports.SyncOutboxRepository
-	syncIdentity          dto.SyncIdentity
+	emitter               ports.StockMovementEmitter
 	logger                *slog.Logger
 }
 
@@ -33,8 +32,7 @@ func NewStockEventHandler(
 	productIngredientRepo ports.ProductIngredientRepository,
 	lockManager *eventbus.ProductLockManager,
 	unitOfWork ports.UnitOfWork,
-	outboxRepo ports.SyncOutboxRepository,
-	syncIdentity dto.SyncIdentity,
+	emitter ports.StockMovementEmitter,
 	logger *slog.Logger,
 ) *StockEventHandler {
 	return &StockEventHandler{
@@ -43,8 +41,7 @@ func NewStockEventHandler(
 		productIngredientRepo: productIngredientRepo,
 		lockManager:           lockManager,
 		unitOfWork:            unitOfWork,
-		outboxRepo:            outboxRepo,
-		syncIdentity:          syncIdentity,
+		emitter:               emitter,
 		logger:                logger,
 	}
 }
@@ -186,7 +183,7 @@ func (h *StockEventHandler) HandlePurchaseEntryCreated(ctx context.Context, even
 
 	for _, item := range event.Items {
 		change := int(item.Quantity.IntPart())
-		if err := h.updateStock(ctx, item.ProductID, change); err != nil {
+		if err := h.updateStock(ctx, item.ProductID, change, dto.StockMovementKindPurchase); err != nil {
 			h.logger.Error("failed to increase stock from purchase entry",
 				slog.String("product_id", item.ProductID),
 				slog.Int("quantity", change),
@@ -227,7 +224,7 @@ func (h *StockEventHandler) adjustStockForProduct(ctx context.Context, productID
 		return h.expandComposite(ctx, product, quantity, sign, make(map[string]struct{}), 0, sideDishes)
 	}
 
-	if err := h.updateStock(ctx, productID, sign*int(quantity.IntPart())); err != nil {
+	if err := h.updateStock(ctx, productID, sign*int(quantity.IntPart()), dto.StockMovementKindSale); err != nil {
 		return fmt.Errorf("failed to adjust stock: %w", err)
 	}
 
@@ -294,7 +291,7 @@ func (h *StockEventHandler) expandComposite(ctx context.Context, composite *dto.
 			continue
 		}
 
-		if err := h.updateStockForProduct(ctx, ingredientProduct, sign*int(childQty.IntPart())); err != nil {
+		if err := h.updateStockForProduct(ctx, ingredientProduct, sign*int(childQty.IntPart()), dto.StockMovementKindSale); err != nil {
 			return fmt.Errorf("failed to adjust ingredient stock: %w", err)
 		}
 	}
@@ -302,18 +299,18 @@ func (h *StockEventHandler) expandComposite(ctx context.Context, composite *dto.
 	return nil
 }
 
-func (h *StockEventHandler) updateStock(ctx context.Context, productID string, change int) error {
+func (h *StockEventHandler) updateStock(ctx context.Context, productID string, change int, kind dto.StockMovementKind) error {
 	product, prodErr := h.productRepo.FindByID(ctx, productID)
 	if prodErr != nil {
 		return fmt.Errorf("product not found: %w", prodErr)
 	}
 
-	return h.updateStockForProduct(ctx, product, change)
+	return h.updateStockForProduct(ctx, product, change, kind)
 }
 
 // updateStockForProduct is updateStock for a product already loaded by the caller, so recipe
 // expansion (which fetches each ingredient to decide expand-vs-write) does not fetch it twice.
-func (h *StockEventHandler) updateStockForProduct(ctx context.Context, product *dto.Product, change int) error {
+func (h *StockEventHandler) updateStockForProduct(ctx context.Context, product *dto.Product, change int, kind dto.StockMovementKind) error {
 	productID := product.ID
 
 	h.lockManager.Lock(productID)
@@ -321,13 +318,10 @@ func (h *StockEventHandler) updateStockForProduct(ctx context.Context, product *
 
 	existingStock, findErr := h.stockRepo.FindByProductID(ctx, productID)
 
-	// Persist the stock write, its historic record, and the sync-outbox row that replicates
-	// it to the cloud in one transaction (Option A). The per-product lock above serializes
+	// Persist the stock write and its movement — which the emitter queues for the node that
+	// owns on-hand — in one transaction (Option A). The per-product lock above serializes
 	// the read-modify-write so concurrent in-process events can't lose an update.
 	return h.unitOfWork.Do(ctx, func(ctx context.Context) error {
-		var snapshot *dto.Stock
-		var operation dto.SyncOperation
-
 		if findErr != nil {
 			now := time.Now()
 			stock := &dto.Stock{
@@ -341,8 +335,6 @@ func (h *StockEventHandler) updateStockForProduct(ctx context.Context, product *
 			if createErr := h.stockRepo.Create(ctx, stock); createErr != nil {
 				return fmt.Errorf("failed to create stock: %w", createErr)
 			}
-			snapshot = stock
-			operation = dto.SyncOperationCreate
 
 			h.logger.Info("created new stock entry",
 				slog.String("product_id", productID),
@@ -354,15 +346,6 @@ func (h *StockEventHandler) updateStockForProduct(ctx context.Context, product *
 			if err := h.stockRepo.UpdateAmount(ctx, productID, newAmount); err != nil {
 				return fmt.Errorf("failed to update stock: %w", err)
 			}
-			snapshot = &dto.Stock{
-				ProductID:     existingStock.ProductID,
-				Version:       existingStock.Version,
-				Amount:        newAmount,
-				UnitOfMeasure: existingStock.UnitOfMeasure,
-				CreatedAt:     existingStock.CreatedAt,
-				UpdatedAt:     time.Now(),
-			}
-			operation = dto.SyncOperationUpdate
 
 			h.logger.Info("updated stock",
 				slog.String("product_id", productID),
@@ -372,17 +355,14 @@ func (h *StockEventHandler) updateStockForProduct(ctx context.Context, product *
 			)
 		}
 
-		// Unlike before, a failed historic write now rolls back the stock write (and the
-		// outbox row) instead of being logged and swallowed.
-		if err := createAndSyncHistoric(ctx, h.stockRepo, h.outboxRepo, h.syncIdentity.NodeID, &dto.HistoricStock{
+		// Unlike before, a failed movement write now rolls back the stock write (and the
+		// queued op) instead of being logged and swallowed.
+		return recordMovement(ctx, h.stockRepo, h.emitter, &dto.HistoricStock{
 			ProductID:     productID,
 			UnitOfMeasure: product.UnitOfMeasure,
 			Change:        change,
+			Kind:          kind,
 			CreatedAt:     time.Now(),
-		}); err != nil {
-			return fmt.Errorf("failed to create historic stock record: %w", err)
-		}
-
-		return appendStockOutbox(ctx, h.outboxRepo, h.syncIdentity.NodeID, snapshot, operation)
+		})
 	})
 }
