@@ -12,7 +12,7 @@ migrate-down:
 
 run:
 	@echo "Running the application"
-	go run cmd/main.go
+	go run ./cmd
 
 test:
 	@echo "Running tests with gotestsum..."
