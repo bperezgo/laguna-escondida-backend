@@ -73,6 +73,25 @@ func (s *SyncReferenceService) ChangesSince(ctx context.Context, since time.Time
 	}, nil
 }
 
+// StockChangesSince is the cloud side of the stock pull: the stock rows that changed after
+// the requested cursor, plus the cursor the edge should store. It is separate from
+// ChangesSince because stock refreshes daily while reference data refreshes every minute
+// (design D4) — sharing a cursor would couple the two and let either one's failure hide the
+// other's progress.
+func (s *SyncReferenceService) StockChangesSince(ctx context.Context, since time.Time) (*dto.SyncStockPullResponse, error) {
+	stock, err := s.reader.FindChangedStock(ctx, since)
+	if err != nil {
+		return nil, fmt.Errorf("find changed stock: %w", err)
+	}
+
+	cursor := since
+	for _, row := range stock {
+		cursor = laterCursor(cursor, row.UpdatedAt, row.DeletedAt)
+	}
+
+	return &dto.SyncStockPullResponse{Stock: stock, Cursor: cursor}, nil
+}
+
 // laterCursor returns the latest of the running cursor, a row's updated_at, and its
 // deleted_at (when set), so the cursor advances past every change in the batch.
 func laterCursor(current, updatedAt time.Time, deletedAt *time.Time) time.Time {

@@ -37,10 +37,25 @@ Two data flows, deliberately asymmetric:
   edge-owned. The business change and a `sync_outbox` row are written **in the same
   transaction**. The edge pushes pending outbox ops to the cloud, which applies and acks
   them; the edge advances `last_pushed_seq` and stamps `synced_at`. Dedup is by `op_id`.
+- **Stock, both directions, and neither one a snapshot.** On-hand is **cloud-owned**, but it
+  is never *sent* as a number. Upward, the restaurant pushes `historic_stock` **movements** —
+  signed changes — which the cloud folds into its own amount (`amount += change`) in the same
+  transaction that records the op as received. Downward, the edge refreshes its amounts from
+  the cloud **once a day**, on a cursor of its own (`last_stock_pulled_cursor`), and treats
+  what it holds as a display copy rather than a truth. Creating, adjusting, deleting and
+  counting stock are cloud-only operations; the restaurant writes stock only as a consequence
+  of something that must work offline (a sale, or a delivery recorded on site).
+
+  Stock used to run the other way — the edge owned the number and the cloud assigned its
+  mirror from the last snapshot to arrive. That is retired. **No node ever adopts an on-hand
+  amount reported by another**, because doing so is what silently erased purchases and counts
+  recorded in the office.
 
 Three sync tables on each node: `sync_outbox` (queued local changes), `sync_inbox`
 (received remote ops, for dedup), `sync_state` (per-peer high-water marks:
-`last_pushed_seq`, `last_pulled_cursor`).
+`last_pushed_seq`, `last_pulled_cursor`, and `last_stock_pulled_cursor` — stock keeps its own
+bookmark so the daily refresh and the every-minute reference pull cannot hide each other's
+progress).
 
 Deterministic entry points (the cron jobs are thin wrappers around these — tests call them
 directly, no waiting on cron):
@@ -291,6 +306,80 @@ violated) · **Verify** (tier + how) · **Maps to** (playbook checklist → plan
   no push is attempted.
 - **Maps to:** Checklist **A** → `TestSync_Config_EdgeWithoutCloudUrlDisablesPush`.
 
+### Stock ownership — the cloud owns the number, the edge reports changes
+
+#### SYNC-INV-22 — No node adopts an on-hand amount reported by a peer
+- **Guarantees:** A replicated `stock` snapshot never assigns `stock.amount` on the cloud,
+  whatever value it carries and however recently it was produced. A purchase or count
+  recorded in the office survives every subsequent push from the restaurant.
+- **Why:** This is the failure the whole stock inversion exists to remove. While the cloud
+  assigned from the last snapshot, an invoice recorded in the office raised the number and
+  the restaurant's next snapshot silently erased it — no error, anywhere. An absolute on the
+  wire is a standing invitation for some future reader to assign it again.
+- **Verify:** Tier 1. Fold a movement to establish an amount, then apply a snapshot that
+  disagrees; assert the amount is unchanged. Separately: record a cloud purchase, push edge
+  sales, assert both are reflected.
+- **Maps to:** `TestSync_Push_StockSnapshotIsNotApplied`,
+  `TestSync_Push_StockSnapshotNeverAssignsAmount`,
+  `TestSync_Stock_CloudPurchaseSurvivesEdgeTraffic`.
+
+#### SYNC-INV-23 — A replicated movement folds into on-hand exactly once
+- **Guarantees:** The cloud applies each movement by adding its signed change to the
+  product's amount, in the same transaction that records the op in `sync_inbox`. A movement
+  is never counted twice and never applied without being recorded. Movements commute: the
+  same set applied in any order yields the same amount.
+- **Why:** The fold now sits on the critical path of every replicated sale. Double-applying
+  silently corrupts inventory; applying without recording makes the corruption unfindable.
+  Exactly-once comes free from the inbox's early return — this invariant is what pins it.
+- **Verify:** Tier 1. Sell on the edge, push, assert the cloud's amount moved by exactly the
+  amount sold and the ledger row is present. Replay the same op and assert nothing moves.
+- **Maps to:** `TestSync_Stock_CloudFoldsEdgeSales`, `TestSync_Stock_OfflineThenDrains`,
+  plus `HistoricStockSyncApplier` integration tests (replay, order independence, conflict).
+
+#### SYNC-INV-24 — On-hand equals the sum of the movements behind it
+- **Guarantees:** For every live product on the cloud, `stock.amount == SUM(historic_stock.change)`.
+  Adopting ownership writes one `opening_balance` movement per product so the equality holds
+  from cutover forward; a scheduled job re-sums and reports any product that diverges.
+- **Why:** The ledger is the input to the fold and the fold is what can break. Because the
+  ledger itself is untouched by a fold bug, any amount stays rebuildable — but only if the
+  equality is expected, checked, and reported. Without it a corruption is silent.
+- **Verify:** Tier 1. After a mixed run of sales, a purchase and a count, assert the equality
+  holds for every touched product.
+- **Maps to:** `TestSync_Stock_LedgerSumsToAmount`,
+  `TestStockReconciliationService_WriteOpeningBalances_Integration`.
+
+#### SYNC-INV-25 — The edge sends changes, never amounts
+- **Guarantees:** What the restaurant queues for a stock change is a signed movement and
+  nothing else. No queued op carries an on-hand amount another node could assign.
+- **Why:** SYNC-INV-22 says the cloud must not *adopt* an absolute; this says one is not even
+  *offered*. Keeping absolutes off the wire is what makes the guarantee structural rather
+  than a discipline someone has to remember.
+- **Verify:** Tier 1. Record a sale on the edge and inspect the outbox: exactly one op, of
+  type `historic_stock`, whose payload has a `change` and no `amount`.
+- **Maps to:** `TestSync_Stock_EdgeNeverSendsAbsolute`.
+
+#### SYNC-INV-26 — Selling never depends on the cloud, and nothing is lost by an outage
+- **Guarantees:** A sale completes with the cloud unreachable; the local amount moves and the
+  movement queues. A failed push leaves the queue intact. On reconnect every queued movement
+  folds exactly once. No on-hand value, and no failure to write one, changes what is sold.
+- **Why:** The restaurant's whole reason for running its own node. Stock must never become a
+  thing that can stop a sale — and an outage must cost visibility, never data.
+- **Verify:** Tier 1. Sell against an unreachable cloud, assert the sales complete and stay
+  queued; restore and assert each movement folds once.
+- **Maps to:** `TestSync_Stock_OfflineThenDrains`.
+
+#### SYNC-INV-27 — The edge's stock is a daily copy of the cloud's
+- **Guarantees:** A refresh replaces the edge's amounts with the cloud's and advances its own
+  cursor, in one transaction. It never discards queued movements. A failed refresh is logged,
+  leaves the previous amounts readable, and affects nothing else.
+- **Why:** The restaurant's numbers are stale within the day *by design* — a mid-shift jump
+  when the office records something is worse than a number that is consistently a day old.
+  The one thing a refresh must never do is drop movements that have not been reported yet.
+- **Verify:** Tier 1. Record a purchase and a count on the cloud, run one refresh, assert the
+  edge's amounts match. Separately: queue sales, refresh, assert the outbox is intact.
+- **Maps to:** `TestSync_Stock_DailyRefreshAdoptsCloudNumbers`,
+  `TestStockPullService_RefreshStock_DoesNotDiscardQueuedMovements`.
+
 ---
 
 ## Traceability matrix
@@ -320,6 +409,12 @@ Status: ✅ implemented · 🟡 partial · ⬜ not yet.
 | SYNC-INV-19 | Storage boundary | limits | 1 | ⬜ | `TestSync_Boundary_SyncNeverTouchesStorage` |
 | SYNC-INV-20 | Boot/migrations | A | 2 | ⬜ | `TestSync_Boot_BothNodesHaveSyncTables` |
 | SYNC-INV-21 | Mode wiring loud | A | 2 | ⬜ | `TestSync_Config_EdgeWithoutCloudUrlDisablesPush` |
+| SYNC-INV-22 | Stock: no adopted absolute | *(new)* | 1 | ✅ | `TestSync_Push_StockSnapshotIsNotApplied`, `TestSync_Push_StockSnapshotNeverAssignsAmount`, `TestSync_Stock_CloudPurchaseSurvivesEdgeTraffic` |
+| SYNC-INV-23 | Stock: fold exactly once | *(new)* | 1 | ✅ | `TestSync_Stock_CloudFoldsEdgeSales`, `TestSync_Stock_OfflineThenDrains` |
+| SYNC-INV-24 | Stock: amount == SUM(change) | *(new)* | 1 | ✅ | `TestSync_Stock_LedgerSumsToAmount` |
+| SYNC-INV-25 | Stock: edge sends deltas only | *(new)* | 1 | ✅ | `TestSync_Stock_EdgeNeverSendsAbsolute` |
+| SYNC-INV-26 | Stock: offline selling + drain | *(new)* | 1 | ✅ | `TestSync_Stock_OfflineThenDrains` |
+| SYNC-INV-27 | Stock: daily edge refresh | *(new)* | 1 | ✅ | `TestSync_Stock_DailyRefreshAdoptsCloudNumbers` |
 
 ---
 

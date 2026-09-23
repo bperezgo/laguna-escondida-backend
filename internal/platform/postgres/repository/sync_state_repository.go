@@ -73,3 +73,39 @@ func (r *SyncStateRepository) AdvancePulledCursor(ctx context.Context, peerNodeI
 	}
 	return nil
 }
+
+// GetStockPulledCursor returns the peer's last_stock_pulled_cursor, or nil when the edge
+// has never refreshed stock from it (so the first refresh takes the cloud's numbers whole).
+func (r *SyncStateRepository) GetStockPulledCursor(ctx context.Context, peerNodeID string) (*time.Time, error) {
+	db := postgres.GetTxOrDB(ctx, r.db)
+
+	var row struct {
+		LastStockPulledCursor *time.Time
+	}
+	if err := db.Raw(
+		"SELECT last_stock_pulled_cursor FROM sync_state WHERE peer_node_id = ?",
+		peerNodeID,
+	).Scan(&row).Error; err != nil {
+		return nil, fmt.Errorf("read sync_state stock pulled cursor: %w", err)
+	}
+	return row.LastStockPulledCursor, nil
+}
+
+// AdvanceStockPulledCursor mirrors AdvancePulledCursor on the stock bookmark: GREATEST
+// ignores a NULL existing value so the first refresh sets it, and a stale response can
+// never move it backwards.
+func (r *SyncStateRepository) AdvanceStockPulledCursor(ctx context.Context, peerNodeID string, cursor time.Time) error {
+	db := postgres.GetTxOrDB(ctx, r.db)
+
+	res := db.Exec(`
+		INSERT INTO sync_state (peer_node_id, last_stock_pulled_cursor, updated_at)
+		VALUES (?, ?, CURRENT_TIMESTAMP)
+		ON CONFLICT (peer_node_id) DO UPDATE
+		SET last_stock_pulled_cursor = GREATEST(sync_state.last_stock_pulled_cursor, EXCLUDED.last_stock_pulled_cursor),
+		    updated_at = CURRENT_TIMESTAMP
+	`, peerNodeID, cursor)
+	if res.Error != nil {
+		return fmt.Errorf("upsert sync_state stock pulled cursor: %w", res.Error)
+	}
+	return nil
+}

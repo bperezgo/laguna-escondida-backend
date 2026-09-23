@@ -314,3 +314,74 @@ func TestNewConfig_TelemetryIngest_DisabledWhenForwardURLMissing(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, cfg.TelemetryIngestEnabled())
 }
+
+func TestNewConfig_StockPullCron_DefaultsToDaily(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("APP_MODE", "edge")
+	t.Setenv("STOCK_PULL_CRON", "")
+
+	cfg, err := NewConfig()
+
+	require.NoError(t, err)
+	assert.Equal(t, "0 5 * * *", cfg.StockPullCron, "the edge adopts the cloud's numbers once a day, before service")
+}
+
+func TestNewConfig_StockPullCron_Override(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("APP_MODE", "edge")
+	t.Setenv("STOCK_PULL_CRON", "30 4 * * *")
+
+	cfg, err := NewConfig()
+
+	require.NoError(t, err)
+	assert.Equal(t, "30 4 * * *", cfg.StockPullCron)
+}
+
+func TestNewConfig_StockPullCron_InvalidExpressionReturnsError(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("APP_MODE", "edge")
+	t.Setenv("STOCK_PULL_CRON", "every day at five")
+
+	cfg, err := NewConfig()
+
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "STOCK_PULL_CRON")
+}
+
+// The cloud never runs the refresh, so a bad value there must not stop it booting.
+func TestNewConfig_StockPullCron_NotValidatedInCloudMode(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("APP_MODE", "cloud")
+	t.Setenv("STOCK_PULL_CRON", "every day at five")
+
+	cfg, err := NewConfig()
+
+	require.NoError(t, err)
+	assert.Equal(t, "every day at five", cfg.StockPullCron)
+}
+
+func TestNewConfig_StockReconcileCron_DefaultsAndValidatesInCloudMode(t *testing.T) {
+	t.Run("default", func(t *testing.T) {
+		setRequiredEnv(t)
+		t.Setenv("APP_MODE", "cloud")
+		t.Setenv("STOCK_RECONCILE_CRON", "")
+
+		cfg, err := NewConfig()
+
+		require.NoError(t, err)
+		assert.Equal(t, "15 3 * * *", cfg.StockReconcileCron)
+	})
+
+	t.Run("invalid expression", func(t *testing.T) {
+		setRequiredEnv(t)
+		t.Setenv("APP_MODE", "cloud")
+		t.Setenv("STOCK_RECONCILE_CRON", "nightly")
+
+		cfg, err := NewConfig()
+
+		require.Error(t, err)
+		assert.Nil(t, cfg)
+		assert.Contains(t, err.Error(), "STOCK_RECONCILE_CRON")
+	})
+}

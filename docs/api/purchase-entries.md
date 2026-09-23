@@ -2,6 +2,12 @@
 
 Record goods received from suppliers. Also known as "Ingress" or inventory intake.
 
+Creating a purchase entry **raises on-hand stock** for every line, and does so on whichever
+node records it. Recorded in the cloud it moves the cloud's own number; recorded at the
+restaurant it moves the local number and replicates upward as a signed movement the cloud
+folds in. Either way the increase is permanent — a purchase recorded in the office is no
+longer erased by the restaurant's next sync. See `docs/api/stock.md`.
+
 ## Endpoints
 
 | Method | Endpoint                                 | Description                       |

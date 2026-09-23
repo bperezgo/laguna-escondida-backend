@@ -13,13 +13,46 @@ import (
 )
 
 type StockHandler struct {
-	stockService *service.StockService
+	stockService          *service.StockService
+	reconciliationService *service.StockReconciliationService
 }
 
-func NewStockHandler(stockService *service.StockService) *StockHandler {
+func NewStockHandler(
+	stockService *service.StockService,
+	reconciliationService *service.StockReconciliationService,
+) *StockHandler {
 	return &StockHandler{
-		stockService: stockService,
+		stockService:          stockService,
+		reconciliationService: reconciliationService,
 	}
+}
+
+// GetStockSyncFreshnessHandler reports when the cloud last folded a movement replicated from
+// the restaurant. A batch count taken while that number is old will double-subtract whatever
+// the restaurant has not yet sent, so the counting screen reads this to warn first.
+func (h *StockHandler) GetStockSyncFreshnessHandler(c *gin.Context) {
+	freshness, err := h.reconciliationService.Freshness(c.Request.Context())
+	if err != nil {
+		log.Printf("Error reading stock sync freshness: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read stock sync freshness"})
+		return
+	}
+
+	c.JSON(http.StatusOK, freshness)
+}
+
+// WriteStockOpeningBalancesHandler is the cutover step that makes on-hand explainable: it
+// writes the one movement per product that closes the gap between the amount the cloud
+// adopted and the movements it actually holds. Safe to re-run — the second run finds no gap.
+func (h *StockHandler) WriteStockOpeningBalancesHandler(c *gin.Context) {
+	report, err := h.reconciliationService.WriteOpeningBalances(c.Request.Context())
+	if err != nil {
+		log.Printf("Error writing stock opening balances: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to write stock opening balances"})
+		return
+	}
+
+	c.JSON(http.StatusOK, report)
 }
 
 func (h *StockHandler) CreateStockHandler(c *gin.Context) {

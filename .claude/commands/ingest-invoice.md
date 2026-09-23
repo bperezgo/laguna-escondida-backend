@@ -14,6 +14,12 @@ Do **not** insert products or adjust stock by hand: recording the purchase entry
 (step 8) increases stock automatically — calling `adjust_stock`/`create_stock`
 as well would double-count.
 
+**This now holds against the cloud too.** Stock used to be owned by the restaurant's
+box: a purchase recorded against the cloud raised its number and the box's next stock
+snapshot silently erased it. The cloud now owns on-hand and derives it from the
+movements it receives, so a purchase entry recorded here increases stock **for real**
+and stays increased. Recording an invoice against the cloud is the intended path.
+
 ## Inputs
 
 - **Invoice source:** `$1` (path to a `.pdf` or `.zip`). If `$ARGUMENTS` is

@@ -772,3 +772,100 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST "$BASE_URL/telemetry/v1/logs" \
   -H "Content-Type: application/x-protobuf" \
   --data-binary @export.pb
 ```
+
+---
+
+## Stock
+
+On-hand is **cloud-owned**. Reads answer on both nodes; every write answers only on the
+cloud and returns `404` on an edge node. Point `$BASE_URL` at the cloud for this section.
+See `docs/api/stock.md`.
+
+### List stock
+
+```bash
+curl -s "$BASE_URL/stock" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Check how current the cloud's view of the restaurant is
+
+Read this **before** offering a batch count: sales the restaurant has not replicated yet are
+missing from the cloud's number and would be subtracted twice by a count taken now.
+
+```bash
+curl -s "$BASE_URL/stock/sync-freshness" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+```json
+{ "last_movement_applied_at": "2026-09-22T18:08:00.048818Z", "staleness_seconds": 154 }
+```
+
+Nulls mean *unknown* (the restaurant has never pushed a movement), not "nothing outstanding".
+
+### Create a stock row
+
+```bash
+curl -X POST "$BASE_URL/stock" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "product_id": "0192f3a1-4c5e-7b2a-9d8e-1f2a3b4c5d6e",
+    "amount": 100
+  }'
+```
+
+### Adjust on-hand by a signed change
+
+```bash
+curl -X PUT "$BASE_URL/stock/0192f3a1-4c5e-7b2a-9d8e-1f2a3b4c5d6e/add-or-decrease" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "change": -15 }'
+```
+
+### Record a batch count
+
+The counted amount is converted to a change against the cloud's current on-hand — a count of
+`20` against `30` records `-10`, so a sale replicated afterwards still takes effect on top.
+
+```bash
+curl -X POST "$BASE_URL/stock/bulk" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "items": [
+      { "product_id": "0192f3a1-4c5e-7b2a-9d8e-1f2a3b4c5d6e", "amount": 20 },
+      { "product_id": "0192f3a1-4c5e-7b2a-9d8e-1f2a3b4c5d6f", "amount": 8 }
+    ]
+  }'
+```
+
+### Delete a stock row
+
+```bash
+curl -X DELETE "$BASE_URL/stock/0192f3a1-4c5e-7b2a-9d8e-1f2a3b4c5d6e" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Confirm the writes are absent on an edge node (expects 404)
+
+```bash
+export EDGE_URL="http://localhost:8082/api"
+
+curl -s -o /dev/null -w "%{http_code}\n" -X POST "$EDGE_URL/stock" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "product_id": "0192f3a1-4c5e-7b2a-9d8e-1f2a3b4c5d6e", "amount": 1 }'
+```
+
+### Write opening balances (cutover only, admin key)
+
+Makes every product's amount equal the sum of its movements. Safe to re-run — the second
+call reports `"written_balances": 0`. See `docs/playbooks/STOCK_CUTOVER_RUNBOOK.md`.
+
+```bash
+curl -X POST "$BASE_URL/stock/opening-balances" \
+  -H "X-API-Key: $ADMIN_API_KEY"
+```

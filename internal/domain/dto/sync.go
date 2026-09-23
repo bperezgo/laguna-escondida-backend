@@ -202,6 +202,21 @@ type SyncPullResponse struct {
 	Cursor                  time.Time                          `json:"cursor"`
 }
 
+// SyncStockPullResponse is the cloud's reply to GET /api/sync/pull/stock: the stock rows
+// whose amount, unit or tombstone changed after the requested cursor, plus the new cursor.
+// It is a channel of its own because stock refreshes daily while reference data refreshes
+// every minute, and because what travels here is the cloud's own on-hand, not a peer's.
+type SyncStockPullResponse struct {
+	Stock  []StockSyncPayload `json:"stock"`
+	Cursor time.Time          `json:"cursor"`
+}
+
+// SyncStockPullResult summarizes one run of the edge's daily stock refresh. Used for
+// logging, not transported.
+type SyncStockPullResult struct {
+	Stock int
+}
+
 // SyncPullResult summarizes one run of the edge pull loop: how many rows of each entity
 // were upserted. Used for logging, not transported.
 type SyncPullResult struct {
@@ -253,9 +268,10 @@ type BillSyncPayload struct {
 	UpdatedAt      time.Time         `json:"updated_at"`
 }
 
-// StockSyncPayload is the row snapshot carried in a sync_outbox entry for a stock change,
-// replicated edge → cloud. Edge is the single writer, so apply is a plain upsert of the
-// current on-hand amount keyed by (product_id, version); the last snapshot per product wins.
+// StockSyncPayload is a stock row snapshot. It travels cloud → edge on the daily stock pull,
+// where it is the authoritative amount the edge caches. A peer may still push one edge → cloud
+// (an edge that predates this change does), but the cloud never assigns it: on-hand there is
+// the sum of the movements it folded, not a number anyone reported.
 type StockSyncPayload struct {
 	ProductID     string     `json:"product_id"`
 	Version       int        `json:"version"`
@@ -268,14 +284,16 @@ type StockSyncPayload struct {
 
 // HistoricStockSyncPayload carries one historic_stock movement row edge → cloud. The ledger
 // is append-only, so it replicates as a create op keyed by OpID (the row's cross-node identity,
-// also the sync op id); the cloud inserts it once for analytics. Amounts are deltas (Change),
-// not absolutes — no on-hand reconciliation, just the movement history.
+// also the sync op id). Amounts are deltas (Change), never absolutes: the cloud folds the change
+// into its own on-hand, which is why a movement can arrive in any order and still be correct.
+// Kind is omitted by a peer that predates the field and normalizes to unknown on arrival.
 type HistoricStockSyncPayload struct {
-	OpID          string    `json:"op_id"`
-	ProductID     string    `json:"product_id"`
-	UnitOfMeasure string    `json:"unit_of_measure"`
-	Change        int       `json:"change"`
-	CreatedAt     time.Time `json:"created_at"`
+	OpID          string            `json:"op_id"`
+	ProductID     string            `json:"product_id"`
+	UnitOfMeasure string            `json:"unit_of_measure"`
+	Change        int               `json:"change"`
+	Kind          StockMovementKind `json:"kind,omitempty"`
+	CreatedAt     time.Time         `json:"created_at"`
 }
 
 // OpenBillSyncPayload is the row snapshot carried in a sync_outbox entry for an

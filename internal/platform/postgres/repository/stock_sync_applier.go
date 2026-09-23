@@ -11,14 +11,19 @@ import (
 	"laguna-escondida/backend/internal/platform/postgres"
 
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
-// StockSyncApplier applies a replicated stock op (edge → cloud) to the cloud's read-only
-// on-hand mirror. The edge is the single writer, so create and update are both a plain
-// upsert of the current amount keyed by the (product_id, version) composite PK — the last
-// snapshot per product wins, so no summation is needed. A delete soft-deletes by product_id.
-// It joins the apply transaction via GetTxOrDB.
+// StockSyncApplier handles a replicated stock op (edge → cloud) now that the cloud owns
+// on-hand. The cloud derives amount from the movements it folds (HistoricStockSyncApplier),
+// so a create/update snapshot carries an amount that is only the peer's opinion: assigning it
+// would let a stale snapshot erase a purchase or a count the office recorded here. The upsert
+// path is therefore gone and a snapshot is accepted and ignored.
+//
+// It stays registered rather than being dropped, for two reasons: an edge that has not yet
+// shipped the change still emits snapshot ops, and SyncService fails the whole push when no
+// applier is registered for an entity type — so unregistering it would stall that edge's
+// outbox behind an op nobody can apply. The delete path still runs: a tombstone is a
+// deliberate removal, not a reported amount.
 type StockSyncApplier struct {
 	db *gorm.DB
 }
@@ -31,35 +36,15 @@ func (a *StockSyncApplier) Apply(ctx context.Context, op *dto.SyncOutboxEntry) e
 	if op.Operation == dto.SyncOperationDelete {
 		return a.applyDelete(ctx, op)
 	}
-	return a.applyUpsert(ctx, op)
+	return a.discardSnapshot(op)
 }
 
-func (a *StockSyncApplier) applyUpsert(ctx context.Context, op *dto.SyncOutboxEntry) error {
-	db := postgres.GetTxOrDB(ctx, a.db)
-
+// discardSnapshot validates the payload and drops it. Unmarshalling is kept so a malformed
+// op still surfaces as an error instead of being silently acked.
+func (a *StockSyncApplier) discardSnapshot(op *dto.SyncOutboxEntry) error {
 	var payload dto.StockSyncPayload
 	if err := json.Unmarshal(op.Payload, &payload); err != nil {
 		return fmt.Errorf("unmarshal stock payload: %w", err)
-	}
-
-	model := &stockModel{
-		ProductID:     payload.ProductID,
-		Version:       payload.Version,
-		Amount:        payload.Amount,
-		UnitOfMeasure: payload.UnitOfMeasure,
-		CreatedAt:     payload.CreatedAt,
-		UpdatedAt:     payload.UpdatedAt,
-		DeletedAt:     payload.DeletedAt,
-	}
-	// Upsert on the (product_id, version) composite PK so a replayed op is idempotent;
-	// deleted_at is written from the snapshot so a resurrected row clears its tombstone.
-	if err := db.Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "product_id"}, {Name: "version"}},
-		DoUpdates: clause.AssignmentColumns([]string{
-			"amount", "unit_of_measure", "updated_at", "deleted_at",
-		}),
-	}).Create(model).Error; err != nil {
-		return fmt.Errorf("upsert stock: %w", err)
 	}
 	return nil
 }

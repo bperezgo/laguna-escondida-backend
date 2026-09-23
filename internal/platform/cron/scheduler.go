@@ -14,9 +14,11 @@ type Scheduler struct {
 	invoiceService           *service.InvoiceService
 	supportDocumentService   *service.SupportDocumentService
 	invoiceSubmissionService *service.InvoiceSubmissionService
+	stockReconciliation      *service.StockReconciliationService
 	invoiceCron              string
 	supportDocumentCron      string
 	invoiceSubmitCron        string
+	stockReconcileCron       string
 	logger                   *slog.Logger
 }
 
@@ -24,9 +26,11 @@ func NewScheduler(
 	invoiceService *service.InvoiceService,
 	supportDocumentService *service.SupportDocumentService,
 	invoiceSubmissionService *service.InvoiceSubmissionService,
+	stockReconciliation *service.StockReconciliationService,
 	invoiceCron string,
 	supportDocumentCron string,
 	invoiceSubmitCron string,
+	stockReconcileCron string,
 	logger *slog.Logger,
 ) (*Scheduler, error) {
 	scheduler, err := gocron.NewScheduler()
@@ -39,9 +43,11 @@ func NewScheduler(
 		invoiceService:           invoiceService,
 		supportDocumentService:   supportDocumentService,
 		invoiceSubmissionService: invoiceSubmissionService,
+		stockReconciliation:      stockReconciliation,
 		invoiceCron:              invoiceCron,
 		supportDocumentCron:      supportDocumentCron,
 		invoiceSubmitCron:        invoiceSubmitCron,
+		stockReconcileCron:       stockReconcileCron,
 		logger:                   logger,
 	}, nil
 }
@@ -93,7 +99,51 @@ func (s *Scheduler) registerJobs() error {
 	}
 
 	s.logger.Info("Registered cron job: submitPendingInvoices", slog.String("cron", s.invoiceSubmitCron))
+
+	_, err = s.scheduler.NewJob(
+		gocron.CronJob(s.stockReconcileCron, false),
+		gocron.NewTask(s.reconcileStockJob),
+	)
+	if err != nil {
+		s.logger.Error("Failed to register reconcileStock cron job", slog.Any("error", err))
+		return err
+	}
+
+	s.logger.Info("Registered cron job: reconcileStock", slog.String("cron", s.stockReconcileCron))
 	return nil
+}
+
+// reconcileStockJob reports products whose on-hand disagrees with the movements behind it.
+// Report-only: nothing is corrected, because either number can be the wrong one and only a
+// person can say which. A failure is logged and the run ends — the check is a detector, so
+// its own outage must not take anything else down.
+func (s *Scheduler) reconcileStockJob() {
+	ctx := context.Background()
+	report, err := s.stockReconciliation.Reconcile(ctx)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "Cron job reconcileStock failed", slog.Any("error", err))
+		return
+	}
+
+	if len(report.Diverged) == 0 {
+		s.logger.InfoContext(ctx, "Cron job reconcileStock completed",
+			slog.Int("checked_products", report.CheckedProducts),
+		)
+		return
+	}
+
+	for _, divergence := range report.Diverged {
+		s.logger.WarnContext(ctx, "Stock amount disagrees with its movement history",
+			slog.String("product_id", divergence.ProductID),
+			slog.Int("amount", divergence.Amount),
+			slog.Int("ledger_sum", divergence.LedgerSum),
+			slog.Int("delta", divergence.Delta),
+		)
+	}
+	s.logger.WarnContext(ctx, "Cron job reconcileStock found divergences",
+		slog.Int("checked_products", report.CheckedProducts),
+		slog.Int("diverged_products", len(report.Diverged)),
+	)
 }
 
 func (s *Scheduler) submitPendingInvoicesJob() {

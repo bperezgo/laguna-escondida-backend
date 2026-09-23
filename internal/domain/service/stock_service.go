@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -14,26 +13,23 @@ import (
 )
 
 type StockService struct {
-	stockRepo    ports.StockRepository
-	productRepo  ports.ProductRepository
-	unitOfWork   ports.UnitOfWork
-	outboxRepo   ports.SyncOutboxRepository
-	syncIdentity dto.SyncIdentity
+	stockRepo   ports.StockRepository
+	productRepo ports.ProductRepository
+	unitOfWork  ports.UnitOfWork
+	emitter     ports.StockMovementEmitter
 }
 
 func NewStockService(
 	stockRepo ports.StockRepository,
 	productRepo ports.ProductRepository,
 	unitOfWork ports.UnitOfWork,
-	outboxRepo ports.SyncOutboxRepository,
-	syncIdentity dto.SyncIdentity,
+	emitter ports.StockMovementEmitter,
 ) *StockService {
 	return &StockService{
-		stockRepo:    stockRepo,
-		productRepo:  productRepo,
-		unitOfWork:   unitOfWork,
-		outboxRepo:   outboxRepo,
-		syncIdentity: syncIdentity,
+		stockRepo:   stockRepo,
+		productRepo: productRepo,
+		unitOfWork:  unitOfWork,
+		emitter:     emitter,
 	}
 }
 
@@ -70,12 +66,9 @@ func (s *StockService) CreateStock(ctx context.Context, req *dto.CreateStockRequ
 			UnitOfMeasure: product.UnitOfMeasure,
 			CreatedAt:     now,
 			Change:        req.Amount,
+			Kind:          dto.StockMovementKindAdjustment,
 		}
-		if err := createAndSyncHistoric(ctx, s.stockRepo, s.outboxRepo, s.syncIdentity.NodeID, historicStock); err != nil {
-			return fmt.Errorf("failed to create historic stock record: %w", err)
-		}
-
-		return appendStockOutbox(ctx, s.outboxRepo, s.syncIdentity.NodeID, stock, dto.SyncOperationCreate)
+		return recordMovement(ctx, s.stockRepo, s.emitter, historicStock)
 	}); err != nil {
 		return nil, err
 	}
@@ -110,20 +103,9 @@ func (s *StockService) AddOrDecreaseStock(ctx context.Context, req *dto.AddOrDec
 			UnitOfMeasure: product.UnitOfMeasure,
 			CreatedAt:     time.Now(),
 			Change:        req.Change,
+			Kind:          dto.StockMovementKindAdjustment,
 		}
-		if err := createAndSyncHistoric(ctx, s.stockRepo, s.outboxRepo, s.syncIdentity.NodeID, historicStock); err != nil {
-			return fmt.Errorf("failed to create historic stock record: %w", err)
-		}
-
-		updatedStock := &dto.Stock{
-			ProductID:     existingStock.ProductID,
-			Version:       existingStock.Version,
-			Amount:        newAmount,
-			UnitOfMeasure: existingStock.UnitOfMeasure,
-			CreatedAt:     existingStock.CreatedAt,
-			UpdatedAt:     time.Now(),
-		}
-		return appendStockOutbox(ctx, s.outboxRepo, s.syncIdentity.NodeID, updatedStock, dto.SyncOperationUpdate)
+		return recordMovement(ctx, s.stockRepo, s.emitter, historicStock)
 	})
 }
 
@@ -132,11 +114,13 @@ func (s *StockService) DeleteStock(ctx context.Context, productID string) error 
 		return fmt.Errorf("%w: %w", domainError.ErrStockNotFound, err)
 	}
 
+	// No movement and no replication: a delete removes the row rather than moving its
+	// amount, and the restaurant learns about it from the daily stock pull's deleted_at.
 	return s.unitOfWork.Do(ctx, func(ctx context.Context) error {
 		if err := s.stockRepo.Delete(ctx, productID); err != nil {
 			return fmt.Errorf("%w: %w", domainError.ErrStockDeleteFailed, err)
 		}
-		return appendStockDeleteOutbox(ctx, s.outboxRepo, s.syncIdentity.NodeID, productID)
+		return nil
 	})
 }
 
@@ -184,7 +168,6 @@ func (s *StockService) BulkStockCreationOrUpdating(ctx context.Context, req *dto
 	}
 
 	stocksToCreateOrUpdate := make([]*dto.Stock, 0, len(req.Items))
-	operations := make([]dto.SyncOperation, 0, len(req.Items))
 	historicRecords := make([]*dto.HistoricStock, 0, len(req.Items))
 	now := time.Now()
 
@@ -202,13 +185,13 @@ func (s *StockService) BulkStockCreationOrUpdating(ctx context.Context, req *dto
 				UpdatedAt:     now,
 			}
 			stocksToCreateOrUpdate = append(stocksToCreateOrUpdate, stock)
-			operations = append(operations, dto.SyncOperationCreate)
 
 			historicStock := &dto.HistoricStock{
 				ProductID:     item.ProductID,
 				UnitOfMeasure: product.UnitOfMeasure,
 				CreatedAt:     now,
 				Change:        item.Amount,
+				Kind:          dto.StockMovementKindCount,
 			}
 			historicRecords = append(historicRecords, historicStock)
 		} else {
@@ -227,7 +210,6 @@ func (s *StockService) BulkStockCreationOrUpdating(ctx context.Context, req *dto
 				UpdatedAt:     now,
 			}
 			stocksToCreateOrUpdate = append(stocksToCreateOrUpdate, stock)
-			operations = append(operations, dto.SyncOperationUpdate)
 
 			if change != 0 {
 				historicStock := &dto.HistoricStock{
@@ -235,28 +217,23 @@ func (s *StockService) BulkStockCreationOrUpdating(ctx context.Context, req *dto
 					UnitOfMeasure: product.UnitOfMeasure,
 					CreatedAt:     now,
 					Change:        change,
+					Kind:          dto.StockMovementKindCount,
 				}
 				historicRecords = append(historicRecords, historicStock)
 			}
 		}
 	}
 
-	// Bulk write, its historic records, and one outbox op per changed product all commit
-	// in a single transaction (Option A), so the cloud mirror converges to exactly what
-	// the edge persisted.
+	// The bulk write and one movement per changed product commit in a single transaction
+	// (Option A). Only the movements replicate: the counted amounts themselves never leave
+	// this node, because an absolute is exactly what no peer may adopt.
 	return s.unitOfWork.Do(ctx, func(ctx context.Context) error {
 		if err := s.stockRepo.BulkCreateOrUpdate(ctx, stocksToCreateOrUpdate); err != nil {
 			return fmt.Errorf("failed to bulk create or update stocks: %w", err)
 		}
 
 		for _, historicStock := range historicRecords {
-			if err := createAndSyncHistoric(ctx, s.stockRepo, s.outboxRepo, s.syncIdentity.NodeID, historicStock); err != nil {
-				return fmt.Errorf("failed to create historic stock record: %w", err)
-			}
-		}
-
-		for i, stock := range stocksToCreateOrUpdate {
-			if err := appendStockOutbox(ctx, s.outboxRepo, s.syncIdentity.NodeID, stock, operations[i]); err != nil {
+			if err := recordMovement(ctx, s.stockRepo, s.emitter, historicStock); err != nil {
 				return err
 			}
 		}
@@ -265,96 +242,26 @@ func (s *StockService) BulkStockCreationOrUpdating(ctx context.Context, req *dto
 	})
 }
 
-// appendStockOutbox writes one create/update sync_outbox row carrying the current stock
-// snapshot. It must be called inside a UnitOfWork transaction (Option A). Shared by the
-// manual stock writes (StockService) and the order/purchase-driven writes (StockEventHandler).
-func appendStockOutbox(ctx context.Context, outboxRepo ports.SyncOutboxRepository, nodeID string, stock *dto.Stock, operation dto.SyncOperation) error {
-	opID, err := uuid.NewV7()
-	if err != nil {
-		return fmt.Errorf("generate stock outbox op_id: %w", err)
-	}
-
-	payload := dto.StockSyncPayload{
-		ProductID:     stock.ProductID,
-		Version:       stock.Version,
-		Amount:        stock.Amount,
-		UnitOfMeasure: string(stock.UnitOfMeasure),
-		CreatedAt:     stock.CreatedAt,
-		UpdatedAt:     stock.UpdatedAt,
-	}
-
-	payloadBytes, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("marshal stock sync payload: %w", err)
-	}
-
-	return outboxRepo.Append(ctx, &dto.SyncOutboxEntry{
-		OpID:         opID.String(),
-		OriginNodeID: nodeID,
-		EntityType:   dto.SyncEntityStock,
-		EntityID:     stock.ProductID,
-		Operation:    operation,
-		Payload:      payloadBytes,
-	})
-}
-
-// createAndSyncHistoric persists one historic_stock movement row and appends its append-only
-// create sync_outbox op in the same transaction (Option A), so the ledger entry replicates to
-// the cloud. It generates the row's op_id, stores it on the row, and reuses it as the sync op
-// id (1:1) — the cloud dedups on it. Must be called inside a UnitOfWork transaction. Shared by
-// the manual stock writes (StockService) and the order/purchase-driven writes (StockEventHandler).
-func createAndSyncHistoric(ctx context.Context, stockRepo ports.StockRepository, outboxRepo ports.SyncOutboxRepository, nodeID string, historic *dto.HistoricStock) error {
+// recordMovement persists one historic_stock movement row and hands it to the emitter, in
+// the same transaction (Option A). It generates the row's op_id, stores it on the row, and
+// the emitter reuses it as the sync op id (1:1) so the receiving node dedupes on it. Must be
+// called inside a UnitOfWork transaction. Shared by the authored stock writes (StockService)
+// and the order/purchase-driven writes (StockEventHandler).
+func recordMovement(
+	ctx context.Context,
+	stockRepo ports.StockRepository,
+	emitter ports.StockMovementEmitter,
+	movement *dto.HistoricStock,
+) error {
 	opID, err := uuid.NewV7()
 	if err != nil {
 		return fmt.Errorf("generate historic_stock op_id: %w", err)
 	}
-	historic.OpID = opID.String()
+	movement.OpID = opID.String()
 
-	if createErr := stockRepo.CreateHistoricRecord(ctx, historic); createErr != nil {
-		return createErr
+	if createErr := stockRepo.CreateHistoricRecord(ctx, movement); createErr != nil {
+		return fmt.Errorf("failed to create historic stock record: %w", createErr)
 	}
 
-	payload := dto.HistoricStockSyncPayload{
-		OpID:          historic.OpID,
-		ProductID:     historic.ProductID,
-		UnitOfMeasure: string(historic.UnitOfMeasure),
-		Change:        historic.Change,
-		CreatedAt:     historic.CreatedAt,
-	}
-	payloadBytes, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("marshal historic_stock sync payload: %w", err)
-	}
-
-	return outboxRepo.Append(ctx, &dto.SyncOutboxEntry{
-		OpID:         historic.OpID,
-		OriginNodeID: nodeID,
-		EntityType:   dto.SyncEntityHistoricStock,
-		EntityID:     historic.OpID,
-		Operation:    dto.SyncOperationCreate,
-		Payload:      payloadBytes,
-	})
-}
-
-// appendStockDeleteOutbox writes a delete (tombstone) sync_outbox row keyed by product_id.
-// It must be called inside a UnitOfWork transaction (Option A).
-func appendStockDeleteOutbox(ctx context.Context, outboxRepo ports.SyncOutboxRepository, nodeID, productID string) error {
-	opID, err := uuid.NewV7()
-	if err != nil {
-		return fmt.Errorf("generate stock outbox op_id: %w", err)
-	}
-
-	payloadBytes, err := json.Marshal(dto.SyncTombstone{ID: productID})
-	if err != nil {
-		return fmt.Errorf("marshal stock tombstone: %w", err)
-	}
-
-	return outboxRepo.Append(ctx, &dto.SyncOutboxEntry{
-		OpID:         opID.String(),
-		OriginNodeID: nodeID,
-		EntityType:   dto.SyncEntityStock,
-		EntityID:     productID,
-		Operation:    dto.SyncOperationDelete,
-		Payload:      payloadBytes,
-	})
+	return emitter.Emit(ctx, movement)
 }

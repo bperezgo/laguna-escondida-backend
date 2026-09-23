@@ -18,4 +18,11 @@ type SyncStateRepository interface {
 	// AdvancePulledCursor raises last_pulled_cursor for peerNodeID to cursor, never
 	// moving it backwards.
 	AdvancePulledCursor(ctx context.Context, peerNodeID string, cursor time.Time) error
+	// GetStockPulledCursor returns the peer's last_stock_pulled_cursor, or nil if the edge
+	// has never refreshed stock from it. Stock has a bookmark of its own because it pulls
+	// daily while reference data pulls every minute.
+	GetStockPulledCursor(ctx context.Context, peerNodeID string) (*time.Time, error)
+	// AdvanceStockPulledCursor raises last_stock_pulled_cursor for peerNodeID to cursor,
+	// never moving it backwards.
+	AdvanceStockPulledCursor(ctx context.Context, peerNodeID string, cursor time.Time) error
 }

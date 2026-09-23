@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -20,6 +22,8 @@ import (
 	"laguna-escondida/backend/internal/platform/httpclient"
 	"laguna-escondida/backend/internal/platform/postgres"
 	"laguna-escondida/backend/internal/platform/postgres/repository"
+	"laguna-escondida/backend/internal/platform/stockmovement"
+	"laguna-escondida/backend/pkg/eventbus"
 	"laguna-escondida/backend/test/acceptance/testsupport"
 
 	"github.com/gin-gonic/gin"
@@ -227,14 +231,28 @@ type rig struct {
 	cloudRef  *repository.SyncReferenceRepository // seed cloud reference data
 	edgeRef   *repository.SyncReferenceRepository // read replicated edge reference data
 
-	edgePull   *service.SyncPullService
-	edgePush   *service.SyncPushService
-	edgeOutbox ports.SyncOutboxRepository
-	edgeUoW    ports.UnitOfWork
+	cloudStock       *service.StockService      // author stock on the cloud, as the office does
+	cloudStockEvents *service.StockEventHandler // record a delivery against the cloud
+
+	edgePull      *service.SyncPullService
+	edgePush      *service.SyncPushService
+	edgeStockPull *service.StockPullService  // the edge's daily refresh, run synchronously
+	edgeStock     *service.StockEventHandler // the restaurant's consequence writes
+	edgeOutbox    ports.SyncOutboxRepository
+	edgeUoW       ports.UnitOfWork
 
 	identity dto.SyncIdentity
 	server   *httptest.Server
+	// cloudDown makes the cloud refuse every sync call, so a test can model an outage and
+	// end it without moving the server's address out from under the edge's clients.
+	cloudDown *atomic.Bool
 }
+
+// takeCloudOffline makes every subsequent sync call fail, as an unreachable cloud would.
+func (r *rig) takeCloudOffline() { r.cloudDown.Store(true) }
+
+// bringCloudOnline ends the outage.
+func (r *rig) bringCloudOnline() { r.cloudDown.Store(false) }
 
 // newRig skips when the gate is off, gives both DBs a clean slate, and wires a fresh
 // two-node deployment for the test.
@@ -267,11 +285,41 @@ func newRig(t *testing.T) *rig {
 	cloudRefService := service.NewSyncReferenceService(cloudRef, logger)
 	syncHandler := handler.NewSyncHandler(cloudSync, cloudRefService)
 
+	// The cloud authors stock and emits nothing: it owns on-hand, and the restaurant
+	// learns the result through the daily pull rather than an op.
+	cloudStock := service.NewStockService(
+		repository.NewStockRepository(cloudGDB),
+		repository.NewProductRepository(cloudGDB),
+		cloudUoW,
+		stockmovement.NewNoopEmitter(),
+	)
+
+	// A purchase entry recorded against the cloud now really does move its stock — the
+	// behavior this change makes intentional. It emits nothing: the cloud owns on-hand.
+	cloudStockEvents := service.NewStockEventHandler(
+		repository.NewStockRepository(cloudGDB),
+		repository.NewProductRepository(cloudGDB),
+		repository.NewProductIngredientRepository(cloudGDB),
+		eventbus.NewProductLockManager(),
+		cloudUoW,
+		stockmovement.NewNoopEmitter(),
+		logger,
+	)
+
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
+	cloudDown := &atomic.Bool{}
+	router.Use(func(c *gin.Context) {
+		if cloudDown.Load() {
+			c.AbortWithStatus(http.StatusServiceUnavailable)
+			return
+		}
+		c.Next()
+	})
 	nodeAuth := handler.NodeAuthMiddleware(&config.Config{NodeSyncKey: testNodeKey})
 	router.POST("/api/sync/push", nodeAuth, syncHandler.PushHandler)
 	router.GET("/api/sync/pull", nodeAuth, syncHandler.PullHandler)
+	router.GET("/api/sync/pull/stock", nodeAuth, syncHandler.PullStockHandler)
 	server := httptest.NewServer(router)
 
 	// --- edge side: real HTTP clients pointed at the cloud server ---
@@ -287,22 +335,41 @@ func newRig(t *testing.T) *rig {
 	pushClient := httpclient.NewSyncPushClient(httpClient, server.URL, testNodeKey)
 	edgePush := service.NewSyncPushService(edgeUoW, edgeOutbox, edgeState, pushClient, identity, 0, logger)
 
+	stockPullClient := httpclient.NewSyncStockPullClient(httpClient, server.URL, testNodeKey)
+	edgeStockPull := service.NewStockPullService(edgeUoW, stockPullClient, edgeRef, edgeState, identity, logger)
+
+	// The restaurant's stock writes: they queue movements (never an amount) for the cloud.
+	edgeStock := service.NewStockEventHandler(
+		repository.NewStockRepository(edgeGDB),
+		repository.NewProductRepository(edgeGDB),
+		repository.NewProductIngredientRepository(edgeGDB),
+		eventbus.NewProductLockManager(),
+		edgeUoW,
+		stockmovement.NewOutboxEmitter(edgeOutbox, identity.NodeID),
+		logger,
+	)
+
 	t.Cleanup(server.Close)
 
 	return &rig{
-		t:          t,
-		ctx:        context.Background(),
-		cloudDB:    cloudGDB,
-		edgeDB:     edgeGDB,
-		cloudSync:  cloudSync,
-		cloudRef:   cloudRef,
-		edgeRef:    edgeRef,
-		edgePull:   edgePull,
-		edgePush:   edgePush,
-		edgeOutbox: edgeOutbox,
-		edgeUoW:    edgeUoW,
-		identity:   identity,
-		server:     server,
+		t:                t,
+		ctx:              context.Background(),
+		cloudDB:          cloudGDB,
+		edgeDB:           edgeGDB,
+		cloudSync:        cloudSync,
+		cloudRef:         cloudRef,
+		cloudStock:       cloudStock,
+		cloudStockEvents: cloudStockEvents,
+		edgeRef:          edgeRef,
+		edgePull:         edgePull,
+		edgePush:         edgePush,
+		edgeStockPull:    edgeStockPull,
+		edgeStock:        edgeStock,
+		edgeOutbox:       edgeOutbox,
+		edgeUoW:          edgeUoW,
+		identity:         identity,
+		server:           server,
+		cloudDown:        cloudDown,
 	}
 }
 
@@ -327,6 +394,14 @@ func (r *rig) push() *dto.SyncPushResult {
 	r.t.Helper()
 	res, err := r.edgePush.PushPending(r.ctx)
 	require.NoError(r.t, err, "edge push")
+	return res
+}
+
+// refreshEdgeStock runs one daily stock refresh synchronously — no sleeps, no cron.
+func (r *rig) refreshEdgeStock() *dto.SyncStockPullResult {
+	r.t.Helper()
+	res, err := r.edgeStockPull.RefreshStock(r.ctx)
+	require.NoError(r.t, err, "edge stock refresh")
 	return res
 }
 
@@ -689,4 +764,112 @@ func findMigrationsDir() (string, error) {
 		return "", fmt.Errorf("migrations dir not found at %s: %w", dir, err)
 	}
 	return dir, nil
+}
+
+// ---------------------------------------------------------------------------
+// Stock: authoring on the cloud, selling on the edge, reading either side.
+// ---------------------------------------------------------------------------
+
+// seedCloudStock gives a cloud product a starting on-hand through the real authoring path,
+// so the movement behind it is on the ledger and amount == SUM(change) holds from the start.
+func (r *rig) seedCloudStock(productID string, amount int) {
+	r.t.Helper()
+	_, err := r.cloudStock.CreateStock(r.ctx, &dto.CreateStockRequest{ProductID: productID, Amount: amount})
+	require.NoError(r.t, err, "seed cloud stock")
+}
+
+// cloudRecordPurchase raises the cloud's on-hand the way recording a supplier invoice does:
+// through the stock event handler, so the movement carries the purchase kind.
+func (r *rig) cloudRecordPurchase(productID string, quantity int) {
+	r.t.Helper()
+	require.NoError(r.t, r.cloudStockEvents.HandlePurchaseEntryCreated(r.ctx, dto.PurchaseEntryCreatedEvent{
+		PurchaseEntryID: uuid.NewString(),
+		SupplierID:      uuid.NewString(),
+		Items:           []dto.PurchaseEntryCreatedEventItem{{ProductID: productID, Quantity: decimal.NewFromInt(int64(quantity))}},
+	}), "cloud purchase")
+}
+
+// cloudCount records a batch count on the cloud, which becomes a delta against its own amount.
+func (r *rig) cloudCountStock(productID string, counted int) {
+	r.t.Helper()
+	require.NoError(r.t, r.cloudStock.BulkStockCreationOrUpdating(r.ctx,
+		&dto.BulkStockCreationOrUpdatingRequest{
+			Items: []dto.BulkStockItem{{ProductID: productID, Amount: counted}},
+		}), "cloud batch count")
+}
+
+// edgeSell decrements the restaurant's on-hand as an order would, queueing the movement.
+func (r *rig) edgeSell(productID string, quantity int) {
+	r.t.Helper()
+	require.NoError(r.t, r.edgeStock.HandleOrderCreated(r.ctx, dto.OrderCreatedEvent{
+		OpenBillID: uuid.NewString(),
+		Products:   []dto.OrderCreatedEventProduct{{ProductID: productID, Quantity: quantity}},
+	}), "edge sale")
+}
+
+// seedEdgeStock gives the edge a starting cached amount without queueing anything.
+func (r *rig) seedEdgeStock(productID string, amount int) {
+	r.t.Helper()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	require.NoError(r.t, r.edgeRef.ReplaceStockAmounts(r.ctx, []dto.StockSyncPayload{{
+		ProductID:     productID,
+		Version:       1,
+		Amount:        amount,
+		UnitOfMeasure: "unit",
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}}), "seed edge stock")
+}
+
+// edgeStockAmount is cloudStockAmount's twin for the restaurant's cached copy.
+func (r *rig) edgeStockAmount(productID string) int {
+	r.t.Helper()
+	var amount int
+	require.NoError(r.t, r.edgeDB.Table("stock").
+		Where("product_id = ? AND deleted_at IS NULL", productID).
+		Select("amount").Scan(&amount).Error, "read edge stock amount")
+	return amount
+}
+
+// cloudLedgerSum is the invariant's right-hand side: the sum of a product's movements.
+func (r *rig) cloudLedgerSum(productID string) int {
+	r.t.Helper()
+	var total int
+	require.NoError(r.t, r.cloudDB.Raw(
+		"SELECT COALESCE(SUM(change), 0) FROM historic_stock WHERE product_id = ?", productID,
+	).Scan(&total).Error, "sum cloud ledger")
+	return total
+}
+
+// edgeQueuedOps returns the edge's not-yet-acked outbox rows, oldest first.
+func (r *rig) edgeQueuedOps() []dto.SyncOutboxEntry {
+	r.t.Helper()
+	var rows []struct {
+		OpID       string
+		EntityType string
+		Payload    []byte
+	}
+	require.NoError(r.t, r.edgeDB.Raw(
+		"SELECT op_id, entity_type, payload FROM sync_outbox WHERE synced_at IS NULL ORDER BY seq",
+	).Scan(&rows).Error, "read edge outbox")
+
+	out := make([]dto.SyncOutboxEntry, len(rows))
+	for i, row := range rows {
+		out[i] = dto.SyncOutboxEntry{
+			OpID:       row.OpID,
+			EntityType: dto.SyncEntityType(row.EntityType),
+			Payload:    row.Payload,
+		}
+	}
+	return out
+}
+
+// seedBothNodesProduct puts the same product on both databases, so the cloud's appliers and
+// the edge's stock writes each have their foreign key satisfied.
+func (r *rig) seedBothNodesProduct(sku, name string) string {
+	r.t.Helper()
+	product := newProduct(sku, name, time.Now().UTC().Truncate(time.Microsecond))
+	r.seedCloudProducts(product)
+	require.NoError(r.t, r.edgeRef.UpsertProducts(r.ctx, []dto.ProductSyncPayload{product}), "seed edge product")
+	return product.ID
 }

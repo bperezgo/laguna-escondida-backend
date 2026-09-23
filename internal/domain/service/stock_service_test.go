@@ -10,15 +10,16 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports/mocks"
+	"laguna-escondida/backend/internal/platform/stockmovement"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-// createTestStockService wires the service with permissive UnitOfWork + outbox mocks
-// (passthrough Do, optional Append) so the existing cases exercise the business logic
-// without asserting on sync; the dedicated outbox test below asserts the append.
+// createTestStockService wires the service with permissive UnitOfWork + emitter mocks
+// (passthrough Do, optional Emit) so the existing cases exercise the business logic
+// without asserting on sync; the dedicated emitter test below asserts what is queued.
 func createTestStockService(t *testing.T) (*StockService, *mocks.MockStockRepository, *mocks.MockProductRepository) {
 	mockStockRepo := mocks.NewMockStockRepository(t)
 	mockProductRepo := mocks.NewMockProductRepository(t)
@@ -26,10 +27,17 @@ func createTestStockService(t *testing.T) (*StockService, *mocks.MockStockReposi
 		mockStockRepo,
 		mockProductRepo,
 		createMockUnitOfWork(t),
-		createMockSyncOutboxRepository(t),
-		dto.SyncIdentity{NodeID: testNodeID},
+		createMockStockMovementEmitter(t),
 	)
 	return service, mockStockRepo, mockProductRepo
+}
+
+// createMockStockMovementEmitter accepts any movement. The restaurant's real emitter is
+// exercised by its own test; here it only has to not get in the way.
+func createMockStockMovementEmitter(t *testing.T) *mocks.MockStockMovementEmitter {
+	mockEmitter := mocks.NewMockStockMovementEmitter(t)
+	mockEmitter.EXPECT().Emit(mock.Anything, mock.AnythingOfType("*dto.HistoricStock")).Return(nil).Maybe()
+	return mockEmitter
 }
 
 func createTestStock(productID string, version int, amount int) *dto.Stock {
@@ -146,9 +154,9 @@ func TestCreateStock_RepositoryError(t *testing.T) {
 }
 
 // TestCreateStock_WritesOutboxRowInTransaction asserts the transactional outbox
-// (Option A): creating stock appends both a historic_stock ledger op and a stock
-// snapshot op, each stamped with this node's id and the create operation, with the
-// stock payload carrying the on-hand amount and the historic payload the delta.
+// (Option A): creating stock queues exactly one op, the historic_stock movement, stamped
+// with this node's id and carrying the delta. No stock snapshot is queued — an on-hand
+// amount is never published for another node to adopt.
 func TestCreateStock_WritesOutboxRowInTransaction(t *testing.T) {
 	ctx := context.Background()
 	mockStockRepo := mocks.NewMockStockRepository(t)
@@ -159,8 +167,7 @@ func TestCreateStock_WritesOutboxRowInTransaction(t *testing.T) {
 		mockStockRepo,
 		mockProductRepo,
 		createMockUnitOfWork(t),
-		mockOutbox,
-		dto.SyncIdentity{NodeID: testNodeID},
+		stockmovement.NewOutboxEmitter(mockOutbox, testNodeID),
 	)
 
 	productID := "product-1"
@@ -182,21 +189,13 @@ func TestCreateStock_WritesOutboxRowInTransaction(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	stockOp := findOutboxEntry(captured, dto.SyncEntityStock)
-	require.NotNil(t, stockOp, "a stock snapshot op must be appended")
-	assert.NotEmpty(t, stockOp.OpID, "service must set a client-generated op_id")
-	assert.Equal(t, testNodeID, stockOp.OriginNodeID)
-	assert.Equal(t, dto.SyncOperationCreate, stockOp.Operation)
-	assert.Equal(t, productID, stockOp.EntityID)
-
-	var snapshot dto.StockSyncPayload
-	require.NoError(t, json.Unmarshal(stockOp.Payload, &snapshot))
-	assert.Equal(t, productID, snapshot.ProductID)
-	assert.Equal(t, req.Amount, snapshot.Amount)
-	assert.Equal(t, product.Version, snapshot.Version)
+	require.Len(t, captured, 1, "exactly one op per movement")
+	assert.Nil(t, findOutboxEntry(captured, dto.SyncEntityStock),
+		"the edge never publishes an on-hand amount")
 
 	historicOp := findOutboxEntry(captured, dto.SyncEntityHistoricStock)
 	require.NotNil(t, historicOp, "a historic_stock ledger op must be appended")
+	assert.NotEmpty(t, historicOp.OpID, "service must set a client-generated op_id")
 	assert.Equal(t, testNodeID, historicOp.OriginNodeID)
 	assert.Equal(t, dto.SyncOperationCreate, historicOp.Operation)
 

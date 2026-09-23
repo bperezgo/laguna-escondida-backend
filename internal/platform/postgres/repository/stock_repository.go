@@ -40,6 +40,7 @@ type historicStockModel struct {
 	UnitOfMeasure string    `gorm:"type:varchar(10);not null;default:'unit'"`
 	CreatedAt     time.Time `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
 	Change        int       `gorm:"type:integer;not null"`
+	Kind          string    `gorm:"type:varchar(20);not null;default:'unknown'"`
 }
 
 func (historicStockModel) TableName() string {
@@ -155,6 +156,7 @@ func (r *StockRepository) CreateHistoricRecord(ctx context.Context, historicStoc
 		UnitOfMeasure: string(historicStock.UnitOfMeasure),
 		CreatedAt:     historicStock.CreatedAt,
 		Change:        historicStock.Change,
+		Kind:          string(dto.NormalizeStockMovementKind(historicStock.Kind)),
 	}
 	if historicStock.OpID != "" {
 		model.OpID = &historicStock.OpID
@@ -203,5 +205,6 @@ func (r *StockRepository) historicToDTO(model *historicStockModel) *dto.Historic
 		UnitOfMeasure: dto.UnitOfMeasure(model.UnitOfMeasure),
 		CreatedAt:     model.CreatedAt,
 		Change:        model.Change,
+		Kind:          dto.NormalizeStockMovementKind(dto.StockMovementKind(model.Kind)),
 	}
 }

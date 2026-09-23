@@ -31,8 +31,7 @@ func createTestStockEventHandler(t *testing.T) (*StockEventHandler, *mocks.MockS
 		mockIngredientRepo,
 		lockManager,
 		createMockUnitOfWork(t),
-		createMockSyncOutboxRepository(t),
-		dto.SyncIdentity{NodeID: testNodeID},
+		createMockStockMovementEmitter(t),
 		logger,
 	)
 	return handler, mockStockRepo, mockProductRepo, mockIngredientRepo

@@ -106,9 +106,9 @@ func (r *rig) seedCloudProduct(t *testing.T, sku string) string {
 // cloud applier upserts the current on-hand amount keyed by (product_id, version). These
 // tests seed a cloud product so the FK resolves, then push stock ops over the HTTP boundary.
 
-// A pushed stock create lands on the cloud mirror with the edge's on-hand amount, and the
-// edge outbox drains.
-func TestSync_Push_StockLandsOnCloudMirror(t *testing.T) {
+// SYNC-INV-22 — the cloud owns on-hand, so a snapshot from a peer creates nothing. An edge
+// that predates this change still emits these ops; they are acked and dropped, never applied.
+func TestSync_Push_StockSnapshotIsNotApplied(t *testing.T) {
 	r := newRig(t)
 	productID := r.seedCloudProduct(t, "SKU-STOCK-1")
 
@@ -117,30 +117,29 @@ func TestSync_Push_StockLandsOnCloudMirror(t *testing.T) {
 	res := r.push()
 
 	assert.Equal(t, 1, res.PushedOps, "one op pushed")
-	assert.Equal(t, int64(1), r.cloudCount("stock", "product_id = ? AND deleted_at IS NULL", productID), "stock landed on cloud")
-	assert.Equal(t, 42, r.cloudStockAmount(productID), "cloud mirrors the on-hand amount")
-	assert.Equal(t, int64(0), r.edgeCount("sync_outbox", "synced_at IS NULL"), "edge outbox drained")
+	assert.Equal(t, int64(0), r.cloudCount("stock", "product_id = ?", productID), "no row created from a reported amount")
+	assert.Equal(t, int64(0), r.edgeCount("sync_outbox", "synced_at IS NULL"), "edge outbox still drains")
 }
 
-// Because edge is the single writer, applying snapshots in seq order converges the cloud to
-// the last amount per product — no summation, exactly one row.
-func TestSync_Push_StockUpdateConvergesToLastSnapshot(t *testing.T) {
+// SYNC-INV-22 — a snapshot never assigns the amount, however recent it is. The cloud's number
+// comes from the movements it folded; adopting a peer's would erase whatever the office did.
+func TestSync_Push_StockSnapshotNeverAssignsAmount(t *testing.T) {
 	r := newRig(t)
 	productID := r.seedCloudProduct(t, "SKU-STOCK-2")
 
-	r.appendEdgeOutbox(r.stockOutboxEntry(productID, 1, 100, dto.SyncOperationCreate))
+	r.appendEdgeOutbox(r.historicStockOutboxEntry(productID, 30))
 	r.appendEdgeOutbox(r.stockOutboxEntry(productID, 1, 87, dto.SyncOperationUpdate))
 
 	res := r.push()
 
 	assert.Equal(t, 2, res.PushedOps, "both ops pushed")
 	assert.Equal(t, int64(1), r.cloudCount("stock", "product_id = ?", productID), "single row per product")
-	assert.Equal(t, 87, r.cloudStockAmount(productID), "last snapshot wins")
+	assert.Equal(t, 30, r.cloudStockAmount(productID), "the folded movement stands; the snapshot is ignored")
 }
 
-// Replaying a stock op (the lost-ack retry case) applies once: the amount is unchanged and
-// the op is deduped via sync_inbox.op_id.
-func TestSync_Push_StockReplayIsIdempotent(t *testing.T) {
+// SYNC-INV-13 — replaying a stock snapshot is still acked and still deduped in the inbox,
+// even though applying it is a no-op.
+func TestSync_Push_StockSnapshotReplayIsStillAcked(t *testing.T) {
 	r := newRig(t)
 	productID := r.seedCloudProduct(t, "SKU-STOCK-3")
 
@@ -152,18 +151,18 @@ func TestSync_Push_StockReplayIsIdempotent(t *testing.T) {
 
 	assert.Len(t, first.AckedOpIDs, 1, "first apply acks the op")
 	assert.Len(t, second.AckedOpIDs, 1, "replay still acks (idempotent)")
-	assert.Equal(t, int64(1), r.cloudCount("stock", "product_id = ?", productID), "applied exactly once")
-	assert.Equal(t, 55, r.cloudStockAmount(productID), "amount unchanged on replay")
+	assert.Equal(t, int64(0), r.cloudCount("stock", "product_id = ?", productID), "still nothing assigned")
 	assert.Equal(t, int64(1), r.cloudCount("sync_inbox", "op_id = ?", entry.OpID), "deduped in inbox")
 }
 
-// A stock delete tombstone soft-deletes the cloud mirror row: no live row remains, but the
-// tombstoned row is retained.
+// A stock delete tombstone still soft-deletes the row: a removal is a deliberate decision,
+// not a reported amount, so it is the one snapshot-channel op the cloud still acts on. The
+// row it removes is seeded by a movement, since a snapshot no longer creates one.
 func TestSync_Push_StockDeleteSoftDeletesMirror(t *testing.T) {
 	r := newRig(t)
 	productID := r.seedCloudProduct(t, "SKU-STOCK-4")
 
-	r.appendEdgeOutbox(r.stockOutboxEntry(productID, 1, 30, dto.SyncOperationCreate))
+	r.appendEdgeOutbox(r.historicStockOutboxEntry(productID, 30))
 	r.appendEdgeOutbox(r.stockOutboxEntry(productID, 1, 0, dto.SyncOperationDelete))
 
 	res := r.push()

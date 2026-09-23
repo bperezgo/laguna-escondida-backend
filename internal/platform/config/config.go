@@ -20,13 +20,15 @@ const (
 )
 
 type Config struct {
-	AppMode                   Mode
-	NodeID                    string
-	NodeSyncKey               string
-	CloudSyncURL              string
-	CloudNodeID               string
-	SyncPushCron              string
-	SyncPullCron              string
+	AppMode      Mode
+	NodeID       string
+	NodeSyncKey  string
+	CloudSyncURL string
+	CloudNodeID  string
+	SyncPushCron string
+	SyncPullCron string
+	// StockPullCron is the edge's daily stock refresh, on a cursor of its own.
+	StockPullCron             string
 	ElectronicInvoiceURL      string
 	ElectronicInvoiceUser     string
 	ElectronicInvoicePassword string
@@ -48,6 +50,8 @@ type Config struct {
 	InvoiceURLCron            string
 	SupportDocumentURLCron    string
 	InvoiceSubmitCron         string
+	// StockReconcileCron is the cloud's on-hand invariant check (report-only).
+	StockReconcileCron string
 
 	// Edge ticket printing (POST /api/device/print). All optional so cloud and
 	// non-printing edge installs boot unchanged.
@@ -217,6 +221,20 @@ func NewConfig() (*Config, error) {
 		syncPullCron = "* * * * *"
 	}
 
+	// StockPullCron is how often the edge adopts the cloud's on-hand. Daily, and early, so
+	// each service day opens with the office's purchases and counts already in place and the
+	// displayed numbers stay stable through the shift instead of jumping mid-service.
+	// Validated only in edge mode: the cloud never runs this job.
+	stockPullCron := os.Getenv("STOCK_PULL_CRON")
+	if stockPullCron == "" {
+		stockPullCron = "0 5 * * *"
+	}
+	if appMode == ModeEdge {
+		if err := validateCronExpression("STOCK_PULL_CRON", stockPullCron); err != nil {
+			return nil, err
+		}
+	}
+
 	invoiceURLCron := os.Getenv("INVOICE_URL_CRON")
 	if invoiceURLCron == "" {
 		invoiceURLCron = "0 * * * *"
@@ -234,6 +252,19 @@ func NewConfig() (*Config, error) {
 	invoiceSubmitCron := os.Getenv("INVOICE_SUBMIT_CRON")
 	if invoiceSubmitCron == "" {
 		invoiceSubmitCron = "* * * * *"
+	}
+
+	// StockReconcileCron is how often the cloud re-sums each product's movements and reports
+	// any amount that disagrees. It corrects nothing, so daily is enough to catch a silent
+	// corruption while the ledger — from which any amount is rebuildable — stays intact.
+	stockReconcileCron := os.Getenv("STOCK_RECONCILE_CRON")
+	if stockReconcileCron == "" {
+		stockReconcileCron = "15 3 * * *"
+	}
+	if appMode == ModeCloud {
+		if err := validateCronExpression("STOCK_RECONCILE_CRON", stockReconcileCron); err != nil {
+			return nil, err
+		}
 	}
 	// Edge ticket printing. The route is only wired in edge mode (cmd/main.go), so
 	// these stay optional with dev-friendly defaults (write ESC/POS to a file).
@@ -313,6 +344,7 @@ func NewConfig() (*Config, error) {
 		CloudNodeID:               cloudNodeID,
 		SyncPushCron:              syncPushCron,
 		SyncPullCron:              syncPullCron,
+		StockPullCron:             stockPullCron,
 		ElectronicInvoiceURL:      url,
 		ElectronicInvoiceUser:     user,
 		ElectronicInvoicePassword: password,
@@ -334,6 +366,7 @@ func NewConfig() (*Config, error) {
 		InvoiceURLCron:            invoiceURLCron,
 		SupportDocumentURLCron:    supportDocumentURLCron,
 		InvoiceSubmitCron:         invoiceSubmitCron,
+		StockReconcileCron:        stockReconcileCron,
 		PrinterTransport:          printerTransport,
 		PrinterTarget:             printerTarget,
 		PrinterWidthMM:            printerWidthMM,
