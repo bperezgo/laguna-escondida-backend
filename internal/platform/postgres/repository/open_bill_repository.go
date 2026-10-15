@@ -32,6 +32,7 @@ type openBillModel struct {
 	CreatedAt          time.Time       `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
 	UpdatedAt          time.Time       `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
 	DeletedAt          *time.Time      `gorm:"type:timestamp"`
+	PaidAt             *time.Time      `gorm:"type:timestamptz"`
 }
 
 func (openBillModel) TableName() string {
@@ -39,19 +40,28 @@ func (openBillModel) TableName() string {
 }
 
 type openBillProductModel struct {
-	ID         string     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	OpenBillID string     `gorm:"type:uuid;not null"`
-	ProductID  string     `gorm:"type:uuid;not null"`
-	Quantity   int        `gorm:"type:integer;not null;default:1"`
-	Notes      *string    `gorm:"type:text"`
-	Status     string     `gorm:"type:varchar(50);not null;default:'created'"`
-	Area       *string    `gorm:"type:varchar(255)"`
-	Priority   int        `gorm:"type:integer;not null;default:0"`
-	CreatedBy  string     `gorm:"type:uuid;not null;column:created_by"`
-	CreatedAt  time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
-	UpdatedAt  time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
-	DeletedAt  *time.Time `gorm:"type:timestamp"`
+	ID          string     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	OpenBillID  string     `gorm:"type:uuid;not null"`
+	ProductID   string     `gorm:"type:uuid;not null"`
+	Quantity    int        `gorm:"type:integer;not null;default:1"`
+	Notes       *string    `gorm:"type:text"`
+	Status      string     `gorm:"type:varchar(50);not null;default:'created'"`
+	Area        *string    `gorm:"type:varchar(255)"`
+	Priority    int        `gorm:"type:integer;not null;default:0"`
+	CreatedBy   string     `gorm:"type:uuid;not null;column:created_by"`
+	CreatedAt   time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	UpdatedAt   time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	DeletedAt   *time.Time `gorm:"type:timestamp"`
+	StartedAt   *time.Time `gorm:"type:timestamptz"`
+	CompletedAt *time.Time `gorm:"type:timestamptz"`
 }
+
+// kitchenVisibleOpenBill is the one definition of which orders the kitchen still works on:
+// open ones, plus paid ones whose lines keep cooking. A voided order (closed, never paid) is out.
+const kitchenVisibleOpenBill = "(open_bills.deleted_at IS NULL OR open_bills.paid_at IS NOT NULL)"
+
+// lineCompletedAt falls back to updated_at for lines completed before completed_at existed.
+const lineCompletedAt = "COALESCE(open_bills_products.completed_at, open_bills_products.updated_at)"
 
 func (openBillProductModel) TableName() string {
 	return "open_bills_products"
@@ -329,15 +339,17 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 	// Fetch products for this open bill
 	type productResult struct {
 		// Open Bill Product fields
-		ID         string
-		OpenBillID string
-		ProductID  string
-		Quantity   int
-		Notes      *string
-		Status     string
-		Area       *string
-		Priority   int
-		CreatedAt  time.Time
+		ID          string
+		OpenBillID  string
+		ProductID   string
+		Quantity    int
+		Notes       *string
+		Status      string
+		Area        *string
+		Priority    int
+		CreatedAt   time.Time
+		StartedAt   *time.Time
+		CompletedAt *time.Time
 		// Product creator fields
 		ProductCreatedByName string
 		// Product fields
@@ -372,6 +384,8 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 			open_bills_products.area,
 			open_bills_products.priority,
 			open_bills_products.created_at,
+			open_bills_products.started_at,
+			open_bills_products.completed_at,
 			product_creator.name as product_created_by_name,
 			products.name as product_name,
 			products.category as product_category,
@@ -437,6 +451,8 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 			SideDishes:    sideDishesByLine[pr.ID],
 			CreatedAt:     pr.CreatedAt,
 			CreatedByName: pr.ProductCreatedByName,
+			StartedAt:     pr.StartedAt,
+			CompletedAt:   pr.CompletedAt,
 		}
 	}
 
@@ -461,11 +477,29 @@ func (r *OpenBillRepository) Delete(ctx context.Context, openBillID string) erro
 		Update("deleted_at", now).Error
 }
 
+func (r *OpenBillRepository) ClosePaid(ctx context.Context, openBillID string, paidAt time.Time) error {
+	db := postgres.GetTxOrDB(ctx, r.db)
+	return db.Model(&openBillModel{}).
+		Where("id = ? AND deleted_at IS NULL", openBillID).
+		Updates(map[string]any{
+			"deleted_at": paidAt,
+			"paid_at":    paidAt,
+		}).Error
+}
+
 func (r *OpenBillRepository) FindAggregateByID(ctx context.Context, id string) (*openBill.Aggregate, error) {
+	return r.findAggregate(ctx, "open_bills.id = ? AND open_bills.deleted_at IS NULL", id)
+}
+
+func (r *OpenBillRepository) FindAggregateForKitchen(ctx context.Context, id string) (*openBill.Aggregate, error) {
+	return r.findAggregate(ctx, "open_bills.id = ? AND "+kitchenVisibleOpenBill, id)
+}
+
+func (r *OpenBillRepository) findAggregate(ctx context.Context, where string, id string) (*openBill.Aggregate, error) {
 	db := postgres.GetTxOrDB(ctx, r.db)
 
 	var model openBillModel
-	err := db.Where("id = ? AND deleted_at IS NULL", id).First(&model).Error
+	err := db.Where(where, id).First(&model).Error
 	if err != nil {
 		return nil, err
 	}
@@ -501,6 +535,7 @@ func (r *OpenBillRepository) FindAggregateByID(ctx context.Context, id string) (
 			return nil, err
 		}
 		product.SetSideDishes(sideDishesByLine[pm.ID])
+		product.RestoreTiming(pm.StartedAt, pm.CompletedAt)
 		products = append(products, product)
 	}
 
@@ -513,6 +548,8 @@ func (r *OpenBillRepository) FindAggregateByID(ctx context.Context, id string) (
 		model.CreatedBy,
 		model.CreatedAt,
 		model.UpdatedAt,
+		model.DeletedAt,
+		model.PaidAt,
 	)
 }
 
@@ -809,15 +846,17 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 
 	type productResult struct {
 		// Open Bill Product fields
-		ID         string
-		OpenBillID string
-		ProductID  string
-		Quantity   int
-		Notes      *string
-		Status     string
-		Area       *string
-		Priority   int
-		CreatedAt  time.Time
+		ID          string
+		OpenBillID  string
+		ProductID   string
+		Quantity    int
+		Notes       *string
+		Status      string
+		Area        *string
+		Priority    int
+		CreatedAt   time.Time
+		StartedAt   *time.Time
+		CompletedAt *time.Time
 		// Product creator fields
 		ProductCreatedByName string
 		// Product fields
@@ -850,6 +889,8 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 			open_bills_products.area,
 			open_bills_products.priority,
 			open_bills_products.created_at,
+			open_bills_products.started_at,
+			open_bills_products.completed_at,
 			product_creator.name as product_created_by_name,
 			products.name as product_name,
 			products.category as product_category,
@@ -911,6 +952,8 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 			SideDishes:    sideDishesByLine[pr.ID],
 			CreatedAt:     pr.CreatedAt,
 			CreatedByName: pr.ProductCreatedByName,
+			StartedAt:     pr.StartedAt,
+			CompletedAt:   pr.CompletedAt,
 		}
 	}
 
@@ -1049,15 +1092,17 @@ func (r *OpenBillRepository) FindByIDIncludingDeletedWithProducts(ctx context.Co
 
 	type productResult struct {
 		// Open Bill Product fields
-		ID         string
-		OpenBillID string
-		ProductID  string
-		Quantity   int
-		Notes      *string
-		Status     string
-		Area       *string
-		Priority   int
-		CreatedAt  time.Time
+		ID          string
+		OpenBillID  string
+		ProductID   string
+		Quantity    int
+		Notes       *string
+		Status      string
+		Area        *string
+		Priority    int
+		CreatedAt   time.Time
+		StartedAt   *time.Time
+		CompletedAt *time.Time
 		// Product creator fields
 		ProductCreatedByName string
 		// Product fields
@@ -1090,6 +1135,8 @@ func (r *OpenBillRepository) FindByIDIncludingDeletedWithProducts(ctx context.Co
 			open_bills_products.area,
 			open_bills_products.priority,
 			open_bills_products.created_at,
+			open_bills_products.started_at,
+			open_bills_products.completed_at,
 			product_creator.name as product_created_by_name,
 			products.name as product_name,
 			products.category as product_category,
@@ -1151,6 +1198,8 @@ func (r *OpenBillRepository) FindByIDIncludingDeletedWithProducts(ctx context.Co
 			SideDishes:    sideDishesByLine[pr.ID],
 			CreatedAt:     pr.CreatedAt,
 			CreatedByName: pr.ProductCreatedByName,
+			StartedAt:     pr.StartedAt,
+			CompletedAt:   pr.CompletedAt,
 		}
 	}
 
@@ -1229,8 +1278,10 @@ func (r *OpenBillRepository) UpdateProductStatus(ctx context.Context, aggregate 
 			if err := tx.Model(&openBillProductModel{}).
 				Where("id = ? AND deleted_at IS NULL", product.ID()).
 				Updates(map[string]any{
-					"status":     string(product.Status()),
-					"updated_at": time.Now(),
+					"status":       string(product.Status()),
+					"started_at":   product.StartedAt(),
+					"completed_at": product.CompletedAt(),
+					"updated_at":   time.Now(),
 				}).Error; err != nil {
 				return err
 			}
@@ -1254,7 +1305,7 @@ func (r *OpenBillRepository) FindPendingByArea(ctx context.Context, area string)
 		TemporalIdentifier string
 		Priority           int
 		CreatedAt          time.Time
-		UpdatedAt          time.Time
+		CompletedAt        *time.Time
 		CreatedByName      string
 	}
 
@@ -1271,10 +1322,10 @@ func (r *OpenBillRepository) FindPendingByArea(ctx context.Context, area string)
 			open_bills.temporal_identifier,
 			open_bills_products.priority,
 			open_bills_products.created_at,
-			open_bills_products.updated_at,
+			CASE WHEN open_bills_products.status = 'completed' THEN `+lineCompletedAt+` END as completed_at,
 			users.name as created_by_name
 		`).
-		Joins("INNER JOIN open_bills ON open_bills_products.open_bill_id = open_bills.id AND open_bills.deleted_at IS NULL").
+		Joins("INNER JOIN open_bills ON open_bills_products.open_bill_id = open_bills.id AND "+kitchenVisibleOpenBill).
 		Joins("INNER JOIN products ON open_bills_products.product_id = products.id AND products.deleted_at IS NULL").
 		Joins("LEFT JOIN users ON open_bills_products.created_by = users.id AND users.deleted_at IS NULL").
 		// Stream every non-cancelled line of any comanda that still has >=1
@@ -1303,10 +1354,6 @@ func (r *OpenBillRepository) FindPendingByArea(ctx context.Context, area string)
 	sseProducts := make([]*dto.OpenBillProductSSE, len(results))
 	lineIDs := make([]string, len(results))
 	for i, r := range results {
-		var completedAt *time.Time
-		if r.Status == "completed" {
-			completedAt = &r.UpdatedAt
-		}
 		sseProducts[i] = &dto.OpenBillProductSSE{
 			OpenBillProductID:  r.OpenBillProductID,
 			OpenBillID:         r.OpenBillID,
@@ -1319,7 +1366,7 @@ func (r *OpenBillRepository) FindPendingByArea(ctx context.Context, area string)
 			Priority:           r.Priority,
 			CreatedAt:          r.CreatedAt,
 			CreatedByName:      r.CreatedByName,
-			CompletedAt:        completedAt,
+			CompletedAt:        r.CompletedAt,
 		}
 		lineIDs[i] = r.OpenBillProductID
 	}
@@ -1338,7 +1385,7 @@ func (r *OpenBillRepository) FindPendingByArea(ctx context.Context, area string)
 }
 
 // FindCompletedByAreaBetween returns the completed lines of comandas that are fully
-// done for the given area (no pending line left) and whose completion (updated_at)
+// done for the given area (no pending line left) and whose completion
 // falls within [from, to). Powers the read-only "Comandas Listas" review view.
 func (r *OpenBillRepository) FindCompletedByAreaBetween(ctx context.Context, area string, from, to time.Time) ([]*dto.OpenBillProductSSE, error) {
 	db := postgres.GetTxOrDB(ctx, r.db)
@@ -1371,10 +1418,10 @@ func (r *OpenBillRepository) FindCompletedByAreaBetween(ctx context.Context, are
 			open_bills.temporal_identifier,
 			open_bills_products.priority,
 			open_bills_products.created_at,
-			open_bills_products.updated_at as completed_at,
+			`+lineCompletedAt+` as completed_at,
 			users.name as created_by_name
 		`).
-		Joins("INNER JOIN open_bills ON open_bills_products.open_bill_id = open_bills.id AND open_bills.deleted_at IS NULL").
+		Joins("INNER JOIN open_bills ON open_bills_products.open_bill_id = open_bills.id AND "+kitchenVisibleOpenBill).
 		Joins("INNER JOIN products ON open_bills_products.product_id = products.id AND products.deleted_at IS NULL").
 		Joins("LEFT JOIN users ON open_bills_products.created_by = users.id AND users.deleted_at IS NULL").
 		// Completed lines of comandas that no longer have any pending line in this
@@ -1382,8 +1429,8 @@ func (r *OpenBillRepository) FindCompletedByAreaBetween(ctx context.Context, are
 		Where(`open_bills_products.area = ?
 			AND open_bills_products.status = 'completed'
 			AND open_bills_products.deleted_at IS NULL
-			AND open_bills_products.updated_at >= ?
-			AND open_bills_products.updated_at < ?
+			AND `+lineCompletedAt+` >= ?
+			AND `+lineCompletedAt+` < ?
 			AND NOT EXISTS (
 				SELECT 1 FROM open_bills_products p2
 				WHERE p2.open_bill_id = open_bills_products.open_bill_id
@@ -1391,7 +1438,7 @@ func (r *OpenBillRepository) FindCompletedByAreaBetween(ctx context.Context, are
 					AND p2.status IN ('created', 'in_progress')
 					AND p2.deleted_at IS NULL
 			)`, area, from, to).
-		Order("open_bills_products.updated_at DESC, open_bills_products.created_at ASC").
+		Order(lineCompletedAt + " DESC, open_bills_products.created_at ASC").
 		Scan(&results).Error
 
 	if err != nil {

@@ -21,6 +21,8 @@ type Aggregate struct {
 	createdByID        string
 	createdAt          time.Time
 	updatedAt          time.Time
+	closedAt           *time.Time
+	paidAt             *time.Time
 }
 
 func NewAggregate(
@@ -86,6 +88,25 @@ func (a *Aggregate) UpdatedAt() time.Time {
 	return a.updatedAt
 }
 
+// ClosedAt is set once the order is paid or voided; a closed order is never active again.
+func (a *Aggregate) ClosedAt() *time.Time {
+	return a.closedAt
+}
+
+func (a *Aggregate) PaidAt() *time.Time {
+	return a.paidAt
+}
+
+// IsPaid distinguishes a paid close (kitchen keeps cooking) from a void (kitchen drops the lines).
+func (a *Aggregate) IsPaid() bool {
+	return a.paidAt != nil
+}
+
+func (a *Aggregate) MarkPaid(paidAt time.Time) {
+	a.closedAt = &paidAt
+	a.paidAt = &paidAt
+}
+
 func (a *Aggregate) ToDTO() *dto.OpenBill {
 	return &dto.OpenBill{
 		ID:                 a.id,
@@ -95,6 +116,8 @@ func (a *Aggregate) ToDTO() *dto.OpenBill {
 		Descriptor:         a.descriptor,
 		CreatedAt:          a.createdAt,
 		UpdatedAt:          a.updatedAt,
+		ClosedAt:           a.closedAt,
+		PaidAt:             a.paidAt,
 	}
 }
 
@@ -107,6 +130,8 @@ func NewAggregateFromRepository(
 	createdByID string,
 	createdAt time.Time,
 	updatedAt time.Time,
+	closedAt *time.Time,
+	paidAt *time.Time,
 ) (*Aggregate, error) {
 	if _, err := uuid.Parse(id); err != nil {
 		return nil, openBillError.ErrInvalidOpenBillID
@@ -128,6 +153,8 @@ func NewAggregateFromRepository(
 		createdByID:        createdByID,
 		createdAt:          createdAt,
 		updatedAt:          updatedAt,
+		closedAt:           closedAt,
+		paidAt:             paidAt,
 	}, nil
 }
 
@@ -212,6 +239,11 @@ func (a *Aggregate) UncompleteProduct(openBillProductID string) error {
 }
 
 func (a *Aggregate) CancelProduct(openBillProductID string) error {
+	// The money is already taken; a refund is a staff decision outside the system.
+	if a.IsPaid() {
+		return openBillError.ErrCannotCancelPaidOrderLine
+	}
+
 	product := a.GetProduct(openBillProductID)
 	if product == nil {
 		return openBillError.ErrOpenBillProductNotFound

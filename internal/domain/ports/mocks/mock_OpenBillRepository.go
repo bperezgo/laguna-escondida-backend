@@ -4,11 +4,10 @@ package mocks
 
 import (
 	context "context"
+	open_bill "laguna-escondida/backend/internal/domain/aggregate/open_bill"
 	dto "laguna-escondida/backend/internal/domain/dto"
 
 	mock "github.com/stretchr/testify/mock"
-
-	open_bill "laguna-escondida/backend/internal/domain/aggregate/open_bill"
 
 	time "time"
 )
@@ -24,6 +23,54 @@ type MockOpenBillRepository_Expecter struct {
 
 func (_m *MockOpenBillRepository) EXPECT() *MockOpenBillRepository_Expecter {
 	return &MockOpenBillRepository_Expecter{mock: &_m.Mock}
+}
+
+// ClosePaid provides a mock function with given fields: ctx, openBillID, paidAt
+func (_m *MockOpenBillRepository) ClosePaid(ctx context.Context, openBillID string, paidAt time.Time) error {
+	ret := _m.Called(ctx, openBillID, paidAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ClosePaid")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, time.Time) error); ok {
+		r0 = rf(ctx, openBillID, paidAt)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockOpenBillRepository_ClosePaid_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClosePaid'
+type MockOpenBillRepository_ClosePaid_Call struct {
+	*mock.Call
+}
+
+// ClosePaid is a helper method to define mock.On call
+//   - ctx context.Context
+//   - openBillID string
+//   - paidAt time.Time
+func (_e *MockOpenBillRepository_Expecter) ClosePaid(ctx interface{}, openBillID interface{}, paidAt interface{}) *MockOpenBillRepository_ClosePaid_Call {
+	return &MockOpenBillRepository_ClosePaid_Call{Call: _e.mock.On("ClosePaid", ctx, openBillID, paidAt)}
+}
+
+func (_c *MockOpenBillRepository_ClosePaid_Call) Run(run func(ctx context.Context, openBillID string, paidAt time.Time)) *MockOpenBillRepository_ClosePaid_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockOpenBillRepository_ClosePaid_Call) Return(_a0 error) *MockOpenBillRepository_ClosePaid_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockOpenBillRepository_ClosePaid_Call) RunAndReturn(run func(context.Context, string, time.Time) error) *MockOpenBillRepository_ClosePaid_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Create provides a mock function with given fields: ctx, aggregate
@@ -232,6 +279,65 @@ func (_c *MockOpenBillRepository_FindAggregateByID_Call) Return(_a0 *open_bill.A
 }
 
 func (_c *MockOpenBillRepository_FindAggregateByID_Call) RunAndReturn(run func(context.Context, string) (*open_bill.Aggregate, error)) *MockOpenBillRepository_FindAggregateByID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// FindAggregateForKitchen provides a mock function with given fields: ctx, id
+func (_m *MockOpenBillRepository) FindAggregateForKitchen(ctx context.Context, id string) (*open_bill.Aggregate, error) {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindAggregateForKitchen")
+	}
+
+	var r0 *open_bill.Aggregate
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*open_bill.Aggregate, error)); ok {
+		return rf(ctx, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *open_bill.Aggregate); ok {
+		r0 = rf(ctx, id)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*open_bill.Aggregate)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOpenBillRepository_FindAggregateForKitchen_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindAggregateForKitchen'
+type MockOpenBillRepository_FindAggregateForKitchen_Call struct {
+	*mock.Call
+}
+
+// FindAggregateForKitchen is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+func (_e *MockOpenBillRepository_Expecter) FindAggregateForKitchen(ctx interface{}, id interface{}) *MockOpenBillRepository_FindAggregateForKitchen_Call {
+	return &MockOpenBillRepository_FindAggregateForKitchen_Call{Call: _e.mock.On("FindAggregateForKitchen", ctx, id)}
+}
+
+func (_c *MockOpenBillRepository_FindAggregateForKitchen_Call) Run(run func(ctx context.Context, id string)) *MockOpenBillRepository_FindAggregateForKitchen_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockOpenBillRepository_FindAggregateForKitchen_Call) Return(_a0 *open_bill.Aggregate, _a1 error) *MockOpenBillRepository_FindAggregateForKitchen_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOpenBillRepository_FindAggregateForKitchen_Call) RunAndReturn(run func(context.Context, string) (*open_bill.Aggregate, error)) *MockOpenBillRepository_FindAggregateForKitchen_Call {
 	_c.Call.Return(run)
 	return _c
 }

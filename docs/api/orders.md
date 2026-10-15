@@ -14,11 +14,26 @@ Manages open orders (open bills) — active tabs that can contain products befor
 | POST   | `/api/orders/pay-order`                                      | Pay and close an order         |
 | PATCH  | `/api/orders/:id/products/:open_bill_product_id/complete`    | Mark product as completed      |
 | PATCH  | `/api/orders/:id/products/:open_bill_product_id/in-progress` | Mark product as in-progress    |
+| PATCH  | `/api/orders/:id/products/:open_bill_product_id/uncomplete`  | Revert a product to created    |
 | PATCH  | `/api/orders/:id/products/:open_bill_product_id/cancel`      | Cancel a product in the order  |
 
 > **Note:** Paying an order (`POST /api/orders/pay-order`) requires the `orders:pay` permission, which is granted only to **manager** and **admin** roles. Servers can create, update, and cancel product lines, but cannot pay/close a bill.
 >
 > **Note:** Marking a product **completed** or **in-progress** requires the `orders:complete-product` permission (the kitchen preparation flow), granted to **cooker**, **manager**, and **admin** roles. **Cancelling** a product requires `orders:update` (server, manager, admin) — cookers cannot cancel product lines.
+
+## Kitchen lines after payment
+
+Paying an order (`POST /api/orders/pay-order`) **closes the order but not its kitchen lines**:
+
+- The order leaves the active list (`GET /api/orders`), cannot be edited, re-paid or deleted, and appears in the closed orders of its day. `GET /api/orders/:id` returns `404` for it.
+- Its unfinished lines **stay on the kitchen board** (SSE feed and "Comandas Listas") until they are completed or cancelled, exactly like an open order's lines.
+- On a paid order's lines, **complete**, **in-progress** and **uncomplete** work as usual (`200`). **Cancel** is refused with `409 Conflict`: the money is already taken, so a refund is a staff decision outside the system.
+- A **deleted (voided)** order's lines leave the board, and every line endpoint on it returns `404 Order not found`.
+- Orders closed before this behavior shipped are treated as voided: their lines do not reappear on the board.
+
+### Line timing
+
+Each line records `started_at` (first set in-progress) and `completed_at` (completed). Completing a line that was never in progress records only `completed_at`. Uncompleting clears `completed_at` (and `started_at` too when the line was in progress). Later edits to the order never move them. The kitchen feed's `completed_at` is the real completion instant. Lines completed before this change fall back to their last update time.
 
 ---
 
@@ -259,9 +274,11 @@ Returns a specific order with its product details.
       },
       "quantity": 2,
       "notes": "Sin hielo",
-      "status": "created",
+      "status": "completed",
       "area": "bar",
-      "priority": 1
+      "priority": 1,
+      "started_at": "2025-06-15T10:32:00Z",
+      "completed_at": "2025-06-15T10:41:00Z"
     }
   ],
   "created_at": "2025-06-15T10:30:00Z",
@@ -297,7 +314,7 @@ Soft-deletes an order.
 
 `PATCH /api/orders/:id/products/:open_bill_product_id/complete`
 
-Marks a product in the order as completed.
+Marks a product in the order as completed and records its `completed_at`. Works on open and paid orders (see [Kitchen lines after payment](#kitchen-lines-after-payment)).
 
 **Required permission:** `orders:complete-product` (cooker, manager, admin)
 
@@ -316,13 +333,31 @@ Marks a product in the order as completed.
 }
 ```
 
+### Error Responses
+
+**404 Not Found** — the order does not exist or was deleted (voided)
+
+```json
+{
+  "error": "Order not found"
+}
+```
+
+**409 Conflict** — the product is already completed
+
+```json
+{
+  "error": "Product is already completed"
+}
+```
+
 ---
 
 ## Set Product In Progress
 
 `PATCH /api/orders/:id/products/:open_bill_product_id/in-progress`
 
-Marks a product as in-progress.
+Marks a product as in-progress and records its `started_at` (only the first time). Works on open and paid orders.
 
 **Required permission:** `orders:complete-product` (cooker, manager, admin)
 
@@ -343,11 +378,46 @@ Marks a product as in-progress.
 
 ---
 
+## Uncomplete Product
+
+`PATCH /api/orders/:id/products/:open_bill_product_id/uncomplete`
+
+Reverts a completed or in-progress product to `created` (undo a strike-through, or un-pin a line). Clears `completed_at`; also clears `started_at` when the line was in progress. Works on open and paid orders.
+
+**Required permission:** `orders:complete-product` (cooker, manager, admin)
+
+### Path Parameters
+
+| Param                | Type   | Description              |
+| -------------------- | ------ | ------------------------ |
+| id                   | string | Order UUID               |
+| open_bill_product_id | string | Open bill product UUID   |
+
+### Example Response (200 OK)
+
+```json
+{
+  "message": "Product uncompleted successfully"
+}
+```
+
+### Error Responses
+
+**409 Conflict** — the product is neither completed nor in progress
+
+```json
+{
+  "error": "Product is not completed"
+}
+```
+
+---
+
 ## Cancel Product
 
 `PATCH /api/orders/:id/products/:open_bill_product_id/cancel`
 
-Cancels a product in the order.
+Cancels a product in the order. Not allowed once the order is paid.
 
 **Required permission:** `orders:update` (server, manager, admin)
 
@@ -363,5 +433,31 @@ Cancels a product in the order.
 ```json
 {
   "message": "Product cancelled successfully"
+}
+```
+
+### Error Responses
+
+**404 Not Found** — the order does not exist or was deleted (voided)
+
+```json
+{
+  "error": "Order not found"
+}
+```
+
+**409 Conflict** — the order is already paid
+
+```json
+{
+  "error": "A line of a paid order cannot be cancelled"
+}
+```
+
+**409 Conflict** — the product is completed or already cancelled
+
+```json
+{
+  "error": "Product cannot be cancelled from current status"
 }
 ```

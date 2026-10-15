@@ -332,6 +332,8 @@ func openBillSyncProducts(aggregate *openBill.Aggregate) []dto.OpenBillSyncProdu
 			Priority:          p.Priority(),
 			CreatedBy:         p.CreatedByID(),
 			SideDishes:        p.SideDishes(),
+			StartedAt:         p.StartedAt(),
+			CompletedAt:       p.CompletedAt(),
 		})
 	}
 	return items
@@ -362,6 +364,8 @@ func (s *OrderService) appendOpenBillOutbox(
 		Products:           products,
 		CreatedAt:          openBillDTO.CreatedAt,
 		UpdatedAt:          openBillDTO.UpdatedAt,
+		ClosedAt:           openBillDTO.ClosedAt,
+		PaidAt:             openBillDTO.PaidAt,
 	}
 
 	payloadBytes, err := json.Marshal(payload)
@@ -489,6 +493,9 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 					priority,
 					existing.CreatedByID(),
 				)
+				if err == nil {
+					openBillProduct.RestoreTiming(existing.StartedAt(), existing.CompletedAt())
+				}
 			} else {
 				openBillProduct, err = openBill.NewOpenBillProduct(
 					item.OpenBillProductID,
@@ -562,6 +569,10 @@ func (s *OrderService) PayOrder(ctx context.Context, payOrderCommand command.Pay
 		if err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
 		}
+		openBillAggregate, err := s.openBillRepo.FindAggregateByID(txCtx, payOrderCommand.OpenBillID)
+		if err != nil {
+			return fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
+		}
 
 		if payOrderCommand.Customer != nil {
 			if err = s.createOrUpdateBillOwner(txCtx, payOrderCommand.Customer); err != nil {
@@ -583,21 +594,19 @@ func (s *OrderService) PayOrder(ctx context.Context, payOrderCommand command.Pay
 			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
 		}
 
-		if err = s.openBillRepo.Delete(txCtx, payOrderCommand.OpenBillID); err != nil {
+		paidAt := time.Now()
+		openBillAggregate.MarkPaid(paidAt)
+		if err = s.openBillRepo.ClosePaid(txCtx, payOrderCommand.OpenBillID, paidAt); err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
 		}
 
-		// Persist the finalized bill. The pending invoice is constructed here in the service
-		// (where business decisions belong) and persisted separately in the same transaction.
 		if err = s.billRepo.Create(txCtx, billAggregate, productDTOs); err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
 		}
 
-		// Replicate the pay outcome to the cloud (Option A, same transaction): the open_bill
-		// is gone (tombstone) and a finalized bill now exists. The bill snapshot is the same
-		// deterministic DTO the repository persisted. The bill's CUFE syncs later via an update
-		// outbox row written when the submitter issues the invoice.
-		if err := s.appendOpenBillDeleteOutbox(txCtx, payOrderCommand.OpenBillID); err != nil {
+		paidOpenBillDTO := openBillAggregate.ToDTO()
+		paidOpenBillDTO.CreatedByID = openBillAggregate.CreatedByID()
+		if err := s.appendOpenBillOutbox(txCtx, paidOpenBillDTO, openBillAggregate.CreatedByID(), openBillSyncProducts(openBillAggregate), dto.SyncOperationUpdate); err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
 		}
 		billDTO := billAggregate.ToDTO()
@@ -605,9 +614,6 @@ func (s *OrderService) PayOrder(ctx context.Context, payOrderCommand command.Pay
 			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
 		}
 
-		// Non-cash payments always require an electronic invoice. A cash sale is invoiced only
-		// when the customer identified themselves (i.e. asked for an invoice); anonymous cash
-		// sales stay as "consumidor final" and are not reported to the fiscal provider.
 		if requiresElectronicInvoice(payOrderCommand.PaymentCode, payOrderCommand.Customer) {
 			pendingInvoiceID, err := uuid.NewV7()
 			if err != nil {
@@ -812,8 +818,6 @@ func (s *OrderService) DeleteOrder(ctx context.Context, openBillID string) error
 		return err
 	}
 
-	// Publish event after the commit for SSE notifications and stock reversal; the product
-	// lines ride on the event so the stock handler restores inventory (voids return stock).
 	event := dto.NewOrderDeletedEvent(openBillID, existingOpenBill.Products)
 	if err := s.eventBus.Publish(ctx, event); err != nil {
 		s.logger.ErrorContext(ctx, "failed to publish order deleted event", slog.Any("error", err))
@@ -842,7 +846,7 @@ func (s *OrderService) persistAndSyncStatus(ctx context.Context, aggregate *open
 
 // CompleteOpenBillProduct marks a product as completed and updates open_bill status if all products are finalized
 func (s *OrderService) CompleteOpenBillProduct(ctx context.Context, openBillID, openBillProductID string) error {
-	aggregate, err := s.openBillRepo.FindAggregateByID(ctx, openBillID)
+	aggregate, err := s.openBillRepo.FindAggregateForKitchen(ctx, openBillID)
 	if err != nil {
 		return fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
 	}
@@ -865,7 +869,7 @@ func (s *OrderService) CompleteOpenBillProduct(ctx context.Context, openBillID, 
 // UncompleteOpenBillProduct reverts a completed product back to "created" (undo a
 // kitchen strike-through) and reopens the bill header if it had been auto-completed.
 func (s *OrderService) UncompleteOpenBillProduct(ctx context.Context, openBillID, openBillProductID string) error {
-	aggregate, err := s.openBillRepo.FindAggregateByID(ctx, openBillID)
+	aggregate, err := s.openBillRepo.FindAggregateForKitchen(ctx, openBillID)
 	if err != nil {
 		return fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
 	}
@@ -879,7 +883,7 @@ func (s *OrderService) UncompleteOpenBillProduct(ctx context.Context, openBillID
 
 // SetOpenBillProductInProgress marks a product as in_progress (fails if product is cancelled)
 func (s *OrderService) SetOpenBillProductInProgress(ctx context.Context, openBillID, openBillProductID string) error {
-	aggregate, err := s.openBillRepo.FindAggregateByID(ctx, openBillID)
+	aggregate, err := s.openBillRepo.FindAggregateForKitchen(ctx, openBillID)
 	if err != nil {
 		return fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
 	}
@@ -893,7 +897,7 @@ func (s *OrderService) SetOpenBillProductInProgress(ctx context.Context, openBil
 
 // CancelOpenBillProduct marks a product as cancelled and updates open_bill status if all products are cancelled
 func (s *OrderService) CancelOpenBillProduct(ctx context.Context, openBillID, openBillProductID string) error {
-	aggregate, err := s.openBillRepo.FindAggregateByID(ctx, openBillID)
+	aggregate, err := s.openBillRepo.FindAggregateForKitchen(ctx, openBillID)
 	if err != nil {
 		return fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
 	}

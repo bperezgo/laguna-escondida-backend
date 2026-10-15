@@ -533,6 +533,29 @@ curl -X POST "$BASE_URL/orders" \
   }'
 ```
 
+### Complete a Kitchen Line After the Order Was Paid
+
+Paying closes the order, but its kitchen lines keep cooking. The kitchen still completes them:
+
+```bash
+# 1. Pay the order (manager/admin)
+curl -X POST "$BASE_URL/orders/pay-order" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "order_id": "550e8400-e29b-41d4-a716-446655440000",
+    "payment_type": "cash"
+  }'
+
+# 2. Complete the line afterwards (cooker/manager/admin) -> 200
+curl -X PATCH "$BASE_URL/orders/550e8400-e29b-41d4-a716-446655440000/products/770e8400-e29b-41d4-a716-446655440002/complete" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Cancelling a line of a paid order is refused -> 409
+curl -X PATCH "$BASE_URL/orders/550e8400-e29b-41d4-a716-446655440000/products/770e8400-e29b-41d4-a716-446655440002/cancel" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
 ---
 
 ## Financial Summary

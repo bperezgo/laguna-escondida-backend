@@ -399,6 +399,10 @@ func (h *OrderHandler) CancelOpenBillProductHandler(c *gin.Context) {
 			c.JSON(http.StatusConflict, gin.H{"error": "Product cannot be cancelled from current status"})
 			return
 		}
+		if errors.Is(err, openBillError.ErrCannotCancelPaidOrderLine) {
+			c.JSON(http.StatusConflict, gin.H{"error": "A line of a paid order cannot be cancelled"})
+			return
+		}
 		RespondError(c, err)
 		return
 	}

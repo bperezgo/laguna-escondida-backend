@@ -16,6 +16,7 @@ var (
 	ErrCannotCompleteProduct            = errors.New("OPEN_BILL_PRODUCT_CANNOT_COMPLETE: product cannot be completed from current status")
 	ErrCannotCancelProduct              = errors.New("OPEN_BILL_PRODUCT_CANNOT_CANCEL: product cannot be cancelled from current status")
 	ErrCannotSetInProgressFromCancelled = errors.New("OPEN_BILL_PRODUCT_CANNOT_SET_IN_PROGRESS: cannot set in_progress from cancelled status")
+	ErrCannotCancelPaidOrderLine        = errors.New("OPEN_BILL_PRODUCT_CANNOT_CANCEL_PAID: a line of a paid order cannot be cancelled")
 
 	// OpenBill status errors
 	ErrOpenBillAlreadyCompleted = errors.New("OPEN_BILL_ALREADY_COMPLETED: open_bill is already completed")

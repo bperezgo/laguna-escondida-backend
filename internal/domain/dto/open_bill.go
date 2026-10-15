@@ -22,6 +22,8 @@ type OpenBill struct {
 	Products           []Product       `json:"products,omitempty"`
 	CreatedAt          time.Time       `json:"created_at"`
 	UpdatedAt          time.Time       `json:"updated_at"`
+	ClosedAt           *time.Time      `json:"closed_at,omitempty"`
+	PaidAt             *time.Time      `json:"paid_at,omitempty"`
 }
 
 type OpenBillWithCreator struct {
@@ -46,8 +48,10 @@ type OpenBillProductDetail struct {
 	SideDishes        []SideDishSelection `json:"side_dishes,omitempty"`
 	// CreatedAt is when this line item was first added. Preserved across order
 	// updates (the repository upserts by id), so it reflects original creation.
-	CreatedAt     time.Time `json:"created_at"`
-	CreatedByName string    `json:"created_by_name"`
+	CreatedAt     time.Time  `json:"created_at"`
+	CreatedByName string     `json:"created_by_name"`
+	StartedAt     *time.Time `json:"started_at,omitempty"`
+	CompletedAt   *time.Time `json:"completed_at,omitempty"`
 }
 
 type OpenBillWithProducts struct {

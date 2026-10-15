@@ -1,6 +1,8 @@
 package open_bill
 
 import (
+	"time"
+
 	openBillError "laguna-escondida/backend/internal/domain/aggregate/open_bill/error"
 	"laguna-escondida/backend/internal/domain/aggregate/shared"
 	"laguna-escondida/backend/internal/domain/dto"
@@ -18,6 +20,8 @@ type OpenBillProduct struct {
 	priority    int
 	createdByID string
 	sideDishes  []dto.SideDishSelection
+	startedAt   *time.Time
+	completedAt *time.Time
 }
 
 func NewOpenBillProduct(id, productID string, quantity int, notes *string, area *string, priority int, createdByID string) (*OpenBillProduct, error) {
@@ -123,6 +127,21 @@ func (p *OpenBillProduct) SetSideDishes(sideDishes []dto.SideDishSelection) {
 	p.sideDishes = sideDishes
 }
 
+func (p *OpenBillProduct) StartedAt() *time.Time {
+	return p.startedAt
+}
+
+func (p *OpenBillProduct) CompletedAt() *time.Time {
+	return p.completedAt
+}
+
+// RestoreTiming loads persisted preparation instants. A mutator, like SetSideDishes, so the
+// many existing NewOpenBillProductFromRepository call sites stay untouched.
+func (p *OpenBillProduct) RestoreTiming(startedAt, completedAt *time.Time) {
+	p.startedAt = startedAt
+	p.completedAt = completedAt
+}
+
 func (p *OpenBillProduct) IsCreated() bool {
 	return p.status.IsCreated()
 }
@@ -157,7 +176,9 @@ func (p *OpenBillProduct) Complete() error {
 		return err
 	}
 
+	now := time.Now()
 	p.status = status
+	p.completedAt = &now
 	return nil
 }
 
@@ -175,7 +196,13 @@ func (p *OpenBillProduct) Uncomplete() error {
 		return err
 	}
 
+	// Un-pinning an in-progress line means cooking never really started; undoing a completion
+	// keeps the original start so the eventual prep time still counts from it.
+	if p.status.IsInProgress() {
+		p.startedAt = nil
+	}
 	p.status = status
+	p.completedAt = nil
 	return nil
 }
 
@@ -211,6 +238,11 @@ func (p *OpenBillProduct) SetInProgress() error {
 		return err
 	}
 
+	if p.startedAt == nil {
+		now := time.Now()
+		p.startedAt = &now
+	}
 	p.status = status
+	p.completedAt = nil
 	return nil
 }

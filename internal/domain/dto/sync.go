@@ -309,6 +309,10 @@ type OpenBillSyncPayload struct {
 	Products           []OpenBillSyncProduct `json:"products"`
 	CreatedAt          time.Time             `json:"created_at"`
 	UpdatedAt          time.Time             `json:"updated_at"`
+	// Nil on both means open — and is also what pre-change nodes send, so the applier's
+	// old "every snapshot reopens" behavior is preserved for them.
+	ClosedAt *time.Time `json:"closed_at,omitempty"`
+	PaidAt   *time.Time `json:"paid_at,omitempty"`
 }
 
 // OpenBillSyncProduct is a line item inside an OpenBillSyncPayload. Beyond identity
@@ -325,4 +329,6 @@ type OpenBillSyncProduct struct {
 	Priority          int                 `json:"priority"`
 	CreatedBy         string              `json:"created_by"`
 	SideDishes        []SideDishSelection `json:"side_dishes,omitempty"`
+	StartedAt         *time.Time          `json:"started_at,omitempty"`
+	CompletedAt       *time.Time          `json:"completed_at,omitempty"`
 }

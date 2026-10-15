@@ -77,13 +77,17 @@ func (a *OpenBillSyncApplier) applyUpsert(ctx context.Context, op *dto.SyncOutbo
 		Descriptor:         payload.Descriptor,
 		CreatedAt:          payload.CreatedAt,
 		UpdatedAt:          payload.UpdatedAt,
+		DeletedAt:          payload.ClosedAt,
+		PaidAt:             payload.PaidAt,
 	}
-	// On conflict, refresh the mutable header columns and clear deleted_at so a
-	// re-created order is resurrected. created_by/created_at are immutable.
+	// On conflict, refresh the mutable header columns and take deleted_at/paid_at from the
+	// snapshot: a paid order's line updates keep it closed, while an open snapshot (or one from
+	// a node predating closed_at, which sends nil) still resurrects a re-created order.
+	// created_by/created_at are immutable.
 	if err := db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "id"}},
 		DoUpdates: clause.AssignmentColumns([]string{
-			"temporal_identifier", "total_amount", "status", "descriptor", "updated_at", "deleted_at",
+			"temporal_identifier", "total_amount", "status", "descriptor", "updated_at", "deleted_at", "paid_at",
 		}),
 	}).Create(header).Error; err != nil {
 		return fmt.Errorf("upsert open_bill: %w", err)
@@ -106,22 +110,25 @@ func (a *OpenBillSyncApplier) reconcileProducts(db *gorm.DB, payload *dto.OpenBi
 			createdBy = payload.CreatedByID
 		}
 		product := &openBillProductModel{
-			ID:         item.OpenBillProductID,
-			OpenBillID: payload.ID,
-			ProductID:  item.ProductID,
-			Quantity:   item.Quantity,
-			Notes:      item.Notes,
-			Status:     string(item.Status),
-			Area:       item.Area,
-			Priority:   item.Priority,
-			CreatedBy:  createdBy,
-			CreatedAt:  payload.CreatedAt,
-			UpdatedAt:  payload.UpdatedAt,
+			ID:          item.OpenBillProductID,
+			OpenBillID:  payload.ID,
+			ProductID:   item.ProductID,
+			Quantity:    item.Quantity,
+			Notes:       item.Notes,
+			Status:      string(item.Status),
+			Area:        item.Area,
+			Priority:    item.Priority,
+			CreatedBy:   createdBy,
+			CreatedAt:   payload.CreatedAt,
+			UpdatedAt:   payload.UpdatedAt,
+			StartedAt:   item.StartedAt,
+			CompletedAt: item.CompletedAt,
 		}
 		if err := db.Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "id"}},
 			DoUpdates: clause.AssignmentColumns([]string{
 				"open_bill_id", "product_id", "quantity", "notes", "status", "area", "priority", "updated_at", "deleted_at",
+				"started_at", "completed_at",
 			}),
 		}).Create(product).Error; err != nil {
 			return fmt.Errorf("upsert open_bill product: %w", err)

@@ -13,6 +13,8 @@ type OpenBillRepository interface {
 	ExistsActiveByTemporalIdentifier(ctx context.Context, temporalIdentifier string) (bool, error)
 	FindByID(ctx context.Context, id string) (*dto.OpenBillWithProducts, error)
 	FindAggregateByID(ctx context.Context, id string) (*openBill.Aggregate, error)
+	// FindAggregateForKitchen also loads paid orders, whose lines keep cooking after payment.
+	FindAggregateForKitchen(ctx context.Context, id string) (*openBill.Aggregate, error)
 	FindAll(ctx context.Context) ([]*dto.OpenBillWithCreator, error)
 	FindDeletedByCreatedAtBetween(ctx context.Context, from, to time.Time) ([]*dto.OpenBillWithCreator, error)
 	FindByIDWithProducts(ctx context.Context, id string) (*dto.OpenBillWithProducts, error)
@@ -20,6 +22,7 @@ type OpenBillRepository interface {
 	Update(ctx context.Context, aggregate *openBill.Aggregate) error
 	UpdateProductStatus(ctx context.Context, aggregate *openBill.Aggregate) error
 	Delete(ctx context.Context, openBillID string) error
+	ClosePaid(ctx context.Context, openBillID string, paidAt time.Time) error
 	GetProductPreparationResponsibilities(ctx context.Context, productIDs []string) ([]dto.ProductPreparationResponsibilityWithProduct, error)
 	FindPendingByArea(ctx context.Context, area string) ([]*dto.OpenBillProductSSE, error)
 	FindCompletedByAreaBetween(ctx context.Context, area string, from, to time.Time) ([]*dto.OpenBillProductSSE, error)

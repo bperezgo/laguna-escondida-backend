@@ -8,6 +8,7 @@ import (
 	"time"
 
 	openBill "laguna-escondida/backend/internal/domain/aggregate/open_bill"
+	openBillError "laguna-escondida/backend/internal/domain/aggregate/open_bill/error"
 	"laguna-escondida/backend/internal/domain/command"
 	"laguna-escondida/backend/internal/domain/dto"
 	orderError "laguna-escondida/backend/internal/domain/error"
@@ -79,6 +80,8 @@ func createTestOpenBillAggregate(id string, products []*openBill.OpenBillProduct
 		userID1,
 		time.Now(),
 		time.Now(),
+		nil,
+		nil,
 	)
 	return aggregate
 }
@@ -1440,6 +1443,8 @@ func TestUpdateOrder_NilInfoFieldsPreservesExistingValues(t *testing.T) {
 		userID1,
 		time.Now(),
 		time.Now(),
+		nil,
+		nil,
 	)
 
 	existingBill := &dto.OpenBillWithProducts{
@@ -1753,16 +1758,17 @@ func TestPayOrder_Success(t *testing.T) {
 	}
 
 	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(openBillWithProducts, nil)
+	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(createTestOpenBillAggregate(openBillID, nil), nil)
 	mockBillOwnerRepo.On("FindByID", ctx, customer.DocumentNumber).Return(nil, orderError.ErrBillOwnerNotFound)
 	mockBillOwnerRepo.On("Create", ctx, mock.AnythingOfType("*customer.Aggregate")).Return(nil)
 	mockBillRepo.On("Create", ctx, mock.Anything, mock.Anything).Return(nil)
-	mockOpenBillRepo.On("Delete", ctx, openBillID).Return(nil)
+	mockOpenBillRepo.On("ClosePaid", ctx, openBillID, mock.AnythingOfType("time.Time")).Return(nil)
 
 	err := service.PayOrder(ctx, payOrderCmd)
 
 	require.NoError(t, err)
 
-	mockOpenBillRepo.AssertCalled(t, "Delete", ctx, openBillID)
+	mockOpenBillRepo.AssertCalled(t, "ClosePaid", ctx, openBillID, mock.AnythingOfType("time.Time"))
 }
 
 // TestPayOrder_PersistsPaymentMethodAndGrossPayAmount locks in the two facts the daily-close
@@ -1819,11 +1825,12 @@ func TestPayOrder_PersistsPaymentMethodAndGrossPayAmount(t *testing.T) {
 
 	var captured interface{ ToDTO() *dto.Bill }
 	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(openBillWithProducts, nil)
+	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(createTestOpenBillAggregate(openBillID, nil), nil)
 	mockBillRepo.On("Create", ctx, mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) {
 			captured, _ = args.Get(1).(interface{ ToDTO() *dto.Bill })
 		}).Return(nil)
-	mockOpenBillRepo.On("Delete", ctx, openBillID).Return(nil)
+	mockOpenBillRepo.On("ClosePaid", ctx, openBillID, mock.AnythingOfType("time.Time")).Return(nil)
 
 	err := service.PayOrder(ctx, payOrderCmd)
 	require.NoError(t, err)
@@ -1883,14 +1890,15 @@ func TestPayOrder_SuccessWithoutCustomer(t *testing.T) {
 	}
 
 	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(openBillWithProducts, nil)
+	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(createTestOpenBillAggregate(openBillID, nil), nil)
 	mockBillRepo.On("Create", ctx, mock.Anything, mock.Anything).Return(nil)
-	mockOpenBillRepo.On("Delete", ctx, openBillID).Return(nil)
+	mockOpenBillRepo.On("ClosePaid", ctx, openBillID, mock.AnythingOfType("time.Time")).Return(nil)
 
 	err := service.PayOrder(ctx, payOrderCmd)
 
 	require.NoError(t, err)
 
-	mockOpenBillRepo.AssertCalled(t, "Delete", ctx, openBillID)
+	mockOpenBillRepo.AssertCalled(t, "ClosePaid", ctx, openBillID, mock.AnythingOfType("time.Time"))
 }
 
 // singleProductOpenBill builds a minimal paid-order fixture (one product, qty 2) used by the
@@ -1968,10 +1976,11 @@ func TestPayOrder_CashWithCustomer_QueuesElectronicInvoice(t *testing.T) {
 	customer := &dto.Customer{DocumentNumber: "123456789", DocumentType: dto.DocumentTypeNationalIdentificationNumber, Name: "John Doe", Email: "john@example.com"}
 
 	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(singleProductOpenBill(openBillID), nil)
+	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(createTestOpenBillAggregate(openBillID, nil), nil)
 	mockBillOwnerRepo.On("FindByID", ctx, customer.DocumentNumber).Return(nil, orderError.ErrBillOwnerNotFound)
 	mockBillOwnerRepo.On("Create", ctx, mock.AnythingOfType("*customer.Aggregate")).Return(nil)
 	mockBillRepo.On("Create", ctx, mock.Anything, mock.Anything).Return(nil)
-	mockOpenBillRepo.On("Delete", ctx, openBillID).Return(nil)
+	mockOpenBillRepo.On("ClosePaid", ctx, openBillID, mock.AnythingOfType("time.Time")).Return(nil)
 	mockPendingInvoiceRepo.EXPECT().Create(ctx, mock.MatchedBy(func(p *dto.PendingInvoice) bool {
 		return p.PaymentCode == dto.ElectronicInvoicePaymentCodeCash && p.BillID != ""
 	})).Return(nil).Once()
@@ -1999,8 +2008,9 @@ func TestPayOrder_CashWithoutCustomer_SkipsElectronicInvoice(t *testing.T) {
 
 	openBillID := openBillID1
 	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(singleProductOpenBill(openBillID), nil)
+	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(createTestOpenBillAggregate(openBillID, nil), nil)
 	mockBillRepo.On("Create", ctx, mock.Anything, mock.Anything).Return(nil)
-	mockOpenBillRepo.On("Delete", ctx, openBillID).Return(nil)
+	mockOpenBillRepo.On("ClosePaid", ctx, openBillID, mock.AnythingOfType("time.Time")).Return(nil)
 
 	err := service.PayOrder(ctx, command.PayOrderCommand{
 		OpenBillID:  openBillID,
@@ -2098,6 +2108,7 @@ func TestPayOrder_RepeatedProductsWithDifferentNotes(t *testing.T) {
 	}
 
 	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(openBillWithProducts, nil)
+	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(createTestOpenBillAggregate(openBillID, nil), nil)
 	mockBillOwnerRepo.On("FindByID", ctx, customer.DocumentNumber).Return(nil, orderError.ErrBillOwnerNotFound)
 	mockBillOwnerRepo.On("Create", ctx, mock.AnythingOfType("*customer.Aggregate")).Return(nil)
 	mockBillRepo.On("Create", ctx, mock.Anything, mock.MatchedBy(func(products []*dto.Product) bool {
@@ -2115,13 +2126,13 @@ func TestPayOrder_RepeatedProductsWithDifferentNotes(t *testing.T) {
 
 		return hasBurger && hasFries && burger.Name == "Burger" && fries.Name == "Fries"
 	})).Return(nil)
-	mockOpenBillRepo.On("Delete", ctx, openBillID).Return(nil)
+	mockOpenBillRepo.On("ClosePaid", ctx, openBillID, mock.AnythingOfType("time.Time")).Return(nil)
 
 	err := service.PayOrder(ctx, payOrderCmd)
 
 	require.NoError(t, err)
 
-	mockOpenBillRepo.AssertCalled(t, "Delete", ctx, openBillID)
+	mockOpenBillRepo.AssertCalled(t, "ClosePaid", ctx, openBillID, mock.AnythingOfType("time.Time"))
 }
 
 // Error Cases
@@ -2156,7 +2167,7 @@ func TestPayOrder_OpenBillNotFound(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, orderError.ErrOrderNotFound)
 
-	mockOpenBillRepo.AssertNotCalled(t, "Delete")
+	mockOpenBillRepo.AssertNotCalled(t, "ClosePaid")
 	mockBillRepo.AssertNotCalled(t, "Create")
 
 }
@@ -2211,6 +2222,7 @@ func TestPayOrder_InvalidPaymentCode(t *testing.T) {
 	}
 
 	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(openBillWithProducts, nil)
+	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(createTestOpenBillAggregate(openBillID, nil), nil)
 	mockBillOwnerRepo.On("FindByID", ctx, customer.DocumentNumber).Return(nil, orderError.ErrBillOwnerNotFound)
 	mockBillOwnerRepo.On("Create", ctx, mock.AnythingOfType("*customer.Aggregate")).Return(nil)
 
@@ -2219,7 +2231,7 @@ func TestPayOrder_InvalidPaymentCode(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, orderError.ErrOrderPaymentFailed)
 
-	mockOpenBillRepo.AssertNotCalled(t, "Delete")
+	mockOpenBillRepo.AssertNotCalled(t, "ClosePaid")
 	mockBillRepo.AssertNotCalled(t, "Create")
 
 }
@@ -2276,9 +2288,10 @@ func TestPayOrder_BillCreateError(t *testing.T) {
 	createError := errors.New("database error")
 
 	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(openBillWithProducts, nil)
+	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(createTestOpenBillAggregate(openBillID, nil), nil)
 	mockBillOwnerRepo.On("FindByID", ctx, customer.DocumentNumber).Return(nil, orderError.ErrBillOwnerNotFound)
 	mockBillOwnerRepo.On("Create", ctx, mock.AnythingOfType("*customer.Aggregate")).Return(nil)
-	mockOpenBillRepo.On("Delete", ctx, openBillID).Return(nil)
+	mockOpenBillRepo.On("ClosePaid", ctx, openBillID, mock.AnythingOfType("time.Time")).Return(nil)
 	mockBillRepo.On("Create", ctx, mock.Anything, mock.Anything).Return(createError)
 
 	err := service.PayOrder(ctx, payOrderCmd)
@@ -2288,7 +2301,7 @@ func TestPayOrder_BillCreateError(t *testing.T) {
 
 }
 
-func TestPayOrder_DeleteError(t *testing.T) {
+func TestPayOrder_ClosePaidError(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := mocks.NewMockProductRepository(t)
 	mockOpenBillRepo := mocks.NewMockOpenBillRepository(t)
@@ -2337,12 +2350,13 @@ func TestPayOrder_DeleteError(t *testing.T) {
 		Customer:    customer,
 	}
 
-	deleteError := errors.New("delete failed")
+	closeError := errors.New("close failed")
 
 	mockOpenBillRepo.On("FindByID", ctx, openBillID).Return(openBillWithProducts, nil)
+	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(createTestOpenBillAggregate(openBillID, nil), nil)
 	mockBillOwnerRepo.On("FindByID", ctx, customer.DocumentNumber).Return(nil, orderError.ErrBillOwnerNotFound)
 	mockBillOwnerRepo.On("Create", ctx, mock.AnythingOfType("*customer.Aggregate")).Return(nil)
-	mockOpenBillRepo.On("Delete", ctx, openBillID).Return(deleteError)
+	mockOpenBillRepo.On("ClosePaid", ctx, openBillID, mock.AnythingOfType("time.Time")).Return(closeError)
 
 	err := service.PayOrder(ctx, payOrderCmd)
 
@@ -2649,7 +2663,7 @@ func captureStatusOutbox(
 	service, mockOpenBillRepo, mockOutbox := newStatusSyncService(t)
 	aggregate, openBillID, productID := buildStatusAggregate(t, from)
 
-	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID).Return(aggregate, nil)
+	mockOpenBillRepo.On("FindAggregateForKitchen", ctx, openBillID).Return(aggregate, nil)
 	mockOpenBillRepo.On("UpdateProductStatus", ctx, mock.AnythingOfType("*open_bill.Aggregate")).Return(nil)
 
 	var captured *dto.SyncOutboxEntry
@@ -2929,4 +2943,299 @@ func TestUpdateOrder_PreservesOriginalCreatedByForExistingProducts(t *testing.T)
 	assert.Equal(t, userID1, byID[obpID2].CreatedByID())
 	// New product is attributed to the waiter submitting the request.
 	assert.Equal(t, userID2, byID[obpIDNew].CreatedByID())
+}
+
+// ============================================================================
+// Kitchen lines outlive payment
+//
+// Paying closes the order and records paid_at; the order's lines keep their
+// kitchen lifecycle (complete / uncomplete / in_progress) but can't be cancelled.
+// Every line records when preparation started and finished.
+// ============================================================================
+
+func newPaidAggregate(t *testing.T, products []*openBill.OpenBillProduct) *openBill.Aggregate {
+	t.Helper()
+	paidAt := time.Now().Add(-5 * time.Minute)
+	aggregate, err := openBill.NewAggregateFromRepository(
+		openBillID1, "ORDER-123", decimal.NewFromFloat(100.0), nil, products, userID1,
+		time.Now().Add(-time.Hour), paidAt, &paidAt, &paidAt,
+	)
+	require.NoError(t, err)
+	return aggregate
+}
+
+// runKitchenTransition drives one line transition against the given aggregate and returns
+// the open_bill outbox row it appended.
+func runKitchenTransition(
+	t *testing.T,
+	aggregate *openBill.Aggregate,
+	transition func(service *OrderService, ctx context.Context, openBillID, productID string) error,
+) *dto.SyncOutboxEntry {
+	t.Helper()
+	ctx := createTestContext()
+	service, mockOpenBillRepo, mockOutbox := newStatusSyncService(t)
+
+	mockOpenBillRepo.On("FindAggregateForKitchen", ctx, aggregate.ID()).Return(aggregate, nil)
+	mockOpenBillRepo.On("UpdateProductStatus", ctx, aggregate).Return(nil)
+
+	var captured *dto.SyncOutboxEntry
+	mockOutbox.EXPECT().
+		Append(mock.Anything, mock.AnythingOfType("*dto.SyncOutboxEntry")).
+		Run(func(_ context.Context, entry *dto.SyncOutboxEntry) { captured = entry }).
+		Return(nil).
+		Once()
+
+	require.NoError(t, transition(service, ctx, aggregate.ID(), aggregate.Products()[0].ID()))
+	require.NotNil(t, captured)
+	return captured
+}
+
+func payWithCapturedOutbox(t *testing.T) (time.Time, []*dto.SyncOutboxEntry, *mocks.MockOpenBillRepository) {
+	t.Helper()
+	ctx := createTestContext()
+	mockOpenBillRepo := mocks.NewMockOpenBillRepository(t)
+	mockBillRepo := mocks.NewMockBillRepository(t)
+	mockOutbox := mocks.NewMockSyncOutboxRepository(t)
+	service := NewOrderService(mockOpenBillRepo, mocks.NewMockProductRepository(t), mockBillRepo, nil,
+		dto.PendingInvoiceStatusPending, nil, createMockUnitOfWork(t), createMockEventBus(t),
+		mockOutbox, dto.SyncIdentity{NodeID: testNodeID}, nil)
+
+	line := makeKitchenProduct(t, obpID1, productID1, dto.CommandStatusInProgress, userID1)
+	mockOpenBillRepo.On("FindByID", ctx, openBillID1).Return(singleProductOpenBill(openBillID1), nil)
+	mockOpenBillRepo.On("FindAggregateByID", ctx, openBillID1).Return(createTestOpenBillAggregate(openBillID1, []*openBill.OpenBillProduct{line}), nil)
+	mockBillRepo.On("Create", ctx, mock.Anything, mock.Anything).Return(nil)
+
+	var paidAt time.Time
+	mockOpenBillRepo.On("ClosePaid", ctx, openBillID1, mock.AnythingOfType("time.Time")).
+		Run(func(args mock.Arguments) {
+			at, ok := args.Get(2).(time.Time)
+			require.True(t, ok)
+			paidAt = at
+		}).
+		Return(nil)
+
+	var entries []*dto.SyncOutboxEntry
+	mockOutbox.EXPECT().
+		Append(mock.Anything, mock.AnythingOfType("*dto.SyncOutboxEntry")).
+		Run(func(_ context.Context, entry *dto.SyncOutboxEntry) { entries = append(entries, entry) }).
+		Return(nil)
+
+	before := time.Now()
+	// Anonymous cash skips the pending invoice (nil repo here), keeping the test about the open bill.
+	require.NoError(t, service.PayOrder(ctx, command.PayOrderCommand{
+		OpenBillID:  openBillID1,
+		PaymentCode: dto.ElectronicInvoicePaymentCodeCash,
+	}))
+	require.False(t, paidAt.Before(before), "paid instant must be taken at payment time")
+	require.False(t, paidAt.After(time.Now()))
+	return paidAt, entries, mockOpenBillRepo
+}
+
+func TestOrderService_PayOrder_RecordsPaidInstant(t *testing.T) {
+	paidAt, _, mockOpenBillRepo := payWithCapturedOutbox(t)
+
+	assert.False(t, paidAt.IsZero())
+	mockOpenBillRepo.AssertNotCalled(t, "Delete", mock.Anything, mock.Anything)
+}
+
+func TestOrderService_PayOrder_SnapshotCarriesClosedAndPaidInstants(t *testing.T) {
+	paidAt, entries, _ := payWithCapturedOutbox(t)
+
+	var openBillEntries []*dto.SyncOutboxEntry
+	for _, e := range entries {
+		if e.EntityType == dto.SyncEntityOpenBill {
+			openBillEntries = append(openBillEntries, e)
+		}
+	}
+	require.Len(t, openBillEntries, 1, "pay must replace the tombstone with a single snapshot")
+	assert.Equal(t, dto.SyncOperationUpdate, openBillEntries[0].Operation)
+
+	payload := decodeOpenBillPayload(t, openBillEntries[0])
+	require.NotNil(t, payload.ClosedAt)
+	require.NotNil(t, payload.PaidAt)
+	assert.True(t, payload.ClosedAt.Equal(paidAt))
+	assert.True(t, payload.PaidAt.Equal(paidAt))
+	require.Len(t, payload.Products, 1)
+	assert.Equal(t, dto.CommandStatusInProgress, payload.Products[0].Status, "pay must not touch kitchen state")
+}
+
+func TestOrderService_PayOrder_AlreadyPaid_FailsAsNotFound(t *testing.T) {
+	ctx := createTestContext()
+	mockOpenBillRepo := mocks.NewMockOpenBillRepository(t)
+	mockBillRepo := mocks.NewMockBillRepository(t)
+	service := createTestService(t, mocks.NewMockProductRepository(t), mockOpenBillRepo, mockBillRepo, nil)
+
+	// The strict FindByID only sees open orders, so a paid order reads as missing.
+	mockOpenBillRepo.On("FindByID", ctx, openBillID1).Return(nil, errors.New("record not found"))
+
+	err := service.PayOrder(ctx, command.PayOrderCommand{OpenBillID: openBillID1, PaymentCode: dto.ElectronicInvoicePaymentCodeCash})
+
+	require.ErrorIs(t, err, orderError.ErrOrderNotFound)
+	mockOpenBillRepo.AssertNotCalled(t, "ClosePaid", mock.Anything, mock.Anything, mock.Anything)
+	mockBillRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestOrderService_LineTransitions_PaidOrder(t *testing.T) {
+	tests := []struct {
+		name       string
+		from       dto.CommandStatus
+		transition func(s *OrderService, ctx context.Context, openBillID, productID string) error
+		want       dto.CommandStatus
+	}{
+		{
+			name: "TestOrderService_CompleteOpenBillProduct_PaidOrder",
+			from: dto.CommandStatusInProgress,
+			transition: func(s *OrderService, ctx context.Context, id, pid string) error {
+				return s.CompleteOpenBillProduct(ctx, id, pid)
+			},
+			want: dto.CommandStatusCompleted,
+		},
+		{
+			name: "TestOrderService_UncompleteOpenBillProduct_PaidOrder",
+			from: dto.CommandStatusCompleted,
+			transition: func(s *OrderService, ctx context.Context, id, pid string) error {
+				return s.UncompleteOpenBillProduct(ctx, id, pid)
+			},
+			want: dto.CommandStatusCreated,
+		},
+		{
+			name: "TestOrderService_SetOpenBillProductInProgress_PaidOrder",
+			from: dto.CommandStatusCreated,
+			transition: func(s *OrderService, ctx context.Context, id, pid string) error {
+				return s.SetOpenBillProductInProgress(ctx, id, pid)
+			},
+			want: dto.CommandStatusInProgress,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			line := makeKitchenProduct(t, obpID1, productID1, tc.from, userID1)
+			aggregate := newPaidAggregate(t, []*openBill.OpenBillProduct{line})
+
+			entry := runKitchenTransition(t, aggregate, tc.transition)
+
+			assert.Equal(t, tc.want, line.Status())
+			payload := decodeOpenBillPayload(t, entry)
+			require.NotNil(t, payload.ClosedAt, "a paid order's snapshot must keep it closed on the peer")
+			require.NotNil(t, payload.PaidAt)
+			assert.True(t, payload.PaidAt.Equal(*aggregate.PaidAt()))
+			assert.Equal(t, tc.want, payload.Products[0].Status)
+		})
+	}
+}
+
+func TestOrderService_CancelOpenBillProduct_PaidOrder(t *testing.T) {
+	ctx := createTestContext()
+	service, mockOpenBillRepo, _ := newStatusSyncService(t)
+	line := makeKitchenProduct(t, obpID1, productID1, dto.CommandStatusInProgress, userID1)
+	aggregate := newPaidAggregate(t, []*openBill.OpenBillProduct{line})
+	mockOpenBillRepo.On("FindAggregateForKitchen", ctx, openBillID1).Return(aggregate, nil)
+
+	err := service.CancelOpenBillProduct(ctx, openBillID1, obpID1)
+
+	require.ErrorIs(t, err, openBillError.ErrCannotCancelPaidOrderLine)
+	assert.Equal(t, dto.CommandStatusInProgress, line.Status())
+	mockOpenBillRepo.AssertNotCalled(t, "UpdateProductStatus", mock.Anything, mock.Anything)
+}
+
+func TestOrderService_CompleteOpenBillProduct_VoidedOrder_NotFound(t *testing.T) {
+	ctx := createTestContext()
+	service, mockOpenBillRepo, _ := newStatusSyncService(t)
+	mockOpenBillRepo.On("FindAggregateForKitchen", ctx, openBillID1).Return(nil, errors.New("record not found"))
+
+	err := service.CompleteOpenBillProduct(ctx, openBillID1, obpID1)
+
+	require.ErrorIs(t, err, orderError.ErrOrderNotFound)
+}
+
+func TestOrderService_LineTiming_InProgressThenComplete_RecordsBoth(t *testing.T) {
+	line := makeKitchenProduct(t, obpID1, productID1, dto.CommandStatusCreated, userID1)
+	aggregate := createTestOpenBillAggregate(openBillID1, []*openBill.OpenBillProduct{line})
+
+	runKitchenTransition(t, aggregate, func(s *OrderService, ctx context.Context, id, pid string) error {
+		return s.SetOpenBillProductInProgress(ctx, id, pid)
+	})
+	require.NotNil(t, line.StartedAt())
+	startedAt := *line.StartedAt()
+	assert.Nil(t, line.CompletedAt())
+
+	entry := runKitchenTransition(t, aggregate, func(s *OrderService, ctx context.Context, id, pid string) error {
+		return s.CompleteOpenBillProduct(ctx, id, pid)
+	})
+	require.NotNil(t, line.CompletedAt())
+	assert.True(t, line.StartedAt().Equal(startedAt), "completing must not move the start")
+	assert.False(t, line.CompletedAt().Before(startedAt))
+
+	payload := decodeOpenBillPayload(t, entry)
+	require.NotNil(t, payload.Products[0].StartedAt)
+	require.NotNil(t, payload.Products[0].CompletedAt)
+	assert.True(t, payload.Products[0].CompletedAt.Equal(*line.CompletedAt()))
+}
+
+func TestOrderService_LineTiming_CompleteFromCreated_RecordsOnlyCompletion(t *testing.T) {
+	line := makeKitchenProduct(t, obpID1, productID1, dto.CommandStatusCreated, userID1)
+	aggregate := createTestOpenBillAggregate(openBillID1, []*openBill.OpenBillProduct{line})
+
+	runKitchenTransition(t, aggregate, func(s *OrderService, ctx context.Context, id, pid string) error {
+		return s.CompleteOpenBillProduct(ctx, id, pid)
+	})
+
+	assert.Nil(t, line.StartedAt())
+	assert.NotNil(t, line.CompletedAt())
+}
+
+func TestOrderService_LineTiming_UncompleteClearsCompletionKeepsStart(t *testing.T) {
+	startedAt := time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC)
+	completedAt := time.Date(2026, 10, 15, 12, 14, 0, 0, time.UTC)
+	line := makeKitchenProduct(t, obpID1, productID1, dto.CommandStatusCompleted, userID1)
+	line.RestoreTiming(&startedAt, &completedAt)
+	aggregate := createTestOpenBillAggregate(openBillID1, []*openBill.OpenBillProduct{line})
+
+	runKitchenTransition(t, aggregate, func(s *OrderService, ctx context.Context, id, pid string) error {
+		return s.UncompleteOpenBillProduct(ctx, id, pid)
+	})
+
+	assert.Nil(t, line.CompletedAt())
+	require.NotNil(t, line.StartedAt())
+	assert.True(t, line.StartedAt().Equal(startedAt))
+}
+
+func TestOrderService_LineTiming_InProgressBackToCreatedClearsStart(t *testing.T) {
+	startedAt := time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC)
+	line := makeKitchenProduct(t, obpID1, productID1, dto.CommandStatusInProgress, userID1)
+	line.RestoreTiming(&startedAt, nil)
+	aggregate := createTestOpenBillAggregate(openBillID1, []*openBill.OpenBillProduct{line})
+
+	runKitchenTransition(t, aggregate, func(s *OrderService, ctx context.Context, id, pid string) error {
+		return s.UncompleteOpenBillProduct(ctx, id, pid)
+	})
+
+	assert.Nil(t, line.StartedAt())
+	assert.Nil(t, line.CompletedAt())
+}
+
+func TestOrderService_UpdateOrder_KeepsLineTiming(t *testing.T) {
+	startedAt := time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC)
+	completedAt := time.Date(2026, 10, 15, 12, 14, 0, 0, time.UTC)
+	line := makeKitchenProduct(t, obpID1, productID1, dto.CommandStatusCompleted, userID1)
+	line.RestoreTiming(&startedAt, &completedAt)
+
+	reqItems := []dto.OrderProductItem{
+		{OpenBillProductID: obpID1, ProductID: productID1, Quantity: 2},
+		{OpenBillProductID: obpIDNew, ProductID: productID1, Quantity: 1},
+	}
+	product := createTestProduct(productID1, "Burger", "Food", 1, 50.0, 9.5)
+	captured := captureUpdateAggregate(t, []*openBill.OpenBillProduct{line}, reqItems, []*dto.Product{product})
+
+	byID := make(map[string]*openBill.OpenBillProduct)
+	for _, p := range captured.Products() {
+		byID[p.ID()] = p
+	}
+	require.NotNil(t, byID[obpID1].StartedAt())
+	require.NotNil(t, byID[obpID1].CompletedAt())
+	assert.True(t, byID[obpID1].StartedAt().Equal(startedAt))
+	assert.True(t, byID[obpID1].CompletedAt().Equal(completedAt))
+	assert.Nil(t, byID[obpIDNew].StartedAt())
+	assert.Nil(t, byID[obpIDNew].CompletedAt())
 }
