@@ -75,6 +75,42 @@ jobs:
           name: codecov-umbrella
           fail_ci_if_error: false
 
+  # Acceptance suites (sync, composite, migrations) run against real Postgres. Each package
+  # boots its own throwaway postgres:16-alpine via testcontainers, using the runner's Docker
+  # daemon, so there is no `services:` block and no DB_HOST — the same path as `make
+  # test-acceptance` locally.
+  acceptance:
+    name: Acceptance Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Install gotestsum
+        run: go install gotest.tools/gotestsum@v1.12.3
+
+      - name: Run acceptance tests
+        run: make test-acceptance-ci
+
+      - name: Test Report
+        uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3
+        if: always()
+        with:
+          name: Acceptance Tests
+          path: acceptance-report.xml
+          reporter: java-junit
+
   security:
     name: Security
     runs-on: ubuntu-latest

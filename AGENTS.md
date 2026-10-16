@@ -78,6 +78,6 @@ Endpoints are documented for the frontend in `docs/api/{entity}.md`. **Create/up
 
 ## Make targets
 
-`make lint` · `lint-fix` · `test` · `test-ci` · `test-acceptance` · `generate-mocks` · `regenerate-mocks` · `run` · `migrate-up` / `migrate-down` / `new-migration`.
+`make lint` · `lint-fix` · `test` · `test-ci` · `test-acceptance` · `test-acceptance-ci` · `generate-mocks` · `regenerate-mocks` · `run` · `migrate-up` / `migrate-down` / `new-migration`.
 
 Remember: **domain is the heart, platform is the shell** — keep domain pure and independent.

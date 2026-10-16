@@ -31,6 +31,10 @@ test-acceptance:
 	@echo "Running acceptance tests (testcontainers-backed)..."
 	RUN_ACCEPTANCE_TESTS=true go test ./test/acceptance/... -count=1 -v
 
+test-acceptance-ci:
+	@echo "Running acceptance tests for CI..."
+	RUN_ACCEPTANCE_TESTS=true gotestsum --format standard-verbose --junitfile acceptance-report.xml -- ./test/acceptance/... -count=1
+
 lint:
 	@echo "Running linter"
 	golangci-lint run --timeout=5m
