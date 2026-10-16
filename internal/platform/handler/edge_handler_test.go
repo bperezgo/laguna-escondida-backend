@@ -44,6 +44,7 @@ func TestEdgeHandler_GetStatus_CloudModeIsTriviallyOnline(t *testing.T) {
 	resp := serveEdgeStatus(t, h)
 
 	assert.Equal(t, config.ModeCloud, resp.Mode)
+	assert.Equal(t, "dev", resp.Version, "unstamped test binary reports dev")
 	assert.True(t, resp.Online)
 	assert.Equal(t, 0, resp.SyncLagSeconds)
 	assert.Equal(t, 0, resp.PendingSyncOps)

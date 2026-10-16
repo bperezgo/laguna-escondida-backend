@@ -1,9 +1,12 @@
 name: Release
 
-# Cut a release image on a semver tag. The tag you push (e.g. v1.0.0) becomes the
-# image tag in ECR, which you then point aws-infra/image-tags.json at before
-# `cdk deploy bryan-dev-services`. This is the only workflow allowed to push to
-# ECR — the AWS role trusts tag refs (refs/tags/v*) only, not branches or PRs.
+# Cut a release on a semver tag. The tag you push (e.g. v1.0.0) becomes:
+#   * the image tag in ECR (push-image), which you then point aws-infra/image-tags.json at
+#     before `cdk deploy bryan-dev-services`. This is the only workflow allowed to push to
+#     ECR — the AWS role trusts tag refs (refs/tags/v*) only, not branches or PRs.
+#   * a GitHub Release carrying the Windows edge-node binary (edge-windows), which the
+#     edge appliances download via laguna-escondida-edge/scripts/fetch-artifacts.ps1.
+#     Same tag, same commit as the cloud image — cloud first, then edges.
 on:
   push:
     tags:
@@ -53,6 +56,8 @@ jobs:
           file: ./Dockerfile
           push: true
           platforms: linux/amd64
+          build-args: |
+            VERSION=${{ github.ref_name }}
           tags: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.ref_name }}
 
       # INFORMATIONAL scan of the actual artifact that shipped. exit-code 0 so a finding
@@ -65,3 +70,50 @@ jobs:
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: "0"
+
+  # Windows edge-node binary for the edge appliance (laguna-escondida-edge). Cross-compiled
+  # (CGO off => static, no Windows runner needed); migrations are embedded in the binary.
+  # Published as a GitHub Release asset + sha256 so a box needs no credentials and no Go.
+  edge-windows:
+    name: Build Windows edge-node and attach to GitHub Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release / upload assets
+    env:
+      ASSET: edge-node-windows-amd64-${{ github.ref_name }}.zip
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Build edge-node.exe
+        env:
+          CGO_ENABLED: "0"
+          GOOS: windows
+          GOARCH: amd64
+        run: |
+          mkdir -p dist
+          go build -trimpath \
+            -ldflags "-s -w -X laguna-escondida/backend/internal/platform/buildinfo.Version=${GITHUB_REF_NAME}" \
+            -o dist/edge-node.exe ./cmd
+
+      - name: Package + checksum
+        working-directory: dist
+        run: |
+          zip -9 "$ASSET" edge-node.exe
+          sha256sum "$ASSET" > "$ASSET.sha256"
+          cat "$ASSET.sha256"
+
+      # Idempotent: create the release if this tag has none yet, then (re)upload the assets.
+      - name: Publish to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
+          gh release upload "$GITHUB_REF_NAME" "dist/$ASSET" "dist/$ASSET.sha256" --clobber

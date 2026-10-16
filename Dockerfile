@@ -21,8 +21,10 @@ COPY . .
 # Build the application
 # CGO_ENABLED=0 for static binary
 # -ldflags="-w -s" to strip debug info and reduce binary size
+# VERSION (the release tag) is stamped into buildinfo.Version; unset => "dev".
+ARG VERSION=dev
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -ldflags="-w -s" \
+    -ldflags="-w -s -X laguna-escondida/backend/internal/platform/buildinfo.Version=${VERSION}" \
     -o /app/main \
     ./cmd
 

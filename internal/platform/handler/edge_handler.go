@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"laguna-escondida/backend/internal/domain/service"
+	"laguna-escondida/backend/internal/platform/buildinfo"
 	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/syncstatus"
 
@@ -13,9 +14,11 @@ import (
 // EdgeStatusResponse describes the runtime state of the node for the frontend. In edge
 // mode Online comes from the sync scheduler's last pull outcome, while SyncLagSeconds and
 // PendingSyncOps come from this node's unsynced outbox. In cloud mode the node is the
-// source of truth, so it reports online with nothing pending.
+// source of truth, so it reports online with nothing pending. Version is the release tag
+// stamped into the binary at build time ("dev" when unstamped).
 type EdgeStatusResponse struct {
 	Mode           config.Mode `json:"mode"`
+	Version        string      `json:"version"`
 	Online         bool        `json:"online"`
 	SyncLagSeconds int         `json:"sync_lag_seconds"`
 	PendingSyncOps int         `json:"pending_sync_ops"`
@@ -39,8 +42,9 @@ func NewEdgeHandler(cfg *config.Config, statusService *service.EdgeStatusService
 // scheduler's connectivity tracker and this node's unsynced outbox.
 func (h *EdgeHandler) GetStatusHandler(c *gin.Context) {
 	resp := EdgeStatusResponse{
-		Mode:   h.cfg.AppMode,
-		Online: true,
+		Mode:    h.cfg.AppMode,
+		Version: buildinfo.Version,
+		Online:  true,
 	}
 
 	if h.cfg.AppMode == config.ModeEdge {
