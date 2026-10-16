@@ -37,7 +37,7 @@ func TestOrderHandler_CancelOpenBillProduct_PaidOrder_Returns409(t *testing.T) {
 
 	repo := mocks.NewMockOpenBillRepository(t)
 	repo.EXPECT().FindAggregateForKitchen(mock.Anything, orderID).Return(aggregate, nil).Once()
-	orderService := service.NewOrderService(repo, nil, nil, nil, dto.PendingInvoiceStatusPending, nil, nil, nil, nil, dto.SyncIdentity{}, nil)
+	orderService := service.NewOrderService(repo, nil, nil, nil, dto.PendingInvoiceStatusPending, nil, nil, nil, nil, dto.SyncIdentity{}, nil, nil, "CO")
 
 	router := gin.New()
 	router.PATCH("/api/orders/:id/products/:open_bill_product_id/cancel", NewOrderHandler(orderService).CancelOpenBillProductHandler)

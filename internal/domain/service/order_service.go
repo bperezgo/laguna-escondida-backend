@@ -11,7 +11,9 @@ import (
 	"laguna-escondida/backend/internal/domain/aggregate/bill"
 	"laguna-escondida/backend/internal/domain/aggregate/customer"
 	openBill "laguna-escondida/backend/internal/domain/aggregate/open_bill"
+	openBillError "laguna-escondida/backend/internal/domain/aggregate/open_bill/error"
 	"laguna-escondida/backend/internal/domain/aggregate/product"
+	"laguna-escondida/backend/internal/domain/aggregate/shared"
 	"laguna-escondida/backend/internal/domain/command"
 	"laguna-escondida/backend/internal/domain/dto"
 	orderError "laguna-escondida/backend/internal/domain/error"
@@ -43,6 +45,8 @@ type OrderService struct {
 	syncIdentity                dto.SyncIdentity
 	taxConfig                   dto.TaxConfig
 	productIngredientRepo       ports.ProductIngredientRepository
+	deliveryZoneFinder          ports.DeliveryZoneFinder
+	phoneHomeRegion             string
 }
 
 func NewOrderService(
@@ -57,6 +61,8 @@ func NewOrderService(
 	outboxRepo ports.SyncOutboxRepository,
 	syncIdentity dto.SyncIdentity,
 	productIngredientRepo ports.ProductIngredientRepository,
+	deliveryZoneFinder ports.DeliveryZoneFinder,
+	phoneHomeRegion string,
 ) *OrderService {
 	return &OrderService{
 		openBillRepo:                openBillRepo,
@@ -71,6 +77,8 @@ func NewOrderService(
 		outboxRepo:                  outboxRepo,
 		syncIdentity:                syncIdentity,
 		productIngredientRepo:       productIngredientRepo,
+		deliveryZoneFinder:          deliveryZoneFinder,
+		phoneHomeRegion:             phoneHomeRegion,
 	}
 }
 
@@ -89,6 +97,8 @@ func NewOrderServiceWithSSE(
 	outboxRepo ports.SyncOutboxRepository,
 	syncIdentity dto.SyncIdentity,
 	productIngredientRepo ports.ProductIngredientRepository,
+	deliveryZoneFinder ports.DeliveryZoneFinder,
+	phoneHomeRegion string,
 ) *OrderService {
 	return &OrderService{
 		logger:                      logger,
@@ -106,6 +116,8 @@ func NewOrderServiceWithSSE(
 		outboxRepo:                  outboxRepo,
 		syncIdentity:                syncIdentity,
 		productIngredientRepo:       productIngredientRepo,
+		deliveryZoneFinder:          deliveryZoneFinder,
+		phoneHomeRegion:             phoneHomeRegion,
 	}
 }
 
@@ -116,6 +128,11 @@ func (s *OrderService) CreateOrder(
 	req *dto.CreateOrderRequest,
 	user dto.UserDomain,
 ) (*dto.OpenBill, error) {
+	fulfillment, resolveErr := s.resolveFulfillment(ctx, req.OrderContactRequest)
+	if resolveErr != nil {
+		return nil, resolveErr
+	}
+
 	// Reject a duplicate before doing any work: two active orders must never share a
 	// temporal identifier. "Active" excludes completed/cancelled/deleted orders, so a
 	// finalized order's identifier can be reused.
@@ -205,13 +222,14 @@ func (s *OrderService) CreateOrder(
 		req.Products = resolvedProducts
 	}
 
-	openBillAggregate, err := openBill.NewAggregate(
+	openBillAggregate, err := openBill.NewAggregateWithFulfillment(
 		req.OpenBillID,
 		req.TemporalIdentifier,
 		req.Descriptor,
 		totalAmount,
 		openBillProducts,
 		user.ID,
+		fulfillment,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
@@ -253,12 +271,36 @@ func (s *OrderService) CreateOrder(
 			openBillDTO.CreatedAt,
 			req.Products,
 		)
+		event.OrderType = openBillAggregate.OrderType()
 		if err := s.eventBus.Publish(ctx, event); err != nil {
 			s.logger.ErrorContext(ctx, "failed to publish order created event", slog.Any("error", err))
 		}
 	}
 
 	return openBillDTO, nil
+}
+
+// resolveFulfillment validates type, contact and location, and places a delivery in the oldest
+// active zone containing its pin. No active zone means no delivery (fail closed).
+func (s *OrderService) resolveFulfillment(ctx context.Context, req dto.OrderContactRequest) (openBill.Fulfillment, error) {
+	fulfillment, err := openBill.NewFulfillment(req, s.phoneHomeRegion)
+	if err != nil {
+		return openBill.Fulfillment{}, err
+	}
+	if !fulfillment.IsDelivery() {
+		return fulfillment, nil
+	}
+
+	zones, err := s.deliveryZoneFinder.ListActive(ctx)
+	if err != nil {
+		return openBill.Fulfillment{}, fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
+	}
+	lat, lng := fulfillment.DeliveryLocation()
+	zone, ok := findContainingZone(zones, lat.InexactFloat64(), lng.InexactFloat64())
+	if !ok {
+		return openBill.Fulfillment{}, orderError.ErrOutsideDeliveryZone
+	}
+	return fulfillment.InZone(zone.ID), nil
 }
 
 // resolveSideDishSelections validates a line's side-dish selections against the product's
@@ -553,6 +595,7 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 		existingOpenBill.Products,
 		req.Products,
 	)
+	event.OrderType = existingBillAggregate.OrderType()
 	if err := s.eventBus.Publish(ctx, event); err != nil {
 		s.logger.ErrorContext(ctx, "failed to publish order updated event", slog.Any("error", err))
 	}
@@ -564,7 +607,8 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 // Moves all information from open_bill to bill (except temporal_identifier)
 // Only moves open_bill_products where deleted_at IS NULL to bill_products
 func (s *OrderService) PayOrder(ctx context.Context, payOrderCommand command.PayOrderCommand) error {
-	return s.unitOfWork.Do(ctx, func(txCtx context.Context) error {
+	var released *dto.OrderReleasedToKitchenEvent
+	err := s.unitOfWork.Do(ctx, func(txCtx context.Context) error {
 		openBillWithProducts, err := s.openBillRepo.FindByID(txCtx, payOrderCommand.OpenBillID)
 		if err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
@@ -633,8 +677,30 @@ func (s *OrderService) PayOrder(ctx context.Context, payOrderCommand command.Pay
 			}
 		}
 
+		if openBillAggregate.OrderType().IsHeldUntilPaid() {
+			event := dto.NewOrderReleasedToKitchenEvent(
+				openBillAggregate.ID(),
+				openBillAggregate.TemporalIdentifier(),
+				openBillAggregate.CreatedByID(),
+				paidAt,
+				openBillWithProducts.Products,
+			)
+			released = &event
+		}
+
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+
+	// After the commit, so the kitchen never shows lines of a payment that rolled back.
+	if released != nil {
+		if err := s.eventBus.Publish(ctx, *released); err != nil {
+			s.logger.ErrorContext(ctx, "failed to publish order released to kitchen event", slog.Any("error", err))
+		}
+	}
+	return nil
 }
 
 // requiresElectronicInvoice reports whether a paid order must be queued for the fiscal
@@ -746,8 +812,13 @@ func (s *OrderService) createOrUpdateBillOwner(ctx context.Context, customerDTO 
 }
 
 // GetAllActiveOpenBills returns all open bills where deleted_at is NULL
-func (s *OrderService) GetAllActiveOpenBills(ctx context.Context) (*dto.OpenBillListResponse, error) {
-	openBills, err := s.openBillRepo.FindAll(ctx)
+func (s *OrderService) GetAllActiveOpenBills(ctx context.Context, filter dto.OrderListFilter) (*dto.OpenBillListResponse, error) {
+	filter, err := s.normalizeListFilter(filter)
+	if err != nil {
+		return nil, err
+	}
+
+	openBills, err := s.openBillRepo.FindAll(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get active open bills: %w", err)
 	}
@@ -762,8 +833,13 @@ func (s *OrderService) GetAllActiveOpenBills(ctx context.Context) (*dto.OpenBill
 // GetClosedOpenBills returns the soft-deleted (closed) open bills created within
 // [from, to) — the read-only "Órdenes cerradas hoy" list. It reuses the open-bill list
 // shape so the frontend can render closed orders with the same card as active ones.
-func (s *OrderService) GetClosedOpenBills(ctx context.Context, from, to time.Time) (*dto.OpenBillListResponse, error) {
-	openBills, err := s.openBillRepo.FindDeletedByCreatedAtBetween(ctx, from, to)
+func (s *OrderService) GetClosedOpenBills(ctx context.Context, from, to time.Time, filter dto.OrderListFilter) (*dto.OpenBillListResponse, error) {
+	filter, err := s.normalizeListFilter(filter)
+	if err != nil {
+		return nil, err
+	}
+
+	openBills, err := s.openBillRepo.FindDeletedByCreatedAtBetween(ctx, from, to, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get closed open bills: %w", err)
 	}
@@ -773,6 +849,24 @@ func (s *OrderService) GetClosedOpenBills(ctx context.Context, from, to time.Tim
 		OpenBills: openBills,
 		Total:     &total,
 	}, nil
+}
+
+// normalizeListFilter applies the stored phone format so a search matches however it was typed.
+func (s *OrderService) normalizeListFilter(filter dto.OrderListFilter) (dto.OrderListFilter, error) {
+	switch filter.OrderType {
+	case "", dto.OrderTypeDineIn, dto.OrderTypeTakeaway, dto.OrderTypeDelivery:
+	default:
+		return dto.OrderListFilter{}, openBillError.NewInvalidOrderTypeError(string(filter.OrderType))
+	}
+	if filter.CustomerPhone == "" {
+		return filter, nil
+	}
+	phone, err := shared.NewPhone(filter.CustomerPhone, s.phoneHomeRegion)
+	if err != nil {
+		return dto.OrderListFilter{}, err
+	}
+	filter.CustomerPhone = phone.Value()
+	return filter, nil
 }
 
 // GetClosedOpenBillWithProducts returns a single closed (soft-deleted) open bill with
@@ -819,6 +913,7 @@ func (s *OrderService) DeleteOrder(ctx context.Context, openBillID string) error
 	}
 
 	event := dto.NewOrderDeletedEvent(openBillID, existingOpenBill.Products)
+	event.OrderType = existingOpenBill.OrderType
 	if err := s.eventBus.Publish(ctx, event); err != nil {
 		s.logger.ErrorContext(ctx, "failed to publish order deleted event", slog.Any("error", err))
 	}
@@ -979,6 +1074,26 @@ func (s *OrderService) HandleOrderCreatedSSE(ctx context.Context, event dto.Orde
 		slog.Int("product_count", len(event.Products)),
 	)
 
+	if event.OrderType.IsHeldUntilPaid() {
+		return nil
+	}
+
+	return s.notifyLinesCreated(ctx, event)
+}
+
+// HandleOrderReleasedToKitchenSSE shows a paid takeaway/delivery order's lines on the board,
+// with the waiting time starting at the payment.
+func (s *OrderService) HandleOrderReleasedToKitchenSSE(ctx context.Context, event dto.OrderReleasedToKitchenEvent) error {
+	return s.notifyLinesCreated(ctx, dto.OrderCreatedEvent{
+		OpenBillID:         event.OpenBillID,
+		TemporalIdentifier: event.TemporalIdentifier,
+		CreatedByID:        event.CreatedByID,
+		CreatedAt:          event.PaidAt,
+		Products:           event.Products,
+	})
+}
+
+func (s *OrderService) notifyLinesCreated(ctx context.Context, event dto.OrderCreatedEvent) error {
 	if len(event.Products) == 0 {
 		s.logger.InfoContext(ctx, "HandleOrderCreatedSSE: no products to process")
 		return nil
@@ -1067,7 +1182,7 @@ func (s *OrderService) HandleOrderCreatedSSE(ctx context.Context, event dto.Orde
 
 	}
 
-	s.logger.InfoContext(ctx, "HandleOrderCreatedSSE completed",
+	s.logger.InfoContext(ctx, "kitchen lines notified",
 		slog.Int("products_notified", notifiedCount),
 		slog.Int("total_products", len(event.Products)),
 	)
@@ -1077,6 +1192,11 @@ func (s *OrderService) HandleOrderCreatedSSE(ctx context.Context, event dto.Orde
 
 // HandleOrderUpdatedSSE notifies frontend via SSE when order products are updated
 func (s *OrderService) HandleOrderUpdatedSSE(ctx context.Context, event dto.OrderUpdatedEvent) error {
+	// A held order is always unpaid here (a paid order cannot be edited), so the board never showed it.
+	if event.OrderType.IsHeldUntilPaid() {
+		return nil
+	}
+
 	var createdByName string
 	if event.CreatedByID != "" {
 		user, err := s.userRepo.FindByID(ctx, event.CreatedByID)
@@ -1231,6 +1351,10 @@ func (s *OrderService) HandleOrderUpdatedSSE(ctx context.Context, event dto.Orde
 
 // HandleOrderDeletedSSE notifies frontend via SSE when an order is deleted
 func (s *OrderService) HandleOrderDeletedSSE(ctx context.Context, event dto.OrderDeletedEvent) error {
+	if event.OrderType.IsHeldUntilPaid() {
+		return nil
+	}
+
 	openBill, err := s.openBillRepo.FindByIDWithProducts(ctx, event.OpenBillID)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to find open bill for deletion event", slog.String("open_bill_id", event.OpenBillID), slog.Any("error", err))

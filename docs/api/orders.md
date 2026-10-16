@@ -7,7 +7,9 @@ Manages open orders (open bills) — active tabs that can contain products befor
 | Method | Endpoint                                                     | Description                    |
 | ------ | ------------------------------------------------------------ | ------------------------------ |
 | POST   | `/api/orders`                                                | Create a new order             |
-| GET    | `/api/orders`                                                | List all active orders         |
+| GET    | `/api/orders`                                                | List all active orders (filterable) |
+| GET    | `/api/orders/closed`                                         | List orders closed today (filterable) |
+| GET    | `/api/orders/closed/:id`                                     | Get a closed order with products |
 | GET    | `/api/orders/:id`                                            | Get order with products        |
 | PUT    | `/api/orders/:id`                                            | Update an order                |
 | DELETE | `/api/orders/:id`                                            | Delete (soft) an order         |
@@ -20,6 +22,33 @@ Manages open orders (open bills) — active tabs that can contain products befor
 > **Note:** Paying an order (`POST /api/orders/pay-order`) requires the `orders:pay` permission, which is granted only to **manager** and **admin** roles. Servers can create, update, and cancel product lines, but cannot pay/close a bill.
 >
 > **Note:** Marking a product **completed** or **in-progress** requires the `orders:complete-product` permission (the kitchen preparation flow), granted to **cooker**, **manager**, and **admin** roles. **Cancelling** a product requires `orders:update` (server, manager, admin) — cookers cannot cancel product lines.
+
+## Order types: dine-in, takeaway and delivery
+
+Every order has an `order_type`:
+
+| Type       | Meaning                          | Required on create                                          |
+| ---------- | -------------------------------- | ----------------------------------------------------------- |
+| `dine_in`  | Eaten at the restaurant (default) | Nothing new                                                |
+| `takeaway` | Picked up by the customer         | `customer_phone`                                           |
+| `delivery` | Taken to the customer             | `customer_phone`, `delivery_address`, `delivery_lat`, `delivery_lng` inside an active [delivery zone](./delivery-zones.md) |
+
+- **Set on create only.** `PUT /api/orders/:id` cannot change the type, contact, address or location; a customer who moved cancels and re-orders.
+- **Phones are stored in E.164** (`+573005551234`). Spaces, dashes, dots and parentheses are ignored. A number starting with `+` is read as international; anything else as a number of the configured home region (`PHONE_HOME_REGION`, default Colombia), which also accepts that region's numbers written with the country code but no `+` (`573005551234`). Invalid numbers are rejected with `400 INVALID_PHONE`.
+- **The delivery location is the pin, not the address.** `delivery_lat`/`delivery_lng` are decimal degrees (strings, up to 6 decimals). The address is free text for the rider (building, apartment, door) and is never geocoded. The order records the oldest active zone containing the pin; if none contains it, or no zone is active, the order is refused with `422`.
+- `delivery_lat`/`delivery_lng` sent with a `dine_in` or `takeaway` order are ignored.
+- The contact is **not** a fiscal customer: no bill owner is created. Choosing who the invoice is for still happens at `pay-order`.
+- Orders replicated from the restaurant (edge) are always `dine_in`.
+
+### Held until paid
+
+The lines of an **unpaid** `takeaway` or `delivery` order are **held out of the kitchen**:
+
+- They are not on any kitchen board (SSE feed and "Comandas Listas"), and no live SSE event is sent when such an order is created, edited or deleted.
+- `in-progress` and `complete` on them return `409 ORDER_AWAITING_PAYMENT`, whoever calls.
+- The order stays editable (`PUT`), its lines cancellable, and it can be deleted (stock returned), like any open order. Stock is reserved at creation, as for any order.
+
+**Paying releases them.** After `POST /api/orders/pay-order`, the lines appear live on their kitchen boards (an `open_bill_product.created` SSE event per line), and from then on follow the [paid-order lifecycle](#kitchen-lines-after-payment). The kitchen's waiting time (`created_at` on the board) is the **payment instant**, both in the live event and after a reload. `dine_in` is unchanged.
 
 ## Kitchen lines after payment
 
@@ -60,6 +89,12 @@ The `temporal_identifier` must be unique among **active** orders. An order is ac
 | products[].side_dishes          | array  | No  | Side-dish selections for a composite product (see below) |
 | products[].side_dishes[].ingredient_product_id | string | Yes | UUID of the side-dish ingredient |
 | products[].side_dishes[].quantity              | int    | Yes | Chosen quantity, within the option's `[min, max]` (0 removes it) |
+| order_type          | string | No       | `dine_in` (default), `takeaway` or `delivery` |
+| customer_name       | string | No       | Customer name |
+| customer_phone      | string | Conditional | Required for `takeaway` and `delivery`; normalized to E.164 |
+| delivery_address    | string | Conditional | Required for `delivery`; reference for the rider |
+| delivery_lat        | string | Conditional | Required for `delivery`; latitude in [-90, 90] |
+| delivery_lng        | string | Conditional | Required for `delivery`; longitude in [-180, 180] |
 
 > **Side dishes:** For a composite product whose ingredients are configured as side dishes (see [Products API → Side Dishes](./products.md#side-dishes)), a line may carry `side_dishes` to override how much of each is served. Omitted side dishes resolve to their configured default, so a line with no `side_dishes` behaves exactly as before. A selection referencing a non-side-dish ingredient, or a quantity outside `[min, max]`, rejects the whole order. Side-dish changes never affect the plate price; stock consumption follows the selected quantities.
 
@@ -95,11 +130,82 @@ The `temporal_identifier` must be unique among **active** orders. An order is ac
   "status": "created",
   "descriptor": "Mesa 5",
   "created_at": "2025-06-15T10:30:00Z",
-  "updated_at": "2025-06-15T10:30:00Z"
+  "updated_at": "2025-06-15T10:30:00Z",
+  "order_type": "dine_in"
+}
+```
+
+### Example Request (Delivery)
+
+```json
+{
+  "open_bill_id": "019a1f3c-5b2e-7c41-9a8d-3e6f1b2c4d50",
+  "temporal_identifier": "019a1f3c-5b2e-7c41-9a8d-3e6f1b2c4d51",
+  "descriptor": "Domicilio Ana",
+  "order_type": "delivery",
+  "customer_name": "Ana Gómez",
+  "customer_phone": "300 555 1234",
+  "delivery_address": "Cra 7 # 12-34, Edificio Colón, apto 501",
+  "delivery_lat": "4.598100",
+  "delivery_lng": "-74.076000",
+  "products": [
+    {
+      "open_bill_product_id": "019a1f3c-5b2e-7c41-9a8d-3e6f1b2c4d52",
+      "product_id": "880e8400-e29b-41d4-a716-446655440003",
+      "quantity": 1
+    }
+  ]
+}
+```
+
+### Example Response (201 Created, Delivery)
+
+```json
+{
+  "id": "019a1f3c-5b2e-7c41-9a8d-3e6f1b2c4d50",
+  "temporal_identifier": "019a1f3c-5b2e-7c41-9a8d-3e6f1b2c4d51",
+  "total_amount": "32000",
+  "status": "created",
+  "descriptor": "Domicilio Ana",
+  "created_at": "2026-10-15T12:00:00Z",
+  "updated_at": "2026-10-15T12:00:00Z",
+  "order_type": "delivery",
+  "customer_name": "Ana Gómez",
+  "customer_phone": "+573005551234",
+  "delivery_address": "Cra 7 # 12-34, Edificio Colón, apto 501",
+  "delivery_lat": "4.5981",
+  "delivery_lng": "-74.076",
+  "delivery_zone_id": "019a0f00-1111-7000-8000-00000000c3e7",
+  "delivery_map_url": "https://www.google.com/maps/search/?api=1&query=4.5981,-74.076"
 }
 ```
 
 ### Error Responses
+
+**400 Bad Request** — invalid `order_type`, a missing contact/location field, an invalid phone or location, or an invalid side-dish selection. The `code` names the problem.
+
+```json
+{
+  "error": "delivery_address is required for this order type",
+  "code": "ORDER_MISSING_FIELD"
+}
+```
+
+| `code`                            | When                                                          |
+| --------------------------------- | ------------------------------------------------------------- |
+| `ORDER_INVALID_TYPE`              | `order_type` is not `dine_in`, `takeaway` or `delivery`        |
+| `ORDER_MISSING_FIELD`             | `customer_phone` (takeaway/delivery), `delivery_address` or `delivery_lat`/`delivery_lng` (delivery) missing |
+| `INVALID_PHONE`                   | `customer_phone` is not a valid number for its country         |
+| `ORDER_INVALID_DELIVERY_LOCATION` | `delivery_lat`/`delivery_lng` not numeric or out of range      |
+
+**422 Unprocessable Entity** — the delivery pin is outside every active delivery zone (or no zone is active)
+
+```json
+{
+  "error": "The delivery location is outside every delivery zone",
+  "code": "OUTSIDE_DELIVERY_ZONE"
+}
+```
 
 **404 Not Found** — one or more products do not exist
 
@@ -131,7 +237,7 @@ The `temporal_identifier` must be unique among **active** orders. An order is ac
 
 `PUT /api/orders/:id`
 
-Updates an existing order's products, description, and/or temporal identifier. Sending an empty `products` array clears all products. Fields `temporal_identifier` and `descriptor` are optional — only sent fields are updated.
+Updates an existing order's products, description, and/or temporal identifier. Sending an empty `products` array clears all products. Fields `temporal_identifier` and `descriptor` are optional — only sent fields are updated. The order's `order_type`, contact, address, location and zone never change on update.
 
 ### Path Parameters
 
@@ -210,7 +316,18 @@ Updates an existing order's products, description, and/or temporal identifier. S
 
 `GET /api/orders`
 
-Returns all open orders that have not been deleted.
+Returns all open orders that have not been deleted. Without query parameters it returns every active order, as before.
+
+### Query Parameters
+
+| Param          | Type   | Required | Description |
+| -------------- | ------ | -------- | ----------- |
+| order_type     | string | No       | `dine_in`, `takeaway` or `delivery` |
+| customer_phone | string | No       | Any format; normalized like on create, so `300-555-1234` matches `+573005551234` |
+
+When both are given an order must match both. An invalid value returns `400` (`ORDER_INVALID_TYPE` / `INVALID_PHONE`). Each item carries the order-type fields (`order_type`, and for takeaway/delivery the contact, location, `delivery_zone_id` and `delivery_map_url`).
+
+`GET /api/orders?order_type=delivery` is what a delivery screen polls for unpaid agent orders; pair it with `GET /api/orders/closed?order_type=delivery` for the ones paid and being prepared.
 
 ### Example Response (200 OK)
 
@@ -235,6 +352,47 @@ Returns all open orders that have not been deleted.
   "total": 1
 }
 ```
+
+---
+
+## List Orders Closed Today
+
+`GET /api/orders/closed`
+
+Returns the orders created during the current business day (America/Bogota) that are closed, paid or voided, most recently closed first. Accepts the same `order_type` and `customer_phone` filters as the active list.
+
+Each item has `paid_at` when it was paid; a voided order has none.
+
+### Example Response (200 OK)
+
+```json
+{
+  "open_bills": [
+    {
+      "id": "019a1f3c-5b2e-7c41-9a8d-3e6f1b2c4d50",
+      "temporal_identifier": "019a1f3c-5b2e-7c41-9a8d-3e6f1b2c4d51",
+      "total_amount": "32000",
+      "status": "created",
+      "created_by": { "id": "user-uuid", "user_name": "agente", "name": "WhatsApp Agent" },
+      "descriptor": "Domicilio Ana",
+      "created_at": "2026-10-15T12:00:00Z",
+      "updated_at": "2026-10-15T12:20:00Z",
+      "paid_at": "2026-10-15T12:20:00Z",
+      "order_type": "delivery",
+      "customer_name": "Ana Gómez",
+      "customer_phone": "+573005551234",
+      "delivery_address": "Cra 7 # 12-34, Edificio Colón, apto 501",
+      "delivery_lat": "4.5981",
+      "delivery_lng": "-74.076",
+      "delivery_zone_id": "019a0f00-1111-7000-8000-00000000c3e7",
+      "delivery_map_url": "https://www.google.com/maps/search/?api=1&query=4.5981,-74.076"
+    }
+  ],
+  "total": 1
+}
+```
+
+`GET /api/orders/closed/:id` returns one closed order with its products (same shape as [Get Order With Products](#get-order-with-products), plus `paid_at`).
 
 ---
 
@@ -351,13 +509,22 @@ Marks a product in the order as completed and records its `completed_at`. Works 
 }
 ```
 
+**409 Conflict** — the order is an unpaid takeaway or delivery, held until payment (also returned by `in-progress`)
+
+```json
+{
+  "error": "The order must be paid before the kitchen can prepare it",
+  "code": "ORDER_AWAITING_PAYMENT"
+}
+```
+
 ---
 
 ## Set Product In Progress
 
 `PATCH /api/orders/:id/products/:open_bill_product_id/in-progress`
 
-Marks a product as in-progress and records its `started_at` (only the first time). Works on open and paid orders.
+Marks a product as in-progress and records its `started_at` (only the first time). Works on open and paid orders. On an unpaid takeaway or delivery order it returns `409 ORDER_AWAITING_PAYMENT` (see [Held until paid](#held-until-paid)).
 
 **Required permission:** `orders:complete-product` (cooker, manager, admin)
 

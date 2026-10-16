@@ -23,16 +23,23 @@ func NewOpenBillRepository(db *gorm.DB) ports.OpenBillRepository {
 }
 
 type openBillModel struct {
-	ID                 string          `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	TemporalIdentifier string          `gorm:"type:varchar(255);not null"`
-	TotalAmount        decimal.Decimal `gorm:"type:numeric(19,4);not null"`
-	Status             string          `gorm:"type:varchar(50);not null;default:'created'"`
-	CreatedBy          string          `gorm:"type:uuid;not null;column:created_by"`
-	Descriptor         *string         `gorm:"type:text"`
-	CreatedAt          time.Time       `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
-	UpdatedAt          time.Time       `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
-	DeletedAt          *time.Time      `gorm:"type:timestamp"`
-	PaidAt             *time.Time      `gorm:"type:timestamptz"`
+	ID                 string           `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	TemporalIdentifier string           `gorm:"type:varchar(255);not null"`
+	TotalAmount        decimal.Decimal  `gorm:"type:numeric(19,4);not null"`
+	Status             string           `gorm:"type:varchar(50);not null;default:'created'"`
+	CreatedBy          string           `gorm:"type:uuid;not null;column:created_by"`
+	Descriptor         *string          `gorm:"type:text"`
+	CreatedAt          time.Time        `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	UpdatedAt          time.Time        `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	DeletedAt          *time.Time       `gorm:"type:timestamp"`
+	PaidAt             *time.Time       `gorm:"type:timestamptz"`
+	OrderType          string           `gorm:"type:varchar(20);not null;default:'dine_in'"`
+	CustomerName       *string          `gorm:"type:varchar(255)"`
+	CustomerPhone      *string          `gorm:"type:varchar(20)"`
+	DeliveryAddress    *string          `gorm:"type:text"`
+	DeliveryLat        *decimal.Decimal `gorm:"type:numeric(9,6)"`
+	DeliveryLng        *decimal.Decimal `gorm:"type:numeric(9,6)"`
+	DeliveryZoneID     *string          `gorm:"type:uuid"`
 }
 
 func (openBillModel) TableName() string {
@@ -56,9 +63,61 @@ type openBillProductModel struct {
 	CompletedAt *time.Time `gorm:"type:timestamptz"`
 }
 
-// kitchenVisibleOpenBill is the one definition of which orders the kitchen still works on:
-// open ones, plus paid ones whose lines keep cooking. A voided order (closed, never paid) is out.
-const kitchenVisibleOpenBill = "(open_bills.deleted_at IS NULL OR open_bills.paid_at IS NOT NULL)"
+// kitchenLoadableOpenBill is which orders kitchen transitions can act on: open ones, plus paid
+// ones whose lines keep cooking. A voided order (closed, never paid) is out. A held order loads,
+// so the aggregate can refuse it as awaiting payment and a held line can still be cancelled.
+const kitchenLoadableOpenBill = "(open_bills.deleted_at IS NULL OR open_bills.paid_at IS NOT NULL)"
+
+// kitchenVisibleOpenBill is what the boards show: an unpaid takeaway/delivery is held off them.
+const kitchenVisibleOpenBill = kitchenLoadableOpenBill +
+	" AND (open_bills.order_type = 'dine_in' OR open_bills.paid_at IS NOT NULL)"
+
+// kitchenWaitingSince: a released order waits from its payment, not from when it was taken.
+const kitchenWaitingSince = "CASE WHEN open_bills.order_type = 'dine_in' THEN open_bills_products.created_at ELSE open_bills.paid_at END"
+
+const fulfillmentColumns = `
+			open_bills.paid_at,
+			open_bills.order_type,
+			open_bills.customer_name,
+			open_bills.customer_phone,
+			open_bills.delivery_address,
+			open_bills.delivery_lat,
+			open_bills.delivery_lng,
+			open_bills.delivery_zone_id,`
+
+// fulfillmentRow is scanned into the header result structs via gorm:"embedded".
+type fulfillmentRow struct {
+	PaidAt          *time.Time
+	OrderType       string
+	CustomerName    *string
+	CustomerPhone   *string
+	DeliveryAddress *string
+	DeliveryLat     *decimal.Decimal
+	DeliveryLng     *decimal.Decimal
+	DeliveryZoneID  *string
+}
+
+func (f fulfillmentRow) toDTO() dto.OrderFulfillment {
+	return openBill.RestoreFulfillment(dto.OrderFulfillment{
+		OrderType:       dto.OrderType(f.OrderType),
+		CustomerName:    f.CustomerName,
+		CustomerPhone:   f.CustomerPhone,
+		DeliveryAddress: f.DeliveryAddress,
+		DeliveryLat:     f.DeliveryLat,
+		DeliveryLng:     f.DeliveryLng,
+		DeliveryZoneID:  f.DeliveryZoneID,
+	}).ToDTO()
+}
+
+func applyOrderListFilter(query *gorm.DB, filter dto.OrderListFilter) *gorm.DB {
+	if filter.OrderType != "" {
+		query = query.Where("open_bills.order_type = ?", string(filter.OrderType))
+	}
+	if filter.CustomerPhone != "" {
+		query = query.Where("open_bills.customer_phone = ?", filter.CustomerPhone)
+	}
+	return query
+}
 
 // lineCompletedAt falls back to updated_at for lines completed before completed_at existed.
 const lineCompletedAt = "COALESCE(open_bills_products.completed_at, open_bills_products.updated_at)"
@@ -225,6 +284,7 @@ func (r *OpenBillRepository) Create(ctx context.Context, aggregate *openBill.Agg
 			return err
 		}
 
+		fulfillment := aggregate.Fulfillment().ToDTO()
 		model := &openBillModel{
 			ID:                 aggregate.ID(),
 			TemporalIdentifier: aggregate.TemporalIdentifier(),
@@ -234,6 +294,13 @@ func (r *OpenBillRepository) Create(ctx context.Context, aggregate *openBill.Agg
 			Descriptor:         aggregate.Descriptor(),
 			CreatedAt:          aggregate.CreatedAt(),
 			UpdatedAt:          aggregate.UpdatedAt(),
+			OrderType:          string(fulfillment.OrderType),
+			CustomerName:       fulfillment.CustomerName,
+			CustomerPhone:      fulfillment.CustomerPhone,
+			DeliveryAddress:    fulfillment.DeliveryAddress,
+			DeliveryLat:        fulfillment.DeliveryLat,
+			DeliveryLng:        fulfillment.DeliveryLng,
+			DeliveryZoneID:     fulfillment.DeliveryZoneID,
 		}
 
 		if err := tx.Create(model).Error; err != nil {
@@ -300,6 +367,7 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 		Descriptor         *string
 		CreatedAt          time.Time
 		UpdatedAt          time.Time
+		Fulfillment        fulfillmentRow `gorm:"embedded"`
 		// User fields
 		UserID       string
 		UserUsername string
@@ -317,7 +385,7 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 			open_bills.created_by,
 			open_bills.descriptor,
 			open_bills.created_at,
-			open_bills.updated_at,
+			open_bills.updated_at,`+fulfillmentColumns+`
 			users.id as user_id,
 			users.username as user_username,
 			users.name as user_name
@@ -466,6 +534,8 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 		Products:           productDetails,
 		CreatedAt:          res.CreatedAt,
 		UpdatedAt:          res.UpdatedAt,
+		PaidAt:             res.Fulfillment.PaidAt,
+		OrderFulfillment:   res.Fulfillment.toDTO(),
 	}, nil
 }
 
@@ -492,7 +562,7 @@ func (r *OpenBillRepository) FindAggregateByID(ctx context.Context, id string) (
 }
 
 func (r *OpenBillRepository) FindAggregateForKitchen(ctx context.Context, id string) (*openBill.Aggregate, error) {
-	return r.findAggregate(ctx, "open_bills.id = ? AND "+kitchenVisibleOpenBill, id)
+	return r.findAggregate(ctx, "open_bills.id = ? AND "+kitchenLoadableOpenBill, id)
 }
 
 func (r *OpenBillRepository) findAggregate(ctx context.Context, where string, id string) (*openBill.Aggregate, error) {
@@ -539,7 +609,7 @@ func (r *OpenBillRepository) findAggregate(ctx context.Context, where string, id
 		products = append(products, product)
 	}
 
-	return openBill.NewAggregateFromRepository(
+	aggregate, buildErr := openBill.NewAggregateFromRepository(
 		model.ID,
 		model.TemporalIdentifier,
 		model.TotalAmount,
@@ -551,6 +621,19 @@ func (r *OpenBillRepository) findAggregate(ctx context.Context, where string, id
 		model.DeletedAt,
 		model.PaidAt,
 	)
+	if buildErr != nil {
+		return nil, buildErr
+	}
+	aggregate.RestoreFulfillment(openBill.RestoreFulfillment(dto.OrderFulfillment{
+		OrderType:       dto.OrderType(model.OrderType),
+		CustomerName:    model.CustomerName,
+		CustomerPhone:   model.CustomerPhone,
+		DeliveryAddress: model.DeliveryAddress,
+		DeliveryLat:     model.DeliveryLat,
+		DeliveryLng:     model.DeliveryLng,
+		DeliveryZoneID:  model.DeliveryZoneID,
+	}))
+	return aggregate, nil
 }
 
 func (r *OpenBillRepository) Update(ctx context.Context, aggregate *openBill.Aggregate) error {
@@ -741,7 +824,7 @@ func (r *OpenBillRepository) PayOrder(ctx context.Context, openBillID string) (*
 	return bill, nil
 }
 
-func (r *OpenBillRepository) FindAll(ctx context.Context) ([]*dto.OpenBillWithCreator, error) {
+func (r *OpenBillRepository) FindAll(ctx context.Context, filter dto.OrderListFilter) ([]*dto.OpenBillWithCreator, error) {
 	type result struct {
 		// Open Bill fields
 		ID                 string
@@ -752,6 +835,7 @@ func (r *OpenBillRepository) FindAll(ctx context.Context) ([]*dto.OpenBillWithCr
 		Descriptor         *string
 		CreatedAt          time.Time
 		UpdatedAt          time.Time
+		Fulfillment        fulfillmentRow `gorm:"embedded"`
 		// User fields
 		UserID       string
 		UserUsername string
@@ -759,7 +843,7 @@ func (r *OpenBillRepository) FindAll(ctx context.Context) ([]*dto.OpenBillWithCr
 	}
 
 	var results []result
-	err := r.db.WithContext(ctx).
+	query := r.db.WithContext(ctx).
 		Table("open_bills").
 		Select(`
 			open_bills.id,
@@ -769,13 +853,14 @@ func (r *OpenBillRepository) FindAll(ctx context.Context) ([]*dto.OpenBillWithCr
 			open_bills.created_by,
 			open_bills.descriptor,
 			open_bills.created_at,
-			open_bills.updated_at,
+			open_bills.updated_at,` + fulfillmentColumns + `
 			users.id as user_id,
 			users.username as user_username,
 			users.name as user_name
 		`).
 		Joins("INNER JOIN users ON open_bills.created_by = users.id AND users.deleted_at IS NULL").
-		Where("open_bills.deleted_at IS NULL").
+		Where("open_bills.deleted_at IS NULL")
+	err := applyOrderListFilter(query, filter).
 		Scan(&results).Error
 
 	if err != nil {
@@ -794,9 +879,11 @@ func (r *OpenBillRepository) FindAll(ctx context.Context) ([]*dto.OpenBillWithCr
 				Username: r.UserUsername,
 				Name:     r.UserName,
 			},
-			Descriptor: r.Descriptor,
-			CreatedAt:  r.CreatedAt,
-			UpdatedAt:  r.UpdatedAt,
+			Descriptor:       r.Descriptor,
+			CreatedAt:        r.CreatedAt,
+			UpdatedAt:        r.UpdatedAt,
+			PaidAt:           r.Fulfillment.PaidAt,
+			OrderFulfillment: r.Fulfillment.toDTO(),
 		}
 	}
 
@@ -814,6 +901,7 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 		Descriptor         *string
 		CreatedAt          time.Time
 		UpdatedAt          time.Time
+		Fulfillment        fulfillmentRow `gorm:"embedded"`
 		// User fields
 		UserID       string
 		UserUsername string
@@ -831,7 +919,7 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 			open_bills.created_by,
 			open_bills.descriptor,
 			open_bills.created_at,
-			open_bills.updated_at,
+			open_bills.updated_at,`+fulfillmentColumns+`
 			users.id as user_id,
 			users.username as user_username,
 			users.name as user_name
@@ -973,6 +1061,8 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 		Products:           productDetails,
 		CreatedAt:          result.CreatedAt,
 		UpdatedAt:          result.UpdatedAt,
+		PaidAt:             result.Fulfillment.PaidAt,
+		OrderFulfillment:   result.Fulfillment.toDTO(),
 	}, nil
 }
 
@@ -981,7 +1071,7 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 // window — paid, or discarded — and power the read-only "Órdenes cerradas hoy" list.
 // Mirrors FindAll but selects the deleted rows instead of the active ones and orders
 // by deleted_at (close time) so the most recently closed order shows first.
-func (r *OpenBillRepository) FindDeletedByCreatedAtBetween(ctx context.Context, from, to time.Time) ([]*dto.OpenBillWithCreator, error) {
+func (r *OpenBillRepository) FindDeletedByCreatedAtBetween(ctx context.Context, from, to time.Time, filter dto.OrderListFilter) ([]*dto.OpenBillWithCreator, error) {
 	type result struct {
 		// Open Bill fields
 		ID                 string
@@ -992,6 +1082,7 @@ func (r *OpenBillRepository) FindDeletedByCreatedAtBetween(ctx context.Context, 
 		Descriptor         *string
 		CreatedAt          time.Time
 		UpdatedAt          time.Time
+		Fulfillment        fulfillmentRow `gorm:"embedded"`
 		// User fields
 		UserID       string
 		UserUsername string
@@ -999,7 +1090,7 @@ func (r *OpenBillRepository) FindDeletedByCreatedAtBetween(ctx context.Context, 
 	}
 
 	var results []result
-	err := r.db.WithContext(ctx).
+	query := r.db.WithContext(ctx).
 		Table("open_bills").
 		Select(`
 			open_bills.id,
@@ -1009,14 +1100,15 @@ func (r *OpenBillRepository) FindDeletedByCreatedAtBetween(ctx context.Context, 
 			open_bills.created_by,
 			open_bills.descriptor,
 			open_bills.created_at,
-			open_bills.updated_at,
+			open_bills.updated_at,`+fulfillmentColumns+`
 			users.id as user_id,
 			users.username as user_username,
 			users.name as user_name
 		`).
 		Joins("LEFT JOIN users ON open_bills.created_by = users.id AND users.deleted_at IS NULL").
 		Where("open_bills.deleted_at IS NOT NULL AND open_bills.created_at >= ? AND open_bills.created_at < ?", from, to).
-		Order("open_bills.deleted_at DESC").
+		Order("open_bills.deleted_at DESC")
+	err := applyOrderListFilter(query, filter).
 		Scan(&results).Error
 
 	if err != nil {
@@ -1035,9 +1127,11 @@ func (r *OpenBillRepository) FindDeletedByCreatedAtBetween(ctx context.Context, 
 				Username: res.UserUsername,
 				Name:     res.UserName,
 			},
-			Descriptor: res.Descriptor,
-			CreatedAt:  res.CreatedAt,
-			UpdatedAt:  res.UpdatedAt,
+			Descriptor:       res.Descriptor,
+			CreatedAt:        res.CreatedAt,
+			UpdatedAt:        res.UpdatedAt,
+			PaidAt:           res.Fulfillment.PaidAt,
+			OrderFulfillment: res.Fulfillment.toDTO(),
 		}
 	}
 
@@ -1060,6 +1154,7 @@ func (r *OpenBillRepository) FindByIDIncludingDeletedWithProducts(ctx context.Co
 		Descriptor         *string
 		CreatedAt          time.Time
 		UpdatedAt          time.Time
+		Fulfillment        fulfillmentRow `gorm:"embedded"`
 		// User fields
 		UserID       string
 		UserUsername string
@@ -1077,7 +1172,7 @@ func (r *OpenBillRepository) FindByIDIncludingDeletedWithProducts(ctx context.Co
 			open_bills.created_by,
 			open_bills.descriptor,
 			open_bills.created_at,
-			open_bills.updated_at,
+			open_bills.updated_at,`+fulfillmentColumns+`
 			users.id as user_id,
 			users.username as user_username,
 			users.name as user_name
@@ -1219,6 +1314,8 @@ func (r *OpenBillRepository) FindByIDIncludingDeletedWithProducts(ctx context.Co
 		Products:           productDetails,
 		CreatedAt:          result.CreatedAt,
 		UpdatedAt:          result.UpdatedAt,
+		PaidAt:             result.Fulfillment.PaidAt,
+		OrderFulfillment:   result.Fulfillment.toDTO(),
 	}, nil
 }
 
@@ -1321,7 +1418,7 @@ func (r *OpenBillRepository) FindPendingByArea(ctx context.Context, area string)
 			open_bills_products.status,
 			open_bills.temporal_identifier,
 			open_bills_products.priority,
-			open_bills_products.created_at,
+			`+kitchenWaitingSince+` as created_at,
 			CASE WHEN open_bills_products.status = 'completed' THEN `+lineCompletedAt+` END as completed_at,
 			users.name as created_by_name
 		`).

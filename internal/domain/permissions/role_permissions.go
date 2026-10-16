@@ -7,6 +7,8 @@ const (
 	RoleManager    = 3
 	RoleCooker     = 4
 	RoleAccountant = 5
+	// RoleAgent is the customer-facing WhatsApp agent's service user (migration 000063).
+	RoleAgent = 6
 )
 
 // RolePermissions maps role IDs to their permissions
@@ -49,6 +51,8 @@ var RolePermissions = map[int][]Permission{
 		ExpensesRead, ExpensesCreate, ExpensesUpdate, ExpensesDelete, ExpensesUpload,
 		// Users - can view
 		UsersRead,
+		// Delivery Zones - full access
+		DeliveryZonesRead, DeliveryZonesManage,
 		// SSE - can receive real-time updates
 		SSECommandsRead, SSECommandItemsRead,
 	},
@@ -73,6 +77,10 @@ var RolePermissions = map[int][]Permission{
 		ExpenseCategoriesRead, ExpenseCategoriesCreate, ExpenseCategoriesUpdate,
 		// Expenses - full access
 		ExpensesRead, ExpensesCreate, ExpensesUpdate, ExpensesDelete, ExpensesUpload,
+	},
+	// Takes, changes and cancels orders, never money, kitchen states or the catalog.
+	RoleAgent: {
+		ProductsRead, OrdersRead, OrdersCreate, OrdersUpdate, OrdersDelete,
 	},
 }
 

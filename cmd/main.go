@@ -99,6 +99,7 @@ func main() {
 	// Initialize repositories
 	productRepo := repository.NewProductRepository(db.DB)
 	openBillRepo := repository.NewOpenBillRepository(db.DB)
+	deliveryZoneRepo := repository.NewDeliveryZoneRepository(db.DB)
 	stockRepo := repository.NewStockRepository(db.DB)
 	stockReconciliationRepo := repository.NewStockReconciliationRepository(db.DB)
 	userRepo := repository.NewUserRepository(db.DB)
@@ -179,6 +180,8 @@ func main() {
 		syncOutboxRepo,
 		syncIdentity,
 		productIngredientRepo,
+		deliveryZoneRepo,
+		cfg.PhoneHomeRegion,
 	)
 	productService := service.NewProductService(productRepo, supplierRepo, supplierCatalogRepo, unitOfWork)
 	stockMovementEmitter := stockMovementEmitterFor(cfg.AppMode, syncOutboxRepo, syncIdentity.NodeID)
@@ -193,6 +196,7 @@ func main() {
 	expenseService := service.NewExpenseService(expenseCategoryRepo, expenseRepo, supplierRepo, storageClient, cfg.OrganizationID)
 	productIngredientService := service.NewProductIngredientService(productIngredientRepo, productRepo)
 	financialService := service.NewFinancialService(billRepo, expenseRepo, purchaseEntryRepo)
+	deliveryZoneService := service.NewDeliveryZoneService(deliveryZoneRepo)
 
 	// Initialize Event Subscriber
 	eventSubscriber, err := eventbus.NewGoChannelEventSubscriber(eventBusImpl.PubSub(), watermillLogger)
@@ -205,29 +209,8 @@ func main() {
 		}
 	}()
 
-	// Register event handlers for SSE notifications
-	orderCreatedHandler := eventbus.NewTypedEventHandler(
-		dto.OrderCreatedEventName,
-		orderService.HandleOrderCreatedSSE,
-	)
-	if err = eventSubscriber.Subscribe(orderCreatedHandler); err != nil {
-		log.Fatalf("Failed to subscribe to order created events: %v", err)
-	}
-
-	orderDeletedHandler := eventbus.NewTypedEventHandler(
-		dto.OrderDeletedEventName,
-		orderService.HandleOrderDeletedSSE,
-	)
-	if err = eventSubscriber.Subscribe(orderDeletedHandler); err != nil {
-		log.Fatalf("Failed to subscribe to order deleted events: %v", err)
-	}
-
-	orderUpdatedHandler := eventbus.NewTypedEventHandler(
-		dto.OrderUpdatedEventName,
-		orderService.HandleOrderUpdatedSSE,
-	)
-	if err = eventSubscriber.Subscribe(orderUpdatedHandler); err != nil {
-		log.Fatalf("Failed to subscribe to order updated events: %v", err)
+	if err = subscribeKitchenFeed(eventSubscriber, orderService); err != nil {
+		log.Fatalf("Failed to subscribe kitchen feed handlers: %v", err)
 	}
 
 	// Start event subscriber in background
@@ -264,38 +247,8 @@ func main() {
 		}
 	}()
 
-	// Register stock handlers for order events
-	stockOrderCreatedHandler := eventbus.NewTypedEventHandler(
-		dto.OrderCreatedEventName,
-		stockEventHandler.HandleOrderCreated,
-	)
-	if err = stockSubscriber.Subscribe(stockOrderCreatedHandler); err != nil {
-		log.Fatalf("Failed to subscribe stock handler to order created events: %v", err)
-	}
-
-	stockOrderUpdatedHandler := eventbus.NewTypedEventHandler(
-		dto.OrderUpdatedEventName,
-		stockEventHandler.HandleOrderUpdated,
-	)
-	if err = stockSubscriber.Subscribe(stockOrderUpdatedHandler); err != nil {
-		log.Fatalf("Failed to subscribe stock handler to order updated events: %v", err)
-	}
-
-	stockOrderDeletedHandler := eventbus.NewTypedEventHandler(
-		dto.OrderDeletedEventName,
-		stockEventHandler.HandleOrderDeleted,
-	)
-	if err = stockSubscriber.Subscribe(stockOrderDeletedHandler); err != nil {
-		log.Fatalf("Failed to subscribe stock handler to order deleted events: %v", err)
-	}
-
-	// Register handler for purchase entry events
-	purchaseEntryCreatedHandler := eventbus.NewTypedEventHandler(
-		dto.PurchaseEntryCreatedEventName,
-		stockEventHandler.HandlePurchaseEntryCreated,
-	)
-	if err = stockSubscriber.Subscribe(purchaseEntryCreatedHandler); err != nil {
-		log.Fatalf("Failed to subscribe to purchase entry created events: %v", err)
+	if err = subscribeStockHandlers(stockSubscriber, stockEventHandler); err != nil {
+		log.Fatalf("Failed to subscribe stock handlers: %v", err)
 	}
 
 	// Start stock subscriber in background
@@ -320,6 +273,7 @@ func main() {
 	expenseHandler := handler.NewExpenseHandler(expenseService)
 	productIngredientHandler := handler.NewProductIngredientHandler(productIngredientService)
 	financialHandler := handler.NewFinancialHandler(financialService)
+	deliveryZoneHandler := handler.NewDeliveryZoneHandler(deliveryZoneService)
 	sseHandler := handler.NewSSEHandler(sseHub, openBillProductHub, orderService, logger)
 	// Online flips to offline if no successful pull lands within ~2.5 pull-cron intervals.
 	// In edge mode the scheduler (below) records pull outcomes into this tracker; in cloud
@@ -371,21 +325,7 @@ func main() {
 	adminUsers.GET("/roles", handler.RequirePermission(permissions.UsersRead), userHandler.ListRolesHandler)
 
 	// Protected routes (require JWT authentication + permissions)
-	// Order routes
-	router.POST("/api/orders", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersCreate), orderHandler.CreateOrderHandler)
-	router.GET("/api/orders", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersRead), orderHandler.GetAllActiveOpenBillsHandler)
-	router.GET("/api/orders/closed", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersRead), orderHandler.GetClosedOpenBillsTodayHandler)
-	router.GET("/api/orders/closed/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersRead), orderHandler.GetClosedOpenBillWithProductsHandler)
-	router.GET("/api/orders/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersRead), orderHandler.GetOpenBillWithProductsHandler)
-	router.PUT("/api/orders/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersUpdate), orderHandler.UpdateOrderHandler)
-	router.DELETE("/api/orders/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersDelete), orderHandler.DeleteOrderHandler)
-	router.POST("/api/orders/pay-order", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersPay), orderHandler.PayOrderHandler)
-
-	// Order product status routes
-	router.PATCH("/api/orders/:id/products/:open_bill_product_id/complete", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersCompleteProduct), orderHandler.CompleteOpenBillProductHandler)
-	router.PATCH("/api/orders/:id/products/:open_bill_product_id/uncomplete", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersCompleteProduct), orderHandler.UncompleteOpenBillProductHandler)
-	router.PATCH("/api/orders/:id/products/:open_bill_product_id/in-progress", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersCompleteProduct), orderHandler.SetOpenBillProductInProgressHandler)
-	router.PATCH("/api/orders/:id/products/:open_bill_product_id/cancel", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersUpdate), orderHandler.CancelOpenBillProductHandler)
+	handler.RegisterOrderRoutes(router, orderHandler, jwtService)
 
 	// Product routes
 	router.POST("/api/products", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsCreate), productHandler.CreateProductHandler)
@@ -415,6 +355,9 @@ func main() {
 
 	// Stock routes — reads in both modes, authoring cloud-only (see registerStockRoutes).
 	registerStockRoutes(router, cfg, stockHandler, jwtService)
+
+	// Delivery zones — cloud-only (see RegisterDeliveryZoneRoutes).
+	handler.RegisterDeliveryZoneRoutes(router, cfg, deliveryZoneHandler, jwtService)
 
 	// Bill Owner routes
 	router.GET("/api/bill-owners/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.BillOwnersRead), billOwnerHandler.GetByIDHandler)

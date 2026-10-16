@@ -556,6 +556,135 @@ curl -X PATCH "$BASE_URL/orders/550e8400-e29b-41d4-a716-446655440000/products/77
   -H "Authorization: Bearer $TOKEN"
 ```
 
+### Create a Delivery Order (held until paid)
+
+Requires at least one active delivery zone containing the pin (cloud only, see Delivery Zones below). The phone is normalized to `+573005551234`; an outside pin returns `422`.
+
+```bash
+curl -X POST "$BASE_URL/orders" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "open_bill_id": "019a1f3c-5b2e-7c41-9a8d-3e6f1b2c4d50",
+    "temporal_identifier": "019a1f3c-5b2e-7c41-9a8d-3e6f1b2c4d51",
+    "descriptor": "Domicilio Ana",
+    "order_type": "delivery",
+    "customer_name": "Ana Gómez",
+    "customer_phone": "300 555 1234",
+    "delivery_address": "Cra 7 # 12-34, Edificio Colón, apto 501",
+    "delivery_lat": "4.598100",
+    "delivery_lng": "-74.076000",
+    "products": [
+      {
+        "open_bill_product_id": "019a1f3c-5b2e-7c41-9a8d-3e6f1b2c4d52",
+        "product_id": "PRODUCT_ID",
+        "quantity": 1
+      }
+    ]
+  }'
+```
+
+### Create a Takeaway Order
+
+```bash
+curl -X POST "$BASE_URL/orders" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "open_bill_id": "019a1f3c-5b2e-7c41-9a8d-3e6f1b2c4d60",
+    "temporal_identifier": "019a1f3c-5b2e-7c41-9a8d-3e6f1b2c4d61",
+    "order_type": "takeaway",
+    "customer_phone": "+34 612 345 678",
+    "products": [
+      { "open_bill_product_id": "019a1f3c-5b2e-7c41-9a8d-3e6f1b2c4d62", "product_id": "PRODUCT_ID", "quantity": 2 }
+    ]
+  }'
+```
+
+### List Delivery Orders (unpaid, and paid today)
+
+```bash
+# Unpaid, still active
+curl -X GET "$BASE_URL/orders?order_type=delivery" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Paid (or voided) today; paid ones carry paid_at
+curl -X GET "$BASE_URL/orders/closed?order_type=delivery" \
+  -H "Authorization: Bearer $TOKEN"
+
+# One customer's active orders, any phone format (URL-encode the +)
+curl -X GET "$BASE_URL/orders?customer_phone=%2B573005551234" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Release a Held Order to the Kitchen by Paying It
+
+```bash
+# Before payment the kitchen cannot start it -> 409 ORDER_AWAITING_PAYMENT
+curl -X PATCH "$BASE_URL/orders/019a1f3c-5b2e-7c41-9a8d-3e6f1b2c4d50/products/019a1f3c-5b2e-7c41-9a8d-3e6f1b2c4d52/in-progress" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Paying puts the lines on the kitchen board, waiting time from now
+curl -X POST "$BASE_URL/orders/pay-order" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "order_id": "019a1f3c-5b2e-7c41-9a8d-3e6f1b2c4d50",
+    "payment_type": "cash"
+  }'
+```
+
+---
+
+## Delivery Zones (cloud only)
+
+### Create a Zone (admin/manager)
+
+Positions are `[longitude, latitude]`.
+
+```bash
+curl -X POST "$BASE_URL/delivery-zones" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Centro",
+    "boundary": {
+      "type": "Polygon",
+      "coordinates": [[[-74.10, 4.58], [-74.06, 4.58], [-74.06, 4.62], [-74.10, 4.62], [-74.10, 4.58]]]
+    }
+  }'
+```
+
+### Check the Restaurant's Own Pin After Uploading
+
+```bash
+curl -X GET "$BASE_URL/delivery-zones/check?lat=4.5981&lng=-74.076" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### List Zones
+
+```bash
+curl -X GET "$BASE_URL/delivery-zones" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Deactivate a Zone (stops new deliveries there)
+
+```bash
+curl -X PUT "$BASE_URL/delivery-zones/ZONE_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "active": false }'
+```
+
+### Delete a Zone
+
+```bash
+curl -X DELETE "$BASE_URL/delivery-zones/ZONE_ID" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
 ---
 
 ## Financial Summary
