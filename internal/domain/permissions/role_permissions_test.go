@@ -214,3 +214,23 @@ func TestOrdersCompleteProductPermission(t *testing.T) {
 	assert.False(t, HasPermission([]int{RoleCooker}, OrdersUpdate), "cooker should NOT be able to cancel (orders:update)")
 	assert.True(t, HasPermission([]int{RoleServer}, OrdersUpdate), "server should be able to cancel (orders:update)")
 }
+
+func TestGetPermissionsForRoles_Agent(t *testing.T) {
+	perms := GetPermissionsForRoles([]int{RoleAgent})
+
+	assert.ElementsMatch(t, []Permission{ProductsRead, OrdersRead, OrdersCreate, OrdersUpdate, OrdersDelete}, perms)
+	for _, forbidden := range []Permission{OrdersPay, OrdersCompleteProduct, DeliveryZonesManage, DeliveryZonesRead, ProductsCreate, StockCreate} {
+		assert.NotContains(t, perms, forbidden)
+	}
+}
+
+func TestGetPermissionsForRoles_DeliveryZonesManagedByAdminAndManager(t *testing.T) {
+	for _, role := range []int{RoleAdmin, RoleManager} {
+		perms := GetPermissionsForRoles([]int{role})
+		assert.Contains(t, perms, DeliveryZonesRead, "role %d", role)
+		assert.Contains(t, perms, DeliveryZonesManage, "role %d", role)
+	}
+	for _, role := range []int{RoleServer, RoleCooker, RoleAccountant, RoleAgent} {
+		assert.NotContains(t, GetPermissionsForRoles([]int{role}), DeliveryZonesManage, "role %d", role)
+	}
+}

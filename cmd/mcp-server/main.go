@@ -32,8 +32,12 @@ func main() {
 		log.Fatalf("mcp-server config: %v", err)
 	}
 
+	if err := cfg.ValidateTransport(*stdioMode); err != nil {
+		log.Fatalf("mcp-server config: %v", err)
+	}
+
 	client := mcpserver.NewClient(cfg)
-	server := mcpserver.NewMCPServer(client)
+	server := mcpserver.NewMCPServer(client, cfg.Toolset)
 
 	if *stdioMode {
 		runStdio(server, cfg.APIBaseURL)

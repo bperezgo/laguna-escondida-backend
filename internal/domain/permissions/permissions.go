@@ -111,6 +111,12 @@ const (
 	UsersDelete Permission = "users:delete"
 )
 
+// Delivery zone permissions
+const (
+	DeliveryZonesRead   Permission = "delivery-zones:read"
+	DeliveryZonesManage Permission = "delivery-zones:manage"
+)
+
 // SSE permissions
 const (
 	SSECommandsRead     Permission = "sse:commands:read"
@@ -148,6 +154,8 @@ func AllPermissions() []Permission {
 		FinancialRead,
 		// Users
 		UsersRead, UsersCreate, UsersUpdate, UsersDelete,
+		// Delivery Zones
+		DeliveryZonesRead, DeliveryZonesManage,
 		// SSE
 		SSECommandsRead, SSECommandItemsRead,
 	}

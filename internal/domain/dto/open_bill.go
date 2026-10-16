@@ -12,6 +12,33 @@ type OpenBillCreator struct {
 	Name     string `json:"name"`
 }
 
+type OrderType string
+
+const (
+	OrderTypeDineIn   OrderType = "dine_in"
+	OrderTypeTakeaway OrderType = "takeaway"
+	OrderTypeDelivery OrderType = "delivery"
+)
+
+// IsHeldUntilPaid reports whether the kitchen must wait for payment. Empty reads as dine-in,
+// which is what orders replicated from nodes unaware of order types are.
+func (t OrderType) IsHeldUntilPaid() bool {
+	return t == OrderTypeTakeaway || t == OrderTypeDelivery
+}
+
+// OrderFulfillment is how an order leaves the restaurant and what the hand-over needs.
+// Embedded so its fields sit flat in every order JSON.
+type OrderFulfillment struct {
+	OrderType       OrderType        `json:"order_type"`
+	CustomerName    *string          `json:"customer_name,omitempty"`
+	CustomerPhone   *string          `json:"customer_phone,omitempty"`
+	DeliveryAddress *string          `json:"delivery_address,omitempty"`
+	DeliveryLat     *decimal.Decimal `json:"delivery_lat,omitempty"`
+	DeliveryLng     *decimal.Decimal `json:"delivery_lng,omitempty"`
+	DeliveryZoneID  *string          `json:"delivery_zone_id,omitempty"`
+	DeliveryMapURL  *string          `json:"delivery_map_url,omitempty"`
+}
+
 type OpenBill struct {
 	ID                 string          `json:"id"`
 	TemporalIdentifier string          `json:"temporal_identifier"`
@@ -24,6 +51,7 @@ type OpenBill struct {
 	UpdatedAt          time.Time       `json:"updated_at"`
 	ClosedAt           *time.Time      `json:"closed_at,omitempty"`
 	PaidAt             *time.Time      `json:"paid_at,omitempty"`
+	OrderFulfillment
 }
 
 type OpenBillWithCreator struct {
@@ -35,6 +63,9 @@ type OpenBillWithCreator struct {
 	Descriptor         *string         `json:"descriptor,omitempty"`
 	CreatedAt          time.Time       `json:"created_at"`
 	UpdatedAt          time.Time       `json:"updated_at"`
+	// PaidAt tells a paid close from a void on the closed list.
+	PaidAt *time.Time `json:"paid_at,omitempty"`
+	OrderFulfillment
 }
 
 type OpenBillProductDetail struct {
@@ -64,6 +95,8 @@ type OpenBillWithProducts struct {
 	Products           []OpenBillProductDetail `json:"products"`
 	CreatedAt          time.Time               `json:"created_at"`
 	UpdatedAt          time.Time               `json:"updated_at"`
+	PaidAt             *time.Time              `json:"paid_at,omitempty"`
+	OrderFulfillment
 }
 
 type OpenBillListResponse struct {
@@ -76,6 +109,24 @@ type CreateOrderRequest struct {
 	TemporalIdentifier string             `json:"temporal_identifier" validate:"required,uuid"`
 	Descriptor         *string            `json:"descriptor,omitempty"`
 	Products           []OrderProductItem `json:"products" validate:"dive"`
+	OrderContactRequest
+}
+
+// OrderContactRequest is set on create only; UpdateOrderRequest deliberately lacks it.
+// Coordinates are strings, like the other numeric request fields.
+type OrderContactRequest struct {
+	OrderType       OrderType `json:"order_type,omitempty"`
+	CustomerName    *string   `json:"customer_name,omitempty"`
+	CustomerPhone   *string   `json:"customer_phone,omitempty"`
+	DeliveryAddress *string   `json:"delivery_address,omitempty"`
+	DeliveryLat     *string   `json:"delivery_lat,omitempty"`
+	DeliveryLng     *string   `json:"delivery_lng,omitempty"`
+}
+
+// OrderListFilter narrows the order lists; zero values mean no filter.
+type OrderListFilter struct {
+	OrderType     OrderType
+	CustomerPhone string
 }
 
 type OrderProductItem struct {

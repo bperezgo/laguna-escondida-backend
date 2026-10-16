@@ -1,6 +1,10 @@
 package error
 
-import "errors"
+import (
+	"errors"
+
+	baseError "laguna-escondida/backend/internal/platform/shared/domain/error"
+)
 
 var (
 	ErrInvalidOpenBillID        = errors.New("OPEN_BILL_INVALID_ID: open_bill_id must be a valid UUID")
@@ -22,3 +26,38 @@ var (
 	ErrOpenBillAlreadyCompleted = errors.New("OPEN_BILL_ALREADY_COMPLETED: open_bill is already completed")
 	ErrOpenBillAlreadyCancelled = errors.New("OPEN_BILL_ALREADY_CANCELLED: open_bill is already cancelled")
 )
+
+// ErrOrderAwaitingPayment: takeaway and delivery food is prepared only once the order is paid.
+var ErrOrderAwaitingPayment = errors.New("OPEN_BILL_AWAITING_PAYMENT: the order must be paid before the kitchen can prepare it")
+
+type OrderErrorCode string
+
+const (
+	CodeInvalidOrderType        OrderErrorCode = "ORDER_INVALID_TYPE"
+	CodeMissingOrderField       OrderErrorCode = "ORDER_MISSING_FIELD"
+	CodeInvalidDeliveryLocation OrderErrorCode = "ORDER_INVALID_DELIVERY_LOCATION"
+)
+
+func NewInvalidOrderTypeError(orderType string) *baseError.BaseError {
+	return baseError.NewBaseErrorWithField(
+		baseError.ErrorCode(CodeInvalidOrderType),
+		"order_type must be one of: dine_in, takeaway, delivery",
+		orderType,
+	)
+}
+
+func NewMissingOrderFieldError(field string) *baseError.BaseError {
+	return baseError.NewBaseErrorWithField(
+		baseError.ErrorCode(CodeMissingOrderField),
+		field+" is required for this order type",
+		field,
+	)
+}
+
+func NewInvalidDeliveryLocationError(location string) *baseError.BaseError {
+	return baseError.NewBaseErrorWithField(
+		baseError.ErrorCode(CodeInvalidDeliveryLocation),
+		"delivery location must be a latitude in [-90, 90] and a longitude in [-180, 180]",
+		location,
+	)
+}

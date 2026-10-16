@@ -143,7 +143,7 @@ func TestClient_PostAdminUsesAPIKeyNotBearer(t *testing.T) {
 // change breaking JSON-schema inference: NewMCPServer registers every tool at
 // build time, so a bad input type would panic here.
 func TestNewMCPServer_RegistersAllToolsWithoutPanic(t *testing.T) {
-	if s := NewMCPServer(testClient("http://backend.invalid")); s == nil {
+	if s := NewMCPServer(testClient("http://backend.invalid"), ToolsetFull); s == nil {
 		t.Fatal("expected a non-nil MCP server")
 	}
 }

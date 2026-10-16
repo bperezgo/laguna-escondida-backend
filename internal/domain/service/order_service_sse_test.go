@@ -26,7 +26,7 @@ func newSSEService(openBillRepo *mocks.MockOpenBillRepository, productRepo *mock
 		productRepo,
 		nil, nil, dto.PendingInvoiceStatusPending, nil, nil, nil, nil,
 		notifier,
-		nil, dto.SyncIdentity{NodeID: testNodeID}, nil,
+		nil, dto.SyncIdentity{NodeID: testNodeID}, nil, nil, "CO",
 	)
 }
 

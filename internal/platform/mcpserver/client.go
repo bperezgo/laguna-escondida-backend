@@ -147,9 +147,32 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 		}
 	}
 	if status < 200 || status >= 300 {
-		return nil, fmt.Errorf("backend %s %s -> %d: %s", method, path, status, truncate(string(respBody), 4000))
+		return nil, &APIError{Method: method, Path: path, Status: status, Body: respBody}
 	}
 	return respBody, nil
+}
+
+// APIError is a non-2xx backend response, so tools can react to the status.
+type APIError struct {
+	Method string
+	Path   string
+	Status int
+	Body   []byte
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("backend %s %s -> %d: %s", e.Method, e.Path, e.Status, truncate(string(e.Body), 4000))
+}
+
+// Message is the backend's "error" field, or the raw body when it has none.
+func (e *APIError) Message() string {
+	var body struct {
+		Error string `json:"error"`
+	}
+	if json.Unmarshal(e.Body, &body) == nil && body.Error != "" {
+		return body.Error
+	}
+	return truncate(string(e.Body), 500)
 }
 
 func (c *Client) doOnce(ctx context.Context, method, path string, query url.Values, bodyBytes []byte, contentType string, opts requestOptions) ([]byte, int, error) {

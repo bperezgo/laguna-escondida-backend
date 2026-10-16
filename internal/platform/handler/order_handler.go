@@ -11,6 +11,7 @@ import (
 	orderError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/service"
 	orderdto "laguna-escondida/backend/internal/platform/dto/order"
+	baseError "laguna-escondida/backend/internal/platform/shared/domain/error"
 
 	"github.com/gin-gonic/gin"
 )
@@ -57,6 +58,18 @@ func (h *OrderHandler) CreateOrderHandler(c *gin.Context) {
 		}
 		if errors.Is(err, orderError.ErrDuplicateTemporalIdentifier) {
 			c.JSON(http.StatusConflict, gin.H{"error": "An active order with this temporal identifier already exists"})
+			return
+		}
+		if errors.Is(err, orderError.ErrOutsideDeliveryZone) {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "The delivery location is outside every delivery zone", "code": "OUTSIDE_DELIVERY_ZONE"})
+			return
+		}
+		if errors.Is(err, orderError.ErrInvalidSideDishSelection) || errors.Is(err, orderError.ErrSideDishQuantityOutOfBounds) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if isValidationError(err) {
+			RespondError(c, err)
 			return
 		}
 		if errors.Is(err, orderError.ErrOrderCreationFailed) {
@@ -155,10 +168,21 @@ func (h *OrderHandler) PayOrderHandler(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"message": "Order paid successfully"})
 }
 
+func orderListFilter(c *gin.Context) dto.OrderListFilter {
+	return dto.OrderListFilter{
+		OrderType:     dto.OrderType(c.Query("order_type")),
+		CustomerPhone: c.Query("customer_phone"),
+	}
+}
+
 func (h *OrderHandler) GetAllActiveOpenBillsHandler(c *gin.Context) {
-	openBills, err := h.orderService.GetAllActiveOpenBills(c.Request.Context())
+	openBills, err := h.orderService.GetAllActiveOpenBills(c.Request.Context(), orderListFilter(c))
 	if err != nil {
 		log.Printf("Error getting active open bills: %v", err)
+		if isValidationError(err) {
+			RespondError(c, err)
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve open bills"})
 		return
 	}
@@ -172,9 +196,13 @@ func (h *OrderHandler) GetAllActiveOpenBillsHandler(c *gin.Context) {
 func (h *OrderHandler) GetClosedOpenBillsTodayHandler(c *gin.Context) {
 	from, to := businessDayRange()
 
-	openBills, err := h.orderService.GetClosedOpenBills(c.Request.Context(), from, to)
+	openBills, err := h.orderService.GetClosedOpenBills(c.Request.Context(), from, to, orderListFilter(c))
 	if err != nil {
 		log.Printf("Error getting closed open bills: %v", err)
+		if isValidationError(err) {
+			RespondError(c, err)
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve closed open bills"})
 		return
 	}
@@ -287,6 +315,10 @@ func (h *OrderHandler) CompleteOpenBillProductHandler(c *gin.Context) {
 			c.JSON(http.StatusConflict, gin.H{"error": "Product cannot be completed from current status"})
 			return
 		}
+		if errors.Is(err, openBillError.ErrOrderAwaitingPayment) {
+			respondAwaitingPayment(c)
+			return
+		}
 		RespondError(c, err)
 		return
 	}
@@ -359,6 +391,10 @@ func (h *OrderHandler) SetOpenBillProductInProgressHandler(c *gin.Context) {
 			c.JSON(http.StatusConflict, gin.H{"error": "Cannot set in progress from cancelled status"})
 			return
 		}
+		if errors.Is(err, openBillError.ErrOrderAwaitingPayment) {
+			respondAwaitingPayment(c)
+			return
+		}
 		RespondError(c, err)
 		return
 	}
@@ -408,4 +444,13 @@ func (h *OrderHandler) CancelOpenBillProductHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Product cancelled successfully"})
+}
+
+func respondAwaitingPayment(c *gin.Context) {
+	c.JSON(http.StatusConflict, gin.H{"error": "The order must be paid before the kitchen can prepare it", "code": "ORDER_AWAITING_PAYMENT"})
+}
+
+func isValidationError(err error) bool {
+	var baseErr *baseError.BaseError
+	return errors.As(err, &baseErr)
 }

@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/nyaruka/phonenumbers"
 )
 
 // Mode determines how the backend runs: as the cloud aggregate or as a
@@ -85,6 +87,9 @@ type Config struct {
 	// ingest routes are not wired, so a cloud install without a sidecar still boots.
 	TelemetryForwardURL string // cloud Alloy OTLP/HTTP receiver base URL, e.g. "http://127.0.0.1:4319"
 	TelemetryTenantID   string // tenant.id stamped on relayed telemetry; defaults to OrganizationID
+
+	// PhoneHomeRegion (ISO 3166 alpha-2) reads customer phones typed without "+".
+	PhoneHomeRegion string
 }
 
 // TelemetryIngestEnabled reports whether the cloud has somewhere to relay edge telemetry to.
@@ -336,6 +341,14 @@ func NewConfig() (*Config, error) {
 		telemetryTenantID = organizationID
 	}
 
+	phoneHomeRegion := strings.ToUpper(os.Getenv("PHONE_HOME_REGION"))
+	if phoneHomeRegion == "" {
+		phoneHomeRegion = "CO"
+	}
+	if phonenumbers.GetCountryCodeForRegion(phoneHomeRegion) == 0 {
+		return nil, fmt.Errorf("invalid PHONE_HOME_REGION %q: not a supported ISO 3166 alpha-2 region", phoneHomeRegion)
+	}
+
 	return &Config{
 		AppMode:                   appMode,
 		NodeID:                    nodeID,
@@ -385,6 +398,7 @@ func NewConfig() (*Config, error) {
 		TraceSampleRatio:          traceSampleRatio,
 		MetricsPort:               metricsPort,
 		TelemetryForwardURL:       telemetryForwardURL,
+		PhoneHomeRegion:           phoneHomeRegion,
 		TelemetryTenantID:         telemetryTenantID,
 	}, nil
 }

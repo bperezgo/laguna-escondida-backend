@@ -14,13 +14,18 @@ const serverVersion = "0.1.0"
 // noInput is the input type for tools that take no arguments.
 type noInput struct{}
 
-// NewMCPServer builds the MCP server and registers every tool that wraps a
-// backend endpoint.
-func NewMCPServer(c *Client) *mcp.Server {
+// NewMCPServer builds the MCP server with the given toolset. The customer toolset registers
+// only the customer tools, so a customer-facing agent has no staff tool to be talked into.
+func NewMCPServer(c *Client, toolset Toolset) *mcp.Server {
 	s := mcp.NewServer(&mcp.Implementation{
 		Name:    "laguna-escondida",
 		Version: serverVersion,
 	}, nil)
+
+	if toolset == ToolsetCustomer {
+		registerCustomerTools(s, c)
+		return s
+	}
 
 	registerProductTools(s, c)
 	registerProductResponsibilityTools(s, c)
@@ -35,6 +40,7 @@ func NewMCPServer(c *Client) *mcp.Server {
 	registerInvoiceTools(s, c)
 	registerSupportDocumentTools(s, c)
 	registerUserTools(s, c)
+	registerDeliveryZoneTools(s, c)
 	registerMiscTools(s, c)
 	registerFileTools(s)
 	registerPlaybookTools(s)

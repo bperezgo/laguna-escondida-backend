@@ -15,3 +15,9 @@ var (
 	ErrInvalidSideDishSelection    = errors.New("side-dish selection references an ingredient that is not a side-dish option of the product")
 	ErrSideDishQuantityOutOfBounds = errors.New("side-dish quantity is outside the configured min/max bounds")
 )
+
+var (
+	ErrOutsideDeliveryZone   = errors.New("the delivery location is outside every active delivery zone")
+	ErrDeliveryZoneNotFound  = errors.New("delivery zone not found")
+	ErrDeliveryZoneOperation = errors.New("delivery zone operation failed")
+)

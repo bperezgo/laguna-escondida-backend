@@ -23,6 +23,7 @@ type Aggregate struct {
 	updatedAt          time.Time
 	closedAt           *time.Time
 	paidAt             *time.Time
+	fulfillment        Fulfillment
 }
 
 func NewAggregate(
@@ -32,6 +33,18 @@ func NewAggregate(
 	totalAmount decimal.Decimal,
 	products []*OpenBillProduct,
 	createdByID string,
+) (*Aggregate, error) {
+	return NewAggregateWithFulfillment(openBillID, temporalIdentifier, descriptor, totalAmount, products, createdByID, DineInFulfillment())
+}
+
+func NewAggregateWithFulfillment(
+	openBillID string,
+	temporalIdentifier string,
+	descriptor *string,
+	totalAmount decimal.Decimal,
+	products []*OpenBillProduct,
+	createdByID string,
+	fulfillment Fulfillment,
 ) (*Aggregate, error) {
 	if _, err := uuid.Parse(openBillID); err != nil {
 		return nil, openBillError.ErrInvalidOpenBillID
@@ -53,6 +66,7 @@ func NewAggregate(
 		createdByID:        createdByID,
 		createdAt:          now,
 		updatedAt:          now,
+		fulfillment:        fulfillment,
 	}, nil
 }
 
@@ -102,6 +116,19 @@ func (a *Aggregate) IsPaid() bool {
 	return a.paidAt != nil
 }
 
+func (a *Aggregate) Fulfillment() Fulfillment {
+	return a.fulfillment
+}
+
+func (a *Aggregate) OrderType() dto.OrderType {
+	return a.fulfillment.OrderType()
+}
+
+// IsHeld: an unpaid takeaway or delivery order stays out of the kitchen.
+func (a *Aggregate) IsHeld() bool {
+	return a.fulfillment.OrderType().IsHeldUntilPaid() && !a.IsPaid()
+}
+
 func (a *Aggregate) MarkPaid(paidAt time.Time) {
 	a.closedAt = &paidAt
 	a.paidAt = &paidAt
@@ -118,6 +145,7 @@ func (a *Aggregate) ToDTO() *dto.OpenBill {
 		UpdatedAt:          a.updatedAt,
 		ClosedAt:           a.closedAt,
 		PaidAt:             a.paidAt,
+		OrderFulfillment:   a.fulfillment.ToDTO(),
 	}
 }
 
@@ -155,7 +183,13 @@ func NewAggregateFromRepository(
 		updatedAt:          updatedAt,
 		closedAt:           closedAt,
 		paidAt:             paidAt,
+		fulfillment:        DineInFulfillment(),
 	}, nil
+}
+
+// RestoreFulfillment sets the stored type, contact and location on a loaded aggregate.
+func (a *Aggregate) RestoreFulfillment(fulfillment Fulfillment) {
+	a.fulfillment = fulfillment
 }
 
 func (a *Aggregate) UpdateProducts(products []*OpenBillProduct, totalAmount decimal.Decimal) {
@@ -200,6 +234,10 @@ func (a *Aggregate) GetProduct(openBillProductID string) *OpenBillProduct {
 }
 
 func (a *Aggregate) CompleteProduct(openBillProductID string) error {
+	if a.IsHeld() {
+		return openBillError.ErrOrderAwaitingPayment
+	}
+
 	product := a.GetProduct(openBillProductID)
 	if product == nil {
 		return openBillError.ErrOpenBillProductNotFound
@@ -258,6 +296,10 @@ func (a *Aggregate) CancelProduct(openBillProductID string) error {
 }
 
 func (a *Aggregate) SetProductInProgress(openBillProductID string) error {
+	if a.IsHeld() {
+		return openBillError.ErrOrderAwaitingPayment
+	}
+
 	product := a.GetProduct(openBillProductID)
 	if product == nil {
 		return openBillError.ErrOpenBillProductNotFound

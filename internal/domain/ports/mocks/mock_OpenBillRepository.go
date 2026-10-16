@@ -342,9 +342,9 @@ func (_c *MockOpenBillRepository_FindAggregateForKitchen_Call) RunAndReturn(run 
 	return _c
 }
 
-// FindAll provides a mock function with given fields: ctx
-func (_m *MockOpenBillRepository) FindAll(ctx context.Context) ([]*dto.OpenBillWithCreator, error) {
-	ret := _m.Called(ctx)
+// FindAll provides a mock function with given fields: ctx, filter
+func (_m *MockOpenBillRepository) FindAll(ctx context.Context, filter dto.OrderListFilter) ([]*dto.OpenBillWithCreator, error) {
+	ret := _m.Called(ctx, filter)
 
 	if len(ret) == 0 {
 		panic("no return value specified for FindAll")
@@ -352,19 +352,19 @@ func (_m *MockOpenBillRepository) FindAll(ctx context.Context) ([]*dto.OpenBillW
 
 	var r0 []*dto.OpenBillWithCreator
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context) ([]*dto.OpenBillWithCreator, error)); ok {
-		return rf(ctx)
+	if rf, ok := ret.Get(0).(func(context.Context, dto.OrderListFilter) ([]*dto.OpenBillWithCreator, error)); ok {
+		return rf(ctx, filter)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context) []*dto.OpenBillWithCreator); ok {
-		r0 = rf(ctx)
+	if rf, ok := ret.Get(0).(func(context.Context, dto.OrderListFilter) []*dto.OpenBillWithCreator); ok {
+		r0 = rf(ctx, filter)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]*dto.OpenBillWithCreator)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
-		r1 = rf(ctx)
+	if rf, ok := ret.Get(1).(func(context.Context, dto.OrderListFilter) error); ok {
+		r1 = rf(ctx, filter)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -379,13 +379,14 @@ type MockOpenBillRepository_FindAll_Call struct {
 
 // FindAll is a helper method to define mock.On call
 //   - ctx context.Context
-func (_e *MockOpenBillRepository_Expecter) FindAll(ctx interface{}) *MockOpenBillRepository_FindAll_Call {
-	return &MockOpenBillRepository_FindAll_Call{Call: _e.mock.On("FindAll", ctx)}
+//   - filter dto.OrderListFilter
+func (_e *MockOpenBillRepository_Expecter) FindAll(ctx interface{}, filter interface{}) *MockOpenBillRepository_FindAll_Call {
+	return &MockOpenBillRepository_FindAll_Call{Call: _e.mock.On("FindAll", ctx, filter)}
 }
 
-func (_c *MockOpenBillRepository_FindAll_Call) Run(run func(ctx context.Context)) *MockOpenBillRepository_FindAll_Call {
+func (_c *MockOpenBillRepository_FindAll_Call) Run(run func(ctx context.Context, filter dto.OrderListFilter)) *MockOpenBillRepository_FindAll_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context))
+		run(args[0].(context.Context), args[1].(dto.OrderListFilter))
 	})
 	return _c
 }
@@ -395,7 +396,7 @@ func (_c *MockOpenBillRepository_FindAll_Call) Return(_a0 []*dto.OpenBillWithCre
 	return _c
 }
 
-func (_c *MockOpenBillRepository_FindAll_Call) RunAndReturn(run func(context.Context) ([]*dto.OpenBillWithCreator, error)) *MockOpenBillRepository_FindAll_Call {
+func (_c *MockOpenBillRepository_FindAll_Call) RunAndReturn(run func(context.Context, dto.OrderListFilter) ([]*dto.OpenBillWithCreator, error)) *MockOpenBillRepository_FindAll_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -638,9 +639,9 @@ func (_c *MockOpenBillRepository_FindCompletedByAreaBetween_Call) RunAndReturn(r
 	return _c
 }
 
-// FindDeletedByCreatedAtBetween provides a mock function with given fields: ctx, from, to
-func (_m *MockOpenBillRepository) FindDeletedByCreatedAtBetween(ctx context.Context, from time.Time, to time.Time) ([]*dto.OpenBillWithCreator, error) {
-	ret := _m.Called(ctx, from, to)
+// FindDeletedByCreatedAtBetween provides a mock function with given fields: ctx, from, to, filter
+func (_m *MockOpenBillRepository) FindDeletedByCreatedAtBetween(ctx context.Context, from time.Time, to time.Time, filter dto.OrderListFilter) ([]*dto.OpenBillWithCreator, error) {
+	ret := _m.Called(ctx, from, to, filter)
 
 	if len(ret) == 0 {
 		panic("no return value specified for FindDeletedByCreatedAtBetween")
@@ -648,19 +649,19 @@ func (_m *MockOpenBillRepository) FindDeletedByCreatedAtBetween(ctx context.Cont
 
 	var r0 []*dto.OpenBillWithCreator
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, time.Time, time.Time) ([]*dto.OpenBillWithCreator, error)); ok {
-		return rf(ctx, from, to)
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time, time.Time, dto.OrderListFilter) ([]*dto.OpenBillWithCreator, error)); ok {
+		return rf(ctx, from, to, filter)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, time.Time, time.Time) []*dto.OpenBillWithCreator); ok {
-		r0 = rf(ctx, from, to)
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time, time.Time, dto.OrderListFilter) []*dto.OpenBillWithCreator); ok {
+		r0 = rf(ctx, from, to, filter)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]*dto.OpenBillWithCreator)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, time.Time, time.Time) error); ok {
-		r1 = rf(ctx, from, to)
+	if rf, ok := ret.Get(1).(func(context.Context, time.Time, time.Time, dto.OrderListFilter) error); ok {
+		r1 = rf(ctx, from, to, filter)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -677,13 +678,14 @@ type MockOpenBillRepository_FindDeletedByCreatedAtBetween_Call struct {
 //   - ctx context.Context
 //   - from time.Time
 //   - to time.Time
-func (_e *MockOpenBillRepository_Expecter) FindDeletedByCreatedAtBetween(ctx interface{}, from interface{}, to interface{}) *MockOpenBillRepository_FindDeletedByCreatedAtBetween_Call {
-	return &MockOpenBillRepository_FindDeletedByCreatedAtBetween_Call{Call: _e.mock.On("FindDeletedByCreatedAtBetween", ctx, from, to)}
+//   - filter dto.OrderListFilter
+func (_e *MockOpenBillRepository_Expecter) FindDeletedByCreatedAtBetween(ctx interface{}, from interface{}, to interface{}, filter interface{}) *MockOpenBillRepository_FindDeletedByCreatedAtBetween_Call {
+	return &MockOpenBillRepository_FindDeletedByCreatedAtBetween_Call{Call: _e.mock.On("FindDeletedByCreatedAtBetween", ctx, from, to, filter)}
 }
 
-func (_c *MockOpenBillRepository_FindDeletedByCreatedAtBetween_Call) Run(run func(ctx context.Context, from time.Time, to time.Time)) *MockOpenBillRepository_FindDeletedByCreatedAtBetween_Call {
+func (_c *MockOpenBillRepository_FindDeletedByCreatedAtBetween_Call) Run(run func(ctx context.Context, from time.Time, to time.Time, filter dto.OrderListFilter)) *MockOpenBillRepository_FindDeletedByCreatedAtBetween_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(time.Time), args[2].(time.Time))
+		run(args[0].(context.Context), args[1].(time.Time), args[2].(time.Time), args[3].(dto.OrderListFilter))
 	})
 	return _c
 }
@@ -693,7 +695,7 @@ func (_c *MockOpenBillRepository_FindDeletedByCreatedAtBetween_Call) Return(_a0 
 	return _c
 }
 
-func (_c *MockOpenBillRepository_FindDeletedByCreatedAtBetween_Call) RunAndReturn(run func(context.Context, time.Time, time.Time) ([]*dto.OpenBillWithCreator, error)) *MockOpenBillRepository_FindDeletedByCreatedAtBetween_Call {
+func (_c *MockOpenBillRepository_FindDeletedByCreatedAtBetween_Call) RunAndReturn(run func(context.Context, time.Time, time.Time, dto.OrderListFilter) ([]*dto.OpenBillWithCreator, error)) *MockOpenBillRepository_FindDeletedByCreatedAtBetween_Call {
 	_c.Call.Return(run)
 	return _c
 }
