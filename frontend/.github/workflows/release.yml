@@ -1,0 +1,132 @@
+name: Release
+
+# On a semver tag (e.g. v1.2.0), build the Next.js standalone bundle for the Windows edge
+# appliance and attach it to a GitHub Release. Boxes download it with
+# laguna-escondida-edge/scripts/fetch-artifacts.ps1 — no pnpm, Go or source on the box.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+# Actions pinned to commit SHAs (tag in comment) to harden the release supply chain.
+jobs:
+  edge-windows:
+    name: Build Windows standalone bundle and attach to GitHub Release
+    # Windows runner so platform-specific packages (sharp's @img/sharp-win32-x64) are the
+    # Windows ones the box needs.
+    runs-on: windows-latest
+    permissions:
+      contents: write # create the release / upload assets
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      ASSET: next-standalone-windows-${{ github.ref_name }}.zip
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      # Build-time Node only (pnpm 11 needs >= 22.13). The box runs the bundle on its own
+      # pinned Node (laguna-escondida-edge/versions.json), which only has to satisfy Next's
+      # engines (>= 20.9).
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        run: npm install -g "pnpm@$((Get-Content package.json -Raw | ConvertFrom-Json).packageManager.Split('@')[1])"
+
+      # Hoisted linker => node_modules is a flat tree of real directories, so the standalone
+      # output contains NO symlinks/junctions and the zip runs from any install path. (The
+      # default isolated linker yields links into .pnpm that break when the bundle moves —
+      # which is why the box-side build used to "build at the final location".) CI-only:
+      # local dev keeps the default linker. The lockfile is linker-independent.
+      - name: Use hoisted node_modules for the release build
+        run: |
+          Add-Content pnpm-workspace.yaml "`nnodeLinker: hoisted"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # NEXT_PUBLIC_* are inlined at build time, so this bundle is the same for every box.
+      # NEXT_PUBLIC_ORDER_ACTION_PIN is fixed for now; moving it to the database is planned
+      # separately. NEXT_PUBLIC_API_URL is the box-local Go backend (read server-side).
+      - name: Build
+        env:
+          NODE_ENV: production
+          NEXT_PUBLIC_API_URL: http://127.0.0.1:8080/api
+          NEXT_PUBLIC_ORDER_ACTION_PIN: "1234"
+        run: pnpm build
+
+      # standalone output + the static assets and public/ Next leaves out of it, laid out
+      # exactly as the box's artifacts\next expects (server.js at the root).
+      - name: Assemble bundle
+        run: |
+          $dest = 'dist\next'
+          New-Item -ItemType Directory -Force -Path "$dest\.next" | Out-Null
+          Copy-Item -Path '.next\standalone\*' -Destination $dest -Recurse -Force
+          Copy-Item -Path '.next\static' -Destination "$dest\.next" -Recurse -Force
+          if (Test-Path public) { Copy-Item -Path public -Destination $dest -Recurse -Force }
+          @{ version = $env:GITHUB_REF_NAME; commit = $env:GITHUB_SHA } |
+            ConvertTo-Json | Set-Content "$dest\BUILD_INFO.json" -Encoding utf8
+
+          foreach ($p in 'server.js', '.next\static', 'node_modules\next\package.json') {
+            if (-not (Test-Path "$dest\$p")) { throw "bundle is missing $p" }
+          }
+          $links = @(Get-ChildItem $dest -Recurse -Force -Attributes ReparsePoint)
+          if ($links.Count) {
+            $links | Select-Object -First 10 | ForEach-Object { Write-Host "  link: $($_.FullName)" }
+            throw "bundle contains $($links.Count) symlink(s)/junction(s); it would not be relocatable"
+          }
+
+      # Prove the bundle is self-contained: run it from a different folder with the build's
+      # node_modules gone, and fetch a page route and a static chunk.
+      - name: Smoke test (relocated, no source node_modules)
+        run: |
+          $run = Join-Path $env:RUNNER_TEMP 'relocated\next'
+          New-Item -ItemType Directory -Force -Path $run | Out-Null
+          Copy-Item -Path 'dist\next\*' -Destination $run -Recurse -Force
+          Remove-Item node_modules -Recurse -Force
+
+          $env:PORT = '3999'; $env:HOSTNAME = '127.0.0.1'
+          $env:NEXT_PUBLIC_API_URL = 'http://127.0.0.1:8080/api'
+          $proc = Start-Process node -ArgumentList 'server.js' -WorkingDirectory $run -PassThru -NoNewWindow
+          try {
+            $up = $false
+            foreach ($i in 1..30) {
+              try { Invoke-WebRequest http://127.0.0.1:3999/favicon.ico -UseBasicParsing | Out-Null; $up = $true; break } catch { Start-Sleep 1 }
+            }
+            if (-not $up) { throw 'server.js did not come up on :3999' }
+            $chunk = (Get-ChildItem "$run\.next\static\chunks" -Filter *.js | Select-Object -First 1).Name
+            Invoke-WebRequest "http://127.0.0.1:3999/_next/static/chunks/$chunk" -UseBasicParsing | Out-Null
+            # / redirects (to login); a 3xx/2xx means the app rendered, a 5xx would throw.
+            Invoke-WebRequest http://127.0.0.1:3999/ -UseBasicParsing -MaximumRedirection 0 -SkipHttpErrorCheck |
+              ForEach-Object { if ($_.StatusCode -ge 500) { throw "GET / returned $($_.StatusCode)" } else { Write-Host "GET / -> $($_.StatusCode)" } }
+          } finally {
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Package + checksum
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [IO.Compression.ZipFile]::CreateFromDirectory((Resolve-Path 'dist\next'), "$PWD\dist\$env:ASSET", 'Optimal', $false)
+          $hash = (Get-FileHash "dist\$env:ASSET" -Algorithm SHA256).Hash.ToLower()
+          "$hash  $env:ASSET" | Set-Content "dist\$env:ASSET.sha256" -Encoding ascii
+          Get-Content "dist\$env:ASSET.sha256"
+
+      # Idempotent: create the release if this tag has none yet, then (re)upload the assets.
+      - name: Publish to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view $env:GITHUB_REF_NAME 2>$null | Out-Null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:GITHUB_REF_NAME --verify-tag --generate-notes --title $env:GITHUB_REF_NAME
+            if ($LASTEXITCODE -ne 0) { throw 'gh release create failed' }
+          }
+          gh release upload $env:GITHUB_REF_NAME "dist\$env:ASSET" "dist\$env:ASSET.sha256" --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'gh release upload failed' }
