@@ -1,3 +1,11 @@
+# Every target is a command, not a file: `test` would otherwise match the test/ directory and
+# make would report it "up to date" without running anything.
+.PHONY: new-migration migrate-up migrate-down run test test-ci test-acceptance test-acceptance-ci lint lint-fix pre-push install-hooks uninstall-hooks generate-mocks regenerate-mocks sync-up sync-logs sync-down sync-reset run-mcp build-mcp
+
+# Same gotestsum as CI; falls back to `go run` at that version when it isn't installed.
+GOTESTSUM_VERSION := v1.12.3
+GOTESTSUM := $(shell command -v gotestsum 2>/dev/null || echo "go run gotest.tools/gotestsum@$(GOTESTSUM_VERSION)")
+
 new-migration:
 	@echo "Creating a new migration"
 	scripts/new-migration.sh $(name)
@@ -16,11 +24,11 @@ run:
 
 test:
 	@echo "Running tests with gotestsum..."
-	gotestsum --format testdox -- ./... -race -coverprofile=coverage.out
+	$(GOTESTSUM) --format testdox -- ./... -race -coverprofile=coverage.out
 
 test-ci:
 	@echo "Running tests for CI..."
-	gotestsum --format standard-verbose --junitfile test-report.xml -- ./... -race -coverprofile=coverage.out
+	$(GOTESTSUM) --format standard-verbose --junitfile test-report.xml -- ./... -race -coverprofile=coverage.out
 
 # Acceptance tests (in-process rigs over real SQL). By default each package boots its own
 # throwaway postgres:16-alpine via testcontainers, so all you need is a running Docker daemon
@@ -33,7 +41,7 @@ test-acceptance:
 
 test-acceptance-ci:
 	@echo "Running acceptance tests for CI..."
-	RUN_ACCEPTANCE_TESTS=true gotestsum --format standard-verbose --junitfile acceptance-report.xml -- ./test/acceptance/... -count=1
+	RUN_ACCEPTANCE_TESTS=true $(GOTESTSUM) --format standard-verbose --junitfile acceptance-report.xml -- ./test/acceptance/... -count=1
 
 lint:
 	@echo "Running linter"
