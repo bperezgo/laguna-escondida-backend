@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "@/components/providers";
+import UpdateBanner from "@/components/layout/UpdateBanner";
 
 export const metadata: Metadata = {
   title: "Laguna Escondida",
@@ -22,7 +23,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body suppressHydrationWarning>
-        <Providers>{children}</Providers>
+        <Providers>
+          <UpdateBanner />
+          {children}
+        </Providers>
       </body>
     </html>
   );

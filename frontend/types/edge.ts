@@ -18,3 +18,36 @@ export interface EdgeStatus {
   /** Orders created locally that have not yet synced to the cloud. */
   unsynced_orders: number;
 }
+
+/** Outcome of the last update attempt, from the updater's `update-result.json`. */
+export type EdgeUpdateOutcome =
+  | "success"
+  | "refused"
+  | "rolled_back"
+  | "rollback_failed"
+  | "drill_rolled_back";
+
+export interface EdgeUpdateVersion {
+  version: string;
+}
+
+export interface EdgeUpdateResult {
+  version: string;
+  outcome: EdgeUpdateOutcome;
+  message?: string;
+  started_at?: string;
+  finished_at: string;
+}
+
+/**
+ * `GET /api/edge/update`. Each field is null when its state file is missing.
+ * See laguna-escondida-edge/docs/UPDATE_PROTOCOL.md.
+ */
+export interface EdgeUpdateStatus {
+  enabled: boolean;
+  installed?: EdgeUpdateVersion | null;
+  available?: EdgeUpdateVersion | null;
+  requested?: EdgeUpdateVersion | null;
+  in_progress?: EdgeUpdateVersion | null;
+  last_result?: EdgeUpdateResult | null;
+}

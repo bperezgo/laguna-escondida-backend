@@ -80,6 +80,9 @@ export const PERMISSIONS = {
   USERS_UPDATE: "users:update",
   USERS_DELETE: "users:delete",
 
+  // Edge appliance
+  EDGE_UPDATE: "edge:update",
+
   // SSE (Real-time)
   SSE_COMMANDS_READ: "sse:commands:read",
   SSE_COMMAND_ITEMS_READ: "sse:command-items:read",
