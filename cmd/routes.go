@@ -182,3 +182,10 @@ func registerCloudRoutes(router *gin.Engine, cfg *config.Config, jwtService *ser
 func registerEdgeRoutes(router *gin.Engine, jwtService *service.JWTService, device *handler.DeviceHandler) {
 	router.POST("/api/device/print", handler.JWTAuthMiddleware(jwtService, permissions.RoleAdmin, permissions.RoleManager), device.PrintTicketHandler)
 }
+
+// registerEdgeUpdateRoutes wires owner-triggered appliance updates (edge only).
+func registerEdgeUpdateRoutes(router *gin.Engine, jwtService *service.JWTService, update *handler.EdgeUpdateHandler) {
+	edgeUpdate := router.Group("/api/edge/update", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.EdgeUpdate))
+	edgeUpdate.GET("", update.GetUpdateHandler)
+	edgeUpdate.POST("", update.RequestUpdateHandler)
+}

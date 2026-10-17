@@ -17,6 +17,7 @@ import (
 	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/cron"
 	"laguna-escondida/backend/internal/platform/device"
+	"laguna-escondida/backend/internal/platform/edgeupdate"
 	"laguna-escondida/backend/internal/platform/handler"
 	"laguna-escondida/backend/internal/platform/httpclient"
 	"laguna-escondida/backend/internal/platform/observability"
@@ -327,6 +328,14 @@ func main() {
 	switch cfg.AppMode {
 	case config.ModeEdge:
 		logger.Info("Running in EDGE mode", slog.String("app_mode", string(cfg.AppMode)))
+
+		var edgeUpdateService *service.EdgeUpdateService
+		if cfg.LagunaStateDir == "" {
+			logger.Info("Owner-triggered updates disabled: set LAGUNA_STATE_DIR to enable them")
+		} else {
+			edgeUpdateService = service.NewEdgeUpdateService(edgeupdate.NewStateStore(cfg.LagunaStateDir, logger))
+		}
+		registerEdgeUpdateRoutes(router, jwtService, handler.NewEdgeUpdateHandler(edgeUpdateService))
 
 		// Ticket printing (POST /api/device/print) — edge only. Build the printer
 		// transport from PRINTER_* config; if it fails (e.g. windows transport on a

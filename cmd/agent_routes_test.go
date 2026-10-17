@@ -72,6 +72,7 @@ func fullRouter(mode config.Mode, jwtService *service.JWTService) *gin.Engine {
 		})
 	case config.ModeEdge:
 		registerEdgeRoutes(router, jwtService, &handler.DeviceHandler{})
+		registerEdgeUpdateRoutes(router, jwtService, &handler.EdgeUpdateHandler{})
 	}
 	return router
 }

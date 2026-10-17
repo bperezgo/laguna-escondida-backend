@@ -45,6 +45,7 @@ func TestPermissionConstants(t *testing.T) {
 		{"InvoicesExport", InvoicesExport, "invoices:export"},
 		{"StockUpdate", StockUpdate, "stock:update"},
 		{"SuppliersDelete", SuppliersDelete, "suppliers:delete"},
+		{"EdgeUpdate", EdgeUpdate, "edge:update"},
 	}
 
 	for _, tt := range tests {
