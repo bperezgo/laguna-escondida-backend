@@ -450,7 +450,7 @@ Returns a specific order with its product details.
 
 `DELETE /api/orders/:id`
 
-Soft-deletes an order.
+Voids an open (unpaid) order: it leaves the active list and its stock is returned.
 
 ### Path Parameters
 

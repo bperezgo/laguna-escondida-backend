@@ -641,3 +641,23 @@ func TestOrderService_OrderLists_RejectInvalidFilter(t *testing.T) {
 		})
 	}
 }
+
+// The handler runs after the soft-delete, so it must read the order including deleted rows;
+// the open-only read found nothing and the voided lines stayed on the live board.
+func TestOrderService_HandleOrderDeletedSSE_CancelsVoidedLinesOnBoard(t *testing.T) {
+	ctx := createTestContext()
+	service, openBills, notifier := newSSEServiceWithStrictMocks(t)
+	area := "kitchen"
+	openBills.EXPECT().FindByIDIncludingDeletedWithProducts(ctx, openBillID1).Return(&dto.OpenBillWithProducts{
+		ID:                 openBillID1,
+		TemporalIdentifier: "Mesa 4",
+		Products: []dto.OpenBillProductDetail{
+			{OpenBillProductID: obpID1, Product: dto.Product{Name: "Trucha"}, Quantity: 1, Area: &area},
+		},
+	}, nil).Once()
+	notifier.EXPECT().NotifyArea(ctx, area, OpenBillProductCancelledEventType, mock.MatchedBy(func(d *dto.OpenBillProductSSE) bool {
+		return d.OpenBillProductID == obpID1 && d.Status == string(dto.CommandStatusCancelled)
+	})).Return(nil).Once()
+
+	require.NoError(t, service.HandleOrderDeletedSSE(ctx, dto.OrderDeletedEvent{OpenBillID: openBillID1, OrderType: dto.OrderTypeDineIn}))
+}

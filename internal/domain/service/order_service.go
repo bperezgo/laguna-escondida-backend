@@ -1355,7 +1355,8 @@ func (s *OrderService) HandleOrderDeletedSSE(ctx context.Context, event dto.Orde
 		return nil
 	}
 
-	openBill, err := s.openBillRepo.FindByIDWithProducts(ctx, event.OpenBillID)
+	// The order is already soft-deleted when this runs, so only the including-deleted read finds it.
+	openBill, err := s.openBillRepo.FindByIDIncludingDeletedWithProducts(ctx, event.OpenBillID)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to find open bill for deletion event", slog.String("open_bill_id", event.OpenBillID), slog.Any("error", err))
 		return nil

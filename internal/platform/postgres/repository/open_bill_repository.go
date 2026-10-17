@@ -931,6 +931,10 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 	if err != nil {
 		return nil, err
 	}
+	// Scan reports no error for zero rows; without this an unknown id reads as an empty order.
+	if result.ID == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
 
 	type productResult struct {
 		// Open Bill Product fields
@@ -1183,6 +1187,10 @@ func (r *OpenBillRepository) FindByIDIncludingDeletedWithProducts(ctx context.Co
 
 	if err != nil {
 		return nil, err
+	}
+	// Scan reports no error for zero rows; without this an unknown id reads as an empty order.
+	if result.ID == "" {
+		return nil, gorm.ErrRecordNotFound
 	}
 
 	type productResult struct {
