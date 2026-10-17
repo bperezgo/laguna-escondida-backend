@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"laguna-escondida/backend/internal/domain/dto"
-	"laguna-escondida/backend/internal/domain/permissions"
 	"laguna-escondida/backend/internal/domain/ports"
 	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/platform/config"
@@ -299,117 +298,21 @@ func main() {
 	// Record request counts/latencies for Prometheus (scraped by Alloy on :METRICS_PORT).
 	router.Use(handler.MetricsMiddleware())
 
-	// Health check
-	router.GET("/api/health", handler.HealthCheckHandler)
-
-	// Edge/node status (mode, connectivity, sync lag, pending sync ops)
-	router.GET("/api/edge/status", edgeHandler.GetStatusHandler)
-
-	// Auth routes (no authentication required)
-	router.POST("/api/auth/signin", userHandler.SignInHandler)
-
-	// Auth routes (protected with JWT)
-	router.GET("/api/auth/me", handler.JWTAuthMiddleware(jwtService), userHandler.GetCurrentUserHandler)
-
-	// User routes (protected with admin API key) — kept for first-admin bootstrap via curl.
-	router.POST("/api/users", handler.AdminAPIKeyMiddleware(cfg), userHandler.CreateUserHandler)
-
-	// Admin user management (protected with JWT + fine-grained user permissions).
-	adminUsers := router.Group("/api/admin", handler.JWTAuthMiddleware(jwtService))
-	adminUsers.POST("/users", handler.RequirePermission(permissions.UsersCreate), userHandler.CreateUserHandler)
-	adminUsers.GET("/users", handler.RequirePermission(permissions.UsersRead), userHandler.ListUsersHandler)
-	adminUsers.GET("/users/:id", handler.RequirePermission(permissions.UsersRead), userHandler.GetUserHandler)
-	adminUsers.PUT("/users/:id", handler.RequirePermission(permissions.UsersUpdate), userHandler.UpdateUserHandler)
-	adminUsers.POST("/users/:id/reset-password", handler.RequirePermission(permissions.UsersUpdate), userHandler.ResetPasswordHandler)
-	adminUsers.DELETE("/users/:id", handler.RequirePermission(permissions.UsersDelete), userHandler.DeleteUserHandler)
-	adminUsers.GET("/roles", handler.RequirePermission(permissions.UsersRead), userHandler.ListRolesHandler)
-
-	// Protected routes (require JWT authentication + permissions)
-	handler.RegisterOrderRoutes(router, orderHandler, jwtService)
-
-	// Product routes
-	router.POST("/api/products", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsCreate), productHandler.CreateProductHandler)
-	router.POST("/api/products/bulk", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsCreate), productHandler.BulkCreateProductsHandler)
-	router.GET("/api/products", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsRead), productHandler.ListProductsHandler)
-	router.GET("/api/products/categories", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsRead), productHandler.ListCategoriesHandler)
-	router.GET("/api/products/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsRead), productHandler.GetProductByIDHandler)
-	router.PUT("/api/products/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), productHandler.UpdateProductHandler)
-	router.DELETE("/api/products/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsDelete), productHandler.DeleteProductHandler)
-
-	// Product responsibility routes
-	router.POST("/api/product-responsibilities", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), productHandler.CreateProductResponsibilityHandler)
-	router.GET("/api/product-responsibilities/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsRead), productHandler.GetProductResponsibilityByIDHandler)
-	router.PUT("/api/product-responsibilities/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), productHandler.UpdateProductResponsibilityHandler)
-	router.DELETE("/api/product-responsibilities/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), productHandler.DeleteProductResponsibilityHandler)
-
-	// Product ingredient routes
-	router.POST("/api/products/:id/ingredients", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), productIngredientHandler.AddIngredientHandler)
-	router.GET("/api/products/:id/ingredients", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsRead), productIngredientHandler.GetIngredientsHandler)
-	router.PUT("/api/products/:id/ingredients/:ingredient_id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), productIngredientHandler.UpdateIngredientHandler)
-	router.DELETE("/api/products/:id/ingredients/:ingredient_id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), productIngredientHandler.RemoveIngredientHandler)
-
-	// Side-dish configuration routes
-	router.GET("/api/products/:id/side-dishes", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsRead), productIngredientHandler.GetSideDishOptionsHandler)
-	router.PUT("/api/products/:id/ingredients/:ingredient_id/side-dish", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), productIngredientHandler.ConfigureSideDishHandler)
-	router.DELETE("/api/products/:id/ingredients/:ingredient_id/side-dish", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), productIngredientHandler.ClearSideDishHandler)
-
-	// Stock routes — reads in both modes, authoring cloud-only (see registerStockRoutes).
-	registerStockRoutes(router, cfg, stockHandler, jwtService)
-
-	// Delivery zones — cloud-only (see RegisterDeliveryZoneRoutes).
-	handler.RegisterDeliveryZoneRoutes(router, cfg, deliveryZoneHandler, jwtService)
-
-	// Bill Owner routes
-	router.GET("/api/bill-owners/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.BillOwnersRead), billOwnerHandler.GetByIDHandler)
-
-	// Supplier routes
-	router.POST("/api/suppliers", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SuppliersCreate), supplierHandler.CreateSupplierHandler)
-	router.GET("/api/suppliers", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SuppliersRead), supplierHandler.ListSuppliersHandler)
-	router.GET("/api/suppliers/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SuppliersRead), supplierHandler.GetSupplierByIDHandler)
-	router.PUT("/api/suppliers/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SuppliersUpdate), supplierHandler.UpdateSupplierHandler)
-	router.DELETE("/api/suppliers/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SuppliersDelete), supplierHandler.DeleteSupplierHandler)
-
-	// Supplier Catalog routes
-	router.POST("/api/suppliers/:id/products", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SupplierCatalogCreate), supplierHandler.AddProductToSupplierHandler)
-	router.PUT("/api/suppliers/:id/products/:product_id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SupplierCatalogUpdate), supplierHandler.UpdateSupplierCatalogHandler)
-	router.DELETE("/api/suppliers/:id/products/:product_id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SupplierCatalogDelete), supplierHandler.RemoveProductFromSupplierHandler)
-	router.GET("/api/suppliers/:id/products", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SupplierCatalogRead), supplierHandler.GetSupplierProductsHandler)
-	router.GET("/api/products/:id/suppliers", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SupplierCatalogRead), supplierHandler.GetProductSuppliersHandler)
-
-	// Purchase Entry routes
-	router.POST("/api/purchase-entries", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.PurchaseEntriesCreate), purchaseEntryHandler.CreatePurchaseEntryHandler)
-	router.GET("/api/purchase-entries", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.PurchaseEntriesRead), purchaseEntryHandler.ListPurchaseEntriesHandler)
-	router.GET("/api/purchase-entries/export", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.PurchaseEntriesExport), purchaseEntryHandler.ExportPurchaseEntriesCSVHandler)
-	router.GET("/api/purchase-entries/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.PurchaseEntriesRead), purchaseEntryHandler.GetPurchaseEntryByIDHandler)
-	router.GET("/api/suppliers/:id/purchase-entries", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.PurchaseEntriesRead), purchaseEntryHandler.GetPurchaseEntriesBySupplierHandler)
-	router.POST("/api/purchase-entries/:id/documents", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.PurchaseEntriesUpload), purchaseEntryHandler.UploadPurchaseEntryDocumentHandler)
-
-	// Expense Category routes
-	router.POST("/api/expense-categories", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpenseCategoriesCreate), expenseHandler.CreateCategoryHandler)
-	router.GET("/api/expense-categories", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpenseCategoriesRead), expenseHandler.ListCategoriesHandler)
-	router.GET("/api/expense-categories/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpenseCategoriesRead), expenseHandler.GetCategoryByIDHandler)
-	router.PUT("/api/expense-categories/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpenseCategoriesUpdate), expenseHandler.UpdateCategoryHandler)
-
-	// Expense routes
-	router.POST("/api/expenses", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpensesCreate), expenseHandler.CreateExpenseHandler)
-	router.GET("/api/expenses", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpensesRead), expenseHandler.ListExpensesHandler)
-	router.GET("/api/expenses/export", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpensesExport), expenseHandler.ExportExpensesCSVHandler)
-	router.GET("/api/expenses/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpensesRead), expenseHandler.GetExpenseByIDHandler)
-	router.PUT("/api/expenses/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpensesUpdate), expenseHandler.UpdateExpenseHandler)
-	router.DELETE("/api/expenses/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpensesDelete), expenseHandler.DeleteExpenseHandler)
-	router.POST("/api/expenses/:id/documents", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ExpensesUpload), expenseHandler.UploadExpenseDocumentHandler)
-
-	// Financial routes
-	router.GET("/api/financial/summary", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.FinancialRead), financialHandler.GetFinancialSummaryHandler)
-
-	// Reports routes
-	router.GET("/api/reports/daily-close", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.FinancialRead), financialHandler.GetDailyCloseHandler)
-
-	// SSE routes for real-time open bill product notifications
-	router.GET("/api/sse/commands/:area", handler.SSEMiddleware(), handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SSECommandsRead), sseHandler.StreamCommandsHandler)
-	router.GET("/api/sse/open-bill-products/:area", handler.SSEMiddleware(), handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SSECommandItemsRead), sseHandler.StreamOpenBillProductsHandler)
-	router.GET("/api/open-bill-products/:area/pending", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersRead), sseHandler.GetPendingOpenBillProductsHandler)
-	router.GET("/api/open-bill-products/:area/completed", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersRead), sseHandler.GetCompletedOpenBillProductsHandler)
+	registerAPIRoutes(router, cfg, jwtService, apiHandlers{
+		order:             orderHandler,
+		product:           productHandler,
+		stock:             stockHandler,
+		user:              userHandler,
+		billOwner:         billOwnerHandler,
+		supplier:          supplierHandler,
+		purchaseEntry:     purchaseEntryHandler,
+		expense:           expenseHandler,
+		productIngredient: productIngredientHandler,
+		financial:         financialHandler,
+		deliveryZone:      deliveryZoneHandler,
+		sse:               sseHandler,
+		edge:              edgeHandler,
+	})
 
 	// ---------------------------------------------------------------------
 	// Mode-specific wiring seam (edge vs cloud).
@@ -447,7 +350,7 @@ func main() {
 				LegalNotice: cfg.TicketLegalNotice,
 			})
 			deviceHandler := handler.NewDeviceHandler(printService)
-			router.POST("/api/device/print", handler.JWTAuthMiddleware(jwtService, permissions.RoleAdmin, permissions.RoleManager), deviceHandler.PrintTicketHandler)
+			registerEdgeRoutes(router, jwtService, deviceHandler)
 			logger.Info("Ticket printing enabled", slog.String("transport", deviceCfg.Transport))
 		}
 
@@ -521,37 +424,24 @@ func main() {
 		invoiceHandler := handler.NewInvoiceHandler(invoiceService)
 		supportDocHandler := handler.NewSupportDocumentHandler(supportDocService)
 
-		// Admin routes (protected with admin API key)
-		router.POST("/api/invoices/update-missing-document-urls", handler.AdminAPIKeyMiddleware(cfg), invoiceHandler.UpdateMissingDocumentURLsHandler)
-		router.POST("/api/support-documents/update-missing-document-urls", handler.AdminAPIKeyMiddleware(cfg), supportDocHandler.UpdateMissingSupportDocumentURLsHandler)
-
-		// Invoice routes
-		router.POST("/api/invoices", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.InvoicesCreate), invoiceHandler.CreateElectronicInvoiceHandler)
-		router.GET("/api/invoices", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.InvoicesRead), invoiceHandler.ListInvoicesHandler)
-		router.GET("/api/invoices/export", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.InvoicesExport), invoiceHandler.ExportInvoicesCSVHandler)
-
-		// Support Document routes
-		router.POST("/api/support-documents", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SupportDocumentsCreate), supportDocHandler.CreateSupportDocumentHandler)
-		router.GET("/api/support-documents", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SupportDocumentsRead), supportDocHandler.ListSupportDocumentsHandler)
-		router.GET("/api/support-documents/export", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SupportDocumentsExport), supportDocHandler.ExportSupportDocumentsCSVHandler)
-
-		// Cloud sync aggregate: accept pushes from edge nodes and serve reference changes.
 		syncHandler := handler.NewSyncHandler(syncService, syncReferenceService)
-		router.POST("/api/sync/push", handler.NodeAuthMiddleware(cfg), syncHandler.PushHandler)
-		router.GET("/api/sync/pull", handler.NodeAuthMiddleware(cfg), syncHandler.PullHandler)
-		router.GET("/api/sync/pull/stock", handler.NodeAuthMiddleware(cfg), syncHandler.PullStockHandler)
 
+		var telemetryHandler *handler.TelemetryHandler
 		if !cfg.TelemetryIngestEnabled() {
 			logger.Info("Telemetry ingest disabled: set TELEMETRY_FORWARD_URL to the cloud Alloy OTLP/HTTP receiver to enable it")
 		} else {
 			telemetryForwarder := httpclient.NewTelemetryForwardClient(httpClient, cfg.TelemetryForwardURL)
 			telemetryIngestService := service.NewTelemetryIngestService(telemetryForwarder, cfg.TelemetryTenantID, cfg.OrganizationID)
-			telemetryHandler := handler.NewTelemetryHandler(telemetryIngestService)
-			router.POST("/api/telemetry/v1/logs", handler.NodeAuthMiddleware(cfg), telemetryHandler.IngestLogsHandler)
-			router.POST("/api/telemetry/v1/traces", handler.NodeAuthMiddleware(cfg), telemetryHandler.IngestTracesHandler)
-			router.POST("/api/telemetry/v1/metrics", handler.NodeAuthMiddleware(cfg), telemetryHandler.IngestMetricsHandler)
+			telemetryHandler = handler.NewTelemetryHandler(telemetryIngestService)
 			logger.Info("Telemetry ingest enabled", slog.String("collector", cfg.TelemetryForwardURL))
 		}
+
+		registerCloudRoutes(router, cfg, jwtService, cloudHandlers{
+			invoice:         invoiceHandler,
+			supportDocument: supportDocHandler,
+			sync:            syncHandler,
+			telemetry:       telemetryHandler,
+		})
 	}
 
 	port := os.Getenv("PORT")
