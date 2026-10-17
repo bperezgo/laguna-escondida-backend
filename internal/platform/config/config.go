@@ -90,6 +90,9 @@ type Config struct {
 
 	// PhoneHomeRegion (ISO 3166 alpha-2) reads customer phones typed without "+".
 	PhoneHomeRegion string
+
+	// LagunaStateDir is the appliance updater's state directory; empty turns owner-triggered updates off.
+	LagunaStateDir string
 }
 
 // TelemetryIngestEnabled reports whether the cloud has somewhere to relay edge telemetry to.
@@ -400,5 +403,6 @@ func NewConfig() (*Config, error) {
 		TelemetryForwardURL:       telemetryForwardURL,
 		PhoneHomeRegion:           phoneHomeRegion,
 		TelemetryTenantID:         telemetryTenantID,
+		LagunaStateDir:            os.Getenv("LAGUNA_STATE_DIR"),
 	}, nil
 }

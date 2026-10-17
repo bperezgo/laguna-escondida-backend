@@ -117,6 +117,12 @@ const (
 	DeliveryZonesManage Permission = "delivery-zones:manage"
 )
 
+// Edge appliance permissions
+const (
+	// EdgeUpdate lets a user see and trigger the box's staged appliance update.
+	EdgeUpdate Permission = "edge:update"
+)
+
 // SSE permissions
 const (
 	SSECommandsRead     Permission = "sse:commands:read"
@@ -156,6 +162,8 @@ func AllPermissions() []Permission {
 		UsersRead, UsersCreate, UsersUpdate, UsersDelete,
 		// Delivery Zones
 		DeliveryZonesRead, DeliveryZonesManage,
+		// Edge appliance
+		EdgeUpdate,
 		// SSE
 		SSECommandsRead, SSECommandItemsRead,
 	}

@@ -1021,3 +1021,25 @@ call reports `"written_balances": 0`. See `docs/playbooks/STOCK_CUTOVER_RUNBOOK.
 curl -X POST "$BASE_URL/stock/opening-balances" \
   -H "X-API-Key: $ADMIN_API_KEY"
 ```
+
+---
+
+## Edge Update (edge node, admin)
+
+### Get update state
+
+```bash
+export EDGE_URL="http://localhost:8082/api"
+
+curl "$EDGE_URL/edge/update" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Request the staged update
+
+```bash
+curl -X POST "$EDGE_URL/edge/update" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "version": "v1.0.1" }'
+```

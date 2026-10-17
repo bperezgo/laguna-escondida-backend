@@ -213,6 +213,9 @@ Permissions follow the `resource:action` format. Available permissions include:
 - `purchase-entries:create` - Create new purchase entries
 - `purchase-entries:upload` - Upload purchase entry documents
 
+### Edge appliance
+- `edge:update` - See and trigger the box's staged appliance update (admin only, edge mode)
+
 ---
 
 ## Role-Permission Mapping
