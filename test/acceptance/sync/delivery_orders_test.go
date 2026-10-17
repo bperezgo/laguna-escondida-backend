@@ -196,7 +196,7 @@ func TestDeliveryOrders_PersistedAndFiltered(t *testing.T) {
 	assert.Equal(t, []string{deliveryID}, listIDs(byPhone), "a differently typed phone still matches")
 
 	d.pay(deliveryID)
-	require.NoError(t, d.orders.DeleteOrder(d.ctx, otherPhoneID))
+	require.NoError(t, d.orders.DeleteOrder(d.ctx, otherPhoneID, dto.UserDomain{}))
 
 	from, to := time.Now().Add(-time.Hour), time.Now().Add(time.Hour)
 	closedDeliveries, err := d.orders.GetClosedOpenBills(d.ctx, from, to, dto.OrderListFilter{OrderType: dto.OrderTypeDelivery, CustomerPhone: agentPhone})

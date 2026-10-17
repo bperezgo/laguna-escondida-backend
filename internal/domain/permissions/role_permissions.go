@@ -116,6 +116,20 @@ func HasPermission(roleIDs []int, required Permission) bool {
 	return false
 }
 
+// IsAgentOnly reports whether the caller acts solely as the customer-facing agent, which is
+// scoped to its own takeaway and delivery orders on top of its permissions.
+func IsAgentOnly(roleIDs []int) bool {
+	if len(roleIDs) == 0 {
+		return false
+	}
+	for _, roleID := range roleIDs {
+		if roleID != RoleAgent {
+			return false
+		}
+	}
+	return true
+}
+
 // HasAnyPermission checks if the given roles have at least one of the required permissions
 func HasAnyPermission(roleIDs []int, required []Permission) bool {
 	for _, perm := range required {

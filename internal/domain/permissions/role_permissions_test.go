@@ -234,3 +234,11 @@ func TestGetPermissionsForRoles_DeliveryZonesManagedByAdminAndManager(t *testing
 		assert.NotContains(t, GetPermissionsForRoles([]int{role}), DeliveryZonesManage, "role %d", role)
 	}
 }
+
+func TestIsAgentOnly(t *testing.T) {
+	assert.True(t, IsAgentOnly([]int{RoleAgent}))
+	assert.True(t, IsAgentOnly([]int{RoleAgent, RoleAgent}))
+	assert.False(t, IsAgentOnly([]int{RoleAgent, RoleServer}), "a staff role lifts the agent's scope")
+	assert.False(t, IsAgentOnly([]int{RoleManager}))
+	assert.False(t, IsAgentOnly(nil), "no roles is not the agent")
+}

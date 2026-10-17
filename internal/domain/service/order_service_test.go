@@ -2518,7 +2518,7 @@ func TestDeleteOrder_WritesTombstoneOutboxRow(t *testing.T) {
 		Return(nil).
 		Once()
 
-	err := service.DeleteOrder(ctx, openBillID)
+	err := service.DeleteOrder(ctx, openBillID, dto.UserDomain{})
 	require.NoError(t, err)
 
 	require.NotNil(t, captured)
@@ -2556,7 +2556,7 @@ func TestDeleteOrder_Success(t *testing.T) {
 	mockOpenBillRepo.On("FindByIDWithProducts", ctx, openBillID).Return(openBillWithProducts, nil)
 	mockOpenBillRepo.On("Delete", ctx, openBillID).Return(nil)
 
-	err := service.DeleteOrder(ctx, openBillID)
+	err := service.DeleteOrder(ctx, openBillID, dto.UserDomain{})
 
 	require.NoError(t, err)
 }
@@ -2575,7 +2575,7 @@ func TestDeleteOrder_OrderNotFound(t *testing.T) {
 
 	mockOpenBillRepo.On("FindByIDWithProducts", ctx, openBillID).Return(nil, findError)
 
-	err := service.DeleteOrder(ctx, openBillID)
+	err := service.DeleteOrder(ctx, openBillID, dto.UserDomain{})
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, orderError.ErrOrderNotFound)
@@ -2606,7 +2606,7 @@ func TestDeleteOrder_DeleteFails(t *testing.T) {
 	mockOpenBillRepo.On("FindByIDWithProducts", ctx, openBillID).Return(openBillWithProducts, nil)
 	mockOpenBillRepo.On("Delete", ctx, openBillID).Return(deleteError)
 
-	err := service.DeleteOrder(ctx, openBillID)
+	err := service.DeleteOrder(ctx, openBillID, dto.UserDomain{})
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, orderError.ErrOrderDeletionFailed)
@@ -2696,7 +2696,7 @@ func TestCompleteOpenBillProduct_SyncsStatusToOutbox(t *testing.T) {
 func TestCancelOpenBillProduct_SyncsStatusToOutbox(t *testing.T) {
 	captured := captureStatusOutbox(t, dto.CommandStatusCreated,
 		func(s *OrderService, ctx context.Context, openBillID, productID string) error {
-			return s.CancelOpenBillProduct(ctx, openBillID, productID)
+			return s.CancelOpenBillProduct(ctx, openBillID, productID, dto.UserDomain{})
 		})
 
 	payload := decodeOpenBillPayload(t, captured)
@@ -3132,7 +3132,7 @@ func TestOrderService_CancelOpenBillProduct_PaidOrder(t *testing.T) {
 	aggregate := newPaidAggregate(t, []*openBill.OpenBillProduct{line})
 	mockOpenBillRepo.On("FindAggregateForKitchen", ctx, openBillID1).Return(aggregate, nil)
 
-	err := service.CancelOpenBillProduct(ctx, openBillID1, obpID1)
+	err := service.CancelOpenBillProduct(ctx, openBillID1, obpID1, dto.UserDomain{})
 
 	require.ErrorIs(t, err, openBillError.ErrCannotCancelPaidOrderLine)
 	assert.Equal(t, dto.CommandStatusInProgress, line.Status())

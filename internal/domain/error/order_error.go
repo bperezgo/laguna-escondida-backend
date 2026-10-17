@@ -16,6 +16,13 @@ var (
 	ErrSideDishQuantityOutOfBounds = errors.New("side-dish quantity is outside the configured min/max bounds")
 )
 
+// The agent shares one service user for every customer, so the backend keeps it on its own
+// takeaway and delivery orders; telling one customer from another is the MCP server's job.
+var (
+	ErrAgentOrderTypeNotAllowed = errors.New("the agent can only take takeaway and delivery orders")
+	ErrOrderNotOwnedByAgent     = errors.New("the agent can only change takeaway and delivery orders it created")
+)
+
 var (
 	ErrOutsideDeliveryZone   = errors.New("the delivery location is outside every active delivery zone")
 	ErrDeliveryZoneNotFound  = errors.New("delivery zone not found")

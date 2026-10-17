@@ -17,6 +17,7 @@ import (
 	"laguna-escondida/backend/internal/domain/command"
 	"laguna-escondida/backend/internal/domain/dto"
 	orderError "laguna-escondida/backend/internal/domain/error"
+	"laguna-escondida/backend/internal/domain/permissions"
 	"laguna-escondida/backend/internal/domain/ports"
 	pkgports "laguna-escondida/backend/pkg/domain/ports"
 
@@ -131,6 +132,9 @@ func (s *OrderService) CreateOrder(
 	fulfillment, resolveErr := s.resolveFulfillment(ctx, req.OrderContactRequest)
 	if resolveErr != nil {
 		return nil, resolveErr
+	}
+	if permissions.IsAgentOnly(user.RoleIDs) && !fulfillment.OrderType().IsHeldUntilPaid() {
+		return nil, orderError.ErrAgentOrderTypeNotAllowed
 	}
 
 	// Reject a duplicate before doing any work: two active orders must never share a
@@ -461,6 +465,9 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 	existingBillAggregate, err := s.openBillRepo.FindAggregateByID(ctx, openBillID)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
+	}
+	if err = ensureAgentMayChange(user, existingBillAggregate.CreatedByID(), existingBillAggregate.OrderType()); err != nil {
+		return nil, err
 	}
 
 	var products []*dto.Product
@@ -891,12 +898,15 @@ func (s *OrderService) GetOpenBillWithProducts(ctx context.Context, openBillID s
 }
 
 // DeleteOrder soft deletes an open order by setting deleted_at
-func (s *OrderService) DeleteOrder(ctx context.Context, openBillID string) error {
+func (s *OrderService) DeleteOrder(ctx context.Context, openBillID string, user dto.UserDomain) error {
 	// Read the order's line items before the soft-delete so the published event can carry
 	// them for stock restoration — after the delete they'd be gone.
 	existingOpenBill, err := s.openBillRepo.FindByIDWithProducts(ctx, openBillID)
 	if err != nil {
 		return fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
+	}
+	if err := ensureAgentMayChange(user, existingOpenBill.CreatedBy.ID, existingOpenBill.OrderType); err != nil {
+		return err
 	}
 
 	// Soft-delete the order and append its tombstone outbox row in one transaction.
@@ -991,10 +1001,13 @@ func (s *OrderService) SetOpenBillProductInProgress(ctx context.Context, openBil
 }
 
 // CancelOpenBillProduct marks a product as cancelled and updates open_bill status if all products are cancelled
-func (s *OrderService) CancelOpenBillProduct(ctx context.Context, openBillID, openBillProductID string) error {
+func (s *OrderService) CancelOpenBillProduct(ctx context.Context, openBillID, openBillProductID string, user dto.UserDomain) error {
 	aggregate, err := s.openBillRepo.FindAggregateForKitchen(ctx, openBillID)
 	if err != nil {
 		return fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
+	}
+	if err := ensureAgentMayChange(user, aggregate.CreatedByID(), aggregate.OrderType()); err != nil {
+		return err
 	}
 
 	if err := aggregate.CancelProduct(openBillProductID); err != nil {
@@ -1401,4 +1414,14 @@ func (s *OrderService) GetPendingOpenBillProductsByArea(ctx context.Context, are
 // review view).
 func (s *OrderService) GetCompletedOpenBillProductsByArea(ctx context.Context, area string, from, to time.Time) ([]*dto.OpenBillProductSSE, error) {
 	return s.openBillRepo.FindCompletedByAreaBetween(ctx, area, from, to)
+}
+
+func ensureAgentMayChange(user dto.UserDomain, createdByID string, orderType dto.OrderType) error {
+	if !permissions.IsAgentOnly(user.RoleIDs) {
+		return nil
+	}
+	if createdByID != user.ID || !orderType.IsHeldUntilPaid() {
+		return orderError.ErrOrderNotOwnedByAgent
+	}
+	return nil
 }

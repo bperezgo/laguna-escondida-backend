@@ -23,6 +23,22 @@ Manages open orders (open bills) — active tabs that can contain products befor
 >
 > **Note:** Marking a product **completed** or **in-progress** requires the `orders:complete-product` permission (the kitchen preparation flow), granted to **cooker**, **manager**, and **admin** roles. **Cancelling** a product requires `orders:update` (server, manager, admin) — cookers cannot cancel product lines.
 
+### The agent role
+
+A user whose **only** role is `agent` (the WhatsApp agent's service user) is further limited by the service:
+
+- `POST /api/orders` accepts only `takeaway` and `delivery`. A `dine_in` order (or one without `order_type`) is refused with `403 AGENT_ORDER_TYPE_NOT_ALLOWED`.
+- `PUT /api/orders/:id`, `DELETE /api/orders/:id` and `PATCH …/cancel` work only on takeaway and delivery orders **it created**. Any other order is refused with `403 ORDER_NOT_OWNED` and left untouched.
+
+```json
+{
+  "error": "The agent can only change takeaway and delivery orders it created",
+  "code": "ORDER_NOT_OWNED"
+}
+```
+
+A user with a staff role besides `agent` is not limited.
+
 ## Order types: dine-in, takeaway and delivery
 
 Every order has an `order_type`:
@@ -465,6 +481,18 @@ Voids an open (unpaid) order: it leaves the active list and its stock is returne
   "message": "Order deleted successfully"
 }
 ```
+
+### Error Responses
+
+**404 Not Found** — the id is not an open order: it does not exist, is already voided, or is paid. Nothing changes: no stock is returned and nothing is replicated.
+
+```json
+{
+  "error": "Order not found"
+}
+```
+
+**403 Forbidden** — the caller is the agent and the order is not one of its takeaway or delivery orders (`ORDER_NOT_OWNED`, see [The agent role](#the-agent-role)).
 
 ---
 

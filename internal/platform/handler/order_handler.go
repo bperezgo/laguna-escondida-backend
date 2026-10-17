@@ -36,21 +36,18 @@ func (h *OrderHandler) CreateOrderHandler(c *gin.Context) {
 
 	ctx := c.Request.Context()
 
-	userID, ok := c.Get("user_id")
+	user, ok := currentUser(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Username not found in context"})
 		return
 	}
 
-	userIDStr, ok := userID.(string)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID is not a string"})
-		return
-	}
-
-	openBill, err := h.orderService.CreateOrder(ctx, &req, dto.UserDomain{ID: userIDStr})
+	openBill, err := h.orderService.CreateOrder(ctx, &req, user)
 	if err != nil {
 		log.Printf("Error creating order: %v", err)
+
+		if respondAgentScopeError(c, err) {
+			return
+		}
 
 		if errors.Is(err, orderError.ErrProductNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "One or more products not found"})
@@ -102,21 +99,18 @@ func (h *OrderHandler) UpdateOrderHandler(c *gin.Context) {
 		req.Products = []dto.OrderProductItem{}
 	}
 
-	userID, ok := c.Get("user_id")
+	user, ok := currentUser(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Username not found in context"})
 		return
 	}
 
-	userIDStr, ok := userID.(string)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID is not a string"})
-		return
-	}
-
-	openBill, err := h.orderService.UpdateOrder(c.Request.Context(), openBillID, &req, dto.UserDomain{ID: userIDStr})
+	openBill, err := h.orderService.UpdateOrder(c.Request.Context(), openBillID, &req, user)
 	if err != nil {
 		log.Printf("Error updating order: %v", err)
+
+		if respondAgentScopeError(c, err) {
+			return
+		}
 
 		if errors.Is(err, orderError.ErrOrderNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
@@ -263,9 +257,18 @@ func (h *OrderHandler) DeleteOrderHandler(c *gin.Context) {
 		return
 	}
 
-	err := h.orderService.DeleteOrder(c.Request.Context(), openBillID)
+	user, ok := currentUser(c)
+	if !ok {
+		return
+	}
+
+	err := h.orderService.DeleteOrder(c.Request.Context(), openBillID, user)
 	if err != nil {
 		log.Printf("Error deleting order: %v", err)
+
+		if respondAgentScopeError(c, err) {
+			return
+		}
 
 		if errors.Is(err, orderError.ErrOrderNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
@@ -415,9 +418,18 @@ func (h *OrderHandler) CancelOpenBillProductHandler(c *gin.Context) {
 		return
 	}
 
-	err := h.orderService.CancelOpenBillProduct(c.Request.Context(), openBillID, openBillProductID)
+	user, ok := currentUser(c)
+	if !ok {
+		return
+	}
+
+	err := h.orderService.CancelOpenBillProduct(c.Request.Context(), openBillID, openBillProductID, user)
 	if err != nil {
 		log.Printf("Error cancelling open bill product: %v", err)
+
+		if respondAgentScopeError(c, err) {
+			return
+		}
 
 		if errors.Is(err, orderError.ErrOrderNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
@@ -453,4 +465,33 @@ func respondAwaitingPayment(c *gin.Context) {
 func isValidationError(err error) bool {
 	var baseErr *baseError.BaseError
 	return errors.As(err, &baseErr)
+}
+
+// currentUser reads the caller set by JWTAuthMiddleware, answering 401 itself when it is missing.
+func currentUser(c *gin.Context) (dto.UserDomain, bool) {
+	userID, ok := c.Get("user_id")
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Username not found in context"})
+		return dto.UserDomain{}, false
+	}
+	userIDStr, ok := userID.(string)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID is not a string"})
+		return dto.UserDomain{}, false
+	}
+	roleIDs, _ := c.Get("role_ids")
+	roles, _ := roleIDs.([]int)
+	return dto.UserDomain{ID: userIDStr, RoleIDs: roles}, true
+}
+
+func respondAgentScopeError(c *gin.Context, err error) bool {
+	switch {
+	case errors.Is(err, orderError.ErrAgentOrderTypeNotAllowed):
+		c.JSON(http.StatusForbidden, gin.H{"error": "The agent can only take takeaway and delivery orders", "code": "AGENT_ORDER_TYPE_NOT_ALLOWED"})
+	case errors.Is(err, orderError.ErrOrderNotOwnedByAgent):
+		c.JSON(http.StatusForbidden, gin.H{"error": "The agent can only change takeaway and delivery orders it created", "code": "ORDER_NOT_OWNED"})
+	default:
+		return false
+	}
+	return true
 }

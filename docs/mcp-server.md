@@ -181,7 +181,7 @@ No customer tool takes a phone or coordinates as an argument, so the model canno
 
 Run a **separate** MCP deployment for the agent; never point the WhatsApp agent at the staff server.
 
-1. In the **cloud**, create a user with **only** the `agent` role (role id 6). It can read products and create/read/update/delete orders; it gets `403` on pay, kitchen states, products, stock, zones, users, suppliers, expenses and invoices. This is the second barrier behind the toolset.
+1. In the **cloud**, create a user with **only** the `agent` role (role id 6). It can read products and create/read/update/delete orders; it gets `403` on pay, kitchen states, products, stock, zones, users, suppliers, expenses and invoices. This is the second barrier behind the toolset. The backend also keeps it to takeaway and delivery orders it created (`403 AGENT_ORDER_TYPE_NOT_ALLOWED` / `ORDER_NOT_OWNED`, see [orders](./api/orders.md#the-agent-role)), so even a leaked agent credential cannot touch a dine-in table or a staff-taken order. Telling one customer from another still rests on the toolset's phone check, since every customer shares the one agent user.
 2. Upload at least one delivery zone (full toolset or `POST /api/delivery-zones`) and check it with the restaurant's own pin. No active zone means every delivery is refused.
 3. Deploy the MCP server with:
 

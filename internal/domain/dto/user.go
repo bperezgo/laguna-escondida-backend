@@ -3,7 +3,8 @@ package dto
 import "time"
 
 type UserDomain struct {
-	ID string `json:"id"`
+	ID      string `json:"id"`
+	RoleIDs []int  `json:"role_ids,omitempty"`
 }
 
 type User struct {

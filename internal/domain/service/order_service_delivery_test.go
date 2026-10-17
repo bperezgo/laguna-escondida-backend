@@ -371,7 +371,9 @@ func TestOrderService_KitchenTransition_ReleasedAfterPay(t *testing.T) {
 func TestOrderService_CancelLine_AllowedWhileHeld(t *testing.T) {
 	aggregate := heldAggregate(t, dto.OrderTypeTakeaway, nil, dto.CommandStatusCreated)
 
-	runKitchenTransition(t, aggregate, (*OrderService).CancelOpenBillProduct)
+	runKitchenTransition(t, aggregate, func(s *OrderService, ctx context.Context, openBillID, productID string) error {
+		return s.CancelOpenBillProduct(ctx, openBillID, productID, dto.UserDomain{})
+	})
 
 	assert.Equal(t, dto.CommandStatusCancelled, aggregate.GetProduct(obpID1).Status())
 }

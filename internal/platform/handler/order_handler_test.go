@@ -40,7 +40,9 @@ func TestOrderHandler_CancelOpenBillProduct_PaidOrder_Returns409(t *testing.T) {
 	orderService := service.NewOrderService(repo, nil, nil, nil, dto.PendingInvoiceStatusPending, nil, nil, nil, nil, dto.SyncIdentity{}, nil, nil, "CO")
 
 	router := gin.New()
-	router.PATCH("/api/orders/:id/products/:open_bill_product_id/cancel", NewOrderHandler(orderService).CancelOpenBillProductHandler)
+	router.PATCH("/api/orders/:id/products/:open_bill_product_id/cancel",
+		func(c *gin.Context) { c.Set("user_id", userID) },
+		NewOrderHandler(orderService).CancelOpenBillProductHandler)
 
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, httptest.NewRequest(http.MethodPatch, "/api/orders/"+orderID+"/products/"+lineID+"/cancel", nil))
