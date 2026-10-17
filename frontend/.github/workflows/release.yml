@@ -103,9 +103,12 @@ jobs:
             if (-not $up) { throw 'server.js did not come up on :3999' }
             $chunk = (Get-ChildItem "$run\.next\static\chunks" -Filter *.js | Select-Object -First 1).Name
             Invoke-WebRequest "http://127.0.0.1:3999/_next/static/chunks/$chunk" -UseBasicParsing | Out-Null
-            # / redirects (to login); a 3xx/2xx means the app rendered, a 5xx would throw.
-            Invoke-WebRequest http://127.0.0.1:3999/ -UseBasicParsing -MaximumRedirection 0 -SkipHttpErrorCheck |
-              ForEach-Object { if ($_.StatusCode -ge 500) { throw "GET / returned $($_.StatusCode)" } else { Write-Host "GET / -> $($_.StatusCode)" } }
+            # / redirects (to login); a 3xx/2xx means the app rendered. curl.exe, not
+            # Invoke-WebRequest: pwsh raises an error on any redirect with -MaximumRedirection 0.
+            # 000 = no response at all.
+            $code = [int](curl.exe -s -o NUL -w '%{http_code}' http://127.0.0.1:3999/)
+            if ($code -eq 0 -or $code -ge 500) { throw "GET / returned $code" }
+            Write-Host "GET / -> $code"
           } finally {
             Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
           }
