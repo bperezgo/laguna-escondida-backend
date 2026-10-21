@@ -6,6 +6,7 @@ import { Card, CardBody, Button } from "@/components/ui";
 
 // Navigation items with their required permissions.
 // cloudAdminOnly: true means the card is hidden on cloud for non-admin roles.
+// cloudOnly: true means the card is hidden on the edge, where the routes don't exist.
 const navItems = [
   {
     href: "/orders",
@@ -86,6 +87,14 @@ const navItems = [
     permission: PERMISSIONS.FINANCIAL_SUMMARY_READ,
     accent: "var(--color-success)",
     cloudAdminOnly: true,
+  },
+  {
+    href: "/delivery-zones",
+    title: "Zonas de Domicilio",
+    description: "Definir en el mapa dónde se aceptan domicilios",
+    permission: PERMISSIONS.DELIVERY_ZONES_READ,
+    accent: "var(--color-secondary)",
+    cloudOnly: true,
   },
   {
     href: "/users",
@@ -180,7 +189,9 @@ export default function HomePage() {
           >
             {navItems
               .filter(
-                (item) => !item.cloudAdminOnly || isEdge || isAdmin
+                (item) =>
+                  (!item.cloudAdminOnly || isEdge || isAdmin) &&
+                  (!item.cloudOnly || !isEdge)
               )
               .map((item) => (
               <PermissionGate key={item.href} permission={item.permission}>

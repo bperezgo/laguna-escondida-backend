@@ -80,6 +80,10 @@ export const PERMISSIONS = {
   USERS_UPDATE: "users:update",
   USERS_DELETE: "users:delete",
 
+  // Delivery Zones (cloud only)
+  DELIVERY_ZONES_READ: "delivery-zones:read",
+  DELIVERY_ZONES_MANAGE: "delivery-zones:manage",
+
   // Edge appliance
   EDGE_UPDATE: "edge:update",
 
