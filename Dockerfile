@@ -28,6 +28,13 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -o /app/main \
     ./cmd
 
+# The MCP server (cmd/mcp-server) ships in the same image: aws-infra runs it as a
+# sidecar of the backend task (MCP_TOOLSET=customer, for the WhatsApp agent).
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-w -s" \
+    -o /app/mcp-server \
+    ./cmd/mcp-server
+
 # Runtime stage
 FROM alpine:latest
 
@@ -43,6 +50,7 @@ WORKDIR /app
 
 # Copy binary from builder
 COPY --from=builder /app/main .
+COPY --from=builder /app/mcp-server .
 
 # Copy migrations (if needed for runtime)
 COPY --from=builder /app/internal/platform/postgres/migrations ./internal/platform/postgres/migrations
