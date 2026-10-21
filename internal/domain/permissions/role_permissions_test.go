@@ -34,8 +34,8 @@ func TestGetPermissionsForRoles_SingleRole(t *testing.T) {
 		{
 			name:               "Manager permissions",
 			roleID:             RoleManager,
-			expectedContains:   []Permission{OrdersRead, OrdersCreate, ProductsCreate, ExpensesRead, SuppliersRead},
-			expectedNotContain: []Permission{UsersCreate, EdgeUpdate},
+			expectedContains:   []Permission{OrdersRead, OrdersCreate, ProductsCreate, ExpensesRead, SuppliersRead, EdgeUpdate},
+			expectedNotContain: []Permission{UsersCreate},
 		},
 	}
 

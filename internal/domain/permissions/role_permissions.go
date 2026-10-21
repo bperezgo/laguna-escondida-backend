@@ -53,6 +53,8 @@ var RolePermissions = map[int][]Permission{
 		UsersRead,
 		// Delivery Zones - full access
 		DeliveryZonesRead, DeliveryZonesManage,
+		// Edge appliance - the box usually runs logged in as a manager
+		EdgeUpdate,
 		// SSE - can receive real-time updates
 		SSECommandsRead, SSECommandItemsRead,
 	},

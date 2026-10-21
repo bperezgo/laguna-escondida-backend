@@ -8,7 +8,7 @@ release on its own.
 > **Edge mode only.** These routes are registered only when the backend runs with
 > `APP_MODE=edge`. In `cloud` mode they do not exist (404).
 
-**Auth:** JWT; requires the `edge:update` permission (admin role only).
+**Auth:** JWT; requires the `edge:update` permission (admin and manager roles).
 
 ## Endpoints
 
