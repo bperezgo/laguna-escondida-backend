@@ -12,6 +12,7 @@ const protectedRoutes = [
   "/stock",
   "/invoices",
   "/users",
+  "/delivery-zones",
 ];
 
 export function proxy(request: NextRequest) {

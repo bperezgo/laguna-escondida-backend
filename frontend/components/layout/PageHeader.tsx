@@ -20,6 +20,7 @@ export default function PageHeader() {
     if (pathname.startsWith("/expenses")) return "Gastos";
     if (pathname.startsWith("/close")) return "Cierre de Caja";
     if (pathname.startsWith("/users")) return "Usuarios";
+    if (pathname.startsWith("/delivery-zones")) return "Zonas de Domicilio";
     return "Laguna Escondida";
   };
 
