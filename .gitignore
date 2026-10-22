@@ -45,3 +45,6 @@ ai-plans/
 # git-dir mount and host ports. Machine-specific — never commit it.
 .devcontainer/docker-compose.generated.yml
 .devcontainer/.ports
+
+# /pr-description output: the PR body.
+.pr-description/
