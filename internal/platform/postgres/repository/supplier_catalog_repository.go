@@ -6,6 +6,7 @@ import (
 
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
+	"laguna-escondida/backend/internal/platform/postgres"
 
 	"gorm.io/gorm"
 )
@@ -54,13 +55,13 @@ type supplierCatalogWithSupplierModel struct {
 
 func (r *SupplierCatalogRepository) Create(ctx context.Context, catalog *dto.SupplierCatalog) error {
 	var existingModel supplierCatalogModel
-	err := r.db.WithContext(ctx).
+	err := postgres.GetTxOrDB(ctx, r.db).
 		Unscoped().
 		Where("supplier_id = ? AND product_id = ? AND deleted_at IS NOT NULL", catalog.SupplierID, catalog.ProductID).
 		First(&existingModel).Error
 
 	if err == nil {
-		return r.db.WithContext(ctx).
+		return postgres.GetTxOrDB(ctx, r.db).
 			Model(&supplierCatalogModel{}).
 			Where("id = ?", existingModel.ID).
 			Updates(map[string]any{
@@ -83,7 +84,7 @@ func (r *SupplierCatalogRepository) Create(ctx context.Context, catalog *dto.Sup
 		UpdatedAt:   catalog.UpdatedAt,
 	}
 
-	return r.db.WithContext(ctx).Create(model).Error
+	return postgres.GetTxOrDB(ctx, r.db).Create(model).Error
 }
 
 func (r *SupplierCatalogRepository) Update(ctx context.Context, id string, catalog *dto.SupplierCatalog) error {
@@ -92,7 +93,7 @@ func (r *SupplierCatalogRepository) Update(ctx context.Context, id string, catal
 		"updated_at":   catalog.UpdatedAt,
 	}
 
-	return r.db.WithContext(ctx).
+	return postgres.GetTxOrDB(ctx, r.db).
 		Model(&supplierCatalogModel{}).
 		Where("id = ? AND deleted_at IS NULL", id).
 		Updates(updateData).Error
@@ -100,7 +101,7 @@ func (r *SupplierCatalogRepository) Update(ctx context.Context, id string, catal
 
 func (r *SupplierCatalogRepository) Delete(ctx context.Context, id string) error {
 	now := time.Now()
-	return r.db.WithContext(ctx).
+	return postgres.GetTxOrDB(ctx, r.db).
 		Model(&supplierCatalogModel{}).
 		Where("id = ? AND deleted_at IS NULL", id).
 		Updates(map[string]interface{}{
@@ -111,7 +112,7 @@ func (r *SupplierCatalogRepository) Delete(ctx context.Context, id string) error
 
 func (r *SupplierCatalogRepository) FindByID(ctx context.Context, id string) (*dto.SupplierCatalog, error) {
 	var model supplierCatalogModel
-	if err := r.db.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", id).First(&model).Error; err != nil {
+	if err := postgres.GetTxOrDB(ctx, r.db).Where("id = ? AND deleted_at IS NULL", id).First(&model).Error; err != nil {
 		return nil, err
 	}
 
@@ -121,7 +122,7 @@ func (r *SupplierCatalogRepository) FindByID(ctx context.Context, id string) (*d
 func (r *SupplierCatalogRepository) FindBySupplierID(ctx context.Context, supplierID string) ([]*dto.SupplierCatalogWithProduct, error) {
 	var models []supplierCatalogWithProductModel
 
-	err := r.db.WithContext(ctx).
+	err := postgres.GetTxOrDB(ctx, r.db).
 		Table("supplier_catalog sc").
 		Select("sc.id, sc.supplier_id, sc.product_id, p.name as product_name, sc.supplier_sku, sc.created_at, sc.updated_at").
 		Joins("JOIN products p ON p.id = sc.product_id AND p.deleted_at IS NULL").
@@ -152,7 +153,7 @@ func (r *SupplierCatalogRepository) FindBySupplierID(ctx context.Context, suppli
 func (r *SupplierCatalogRepository) FindByProductID(ctx context.Context, productID string) ([]*dto.SupplierCatalogWithSupplier, error) {
 	var models []supplierCatalogWithSupplierModel
 
-	err := r.db.WithContext(ctx).
+	err := postgres.GetTxOrDB(ctx, r.db).
 		Table("supplier_catalog sc").
 		Select("sc.id, sc.supplier_id, s.name as supplier_name, sc.product_id, sc.supplier_sku, sc.created_at, sc.updated_at").
 		Joins("JOIN suppliers s ON s.id = sc.supplier_id AND s.deleted_at IS NULL").
@@ -182,7 +183,7 @@ func (r *SupplierCatalogRepository) FindByProductID(ctx context.Context, product
 
 func (r *SupplierCatalogRepository) FindBySupplierAndProduct(ctx context.Context, supplierID, productID string) (*dto.SupplierCatalog, error) {
 	var model supplierCatalogModel
-	if err := r.db.WithContext(ctx).
+	if err := postgres.GetTxOrDB(ctx, r.db).
 		Where("supplier_id = ? AND product_id = ? AND deleted_at IS NULL", supplierID, productID).
 		First(&model).Error; err != nil {
 		return nil, err

@@ -90,6 +90,23 @@ Creates a new open order. Products are optional — an empty order can be create
 
 The `temporal_identifier` must be unique among **active** orders. An order is active while it is not completed, cancelled, or deleted. Creating an order whose `temporal_identifier` matches an existing active order is rejected with `409 Conflict`. Once an order is completed or cancelled, its `temporal_identifier` may be reused.
 
+### Retrying safely: `X-Idempotency-Key`
+
+Send an optional `X-Idempotency-Key` header (1–255 characters, a fresh UUID per order works well) to make the request safe to retry after a timeout or a dropped connection.
+
+- The **first** request with a key creates the order as usual.
+- A **retry** with the same key, same user and same body creates nothing. It returns `201 Created` with the order the first request created, plus the response header `Idempotent-Replayed: true`. The body is the original response, even if the order has changed since.
+- If the first request **failed** (any 4xx/5xx), the key is freed, and a retry is processed as a new request.
+- Without the header, nothing changes: each request creates an order.
+
+| Status | `code`                            | When                                                                   |
+| ------ | --------------------------------- | ---------------------------------------------------------------------- |
+| 400    | `INVALID_IDEMPOTENCY_KEY`         | The key is longer than 255 characters                                  |
+| 409    | `IDEMPOTENCY_REQUEST_IN_PROGRESS` | A request with this key is still being processed; retry in a few seconds |
+| 422    | `IDEMPOTENCY_KEY_REUSED`          | The key was already used by another user or with a different body      |
+
+A request that dies mid-flight holds its key for 2 minutes, after which a retry takes it over. Keys are kept per node (cloud or edge box) and are not synced.
+
 ### Request Body
 
 | Field               | Type     | Required | Description                                   |

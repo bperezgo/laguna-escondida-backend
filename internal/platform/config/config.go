@@ -34,8 +34,6 @@ type Config struct {
 	ElectronicInvoiceURL      string
 	ElectronicInvoiceUser     string
 	ElectronicInvoicePassword string
-	ElectronicInvoicePrefix   string
-	SupportDocumentPrefix     string
 	AdminAPIKey               string
 	JWTSecret                 string
 	StorageRegion             string
@@ -128,16 +126,6 @@ func NewConfig() (*Config, error) {
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
 		return nil, errors.New("JWT_SECRET is not set")
-	}
-
-	invoicePrefix := os.Getenv("ELECTRONIC_INVOICE_PREFIX")
-	if invoicePrefix == "" {
-		invoicePrefix = "SETP"
-	}
-
-	supportDocumentPrefix := os.Getenv("SUPPORT_DOCUMENT_PREFIX")
-	if supportDocumentPrefix == "" {
-		supportDocumentPrefix = "SETP"
 	}
 
 	// STORAGE_REGION is the AWS region of the S3 bucket. Defaults to us-east-1 so a
@@ -364,8 +352,6 @@ func NewConfig() (*Config, error) {
 		ElectronicInvoiceURL:      url,
 		ElectronicInvoiceUser:     user,
 		ElectronicInvoicePassword: password,
-		ElectronicInvoicePrefix:   invoicePrefix,
-		SupportDocumentPrefix:     supportDocumentPrefix,
 		AdminAPIKey:               adminAPIKey,
 		JWTSecret:                 jwtSecret,
 		StorageRegion:             storageRegion,

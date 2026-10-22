@@ -6,6 +6,7 @@ import (
 
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
+	"laguna-escondida/backend/internal/platform/postgres"
 
 	"gorm.io/gorm"
 )
@@ -30,7 +31,7 @@ func (roleModel) TableName() string {
 
 func (r *RoleRepository) FindByID(ctx context.Context, id int) (*dto.Role, error) {
 	var model roleModel
-	if err := r.db.WithContext(ctx).
+	if err := postgres.GetTxOrDB(ctx, r.db).
 		Where("id = ?", id).
 		First(&model).Error; err != nil {
 		return nil, err
@@ -45,7 +46,7 @@ func (r *RoleRepository) FindByIDs(ctx context.Context, ids []int) ([]*dto.Role,
 	}
 
 	var models []roleModel
-	if err := r.db.WithContext(ctx).
+	if err := postgres.GetTxOrDB(ctx, r.db).
 		Where("id IN ?", ids).
 		Find(&models).Error; err != nil {
 		return nil, err
@@ -61,7 +62,7 @@ func (r *RoleRepository) FindByIDs(ctx context.Context, ids []int) ([]*dto.Role,
 
 func (r *RoleRepository) FindAll(ctx context.Context) ([]*dto.Role, error) {
 	var models []roleModel
-	if err := r.db.WithContext(ctx).
+	if err := postgres.GetTxOrDB(ctx, r.db).
 		Order("id ASC").
 		Find(&models).Error; err != nil {
 		return nil, err
@@ -77,7 +78,7 @@ func (r *RoleRepository) FindAll(ctx context.Context) ([]*dto.Role, error) {
 
 func (r *RoleRepository) FindByName(ctx context.Context, name string) (*dto.Role, error) {
 	var model roleModel
-	if err := r.db.WithContext(ctx).
+	if err := postgres.GetTxOrDB(ctx, r.db).
 		Where("name = ?", name).
 		First(&model).Error; err != nil {
 		return nil, err

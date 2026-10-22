@@ -6,6 +6,7 @@ import (
 
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
+	"laguna-escondida/backend/internal/platform/postgres"
 
 	"gorm.io/gorm"
 )
@@ -41,11 +42,11 @@ func (r *ExpenseCategoryRepository) Create(ctx context.Context, category *dto.Ex
 		CreatedAt:   category.CreatedAt,
 	}
 
-	return r.db.WithContext(ctx).Create(model).Error
+	return postgres.GetTxOrDB(ctx, r.db).Create(model).Error
 }
 
 func (r *ExpenseCategoryRepository) Update(ctx context.Context, id string, category *dto.ExpenseCategory) error {
-	return r.db.WithContext(ctx).
+	return postgres.GetTxOrDB(ctx, r.db).
 		Model(&expenseCategoryModel{}).
 		Where("id = ?", id).
 		Updates(map[string]interface{}{
@@ -59,7 +60,7 @@ func (r *ExpenseCategoryRepository) Update(ctx context.Context, id string, categ
 func (r *ExpenseCategoryRepository) FindAll(ctx context.Context) ([]*dto.ExpenseCategory, error) {
 	var models []expenseCategoryModel
 
-	err := r.db.WithContext(ctx).
+	err := postgres.GetTxOrDB(ctx, r.db).
 		Order("name ASC").
 		Find(&models).Error
 
@@ -73,7 +74,7 @@ func (r *ExpenseCategoryRepository) FindAll(ctx context.Context) ([]*dto.Expense
 func (r *ExpenseCategoryRepository) FindByID(ctx context.Context, id string) (*dto.ExpenseCategory, error) {
 	var model expenseCategoryModel
 
-	err := r.db.WithContext(ctx).
+	err := postgres.GetTxOrDB(ctx, r.db).
 		Where("id = ?", id).
 		First(&model).Error
 
@@ -87,7 +88,7 @@ func (r *ExpenseCategoryRepository) FindByID(ctx context.Context, id string) (*d
 func (r *ExpenseCategoryRepository) FindByCode(ctx context.Context, code string) (*dto.ExpenseCategory, error) {
 	var model expenseCategoryModel
 
-	err := r.db.WithContext(ctx).
+	err := postgres.GetTxOrDB(ctx, r.db).
 		Where("code = ?", code).
 		First(&model).Error
 
@@ -101,7 +102,7 @@ func (r *ExpenseCategoryRepository) FindByCode(ctx context.Context, code string)
 func (r *ExpenseCategoryRepository) FindAllActive(ctx context.Context) ([]*dto.ExpenseCategory, error) {
 	var models []expenseCategoryModel
 
-	err := r.db.WithContext(ctx).
+	err := postgres.GetTxOrDB(ctx, r.db).
 		Where("is_active = ?", true).
 		Order("name ASC").
 		Find(&models).Error

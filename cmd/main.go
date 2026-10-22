@@ -75,11 +75,11 @@ func main() {
 	logger := observability.NewSlogLogger(cfg.ObservabilityEnabled)
 
 	// Database connection
-	dsn := getDSN()
+	dsn := getDSN(getEnv("DB_USER", "postgres"), getEnv("DB_PASSWORD", "postgres"))
 
-	// Run migrations before connecting to database
+	// Migrations run as the schema owner; the app may connect as a pos_app member, which can't run DDL.
 	log.Println("Running database migrations...")
-	if err = runMigrations(dsn); err != nil {
+	if err = runMigrations(getMigrationDSN()); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 
@@ -127,6 +127,7 @@ func main() {
 			log.Printf("Failed to close event bus: %v", errEventBus)
 		}
 	}()
+	publisher := eventbus.NewDetachedEventBus(eventBusImpl, postgres.Detach)
 
 	// Initialize JWT service
 	jwtService := service.NewJWTService(cfg.JWTSecret)
@@ -174,7 +175,7 @@ func main() {
 		pendingInvoiceInitialStatus,
 		billOwnerRepo,
 		unitOfWork,
-		eventBusImpl,
+		publisher,
 		userRepo,
 		openBillProductHub,
 		syncOutboxRepo,
@@ -192,7 +193,7 @@ func main() {
 	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, jwtService, unitOfWork)
 	billOwnerService := service.NewBillOwnerService(billOwnerRepo)
 	supplierService := service.NewSupplierService(supplierRepo, supplierCatalogRepo, productRepo)
-	purchaseEntryService := service.NewPurchaseEntryService(purchaseEntryRepo, supplierRepo, supplierCatalogRepo, productRepo, storageClient, eventBusImpl, unitOfWork, syncOutboxRepo, syncIdentity, logger, cfg.OrganizationID)
+	purchaseEntryService := service.NewPurchaseEntryService(purchaseEntryRepo, supplierRepo, supplierCatalogRepo, productRepo, storageClient, publisher, unitOfWork, syncOutboxRepo, syncIdentity, logger, cfg.OrganizationID)
 	expenseService := service.NewExpenseService(expenseCategoryRepo, expenseRepo, supplierRepo, storageClient, cfg.OrganizationID)
 	productIngredientService := service.NewProductIngredientService(productIngredientRepo, productRepo)
 	financialService := service.NewFinancialService(billRepo, expenseRepo, purchaseEntryRepo)
@@ -263,7 +264,8 @@ func main() {
 	}()
 
 	// Initialize handlers
-	orderHandler := handler.NewOrderHandler(orderService)
+	orderHandler := handler.NewOrderHandler(orderService,
+		service.NewOrderIdempotencyService(orderService, repository.NewIdempotencyKeyRepository(db.DB)))
 	productHandler := handler.NewProductHandler(productService)
 	stockHandler := handler.NewStockHandler(stockService, stockReconciliationService)
 	userHandler := handler.NewUserHandler(userService, logger)
@@ -298,6 +300,8 @@ func main() {
 
 	// Record request counts/latencies for Prometheus (scraped by Alloy on :METRICS_PORT).
 	router.Use(handler.MetricsMiddleware())
+
+	router.Use(handler.DBSessionMiddleware(db.DB, cfg.OrganizationID))
 
 	registerAPIRoutes(router, cfg, jwtService, apiHandlers{
 		order:             orderHandler,
@@ -407,10 +411,11 @@ func main() {
 		invoiceService := service.NewInvoiceService(
 			electronicInvoiceClient, productRepo, billRepo, pendingInvoiceRepo, unitOfWork, storageClient, cfg.OrganizationID,
 		)
-		supportDocRepo := repository.NewSupportDocumentRepository(db.DB, electronicInvoiceClient, cfg)
+		supportDocRepo := repository.NewSupportDocumentRepository(db.DB, electronicInvoiceClient, cfg.OrganizationID)
 		supportDocService := service.NewSupportDocumentService(electronicInvoiceClient, supportDocRepo, storageClient, cfg.OrganizationID)
 		invoiceSubmissionService := service.NewInvoiceSubmissionService(
-			pendingInvoiceRepo, billRepo, electronicInvoiceClient, unitOfWork, syncOutboxRepo, syncIdentity, cfg, logger,
+			pendingInvoiceRepo, billRepo, electronicInvoiceClient, unitOfWork, syncOutboxRepo,
+			repository.NewEInvoicingSettingsRepository(db.DB), syncIdentity, cfg.OrganizationID, logger,
 		)
 
 		cronScheduler, cronErr := cron.NewScheduler(
@@ -607,11 +612,9 @@ func splitKeyValue(kv string) []string {
 	return []string{kv}
 }
 
-func getDSN() string {
+func getDSN(user, password string) string {
 	host := getEnv("DB_HOST", "localhost")
 	port := getEnv("DB_PORT", "5432")
-	user := getEnv("DB_USER", "postgres")
-	password := getEnv("DB_PASSWORD", "postgres")
 	dbname := getEnv("DB_NAME", "laguna_escondida")
 	sslmode := getEnv("DB_SSLMODE", "disable")
 
@@ -621,6 +624,13 @@ func getDSN() string {
 	// URL is unaffected.)
 	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s TimeZone=UTC",
 		host, port, user, password, dbname, sslmode)
+}
+
+// getMigrationDSN falls back to the app credentials, so nothing changes until DB_MIGRATION_USER is set.
+func getMigrationDSN() string {
+	user := getEnv("DB_MIGRATION_USER", getEnv("DB_USER", "postgres"))
+	password := getEnv("DB_MIGRATION_PASSWORD", getEnv("DB_PASSWORD", "postgres"))
+	return getDSN(user, password)
 }
 
 func getEnv(key, defaultValue string) string {

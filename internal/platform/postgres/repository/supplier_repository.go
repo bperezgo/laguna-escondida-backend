@@ -7,6 +7,7 @@ import (
 	"laguna-escondida/backend/internal/domain/aggregate/supplier"
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
+	"laguna-escondida/backend/internal/platform/postgres"
 
 	"gorm.io/gorm"
 )
@@ -52,7 +53,7 @@ func (r *SupplierRepository) Create(ctx context.Context, s *supplier.Aggregate) 
 		UpdatedAt:            supplierDTO.UpdatedAt,
 	}
 
-	return r.db.WithContext(ctx).Create(model).Error
+	return postgres.GetTxOrDB(ctx, r.db).Create(model).Error
 }
 
 func (r *SupplierRepository) Update(ctx context.Context, id string, s *supplier.Aggregate) error {
@@ -68,7 +69,7 @@ func (r *SupplierRepository) Update(ctx context.Context, id string, s *supplier.
 		"updated_at":            supplierDTO.UpdatedAt,
 	}
 
-	return r.db.WithContext(ctx).
+	return postgres.GetTxOrDB(ctx, r.db).
 		Model(&supplierModel{}).
 		Where("id = ? AND deleted_at IS NULL", id).
 		Updates(updateData).Error
@@ -76,7 +77,7 @@ func (r *SupplierRepository) Update(ctx context.Context, id string, s *supplier.
 
 func (r *SupplierRepository) Delete(ctx context.Context, id string) error {
 	now := time.Now()
-	return r.db.WithContext(ctx).
+	return postgres.GetTxOrDB(ctx, r.db).
 		Model(&supplierModel{}).
 		Where("id = ? AND deleted_at IS NULL", id).
 		Updates(map[string]interface{}{
@@ -87,7 +88,7 @@ func (r *SupplierRepository) Delete(ctx context.Context, id string) error {
 
 func (r *SupplierRepository) FindAll(ctx context.Context) ([]*dto.Supplier, error) {
 	var models []supplierModel
-	if err := r.db.WithContext(ctx).Where("deleted_at IS NULL").Order("name ASC").Find(&models).Error; err != nil {
+	if err := postgres.GetTxOrDB(ctx, r.db).Where("deleted_at IS NULL").Order("name ASC").Find(&models).Error; err != nil {
 		return nil, err
 	}
 
@@ -101,7 +102,7 @@ func (r *SupplierRepository) FindAll(ctx context.Context) ([]*dto.Supplier, erro
 
 func (r *SupplierRepository) FindByID(ctx context.Context, id string) (*dto.Supplier, error) {
 	var model supplierModel
-	if err := r.db.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", id).First(&model).Error; err != nil {
+	if err := postgres.GetTxOrDB(ctx, r.db).Where("id = ? AND deleted_at IS NULL", id).First(&model).Error; err != nil {
 		return nil, err
 	}
 
@@ -110,7 +111,7 @@ func (r *SupplierRepository) FindByID(ctx context.Context, id string) (*dto.Supp
 
 func (r *SupplierRepository) FindByName(ctx context.Context, name string) (*dto.Supplier, error) {
 	var model supplierModel
-	if err := r.db.WithContext(ctx).Where("name = ? AND deleted_at IS NULL", name).First(&model).Error; err != nil {
+	if err := postgres.GetTxOrDB(ctx, r.db).Where("name = ? AND deleted_at IS NULL", name).First(&model).Error; err != nil {
 		return nil, err
 	}
 

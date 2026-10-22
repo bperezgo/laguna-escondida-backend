@@ -7,6 +7,7 @@ import (
 	"laguna-escondida/backend/internal/domain/aggregate/expense"
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
+	"laguna-escondida/backend/internal/platform/postgres"
 
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
@@ -68,11 +69,11 @@ func (r *ExpenseRepository) Create(ctx context.Context, exp *expense.Aggregate) 
 		CreatedAt:   exp.CreatedAt(),
 	}
 
-	return r.db.WithContext(ctx).Create(model).Error
+	return postgres.GetTxOrDB(ctx, r.db).Create(model).Error
 }
 
 func (r *ExpenseRepository) Update(ctx context.Context, id string, exp *expense.Aggregate) error {
-	return r.db.WithContext(ctx).
+	return postgres.GetTxOrDB(ctx, r.db).
 		Model(&expenseModel{}).
 		Where("id = ?", id).
 		Updates(map[string]interface{}{
@@ -87,7 +88,7 @@ func (r *ExpenseRepository) Update(ctx context.Context, id string, exp *expense.
 }
 
 func (r *ExpenseRepository) Delete(ctx context.Context, id string) error {
-	return r.db.WithContext(ctx).
+	return postgres.GetTxOrDB(ctx, r.db).
 		Where("id = ?", id).
 		Delete(&expenseModel{}).Error
 }
@@ -95,7 +96,7 @@ func (r *ExpenseRepository) Delete(ctx context.Context, id string) error {
 func (r *ExpenseRepository) FindByID(ctx context.Context, id string) (*dto.ExpenseWithCategory, error) {
 	var model expenseWithCategoryModel
 
-	err := r.db.WithContext(ctx).
+	err := postgres.GetTxOrDB(ctx, r.db).
 		Table("expenses e").
 		Select(`e.id, e.category_id, ec.code as category_code, ec.name as category_name, 
 			e.supplier_id, s.name as supplier_name, e.amount, e.description, 
@@ -115,7 +116,7 @@ func (r *ExpenseRepository) FindByID(ctx context.Context, id string) (*dto.Expen
 func (r *ExpenseRepository) FindAll(ctx context.Context) ([]*dto.ExpenseWithCategory, error) {
 	var models []expenseWithCategoryModel
 
-	err := r.db.WithContext(ctx).
+	err := postgres.GetTxOrDB(ctx, r.db).
 		Table("expenses e").
 		Select(`e.id, e.category_id, ec.code as category_code, ec.name as category_name, 
 			e.supplier_id, s.name as supplier_name, e.amount, e.description, 
@@ -135,7 +136,7 @@ func (r *ExpenseRepository) FindAll(ctx context.Context) ([]*dto.ExpenseWithCate
 func (r *ExpenseRepository) FindByCriteria(ctx context.Context, criteria *dto.ExpenseListCriteria) ([]*dto.ExpenseWithCategory, error) {
 	var models []expenseWithCategoryModel
 
-	query := r.db.WithContext(ctx).
+	query := postgres.GetTxOrDB(ctx, r.db).
 		Table("expenses e").
 		Select(`e.id, e.category_id, ec.code as category_code, ec.name as category_name, 
 			e.supplier_id, s.name as supplier_name, e.amount, e.description, 
@@ -183,7 +184,7 @@ func (r *ExpenseRepository) UpdateStoragePaths(ctx context.Context, id string, p
 		return nil
 	}
 
-	return r.db.WithContext(ctx).
+	return postgres.GetTxOrDB(ctx, r.db).
 		Model(&expenseModel{}).
 		Where("id = ?", id).
 		Updates(updates).Error
@@ -195,7 +196,7 @@ func (r *ExpenseRepository) GetExpenseSummary(ctx context.Context, startDate tim
 		Count       int     `gorm:"column:count"`
 	}
 
-	err := r.db.WithContext(ctx).
+	err := postgres.GetTxOrDB(ctx, r.db).
 		Table("expenses").
 		Select("COALESCE(SUM(amount), 0) as total_amount, COUNT(*) as count").
 		Where("expense_date >= ? AND expense_date <= ?", startDate, endDate).
@@ -215,7 +216,7 @@ func (r *ExpenseRepository) GetExpenseSummary(ctx context.Context, startDate tim
 
 	var categoryResults []categoryResult
 
-	err = r.db.WithContext(ctx).
+	err = postgres.GetTxOrDB(ctx, r.db).
 		Table("expenses e").
 		Select("e.category_id, ec.name as category_name, ec.code as category_code, COALESCE(SUM(e.amount), 0) as total_amount, COUNT(*) as count").
 		Joins("JOIN expense_categories ec ON ec.id = e.category_id").

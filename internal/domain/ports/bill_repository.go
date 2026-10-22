@@ -13,10 +13,10 @@ type BillRepository interface {
 	// the fiscal provider and does NOT enqueue a pending_invoice — callers are responsible
 	// for constructing and persisting the pending invoice in the same transaction.
 	Create(ctx context.Context, bill *bill.Aggregate, products []*dto.Product) error
-	// GetNextConsecutive atomically increments and returns the next consecutive for prefix.
-	// Called only by the cloud submission service — never at bill-creation time — so that
-	// consecutive numbers are always assigned from a single centralized counter.
-	GetNextConsecutive(ctx context.Context, prefix string) (int, error)
+	// GetNextConsecutive atomically increments and returns the organization's next consecutive
+	// for prefix. Called only by the cloud submission service — never at bill-creation time — so
+	// that consecutive numbers are always assigned from a single centralized counter.
+	GetNextConsecutive(ctx context.Context, organizationID string, prefix string) (int, error)
 	// FindBillForInvoice returns a fully-hydrated bill for the cloud submission service to
 	// build the provider request at submission time: header amounts (incl. PayAmount and the
 	// tax total), the Customer, and the line items as []BillProduct with quantities and the

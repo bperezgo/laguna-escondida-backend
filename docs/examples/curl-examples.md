@@ -533,6 +533,25 @@ curl -X POST "$BASE_URL/orders" \
   }'
 ```
 
+### Create an Order That Is Safe to Retry
+
+Repeat this exact request with the same key: the second response is the same order, with `Idempotent-Replayed: true`.
+
+```bash
+IDEMPOTENCY_KEY=$(uuidgen)
+
+curl -i -X POST "$BASE_URL/orders" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "X-Idempotency-Key: $IDEMPOTENCY_KEY" \
+  -d '{
+    "open_bill_id": "550e8400-e29b-41d4-a716-446655440000",
+    "temporal_identifier": "660e8400-e29b-41d4-a716-446655440001",
+    "descriptor": "Mesa 5",
+    "products": []
+  }'
+```
+
 ### Complete a Kitchen Line After the Order Was Paid
 
 Paying closes the order, but its kitchen lines keep cooking. The kitchen still completes them:

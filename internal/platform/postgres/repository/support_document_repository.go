@@ -7,9 +7,7 @@ import (
 	"laguna-escondida/backend/internal/domain/aggregate/support_document"
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
-	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/postgres"
-	"laguna-escondida/backend/internal/platform/shared/constants"
 
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
@@ -58,39 +56,32 @@ func (supportDocumentProductModel) TableName() string {
 type SupportDocumentRepository struct {
 	db                      *gorm.DB
 	electronicInvoiceClient ports.ElectronicInvoiceClient
-	config                  *config.Config
+	organizationID          string
 }
 
-func NewSupportDocumentRepository(db *gorm.DB, electronicInvoiceClient ports.ElectronicInvoiceClient, cfg *config.Config) ports.SupportDocumentRepository {
+func NewSupportDocumentRepository(db *gorm.DB, electronicInvoiceClient ports.ElectronicInvoiceClient, organizationID string) ports.SupportDocumentRepository {
 	return &SupportDocumentRepository{
 		db:                      db,
 		electronicInvoiceClient: electronicInvoiceClient,
-		config:                  cfg,
+		organizationID:          organizationID,
 	}
-}
-
-func (r *SupportDocumentRepository) getNextConsecutive(ctx context.Context, prefix string) (int, error) {
-	var lastConsecutive int
-	err := r.db.WithContext(ctx).
-		Raw("UPDATE invoice_sequences SET last_consecutive = last_consecutive + 1 WHERE prefix = ? RETURNING last_consecutive", prefix).
-		Scan(&lastConsecutive).Error
-	if err != nil {
-		return 0, err
-	}
-	return lastConsecutive, nil
 }
 
 func (r *SupportDocumentRepository) Create(ctx context.Context, doc *support_document.Aggregate) error {
-	consecutive, err := r.getNextConsecutive(ctx, constants.SupportDocumentPrefix)
-	if err != nil {
-		return err
-	}
-
 	docDTO := doc.ToDTO()
 
 	var response *dto.CreateSupportDocumentResponse
-	db := postgres.GetTxOrDB(ctx, r.db)
-	err = db.Transaction(func(tx *gorm.DB) error {
+	err := postgres.InTx(ctx, r.db, func(tx *gorm.DB) error {
+		settings, err := findEInvoicingSettings(tx, r.organizationID)
+		if err != nil {
+			return err
+		}
+		// Claimed inside the transaction so a failed provider call rolls the counter back.
+		consecutive, err := claimConsecutive(tx, r.organizationID, settings.SupportDocumentPrefix)
+		if err != nil {
+			return err
+		}
+
 		model := &supportDocumentModel{
 			ID:                     docDTO.ID,
 			ProviderDocumentNumber: docDTO.Provider.DocumentNumber,
@@ -126,18 +117,14 @@ func (r *SupportDocumentRepository) Create(ctx context.Context, doc *support_doc
 		}
 
 		req := &dto.CreateSupportDocumentRequest{
-			Prefix:      r.config.SupportDocumentPrefix,
+			Prefix:      settings.SupportDocumentPrefix,
 			Consecutive: consecutive,
 			PaymentCode: doc.PaymentCode(),
 			Bill:        docDTO,
 		}
 
 		response, err = r.electronicInvoiceClient.CreateSupportDocument(ctx, req)
-		if err != nil {
-			return err
-		}
-
-		return nil
+		return err
 	})
 
 	if err != nil {
@@ -160,7 +147,7 @@ func (r *SupportDocumentRepository) Create(ctx context.Context, doc *support_doc
 }
 
 func (r *SupportDocumentRepository) FindByCriteria(ctx context.Context, criteria *dto.SupportDocumentCriteria) ([]dto.SupportDocumentListItem, int64, error) {
-	query := r.db.WithContext(ctx).Model(&supportDocumentModel{})
+	query := postgres.GetTxOrDB(ctx, r.db).Model(&supportDocumentModel{})
 
 	if criteria.CreatedAtStart != nil {
 		query = query.Where("created_at >= ?", criteria.CreatedAtStart)
@@ -221,7 +208,7 @@ func (r *SupportDocumentRepository) FindByCriteria(ctx context.Context, criteria
 }
 
 func (r *SupportDocumentRepository) FindAllByCriteria(ctx context.Context, criteria *dto.SupportDocumentCriteria) ([]dto.SupportDocumentListItem, error) {
-	query := r.db.WithContext(ctx).Model(&supportDocumentModel{})
+	query := postgres.GetTxOrDB(ctx, r.db).Model(&supportDocumentModel{})
 
 	if criteria.CreatedAtStart != nil {
 		query = query.Where("created_at >= ?", criteria.CreatedAtStart)
@@ -274,7 +261,7 @@ func (r *SupportDocumentRepository) FindAllByCriteria(ctx context.Context, crite
 
 func (r *SupportDocumentRepository) FindByNullDocumentURL(ctx context.Context) ([]*dto.SupportDocumentWithTascode, error) {
 	var docs []supportDocumentModel
-	if err := r.db.WithContext(ctx).
+	if err := postgres.GetTxOrDB(ctx, r.db).
 		Where("document_url IS NULL AND tascode IS NOT NULL AND deleted_at IS NULL").
 		Find(&docs).Error; err != nil {
 		return nil, err
@@ -294,7 +281,7 @@ func (r *SupportDocumentRepository) FindByNullDocumentURL(ctx context.Context) (
 }
 
 func (r *SupportDocumentRepository) UpdateDocumentURL(ctx context.Context, docID string, documentURL string) error {
-	return r.db.WithContext(ctx).
+	return postgres.GetTxOrDB(ctx, r.db).
 		Model(&supportDocumentModel{}).
 		Where("id = ?", docID).
 		Update("document_url", documentURL).
@@ -314,7 +301,7 @@ func (r *SupportDocumentRepository) UpdateStoragePaths(ctx context.Context, docI
 		return nil
 	}
 
-	return r.db.WithContext(ctx).
+	return postgres.GetTxOrDB(ctx, r.db).
 		Model(&supportDocumentModel{}).
 		Where("id = ?", docID).
 		Updates(updates).

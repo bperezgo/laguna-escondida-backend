@@ -42,7 +42,7 @@ func TestOrderHandler_CancelOpenBillProduct_PaidOrder_Returns409(t *testing.T) {
 	router := gin.New()
 	router.PATCH("/api/orders/:id/products/:open_bill_product_id/cancel",
 		func(c *gin.Context) { c.Set("user_id", userID) },
-		NewOrderHandler(orderService).CancelOpenBillProductHandler)
+		NewOrderHandler(orderService, nil).CancelOpenBillProductHandler)
 
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, httptest.NewRequest(http.MethodPatch, "/api/orders/"+orderID+"/products/"+lineID+"/cancel", nil))
