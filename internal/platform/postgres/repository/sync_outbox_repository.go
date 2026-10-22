@@ -45,11 +45,11 @@ func NewSyncOutboxRepository(db *gorm.DB) ports.SyncOutboxRepository {
 // OpID is required: the calling service supplies the client-generated UUID v7
 // idempotency key. Identity is a domain concern, not the adapter's.
 func (r *SyncOutboxRepository) Append(ctx context.Context, entry *dto.SyncOutboxEntry) error {
-	db := postgres.GetTxOrDB(ctx, r.db)
-
 	if entry.OpID == "" {
 		return fmt.Errorf("sync outbox entry requires a caller-provided op_id")
 	}
+
+	db := postgres.GetTxOrDB(ctx, r.db)
 
 	// Serialize seq assignment for this origin so two concurrent appends can't read
 	// the same MAX(seq) and collide on UNIQUE(origin_node_id, seq). The lock auto-

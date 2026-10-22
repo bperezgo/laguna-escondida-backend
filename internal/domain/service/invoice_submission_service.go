@@ -3,13 +3,14 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
 	"laguna-escondida/backend/internal/domain/dto"
+	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
-	"laguna-escondida/backend/internal/platform/config"
 
 	"github.com/google/uuid"
 )
@@ -25,20 +26,21 @@ const (
 )
 
 // InvoiceSubmissionService drains the pending_invoices queue: for each due row it first
-// assigns the next consecutive from the centralized invoice_sequences (if not already done),
+// assigns the organization's next consecutive from invoice_sequences (if not already done),
 // builds the provider request, submits it, stores the CUFE/Tascode on the bill, and
 // replicates the result to the cloud. The provider call happens OUTSIDE any DB transaction.
 // It is safe to re-run — consecutive assignment is idempotent (WHERE consecutive IS NULL)
 // and the provider deduplicates on prefix+consecutive.
 type InvoiceSubmissionService struct {
-	pendingRepo   ports.PendingInvoiceRepository
-	billRepo      ports.BillRepository
-	invoiceClient ports.ElectronicInvoiceClient
-	unitOfWork    ports.UnitOfWork
-	outboxRepo    ports.SyncOutboxRepository
-	syncIdentity  dto.SyncIdentity
-	config        *config.Config
-	logger        *slog.Logger
+	pendingRepo    ports.PendingInvoiceRepository
+	billRepo       ports.BillRepository
+	invoiceClient  ports.ElectronicInvoiceClient
+	unitOfWork     ports.UnitOfWork
+	outboxRepo     ports.SyncOutboxRepository
+	settingsRepo   ports.EInvoicingSettingsRepository
+	syncIdentity   dto.SyncIdentity
+	organizationID string
+	logger         *slog.Logger
 }
 
 func NewInvoiceSubmissionService(
@@ -47,19 +49,21 @@ func NewInvoiceSubmissionService(
 	invoiceClient ports.ElectronicInvoiceClient,
 	unitOfWork ports.UnitOfWork,
 	outboxRepo ports.SyncOutboxRepository,
+	settingsRepo ports.EInvoicingSettingsRepository,
 	syncIdentity dto.SyncIdentity,
-	cfg *config.Config,
+	organizationID string,
 	logger *slog.Logger,
 ) *InvoiceSubmissionService {
 	return &InvoiceSubmissionService{
-		pendingRepo:   pendingRepo,
-		billRepo:      billRepo,
-		invoiceClient: invoiceClient,
-		unitOfWork:    unitOfWork,
-		outboxRepo:    outboxRepo,
-		syncIdentity:  syncIdentity,
-		config:        cfg,
-		logger:        logger,
+		pendingRepo:    pendingRepo,
+		billRepo:       billRepo,
+		invoiceClient:  invoiceClient,
+		unitOfWork:     unitOfWork,
+		outboxRepo:     outboxRepo,
+		settingsRepo:   settingsRepo,
+		syncIdentity:   syncIdentity,
+		organizationID: organizationID,
+		logger:         logger,
 	}
 }
 
@@ -70,22 +74,27 @@ func (s *InvoiceSubmissionService) SubmitDue(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("list due pending invoices: %w", err)
 	}
+	if len(pendings) == 0 {
+		return nil
+	}
+	settings, err := s.settingsRepo.Get(ctx, s.organizationID)
+	if err != nil {
+		return fmt.Errorf("load e-invoicing settings: %w", err)
+	}
 
 	for _, pending := range pendings {
-		s.submitOne(ctx, pending)
+		s.submitOne(ctx, settings, pending)
 	}
 	return nil
 }
 
-func (s *InvoiceSubmissionService) submitOne(ctx context.Context, pending *dto.PendingInvoice) {
-	// Build the request payload when it hasn't been built yet. This fires on a freshly-created
-	// row (first submission) AND on a rebuild: clearing request_payload (e.g. an operator sets
-	// it to NULL to recover a batch broken by an older bug) forces a fresh build from current
-	// bill data while keeping the already-assigned consecutive, so a stale/broken payload is
-	// regenerated without skipping a fiscal number. The first build is also the centralization
-	// point — the consecutive comes from the cloud's invoice_sequences, never from the edge.
+func (s *InvoiceSubmissionService) submitOne(ctx context.Context, settings *dto.EInvoicingSettings, pending *dto.PendingInvoice) {
 	if pending.RequestPayload == nil {
-		if err := s.buildRequestPayload(ctx, pending); err != nil {
+		if err := s.buildRequestPayload(ctx, settings, pending); err != nil {
+			if errors.Is(err, domainError.ErrConsecutiveAlreadyAssigned) {
+				// Another tick assigned it and is submitting it; backing off here would delay that.
+				return
+			}
 			s.logger.WarnContext(ctx, "failed to build invoice request payload; will retry",
 				slog.String("pending_invoice_id", pending.ID),
 				slog.String("bill_id", pending.BillID),
@@ -107,14 +116,10 @@ func (s *InvoiceSubmissionService) submitOne(ctx context.Context, pending *dto.P
 
 	resp, err := s.invoiceClient.Create(ctx, &req)
 	if err != nil {
-		// Transient (offline / provider down): log full context and back off — never drop.
-		// TODO(decision 7): once the provider's "consecutive already used" response is known,
-		// detect it here and call markSubmitted instead of retrying, so a crash that issued the
-		// invoice but missed the ack self-heals rather than looping.
 		s.logger.WarnContext(ctx, "electronic invoice submission failed; will retry",
 			slog.String("pending_invoice_id", pending.ID),
 			slog.String("bill_id", pending.BillID),
-			slog.String("prefix", s.config.ElectronicInvoicePrefix),
+			slog.String("prefix", req.Prefix),
 			slog.Int("consecutive", *pending.Consecutive),
 			slog.Int("attempts", pending.Attempts),
 			slog.Any("error", err))
@@ -122,8 +127,6 @@ func (s *InvoiceSubmissionService) submitOne(ctx context.Context, pending *dto.P
 		return
 	}
 
-	// Success: persist the CUFE/Tascode, mark the queue row submitted, and replicate the
-	// result to the cloud — all in one transaction so the three never diverge.
 	if err := s.unitOfWork.Do(ctx, func(txCtx context.Context) error {
 		if err := s.billRepo.SetInvoiceResult(txCtx, pending.BillID, resp.CUFE, resp.Tascode); err != nil {
 			return err
@@ -133,9 +136,6 @@ func (s *InvoiceSubmissionService) submitOne(ctx context.Context, pending *dto.P
 		}
 		return s.appendBillUpdateOutbox(txCtx, pending.BillID, resp.CUFE, resp.Tascode)
 	}); err != nil {
-		// The provider already issued the invoice but we failed to record it. Leave the row
-		// pending: the next attempt re-submits the same prefix+consecutive, which the provider
-		// deduplicates, so this self-corrects without a double issue.
 		s.logger.ErrorContext(ctx, "invoice submitted but persisting the result failed; will retry",
 			slog.String("pending_invoice_id", pending.ID),
 			slog.String("bill_id", pending.BillID),
@@ -145,57 +145,76 @@ func (s *InvoiceSubmissionService) submitOne(ctx context.Context, pending *dto.P
 }
 
 // buildRequestPayload builds the CreateElectronicInvoiceRequest for a pending row from the
-// current bill data and persists it. On the first build it claims the next consecutive from
-// the centralized invoice_sequences; on a rebuild (consecutive already set, payload cleared) it
-// reuses the existing consecutive so the fiscal sequence stays gap-free. After this call
-// pending.Consecutive and pending.RequestPayload are populated and ready for submission.
-func (s *InvoiceSubmissionService) buildRequestPayload(ctx context.Context, pending *dto.PendingInvoice) error {
+// current bill data and persists it. On the first build it claims the organization's next
+// consecutive and assigns it in one transaction, so a failed assignment hands the number back;
+// on a rebuild (consecutive already set, payload cleared) it reuses the stored prefix and
+// consecutive so the fiscal sequence stays gap-free. After this call pending.Consecutive and
+// pending.RequestPayload are populated and ready for submission.
+func (s *InvoiceSubmissionService) buildRequestPayload(ctx context.Context, settings *dto.EInvoicingSettings, pending *dto.PendingInvoice) error {
 	billForInvoice, err := s.billRepo.FindBillForInvoice(ctx, pending.BillID)
 	if err != nil {
 		return fmt.Errorf("load bill for invoice: %w", err)
 	}
-	// Guard before claiming a consecutive: the provider request is built from the bill's line
-	// items (Bill.Products), so an empty list — e.g. the cloud's products table doesn't yet
-	// have the IDs referenced by bill_products because pull sync hasn't run — would produce an
-	// "items empty" rejection. Returning an error here leaves the row unbuilt so the next tick
-	// retries — no sequence number is wasted and no broken payload is stored permanently.
 	if len(billForInvoice.Products) == 0 {
 		return fmt.Errorf("no products found for bill %s: products may not yet be synced to cloud", pending.BillID)
 	}
 
-	// Reuse the already-assigned consecutive on a rebuild; only claim a new one the first time.
-	firstAssignment := pending.Consecutive == nil
-	consecutive := 0
-	if firstAssignment {
-		consecutive, err = s.billRepo.GetNextConsecutive(ctx, s.config.ElectronicInvoicePrefix)
+	if pending.Consecutive != nil {
+		prefix := pending.Prefix
+		if prefix == "" {
+			prefix = settings.InvoicePrefix
+		}
+		reqPayload, err := invoiceRequestPayload(prefix, *pending.Consecutive, pending, billForInvoice)
 		if err != nil {
-			return fmt.Errorf("get next consecutive: %w", err)
+			return err
 		}
-	} else {
-		consecutive = *pending.Consecutive
+		if err := s.pendingRepo.UpdateRequestPayload(ctx, pending.ID, reqPayload); err != nil {
+			return fmt.Errorf("persist rebuilt payload: %w", err)
+		}
+		pending.Prefix = prefix
+		pending.RequestPayload = reqPayload
+		return nil
 	}
 
-	reqPayload, err := json.Marshal(&dto.CreateElectronicInvoiceRequest{
-		Prefix:      s.config.ElectronicInvoicePrefix,
-		Consecutive: consecutive,
-		PaymentCode: pending.PaymentCode,
-		Bill:        billForInvoice,
-	})
-	if err != nil {
-		return fmt.Errorf("marshal invoice request: %w", err)
-	}
-
-	if firstAssignment {
-		// WHERE consecutive IS NULL keeps this idempotent against concurrent cron ticks.
-		if err := s.pendingRepo.AssignConsecutive(ctx, pending.ID, consecutive, reqPayload); err != nil {
-			return fmt.Errorf("persist assigned consecutive: %w", err)
+	prefix := settings.InvoicePrefix
+	var (
+		consecutive int
+		reqPayload  json.RawMessage
+	)
+	if err := s.unitOfWork.Do(ctx, func(txCtx context.Context) error {
+		var claimErr error
+		consecutive, claimErr = s.billRepo.GetNextConsecutive(txCtx, s.organizationID, prefix)
+		if claimErr != nil {
+			return fmt.Errorf("get next consecutive: %w", claimErr)
 		}
-	} else if err := s.pendingRepo.UpdateRequestPayload(ctx, pending.ID, reqPayload); err != nil {
-		return fmt.Errorf("persist rebuilt payload: %w", err)
+		reqPayload, claimErr = invoiceRequestPayload(prefix, consecutive, pending, billForInvoice)
+		if claimErr != nil {
+			return claimErr
+		}
+		if claimErr = s.pendingRepo.AssignConsecutive(txCtx, pending.ID, prefix, consecutive, reqPayload); claimErr != nil {
+			return fmt.Errorf("persist assigned consecutive: %w", claimErr)
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
+	pending.Prefix = prefix
 	pending.Consecutive = &consecutive
 	pending.RequestPayload = reqPayload
 	return nil
+}
+
+func invoiceRequestPayload(prefix string, consecutive int, pending *dto.PendingInvoice, bill *dto.Bill) (json.RawMessage, error) {
+	reqPayload, err := json.Marshal(&dto.CreateElectronicInvoiceRequest{
+		Prefix:      prefix,
+		Consecutive: consecutive,
+		PaymentCode: pending.PaymentCode,
+		Bill:        bill,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("marshal invoice request: %w", err)
+	}
+	return reqPayload, nil
 }
 
 func (s *InvoiceSubmissionService) markFailed(ctx context.Context, pending *dto.PendingInvoice, cause error) {

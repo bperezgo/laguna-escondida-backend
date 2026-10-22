@@ -322,7 +322,9 @@ func newDeliveryAPI(t *testing.T) *deliveryAPI {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	jwt := service.NewJWTService(jwtSecret)
-	handler.RegisterOrderRoutes(router, handler.NewOrderHandler(d.orders), jwt)
+	orderHandler := handler.NewOrderHandler(d.orders,
+		service.NewOrderIdempotencyService(d.orders, repository.NewIdempotencyKeyRepository(d.cloudDB)))
+	handler.RegisterOrderRoutes(router, orderHandler, jwt)
 	handler.RegisterDeliveryZoneRoutes(router, &config.Config{AppMode: config.ModeCloud}, handler.NewDeliveryZoneHandler(d.zones), jwt)
 	// Mirrors cmd/main.go; the handler is never reached for a role without ProductsCreate.
 	router.POST("/api/products", handler.JWTAuthMiddleware(jwt), handler.RequirePermission(permissions.ProductsCreate),

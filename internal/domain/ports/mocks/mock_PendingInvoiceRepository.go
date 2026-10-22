@@ -25,17 +25,17 @@ func (_m *MockPendingInvoiceRepository) EXPECT() *MockPendingInvoiceRepository_E
 	return &MockPendingInvoiceRepository_Expecter{mock: &_m.Mock}
 }
 
-// AssignConsecutive provides a mock function with given fields: ctx, id, consecutive, requestPayload
-func (_m *MockPendingInvoiceRepository) AssignConsecutive(ctx context.Context, id string, consecutive int, requestPayload json.RawMessage) error {
-	ret := _m.Called(ctx, id, consecutive, requestPayload)
+// AssignConsecutive provides a mock function with given fields: ctx, id, prefix, consecutive, requestPayload
+func (_m *MockPendingInvoiceRepository) AssignConsecutive(ctx context.Context, id string, prefix string, consecutive int, requestPayload json.RawMessage) error {
+	ret := _m.Called(ctx, id, prefix, consecutive, requestPayload)
 
 	if len(ret) == 0 {
 		panic("no return value specified for AssignConsecutive")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, int, json.RawMessage) error); ok {
-		r0 = rf(ctx, id, consecutive, requestPayload)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int, json.RawMessage) error); ok {
+		r0 = rf(ctx, id, prefix, consecutive, requestPayload)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -51,15 +51,16 @@ type MockPendingInvoiceRepository_AssignConsecutive_Call struct {
 // AssignConsecutive is a helper method to define mock.On call
 //   - ctx context.Context
 //   - id string
+//   - prefix string
 //   - consecutive int
 //   - requestPayload json.RawMessage
-func (_e *MockPendingInvoiceRepository_Expecter) AssignConsecutive(ctx interface{}, id interface{}, consecutive interface{}, requestPayload interface{}) *MockPendingInvoiceRepository_AssignConsecutive_Call {
-	return &MockPendingInvoiceRepository_AssignConsecutive_Call{Call: _e.mock.On("AssignConsecutive", ctx, id, consecutive, requestPayload)}
+func (_e *MockPendingInvoiceRepository_Expecter) AssignConsecutive(ctx interface{}, id interface{}, prefix interface{}, consecutive interface{}, requestPayload interface{}) *MockPendingInvoiceRepository_AssignConsecutive_Call {
+	return &MockPendingInvoiceRepository_AssignConsecutive_Call{Call: _e.mock.On("AssignConsecutive", ctx, id, prefix, consecutive, requestPayload)}
 }
 
-func (_c *MockPendingInvoiceRepository_AssignConsecutive_Call) Run(run func(ctx context.Context, id string, consecutive int, requestPayload json.RawMessage)) *MockPendingInvoiceRepository_AssignConsecutive_Call {
+func (_c *MockPendingInvoiceRepository_AssignConsecutive_Call) Run(run func(ctx context.Context, id string, prefix string, consecutive int, requestPayload json.RawMessage)) *MockPendingInvoiceRepository_AssignConsecutive_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(int), args[3].(json.RawMessage))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(int), args[4].(json.RawMessage))
 	})
 	return _c
 }
@@ -69,7 +70,7 @@ func (_c *MockPendingInvoiceRepository_AssignConsecutive_Call) Return(_a0 error)
 	return _c
 }
 
-func (_c *MockPendingInvoiceRepository_AssignConsecutive_Call) RunAndReturn(run func(context.Context, string, int, json.RawMessage) error) *MockPendingInvoiceRepository_AssignConsecutive_Call {
+func (_c *MockPendingInvoiceRepository_AssignConsecutive_Call) RunAndReturn(run func(context.Context, string, string, int, json.RawMessage) error) *MockPendingInvoiceRepository_AssignConsecutive_Call {
 	_c.Call.Return(run)
 	return _c
 }

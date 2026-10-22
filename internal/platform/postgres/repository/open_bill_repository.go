@@ -278,7 +278,7 @@ func (billProductModel) TableName() string {
 }
 
 func (r *OpenBillRepository) Create(ctx context.Context, aggregate *openBill.Aggregate) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return postgres.InTx(ctx, r.db, func(tx *gorm.DB) error {
 		var user userModel
 		if err := tx.Where("id = ? AND deleted_at IS NULL", aggregate.CreatedByID()).First(&user).Error; err != nil {
 			return err
@@ -342,7 +342,7 @@ func (r *OpenBillRepository) Create(ctx context.Context, aggregate *openBill.Agg
 // identifier can be reused while a live one cannot be duplicated.
 func (r *OpenBillRepository) ExistsActiveByTemporalIdentifier(ctx context.Context, temporalIdentifier string) (bool, error) {
 	var count int64
-	err := r.db.WithContext(ctx).
+	err := postgres.GetTxOrDB(ctx, r.db).
 		Model(&openBillModel{}).
 		Where(
 			"temporal_identifier = ? AND deleted_at IS NULL AND status NOT IN ?",
@@ -375,7 +375,7 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 	}
 
 	var res result
-	err := r.db.WithContext(ctx).
+	err := postgres.GetTxOrDB(ctx, r.db).
 		Table("open_bills").
 		Select(`
 			open_bills.id,
@@ -440,7 +440,7 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 
 	var productResults []productResult
 
-	err = r.db.WithContext(ctx).
+	err = postgres.GetTxOrDB(ctx, r.db).
 		Table("open_bills_products").
 		Select(`
 			open_bills_products.id,
@@ -484,7 +484,7 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 	for i, pr := range productResults {
 		lineIDs[i] = pr.ID
 	}
-	sideDishesByLine, err := loadSideDishesByLine(r.db.WithContext(ctx), lineIDs)
+	sideDishesByLine, err := loadSideDishesByLine(postgres.GetTxOrDB(ctx, r.db), lineIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -637,7 +637,7 @@ func (r *OpenBillRepository) findAggregate(ctx context.Context, where string, id
 }
 
 func (r *OpenBillRepository) Update(ctx context.Context, aggregate *openBill.Aggregate) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return postgres.InTx(ctx, r.db, func(tx *gorm.DB) error {
 		updateData := map[string]any{
 			"total_amount":        aggregate.TotalAmount(),
 			"temporal_identifier": aggregate.TemporalIdentifier(),
@@ -758,7 +758,7 @@ func (r *OpenBillRepository) Update(ctx context.Context, aggregate *openBill.Agg
 
 func (r *OpenBillRepository) PayOrder(ctx context.Context, openBillID string) (*dto.Bill, error) {
 	var bill *dto.Bill
-	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := postgres.InTx(ctx, r.db, func(tx *gorm.DB) error {
 		// Fetch the open bill
 		var openBillModelInstance openBillModel
 		if err := tx.Where("id = ? AND deleted_at IS NULL", openBillID).First(&openBillModelInstance).Error; err != nil {
@@ -843,7 +843,7 @@ func (r *OpenBillRepository) FindAll(ctx context.Context, filter dto.OrderListFi
 	}
 
 	var results []result
-	query := r.db.WithContext(ctx).
+	query := postgres.GetTxOrDB(ctx, r.db).
 		Table("open_bills").
 		Select(`
 			open_bills.id,
@@ -909,7 +909,7 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 	}
 
 	var result billResult
-	err := r.db.WithContext(ctx).
+	err := postgres.GetTxOrDB(ctx, r.db).
 		Table("open_bills").
 		Select(`
 			open_bills.id,
@@ -969,7 +969,7 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 
 	var productResults []productResult
 
-	err = r.db.WithContext(ctx).
+	err = postgres.GetTxOrDB(ctx, r.db).
 		Table("open_bills_products").
 		Select(`
 			open_bills_products.id,
@@ -1011,7 +1011,7 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 	for i, pr := range productResults {
 		lineIDs[i] = pr.ID
 	}
-	sideDishesByLine, err := loadSideDishesByLine(r.db.WithContext(ctx), lineIDs)
+	sideDishesByLine, err := loadSideDishesByLine(postgres.GetTxOrDB(ctx, r.db), lineIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -1094,7 +1094,7 @@ func (r *OpenBillRepository) FindDeletedByCreatedAtBetween(ctx context.Context, 
 	}
 
 	var results []result
-	query := r.db.WithContext(ctx).
+	query := postgres.GetTxOrDB(ctx, r.db).
 		Table("open_bills").
 		Select(`
 			open_bills.id,
@@ -1166,7 +1166,7 @@ func (r *OpenBillRepository) FindByIDIncludingDeletedWithProducts(ctx context.Co
 	}
 
 	var result billResult
-	err := r.db.WithContext(ctx).
+	err := postgres.GetTxOrDB(ctx, r.db).
 		Table("open_bills").
 		Select(`
 			open_bills.id,
@@ -1226,7 +1226,7 @@ func (r *OpenBillRepository) FindByIDIncludingDeletedWithProducts(ctx context.Co
 
 	var productResults []productResult
 
-	err = r.db.WithContext(ctx).
+	err = postgres.GetTxOrDB(ctx, r.db).
 		Table("open_bills_products").
 		Select(`
 			open_bills_products.id,
@@ -1268,7 +1268,7 @@ func (r *OpenBillRepository) FindByIDIncludingDeletedWithProducts(ctx context.Co
 	for i, pr := range productResults {
 		lineIDs[i] = pr.ID
 	}
-	sideDishesByLine, err := loadSideDishesByLine(r.db.WithContext(ctx), lineIDs)
+	sideDishesByLine, err := loadSideDishesByLine(postgres.GetTxOrDB(ctx, r.db), lineIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -1367,9 +1367,7 @@ func (r *OpenBillRepository) GetProductPreparationResponsibilities(ctx context.C
 }
 
 func (r *OpenBillRepository) UpdateProductStatus(ctx context.Context, aggregate *openBill.Aggregate) error {
-	db := postgres.GetTxOrDB(ctx, r.db)
-
-	return db.Transaction(func(tx *gorm.DB) error {
+	return postgres.InTx(ctx, r.db, func(tx *gorm.DB) error {
 		if err := tx.Model(&openBillModel{}).
 			Where("id = ? AND deleted_at IS NULL", aggregate.ID()).
 			Updates(map[string]any{

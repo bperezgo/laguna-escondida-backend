@@ -65,7 +65,7 @@ func (r *ProductRepository) FindBySKUs(ctx context.Context, skus []string) ([]*d
 	}
 
 	var models []productModel
-	if err := postgres.GetTxOrDB(ctx, r.db).WithContext(ctx).Where("sku IN ? AND deleted_at IS NULL", skus).Find(&models).Error; err != nil {
+	if err := postgres.GetTxOrDB(ctx, r.db).Where("sku IN ? AND deleted_at IS NULL", skus).Find(&models).Error; err != nil {
 		return nil, err
 	}
 
@@ -83,7 +83,7 @@ func (r *ProductRepository) FindByIDs(ctx context.Context, ids []string) ([]*dto
 	}
 
 	var models []productModel
-	if err := postgres.GetTxOrDB(ctx, r.db).WithContext(ctx).Where("id IN ? AND deleted_at IS NULL", ids).Find(&models).Error; err != nil {
+	if err := postgres.GetTxOrDB(ctx, r.db).Where("id IN ? AND deleted_at IS NULL", ids).Find(&models).Error; err != nil {
 		return nil, err
 	}
 
@@ -97,7 +97,7 @@ func (r *ProductRepository) FindByIDs(ctx context.Context, ids []string) ([]*dto
 
 func (r *ProductRepository) FindByID(ctx context.Context, id string) (*dto.Product, error) {
 	var model productModel
-	if err := postgres.GetTxOrDB(ctx, r.db).WithContext(ctx).Where("id = ? AND deleted_at IS NULL", id).First(&model).Error; err != nil {
+	if err := postgres.GetTxOrDB(ctx, r.db).Where("id = ? AND deleted_at IS NULL", id).First(&model).Error; err != nil {
 		return nil, err
 	}
 
@@ -125,7 +125,7 @@ func (r *ProductRepository) Create(ctx context.Context, product *product.Aggrega
 		UpdatedAt:           productDTO.UpdatedAt,
 	}
 
-	if err := postgres.GetTxOrDB(ctx, r.db).WithContext(ctx).Create(model).Error; err != nil {
+	if err := postgres.GetTxOrDB(ctx, r.db).Create(model).Error; err != nil {
 		return err
 	}
 
@@ -151,7 +151,7 @@ func (r *ProductRepository) Update(ctx context.Context, id string, product *prod
 		"updated_at":             productDTO.UpdatedAt,
 	}
 
-	return postgres.GetTxOrDB(ctx, r.db).WithContext(ctx).
+	return postgres.GetTxOrDB(ctx, r.db).
 		Model(&productModel{}).
 		Where("id = ? AND deleted_at IS NULL", id).
 		Updates(updateData).Error
@@ -159,7 +159,7 @@ func (r *ProductRepository) Update(ctx context.Context, id string, product *prod
 
 func (r *ProductRepository) Delete(ctx context.Context, id string) error {
 	now := time.Now()
-	return postgres.GetTxOrDB(ctx, r.db).WithContext(ctx).
+	return postgres.GetTxOrDB(ctx, r.db).
 		Model(&productModel{}).
 		Where("id = ? AND deleted_at IS NULL", id).
 		Updates(map[string]interface{}{
@@ -169,7 +169,7 @@ func (r *ProductRepository) Delete(ctx context.Context, id string) error {
 }
 
 func (r *ProductRepository) FindAll(ctx context.Context, filter dto.ListProductsRequest) ([]*dto.Product, error) {
-	query := postgres.GetTxOrDB(ctx, r.db).WithContext(ctx).Where("deleted_at IS NULL")
+	query := postgres.GetTxOrDB(ctx, r.db).Where("deleted_at IS NULL")
 
 	if len(filter.ProductTypes) > 0 {
 		productTypes := make([]string, len(filter.ProductTypes))
@@ -215,7 +215,7 @@ func (r *ProductRepository) toDTO(model *productModel) *dto.Product {
 
 func (r *ProductRepository) FindByName(ctx context.Context, name string) (*dto.Product, error) {
 	var model productModel
-	if err := postgres.GetTxOrDB(ctx, r.db).WithContext(ctx).Where("name = ? AND deleted_at IS NULL", name).First(&model).Error; err != nil {
+	if err := postgres.GetTxOrDB(ctx, r.db).Where("name = ? AND deleted_at IS NULL", name).First(&model).Error; err != nil {
 		return nil, err
 	}
 
@@ -224,7 +224,7 @@ func (r *ProductRepository) FindByName(ctx context.Context, name string) (*dto.P
 
 func (r *ProductRepository) FindAllCategories(ctx context.Context) ([]string, error) {
 	var categories []string
-	if err := postgres.GetTxOrDB(ctx, r.db).WithContext(ctx).
+	if err := postgres.GetTxOrDB(ctx, r.db).
 		Model(&productModel{}).
 		Where("deleted_at IS NULL").
 		Distinct("category").
@@ -246,7 +246,7 @@ func (r *ProductRepository) CreatePreparationResponsibility(ctx context.Context,
 		UpdatedAt: now,
 	}
 
-	if err := postgres.GetTxOrDB(ctx, r.db).WithContext(ctx).Create(model).Error; err != nil {
+	if err := postgres.GetTxOrDB(ctx, r.db).Create(model).Error; err != nil {
 		return nil, err
 	}
 
@@ -268,7 +268,7 @@ func (r *ProductRepository) UpdatePreparationResponsibility(ctx context.Context,
 		"updated_at": now,
 	}
 
-	result := postgres.GetTxOrDB(ctx, r.db).WithContext(ctx).
+	result := postgres.GetTxOrDB(ctx, r.db).
 		Model(&productResponsibilityModel{}).
 		Where("id = ? AND deleted_at IS NULL", id).
 		Updates(updateData)
@@ -282,7 +282,7 @@ func (r *ProductRepository) UpdatePreparationResponsibility(ctx context.Context,
 	}
 
 	var model productResponsibilityModel
-	if err := postgres.GetTxOrDB(ctx, r.db).WithContext(ctx).Where("id = ? AND deleted_at IS NULL", id).First(&model).Error; err != nil {
+	if err := postgres.GetTxOrDB(ctx, r.db).Where("id = ? AND deleted_at IS NULL", id).First(&model).Error; err != nil {
 		return nil, err
 	}
 
@@ -298,7 +298,7 @@ func (r *ProductRepository) UpdatePreparationResponsibility(ctx context.Context,
 
 func (r *ProductRepository) DeletePreparationResponsibility(ctx context.Context, id string) error {
 	now := time.Now()
-	result := postgres.GetTxOrDB(ctx, r.db).WithContext(ctx).
+	result := postgres.GetTxOrDB(ctx, r.db).
 		Model(&productResponsibilityModel{}).
 		Where("id = ? AND deleted_at IS NULL", id).
 		Updates(map[string]interface{}{
@@ -319,7 +319,7 @@ func (r *ProductRepository) DeletePreparationResponsibility(ctx context.Context,
 
 func (r *ProductRepository) FindPreparationResponsibilityByID(ctx context.Context, id string) (*dto.ProductPreparationResponsibility, error) {
 	var model productResponsibilityModel
-	if err := postgres.GetTxOrDB(ctx, r.db).WithContext(ctx).Where("id = ? AND deleted_at IS NULL", id).First(&model).Error; err != nil {
+	if err := postgres.GetTxOrDB(ctx, r.db).Where("id = ? AND deleted_at IS NULL", id).First(&model).Error; err != nil {
 		return nil, err
 	}
 
@@ -340,7 +340,7 @@ func (r *ProductRepository) FindPreparationResponsibilitiesByProductIDs(ctx cont
 	}
 
 	var models []productResponsibilityModel
-	if err := postgres.GetTxOrDB(ctx, r.db).WithContext(ctx).
+	if err := postgres.GetTxOrDB(ctx, r.db).
 		Where("product_id IN ? AND deleted_at IS NULL", productIDs).
 		Order("priority DESC, updated_at DESC").
 		Find(&models).Error; err != nil {

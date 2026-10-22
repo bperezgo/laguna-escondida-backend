@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"laguna-escondida/backend/internal/domain/aggregate/bill"
@@ -24,27 +23,11 @@ func NewBillRepository(db *gorm.DB) ports.BillRepository {
 	return &BillRepository{db: db}
 }
 
-// GetNextConsecutive atomically increments and returns the next consecutive for the given
-// prefix. Called by the cloud submission service only — never at bill-creation time — so
-// all consecutive numbers come from a single centralized counter.
-// The UPSERT auto-seeds a new prefix starting at 1 rather than returning 0 when the row
-// is absent (which would silently issue an invalid consecutive to the fiscal provider).
-func (r *BillRepository) GetNextConsecutive(ctx context.Context, prefix string) (int, error) {
-	var lastConsecutive int
-	err := r.db.WithContext(ctx).
-		Raw(`INSERT INTO invoice_sequences (prefix, last_consecutive)
-		     VALUES (?, 1)
-		     ON CONFLICT (prefix)
-		     DO UPDATE SET last_consecutive = invoice_sequences.last_consecutive + 1
-		     RETURNING last_consecutive`, prefix).
-		Scan(&lastConsecutive).Error
-	if err != nil {
-		return 0, err
-	}
-	if lastConsecutive == 0 {
-		return 0, fmt.Errorf("get next consecutive: upsert returned 0 for prefix %q", prefix)
-	}
-	return lastConsecutive, nil
+// GetNextConsecutive claims the organization's next consecutive for prefix. Called by the
+// cloud submission service only — never at bill-creation time — so all consecutive numbers
+// come from a single centralized counter.
+func (r *BillRepository) GetNextConsecutive(ctx context.Context, organizationID string, prefix string) (int, error) {
+	return claimConsecutive(postgres.GetTxOrDB(ctx, r.db), organizationID, prefix)
 }
 
 // billLineItemRow is the join of a bill's line items (bill_products) with the product master
@@ -71,12 +54,12 @@ type billLineItemRow struct {
 // bill aggregate's NewBillProduct/ToDTO so the taxes match exactly what the edge produced.
 func (r *BillRepository) FindBillForInvoice(ctx context.Context, billID string) (*dto.Bill, error) {
 	var bm billModel
-	if err := r.db.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", billID).First(&bm).Error; err != nil {
+	if err := postgres.GetTxOrDB(ctx, r.db).Where("id = ? AND deleted_at IS NULL", billID).First(&bm).Error; err != nil {
 		return nil, err
 	}
 
 	var rows []billLineItemRow
-	if err := r.db.WithContext(ctx).
+	if err := postgres.GetTxOrDB(ctx, r.db).
 		Table("bill_products AS bp").
 		Select("bp.product_id, bp.quantity, p.name, p.category, p.sku, p.description, "+
 			"p.unit_price, p.vat, p.vat_amount, p.ico, p.ico_amount").
@@ -108,7 +91,7 @@ func (r *BillRepository) FindBillForInvoice(ctx context.Context, billID string) 
 	var customer *dto.Customer
 	if bm.BillOwnerID != nil {
 		var owner billOwnerModel
-		if err := r.db.WithContext(ctx).Where("id = ?", *bm.BillOwnerID).First(&owner).Error; err == nil {
+		if err := postgres.GetTxOrDB(ctx, r.db).Where("id = ?", *bm.BillOwnerID).First(&owner).Error; err == nil {
 			var documentType dto.DocumentType
 			if owner.IdentificationType != nil {
 				documentType = dto.DocumentType(*owner.IdentificationType)
@@ -153,8 +136,7 @@ func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, produ
 		billOwnerID = &billDTO.Customer.DocumentNumber
 	}
 
-	db := postgres.GetTxOrDB(ctx, r.db)
-	return db.Transaction(func(tx *gorm.DB) error {
+	return postgres.InTx(ctx, r.db, func(tx *gorm.DB) error {
 		bm := &billModel{
 			ID:             billDTO.ID,
 			BillOwnerID:    billOwnerID,
@@ -228,7 +210,7 @@ func (r *BillRepository) SetInvoiceResult(ctx context.Context, billID string, cu
 
 func (r *BillRepository) FindByID(ctx context.Context, id string) (*dto.Bill, error) {
 	var bm billModel
-	if err := r.db.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", id).First(&bm).Error; err != nil {
+	if err := postgres.GetTxOrDB(ctx, r.db).Where("id = ? AND deleted_at IS NULL", id).First(&bm).Error; err != nil {
 		return nil, err
 	}
 
@@ -246,7 +228,7 @@ func (r *BillRepository) FindByID(ctx context.Context, id string) (*dto.Bill, er
 }
 
 func (r *BillRepository) FindByCriteria(ctx context.Context, criteria *dto.BillCriteria) ([]dto.InvoiceListItem, int64, error) {
-	query := r.db.WithContext(ctx).Model(&billModel{})
+	query := postgres.GetTxOrDB(ctx, r.db).Model(&billModel{})
 
 	if criteria.CreatedAtStart != nil {
 		query = query.Where("created_at >= ?", criteria.CreatedAtStart)
@@ -284,7 +266,7 @@ func (r *BillRepository) FindByCriteria(ctx context.Context, criteria *dto.BillC
 	billOwnersMap := make(map[string]*billOwnerModel)
 	if len(billOwnerIDs) > 0 {
 		var billOwners []billOwnerModel
-		if err := r.db.WithContext(ctx).
+		if err := postgres.GetTxOrDB(ctx, r.db).
 			Model(&billOwnerModel{}).
 			Where("id IN ?", billOwnerIDs).
 			Find(&billOwners).Error; err != nil {
@@ -336,7 +318,7 @@ func (r *BillRepository) FindByCriteria(ctx context.Context, criteria *dto.BillC
 }
 
 func (r *BillRepository) FindAllByCriteria(ctx context.Context, criteria *dto.BillCriteria) ([]dto.InvoiceListItem, error) {
-	query := r.db.WithContext(ctx).Model(&billModel{})
+	query := postgres.GetTxOrDB(ctx, r.db).Model(&billModel{})
 
 	if criteria.CreatedAtStart != nil {
 		query = query.Where("created_at >= ?", criteria.CreatedAtStart)
@@ -365,7 +347,7 @@ func (r *BillRepository) FindAllByCriteria(ctx context.Context, criteria *dto.Bi
 	billOwnersMap := make(map[string]*billOwnerModel)
 	if len(billOwnerIDs) > 0 {
 		var billOwners []billOwnerModel
-		if err := r.db.WithContext(ctx).
+		if err := postgres.GetTxOrDB(ctx, r.db).
 			Model(&billOwnerModel{}).
 			Where("id IN ?", billOwnerIDs).
 			Find(&billOwners).Error; err != nil {
@@ -418,7 +400,7 @@ func (r *BillRepository) FindAllByCriteria(ctx context.Context, criteria *dto.Bi
 
 func (r *BillRepository) FindByNullDocumentURL(ctx context.Context) ([]*dto.BillWithTascode, error) {
 	var bills []billModel
-	if err := r.db.WithContext(ctx).
+	if err := postgres.GetTxOrDB(ctx, r.db).
 		Where("document_url IS NULL AND tascode IS NOT NULL AND deleted_at IS NULL").
 		Find(&bills).Error; err != nil {
 		return nil, err
@@ -438,7 +420,7 @@ func (r *BillRepository) FindByNullDocumentURL(ctx context.Context) ([]*dto.Bill
 }
 
 func (r *BillRepository) UpdateDocumentURL(ctx context.Context, billID string, documentURL string) error {
-	return r.db.WithContext(ctx).
+	return postgres.GetTxOrDB(ctx, r.db).
 		Model(&billModel{}).
 		Where("id = ?", billID).
 		Update("document_url", documentURL).
@@ -455,7 +437,7 @@ func (r *BillRepository) GetRevenueSummary(ctx context.Context, startDate time.T
 		Count         int     `gorm:"column:count"`
 	}
 
-	err := r.db.WithContext(ctx).
+	err := postgres.GetTxOrDB(ctx, r.db).
 		Model(&billModel{}).
 		Select(`COALESCE(SUM(total_amount), 0) as total_amount,
 			COALESCE(SUM(vat), 0) as total_vat,
@@ -492,7 +474,7 @@ func (r *BillRepository) GetSalesByPaymentMethod(ctx context.Context, startDate 
 		Count         int     `gorm:"column:count"`
 	}
 
-	err := r.db.WithContext(ctx).
+	err := postgres.GetTxOrDB(ctx, r.db).
 		Model(&billModel{}).
 		Select(`payment_method,
 			COALESCE(SUM(pay_amount), 0) as collected,
@@ -531,7 +513,7 @@ func (r *BillRepository) UpdateStoragePaths(ctx context.Context, billID string, 
 		return nil
 	}
 
-	return r.db.WithContext(ctx).
+	return postgres.GetTxOrDB(ctx, r.db).
 		Model(&billModel{}).
 		Where("id = ?", billID).
 		Updates(updates).

@@ -19,9 +19,10 @@ type PendingInvoiceRepository interface {
 	// ListDue returns pending rows whose next_attempt_at is null or due, ordered by
 	// consecutive ascending (DIAN numbers submitted lowest-first, NULLs first), capped at limit.
 	ListDue(ctx context.Context, limit int) ([]*dto.PendingInvoice, error)
-	// AssignConsecutive persists the cloud-assigned consecutive and the built request payload.
-	// A WHERE consecutive IS NULL guard makes it idempotent against concurrent cron ticks.
-	AssignConsecutive(ctx context.Context, id string, consecutive int, requestPayload json.RawMessage) error
+	// AssignConsecutive persists the cloud-assigned prefix, consecutive and built request payload.
+	// It returns error.ErrConsecutiveAlreadyAssigned when a concurrent cron tick got there first,
+	// so the caller can roll back the number it claimed.
+	AssignConsecutive(ctx context.Context, id string, prefix string, consecutive int, requestPayload json.RawMessage) error
 	// UpdateRequestPayload overwrites the built request payload, leaving the already-assigned
 	// consecutive untouched. It is the rebuild path: an operator (or the code) can clear
 	// request_payload to force a fresh build from current bill data while preserving the fiscal

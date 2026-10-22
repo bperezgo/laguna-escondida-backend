@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"laguna-escondida/backend/internal/domain/dto"
+	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
 	"laguna-escondida/backend/internal/platform/postgres"
 
@@ -81,20 +82,25 @@ func (r *PendingInvoiceRepository) ListDue(ctx context.Context, limit int) ([]*d
 	return pendings, nil
 }
 
-// AssignConsecutive stores the cloud-assigned consecutive and the built request payload.
-// The WHERE consecutive IS NULL guard makes it idempotent — a second concurrent call is
-// a no-op so concurrent cron ticks cannot double-assign.
-func (r *PendingInvoiceRepository) AssignConsecutive(ctx context.Context, id string, consecutive int, requestPayload json.RawMessage) error {
+// AssignConsecutive stores the cloud-assigned prefix, consecutive and built request payload.
+// The WHERE consecutive IS NULL guard keeps concurrent cron ticks from double-assigning; the
+// loser gets ErrConsecutiveAlreadyAssigned so it can roll back the number it claimed.
+func (r *PendingInvoiceRepository) AssignConsecutive(ctx context.Context, id string, prefix string, consecutive int, requestPayload json.RawMessage) error {
 	db := postgres.GetTxOrDB(ctx, r.db)
 	payload := string(requestPayload)
-	if err := db.Model(&pendingInvoiceModel{}).
+	res := db.Model(&pendingInvoiceModel{}).
 		Where("id = ? AND consecutive IS NULL", id).
 		Updates(map[string]any{
+			"prefix":          prefix,
 			"consecutive":     consecutive,
 			"request_payload": payload,
 			"updated_at":      time.Now(),
-		}).Error; err != nil {
-		return fmt.Errorf("assign consecutive to pending invoice: %w", err)
+		})
+	if res.Error != nil {
+		return fmt.Errorf("assign consecutive to pending invoice: %w", res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return domainError.ErrConsecutiveAlreadyAssigned
 	}
 	return nil
 }

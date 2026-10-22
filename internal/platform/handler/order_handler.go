@@ -18,11 +18,13 @@ import (
 
 type OrderHandler struct {
 	orderService *service.OrderService
+	idempotency  *service.OrderIdempotencyService
 }
 
-func NewOrderHandler(orderService *service.OrderService) *OrderHandler {
+func NewOrderHandler(orderService *service.OrderService, idempotency *service.OrderIdempotencyService) *OrderHandler {
 	return &OrderHandler{
 		orderService: orderService,
+		idempotency:  idempotency,
 	}
 }
 
@@ -41,11 +43,23 @@ func (h *OrderHandler) CreateOrderHandler(c *gin.Context) {
 		return
 	}
 
-	openBill, err := h.orderService.CreateOrder(ctx, &req, user)
+	var (
+		openBill *dto.OpenBill
+		replayed bool
+		err      error
+	)
+	if key := c.GetHeader(IdempotencyKeyHeader); key != "" {
+		openBill, replayed, err = h.idempotency.CreateOrder(ctx, key, &req, user)
+	} else {
+		openBill, err = h.orderService.CreateOrder(ctx, &req, user)
+	}
 	if err != nil {
 		log.Printf("Error creating order: %v", err)
 
 		if respondAgentScopeError(c, err) {
+			return
+		}
+		if respondIdempotencyError(c, err) {
 			return
 		}
 
@@ -77,7 +91,24 @@ func (h *OrderHandler) CreateOrderHandler(c *gin.Context) {
 		return
 	}
 
+	if replayed {
+		c.Header(IdempotentReplayedHeader, "true")
+	}
 	c.JSON(http.StatusCreated, openBill)
+}
+
+func respondIdempotencyError(c *gin.Context, err error) bool {
+	switch {
+	case errors.Is(err, orderError.ErrIdempotencyKeyInvalid):
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "code": "INVALID_IDEMPOTENCY_KEY"})
+	case errors.Is(err, orderError.ErrIdempotencyKeyReused):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error(), "code": "IDEMPOTENCY_KEY_REUSED"})
+	case errors.Is(err, orderError.ErrIdempotencyRequestInProgress):
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error(), "code": "IDEMPOTENCY_REQUEST_IN_PROGRESS"})
+	default:
+		return false
+	}
+	return true
 }
 
 func (h *OrderHandler) UpdateOrderHandler(c *gin.Context) {
