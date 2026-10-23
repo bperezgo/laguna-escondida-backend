@@ -69,6 +69,7 @@ func fullRouter(mode config.Mode, jwtService *service.JWTService) *gin.Engine {
 		registerCloudRoutes(router, cfg, jwtService, cloudHandlers{
 			invoice: &handler.InvoiceHandler{}, supportDocument: &handler.SupportDocumentHandler{},
 			sync: &handler.SyncHandler{}, telemetry: &handler.TelemetryHandler{},
+			organization: &handler.OrganizationHandler{},
 		})
 	case config.ModeEdge:
 		registerEdgeRoutes(router, jwtService, &handler.DeviceHandler{})

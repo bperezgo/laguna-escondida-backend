@@ -44,6 +44,13 @@ curl -X GET "$BASE_URL/auth/me" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
+Only the organization (its branding, formatting and receipt settings):
+
+```bash
+curl -s "$BASE_URL/auth/me" \
+  -H "Authorization: Bearer $TOKEN" | jq '.organization'
+```
+
 ---
 
 ## Users
@@ -702,6 +709,68 @@ curl -X PUT "$BASE_URL/delivery-zones/ZONE_ID" \
 ```bash
 curl -X DELETE "$BASE_URL/delivery-zones/ZONE_ID" \
   -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+## Platform Organizations (cloud only, admin API key)
+
+See `docs/api/organizations.md`. New organizations can't be used until tenancy steps 2–4 land.
+
+### Create an Organization (with e-invoicing prefixes)
+
+```bash
+curl -X POST "$BASE_URL/platform/organizations" \
+  -H "X-API-Key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "El Muelle S.A.S",
+    "slug": "el-muelle",
+    "display_name": "El Muelle",
+    "primary_color": "#0E7C86",
+    "einvoicing": { "invoice_prefix": "MUE", "support_document_prefix": "DSM" }
+  }'
+```
+
+### List Organizations
+
+```bash
+curl -X GET "$BASE_URL/platform/organizations" \
+  -H "X-API-Key: $ADMIN_API_KEY"
+```
+
+### Get an Organization
+
+```bash
+curl -X GET "$BASE_URL/platform/organizations/ORG_ID" \
+  -H "X-API-Key: $ADMIN_API_KEY"
+```
+
+### Update Settings (only the fields sent change; "" clears an optional field)
+
+```bash
+curl -X PATCH "$BASE_URL/platform/organizations/ORG_ID" \
+  -H "X-API-Key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "ticket_footer": "¡Gracias por su visita!", "logo_url": "" }'
+```
+
+### Suspend an Organization (there is no delete)
+
+```bash
+curl -X PATCH "$BASE_URL/platform/organizations/ORG_ID" \
+  -H "X-API-Key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "status": "suspended" }'
+```
+
+### Replace the E-Invoicing Prefixes (only for a new DIAN resolution)
+
+```bash
+curl -X PUT "$BASE_URL/platform/organizations/ORG_ID/einvoicing" \
+  -H "X-API-Key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "invoice_prefix": "MUE", "support_document_prefix": "DSM" }'
 ```
 
 ---

@@ -81,7 +81,11 @@ Authenticates a user and returns a JWT token with user information and permissio
 
 `GET /api/auth/me`
 
-Returns the currently authenticated user's information including roles and permissions. Use this endpoint to validate the user's session and get fresh permissions data.
+Returns the currently authenticated user's information including roles and permissions, and the organization the user works in. Use this endpoint to validate the user's session and get fresh permissions data, and to brand and format the app for the organization.
+
+- `organization` is always present. Its optional fields (`legal_name` … `secondary_color`) are `null` when the organization has not set them; fall back to the current defaults.
+- `organization` holds settings only: no status, e-invoicing prefixes or timestamps. They are maintained through the [Platform Organizations API](./organizations.md).
+- Until the token carries the organization (tenancy step 3), it is the deployment's configured organization. On the edge, the optional fields stay `null` until the sync carries them.
 
 ### Headers
 
@@ -118,9 +122,50 @@ Returns the currently authenticated user's information including roles and permi
     "products:create",
     "expenses:read",
     "expenses:create"
-  ]
+  ],
+  "organization": {
+    "id": "bb0cad3e-be13-4bad-9a37-bba9525bfece",
+    "slug": "laguna-escondida",
+    "name": "Laguna Escondida, Restaurante y Pesca S.A.S",
+    "timezone": "America/Bogota",
+    "country": "CO",
+    "locale": "es-CO",
+    "currency": "COP",
+    "legal_name": "Laguna Escondida, Restaurante y Pesca S.A.S",
+    "nit": "901234567-8",
+    "address": null,
+    "phone": null,
+    "ticket_footer": "¡Gracias por su visita!",
+    "ticket_legal_notice": null,
+    "display_name": "Laguna Escondida",
+    "logo_url": "https://cdn.lagunaescondida.co/logo.png",
+    "primary_color": "#14B8A6",
+    "secondary_color": "#C9A227"
+  }
 }
 ```
+
+### Organization Fields
+
+| Field                 | Type           | Description                                             |
+| --------------------- | -------------- | ------------------------------------------------------- |
+| `id`                  | string (UUID)  | Organization id                                         |
+| `slug`                | string         | Unique, URL-safe identifier                             |
+| `name`                | string         | Legal or commercial name                                |
+| `timezone`            | string         | IANA time zone for the business day, e.g. `America/Bogota` |
+| `country`             | string         | ISO 3166-1 alpha-2, e.g. `CO`                           |
+| `locale`              | string         | Number and date formatting, e.g. `es-CO`                |
+| `currency`            | string         | ISO 4217, e.g. `COP`                                    |
+| `legal_name`          | string \| null | Business name for receipts                              |
+| `nit`                 | string \| null | Tax id for receipts                                     |
+| `address`             | string \| null | Address for receipts                                    |
+| `phone`               | string \| null | Phone for receipts                                      |
+| `ticket_footer`       | string \| null | Receipt footer text                                     |
+| `ticket_legal_notice` | string \| null | Receipt legal notice                                    |
+| `display_name`        | string \| null | Name to show in the app; fall back to `name`            |
+| `logo_url`            | string \| null | `https` logo URL                                        |
+| `primary_color`       | string \| null | `#RRGGBB`                                               |
+| `secondary_color`     | string \| null | `#RRGGBB`                                               |
 
 ### Error Responses
 
@@ -138,7 +183,7 @@ Returns the currently authenticated user's information including roles and permi
 }
 ```
 
-**500 Internal Server Error** - Failed to retrieve user
+**500 Internal Server Error** - Failed to retrieve the user or their organization
 
 ```json
 {

@@ -73,9 +73,10 @@ type SignInResponse struct {
 }
 
 type CurrentUserResponse struct {
-	ID          string   `json:"id"`
-	Username    string   `json:"username"`
-	Name        string   `json:"name"`
-	Roles       []*Role  `json:"roles"`
-	Permissions []string `json:"permissions"`
+	ID           string               `json:"id"`
+	Username     string               `json:"username"`
+	Name         string               `json:"name"`
+	Roles        []*Role              `json:"roles"`
+	Permissions  []string             `json:"permissions"`
+	Organization *CurrentOrganization `json:"organization"`
 }

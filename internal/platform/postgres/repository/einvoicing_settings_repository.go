@@ -36,11 +36,23 @@ func (r *EInvoicingSettingsRepository) Get(ctx context.Context, organizationID s
 	if err != nil {
 		return nil, err
 	}
-	return &dto.EInvoicingSettings{
-		OrganizationID:        model.OrganizationID,
-		InvoicePrefix:         model.InvoicePrefix,
-		SupportDocumentPrefix: model.SupportDocumentPrefix,
-	}, nil
+	return einvoicingSettingsToDTO(model), nil
+}
+
+func (r *EInvoicingSettingsRepository) Upsert(ctx context.Context, settings *dto.EInvoicingSettings) error {
+	err := postgres.GetTxOrDB(ctx, r.db).Exec(`
+		INSERT INTO organization_einvoicing (organization_id, invoice_prefix, support_document_prefix)
+		VALUES (?, ?, ?)
+		ON CONFLICT (organization_id) DO UPDATE SET
+			invoice_prefix = EXCLUDED.invoice_prefix,
+			support_document_prefix = EXCLUDED.support_document_prefix,
+			updated_at = NOW()`,
+		settings.OrganizationID, settings.InvoicePrefix, settings.SupportDocumentPrefix,
+	).Error
+	if err != nil {
+		return fmt.Errorf("upsert e-invoicing settings: %w", err)
+	}
+	return nil
 }
 
 func findEInvoicingSettings(db *gorm.DB, organizationID string) (*einvoicingSettingsModel, error) {
@@ -53,4 +65,12 @@ func findEInvoicingSettings(db *gorm.DB, organizationID string) (*einvoicingSett
 		return nil, fmt.Errorf("find e-invoicing settings: %w", err)
 	}
 	return &model, nil
+}
+
+func einvoicingSettingsToDTO(model *einvoicingSettingsModel) *dto.EInvoicingSettings {
+	return &dto.EInvoicingSettings{
+		OrganizationID:        model.OrganizationID,
+		InvoicePrefix:         model.InvoicePrefix,
+		SupportDocumentPrefix: model.SupportDocumentPrefix,
+	}
 }

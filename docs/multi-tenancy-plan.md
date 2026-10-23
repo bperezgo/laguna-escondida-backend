@@ -29,6 +29,8 @@ one location each, all using the whole POS — edge box, DIAN invoicing, stock),
 | 2026-10-21 | `pos_app` is a NOLOGIN group role created by migration; ops creates the login user (`CREATE ROLE … LOGIN IN ROLE pos_app`), so no password is in SQL. Migrations use `DB_MIGRATION_USER`/`DB_MIGRATION_PASSWORD`, which default to the app's credentials. |
 | 2026-10-21 | The invoice and support-document prefixes live in `organization_einvoicing` (migration 67, Laguna seeded `LAG`/`DS`); `ELECTRONIC_INVOICE_PREFIX` and `SUPPORT_DOCUMENT_PREFIX` are no longer read. `invoice_sequences` is keyed `(organization_id, prefix)`, and the two prefixes of an org must differ so they never share a counter. A consecutive is claimed and assigned in one transaction. |
 | 2026-10-21 | Order idempotency uses an `idempotency_keys` table, per node and not synced, in front of `OrderService.CreateOrder`. The key gets `organization_id` with the other tables in step 2. |
+| 2026-10-22 | Organization settings are **columns on `organizations`** (migration 68: slug, status, timezone, country, locale, currency, business info, receipt text, branding), not a settings table or a JSON column. Platform routes `/api/platform/organizations` (create, list, get, PATCH, PUT e-invoicing prefixes) are cloud-only behind `ADMIN_API_KEY` until `platform_admin` replaces it on the same paths in step 3. There is **no delete** (invoices are legal records; retire with `status = suspended`), and the **slug is immutable**. Settings are stored but not yet read: each consumer switches over in its own step. |
+| 2026-10-22 | `GET /api/auth/me` returns an `organization` object (settings only: no status, e-invoicing or timestamps) so the frontend can build branding and formatting now. Until step 3 it is the configured `ORGANIZATION_ID`; step 3 swaps the source for the token's `org_id` without changing the response. A missing organization is a `500`, never `null`. |
 
 ## 1. Starting point
 
@@ -133,10 +135,10 @@ integration tests run with RLS on and the app scope removed, to prove the backst
 
 | Today | Becomes |
 |---|---|
-| Hardcoded `America/Bogota` (`electronic_invoice.go:237,412`, `sse_handler.go:20`, `handler/dateutil.go:10`, daily close) | `organizations.timezone` |
-| `PHONE_HOME_REGION` | `organizations.country`, plus `.locale` and `.currency` for the frontend |
-| `BUSINESS_NAME/NIT/ADDRESS`, `TICKET_FOOTER`, `TICKET_LEGAL_NOTICE` (edge, `config.go:391-395`) | organization business info; the edge receives it in the pull |
-| Frontend branding constants | `organizations.branding` (display name, logo URL, primary colors) |
+| Hardcoded `America/Bogota` (`electronic_invoice.go:237,412`, `sse_handler.go:20`, `handler/dateutil.go:10`, daily close) | `organizations.timezone` (column exists, migration 68; not read yet) |
+| `PHONE_HOME_REGION` | `organizations.country`, plus `.locale` and `.currency` for the frontend (columns exist, migration 68) |
+| `BUSINESS_NAME/NIT/ADDRESS`, `TICKET_FOOTER`, `TICKET_LEGAL_NOTICE` (edge, `config.go:391-395`) | `organizations.legal_name`, `.nit`, `.address`, `.phone`, `.ticket_footer`, `.ticket_legal_notice` (migration 68); the edge receives them in the pull (step 6) |
+| Frontend branding constants | `organizations.display_name`, `.logo_url`, `.primary_color`, `.secondary_color` (migration 68) |
 | `ELECTRONIC_INVOICE_URL/USER/PASSWORD`, `ELECTRONIC_INVOICE_PREFIX`, `SUPPORT_DOCUMENT_PREFIX` (`config.go:112-141`) | `organization_einvoicing`: provider URL, user, **encrypted** password (see below), invoice and support-document prefixes, resolution range |
 | `NEXT_PUBLIC_ORDER_ACTION_PIN` (frontend, build-time) | per-org setting, stored hashed, checked by the API |
 | `ORGANIZATION_ID` | cloud: removed. Edge: the box's org |
@@ -207,6 +209,7 @@ The browser only calls Next route handlers, which forward the cookie's token as 
 What changes:
 - **Sign-in page:** keeps the Laguna branding. It handles the "pick an organization" response, which no one gets at launch.
 - **`/auth/me`:** returns the org (id, name, branding, timezone, locale, currency, business info) and the user's memberships.
+  The `organization` object is already there (`docs/api/auth.md`); the memberships come with step 3.
   An `OrganizationProvider` exposes them.
 - **Branding:** after sign-in, the header name, logo and title come from the org, and the colors are injected as CSS variables.
 - **Formatting:** one `lib/format.ts` replaces the ~20 hardcoded `es-CO`/`COP` uses and the `America/Bogota` in the kitchen and daily close.
@@ -248,7 +251,7 @@ What changes:
    - [x] prefixes per organization in `organization_einvoicing`, counters per `(organization, prefix)` (migration 67); fixes the support-document prefix bug
    - [x] claim and assign the invoice consecutive in one transaction
    - [x] order idempotency (`X-Idempotency-Key`, migration 66)
-2. **Schema:** `organization_id`, the new uniques and composite foreign keys, memberships, and the org settings columns.
+2. **Schema:** `organization_id`, the new uniques and composite foreign keys, and memberships. (The org settings columns landed early with step 9's organization endpoints, migration 68.)
 3. **Auth:** the `org_id` claim, membership-scoped roles, `domain/tenant`, the middleware, `platform_admin`.
 4. **Repository scopes and the leak suite**, then RLS.
 5. **Per-org configuration:** timezone and formatting, business info, encrypted e-invoicing; crons loop per org.
@@ -256,6 +259,8 @@ What changes:
 7. **Org API keys and the multi-tenant MCP server.** Switch the WhatsApp agent to the global MCP URL.
 8. **Frontend:** org context, branding, formatting, receipt, route guard.
 9. **Onboarding:** a platform-admin flow that creates the org, its settings and e-invoicing, its first admin and its agent API key.
+   - [x] organization settings columns (migration 68) and `/api/platform/organizations` create, list, get, update and e-invoicing prefixes (`docs/api/organizations.md`); pulled forward, stored only
+   - [ ] the first admin and membership (needs step 2), the agent API key (needs step 7)
    Then onboard restaurants 2 and 3.
 
 Per this repo's rules:

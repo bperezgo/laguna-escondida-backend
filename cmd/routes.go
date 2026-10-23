@@ -34,6 +34,7 @@ type cloudHandlers struct {
 	supportDocument *handler.SupportDocumentHandler
 	sync            *handler.SyncHandler
 	telemetry       *handler.TelemetryHandler
+	organization    *handler.OrganizationHandler
 }
 
 // registerAPIRoutes wires the routes served in both modes.
@@ -155,6 +156,15 @@ func registerCloudRoutes(router *gin.Engine, cfg *config.Config, jwtService *ser
 	// Admin routes (protected with admin API key)
 	router.POST("/api/invoices/update-missing-document-urls", handler.AdminAPIKeyMiddleware(cfg), h.invoice.UpdateMissingDocumentURLsHandler)
 	router.POST("/api/support-documents/update-missing-document-urls", handler.AdminAPIKeyMiddleware(cfg), h.supportDocument.UpdateMissingSupportDocumentURLsHandler)
+
+	// Platform organization management: cross-org, so the admin API key until platform_admin exists.
+	// No DELETE on purpose: an organization's invoices are legal records; retire it with status=suspended.
+	organizations := router.Group("/api/platform/organizations", handler.AdminAPIKeyMiddleware(cfg))
+	organizations.POST("", h.organization.CreateHandler)
+	organizations.GET("", h.organization.ListHandler)
+	organizations.GET("/:id", h.organization.GetHandler)
+	organizations.PATCH("/:id", h.organization.UpdateHandler)
+	organizations.PUT("/:id/einvoicing", h.organization.SetEInvoicingHandler)
 
 	// Invoice routes
 	router.POST("/api/invoices", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.InvoicesCreate), h.invoice.CreateElectronicInvoiceHandler)

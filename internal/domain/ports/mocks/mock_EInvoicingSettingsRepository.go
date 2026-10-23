@@ -81,6 +81,53 @@ func (_c *MockEInvoicingSettingsRepository_Get_Call) RunAndReturn(run func(conte
 	return _c
 }
 
+// Upsert provides a mock function with given fields: ctx, settings
+func (_m *MockEInvoicingSettingsRepository) Upsert(ctx context.Context, settings *dto.EInvoicingSettings) error {
+	ret := _m.Called(ctx, settings)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Upsert")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *dto.EInvoicingSettings) error); ok {
+		r0 = rf(ctx, settings)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockEInvoicingSettingsRepository_Upsert_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Upsert'
+type MockEInvoicingSettingsRepository_Upsert_Call struct {
+	*mock.Call
+}
+
+// Upsert is a helper method to define mock.On call
+//   - ctx context.Context
+//   - settings *dto.EInvoicingSettings
+func (_e *MockEInvoicingSettingsRepository_Expecter) Upsert(ctx interface{}, settings interface{}) *MockEInvoicingSettingsRepository_Upsert_Call {
+	return &MockEInvoicingSettingsRepository_Upsert_Call{Call: _e.mock.On("Upsert", ctx, settings)}
+}
+
+func (_c *MockEInvoicingSettingsRepository_Upsert_Call) Run(run func(ctx context.Context, settings *dto.EInvoicingSettings)) *MockEInvoicingSettingsRepository_Upsert_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*dto.EInvoicingSettings))
+	})
+	return _c
+}
+
+func (_c *MockEInvoicingSettingsRepository_Upsert_Call) Return(_a0 error) *MockEInvoicingSettingsRepository_Upsert_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockEInvoicingSettingsRepository_Upsert_Call) RunAndReturn(run func(context.Context, *dto.EInvoicingSettings) error) *MockEInvoicingSettingsRepository_Upsert_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockEInvoicingSettingsRepository creates a new instance of MockEInvoicingSettingsRepository. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockEInvoicingSettingsRepository(t interface {

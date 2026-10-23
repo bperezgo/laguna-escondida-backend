@@ -191,6 +191,10 @@ func main() {
 		stockReconciliationRepo, stockRepo, unitOfWork, stockMovementEmitter, logger,
 	)
 	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, jwtService, unitOfWork)
+	einvoicingSettingsRepo := repository.NewEInvoicingSettingsRepository(db.DB)
+	organizationService := service.NewOrganizationService(
+		repository.NewOrganizationRepository(db.DB), einvoicingSettingsRepo, unitOfWork,
+	)
 	billOwnerService := service.NewBillOwnerService(billOwnerRepo)
 	supplierService := service.NewSupplierService(supplierRepo, supplierCatalogRepo, productRepo)
 	purchaseEntryService := service.NewPurchaseEntryService(purchaseEntryRepo, supplierRepo, supplierCatalogRepo, productRepo, storageClient, publisher, unitOfWork, syncOutboxRepo, syncIdentity, logger, cfg.OrganizationID)
@@ -268,7 +272,7 @@ func main() {
 		service.NewOrderIdempotencyService(orderService, repository.NewIdempotencyKeyRepository(db.DB)))
 	productHandler := handler.NewProductHandler(productService)
 	stockHandler := handler.NewStockHandler(stockService, stockReconciliationService)
-	userHandler := handler.NewUserHandler(userService, logger)
+	userHandler := handler.NewUserHandler(userService, organizationService, cfg.OrganizationID, logger)
 	billOwnerHandler := handler.NewBillOwnerHandler(billOwnerService)
 	supplierHandler := handler.NewSupplierHandler(supplierService)
 	purchaseEntryHandler := handler.NewPurchaseEntryHandler(purchaseEntryService)
@@ -415,7 +419,7 @@ func main() {
 		supportDocService := service.NewSupportDocumentService(electronicInvoiceClient, supportDocRepo, storageClient, cfg.OrganizationID)
 		invoiceSubmissionService := service.NewInvoiceSubmissionService(
 			pendingInvoiceRepo, billRepo, electronicInvoiceClient, unitOfWork, syncOutboxRepo,
-			repository.NewEInvoicingSettingsRepository(db.DB), syncIdentity, cfg.OrganizationID, logger,
+			einvoicingSettingsRepo, syncIdentity, cfg.OrganizationID, logger,
 		)
 
 		cronScheduler, cronErr := cron.NewScheduler(
@@ -440,6 +444,8 @@ func main() {
 
 		syncHandler := handler.NewSyncHandler(syncService, syncReferenceService)
 
+		organizationHandler := handler.NewOrganizationHandler(organizationService)
+
 		var telemetryHandler *handler.TelemetryHandler
 		if !cfg.TelemetryIngestEnabled() {
 			logger.Info("Telemetry ingest disabled: set TELEMETRY_FORWARD_URL to the cloud Alloy OTLP/HTTP receiver to enable it")
@@ -455,6 +461,7 @@ func main() {
 			supportDocument: supportDocHandler,
 			sync:            syncHandler,
 			telemetry:       telemetryHandler,
+			organization:    organizationHandler,
 		})
 	}
 

@@ -18,7 +18,7 @@ const lagunaOrgID = "bb0cad3e-be13-4bad-9a37-bba9525bfece"
 func seedOrganization(t *testing.T, db *Database) string {
 	t.Helper()
 	id := uuid.NewString()
-	require.NoError(t, db.DB.Exec("INSERT INTO organizations (id, name) VALUES (?, ?)", id, "Test org "+id).Error)
+	require.NoError(t, db.DB.Exec("INSERT INTO organizations (id, name, slug) VALUES (?, ?, ?)", id, "Test org "+id, "org-"+id).Error)
 	t.Cleanup(func() {
 		db.DB.Exec("DELETE FROM invoice_sequences WHERE organization_id = ?", id)
 		db.DB.Exec("DELETE FROM organization_einvoicing WHERE organization_id = ?", id)

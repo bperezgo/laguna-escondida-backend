@@ -14,14 +14,19 @@ import (
 )
 
 type UserHandler struct {
-	userService *service.UserService
-	logger      *slog.Logger
+	userService         *service.UserService
+	organizationService *service.OrganizationService
+	organizationID      string
+	logger              *slog.Logger
 }
 
-func NewUserHandler(userService *service.UserService, logger *slog.Logger) *UserHandler {
+// organizationID is the deployment's ORGANIZATION_ID until tenancy step 3 takes it from the token.
+func NewUserHandler(userService *service.UserService, organizationService *service.OrganizationService, organizationID string, logger *slog.Logger) *UserHandler {
 	return &UserHandler{
-		userService: userService,
-		logger:      logger,
+		userService:         userService,
+		organizationService: organizationService,
+		organizationID:      organizationID,
+		logger:              logger,
 	}
 }
 
@@ -235,6 +240,14 @@ func (h *UserHandler) GetCurrentUserHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user information"})
 		return
 	}
+
+	organization, err := h.organizationService.GetCurrent(c.Request.Context(), h.organizationID)
+	if err != nil {
+		log.Printf("Error getting current organization: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user information"})
+		return
+	}
+	currentUser.Organization = organization
 
 	c.JSON(http.StatusOK, currentUser)
 }
