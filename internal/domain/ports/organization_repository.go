@@ -11,6 +11,8 @@ type OrganizationRepository interface {
 	Create(ctx context.Context, org *dto.Organization) error
 	// Get returns error.ErrOrganizationNotFound when no organization has the id.
 	Get(ctx context.Context, id string) (*dto.Organization, error)
+	// GetBySlug returns error.ErrOrganizationNotFound when no organization has the slug.
+	GetBySlug(ctx context.Context, slug string) (*dto.Organization, error)
 	// List returns every organization ordered by name.
 	List(ctx context.Context) ([]*dto.Organization, error)
 	// Update writes only the non-nil fields; an empty optional field is stored as NULL.

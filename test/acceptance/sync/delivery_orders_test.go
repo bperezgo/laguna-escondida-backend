@@ -321,7 +321,7 @@ func newDeliveryAPI(t *testing.T) *deliveryAPI {
 	d := newDeliveryRig(t)
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	jwt := service.NewJWTService(jwtSecret)
+	jwt := service.NewJWTService(jwtSecret, "")
 	orderHandler := handler.NewOrderHandler(d.orders,
 		service.NewOrderIdempotencyService(d.orders, repository.NewIdempotencyKeyRepository(d.cloudDB)))
 	handler.RegisterOrderRoutes(router, orderHandler, jwt)
@@ -336,7 +336,7 @@ func newDeliveryAPI(t *testing.T) *deliveryAPI {
 
 func (a *deliveryAPI) call(roleID int, method, path string, body any) (int, []byte) {
 	a.t.Helper()
-	token, err := a.jwt.GenerateToken(a.userID, "acceptance", []int{roleID})
+	token, err := a.jwt.GenerateToken(a.userID, lagunaOrgID, "acceptance", []int{roleID})
 	require.NoError(a.t, err)
 	var reader io.Reader
 	if body != nil {

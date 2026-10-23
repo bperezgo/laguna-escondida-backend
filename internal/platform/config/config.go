@@ -46,7 +46,7 @@ type Config struct {
 	CDNPrivateKey             string
 	CDNPrivateKeyPath         string
 	CDNURLTTL                 time.Duration
-	OrganizationID            string
+	OrganizationID            string // edge only: the box's organization; empty in the cloud
 	InvoiceURLCron            string
 	SupportDocumentURLCron    string
 	InvoiceSubmitCron         string
@@ -84,13 +84,23 @@ type Config struct {
 	// retry/queue — so no secret is needed here. Optional: without the forward URL the
 	// ingest routes are not wired, so a cloud install without a sidecar still boots.
 	TelemetryForwardURL string // cloud Alloy OTLP/HTTP receiver base URL, e.g. "http://127.0.0.1:4319"
-	TelemetryTenantID   string // tenant.id stamped on relayed telemetry; defaults to OrganizationID
+	TelemetryTenantID   string // tenant.id stamped on relayed telemetry; required with TelemetryForwardURL
 
 	// PhoneHomeRegion (ISO 3166 alpha-2) reads customer phones typed without "+".
 	PhoneHomeRegion string
 
 	// LagunaStateDir is the appliance updater's state directory; empty turns owner-triggered updates off.
 	LagunaStateDir string
+}
+
+func deriveNodeID(organizationID string, mode Mode) string {
+	return uuid.NewSHA1(uuid.NameSpaceURL, []byte("laguna-escondida/node/"+organizationID+"/"+string(mode))).String()
+}
+
+// CloudNodeIDFor is the cloud's sync identity as an edge box of organizationID derives it by
+// default. The cloud's NODE_ID must keep this value for Laguna so its box's sync_state stays valid.
+func CloudNodeIDFor(organizationID string) string {
+	return deriveNodeID(organizationID, ModeCloud)
 }
 
 // TelemetryIngestEnabled reports whether the cloud has somewhere to relay edge telemetry to.
@@ -172,19 +182,27 @@ func NewConfig() (*Config, error) {
 		}
 		cdnURLTTL = parsed
 	}
-	// TODO Review the best way to handle the organization id (securely) when the goal was to roll out this for different organizations
+	// The mode decides where the organization comes from, never the variable's presence: an
+	// edge box serves the one in its config; the cloud takes it from each caller, so a leftover
+	// ORGANIZATION_ID there would pin every request to one org and is refused.
 	organizationID := os.Getenv("ORGANIZATION_ID")
-	if organizationID == "" {
-		return nil, errors.New("ORGANIZATION_ID is not set")
+	if appMode == ModeEdge && organizationID == "" {
+		return nil, errors.New("ORGANIZATION_ID is required in edge mode")
+	}
+	if appMode == ModeCloud && organizationID != "" {
+		return nil, errors.New("ORGANIZATION_ID must not be set in cloud mode: the organization comes from each caller")
 	}
 
-	// NodeID is this install's sync identity (origin_node_id on outbox rows). When
-	// unset, derive a stable id from the organization + run mode so dev boots without
-	// extra config and the id survives restarts — changing it would break per-origin
-	// sync sequencing. Multi-node deployments must set NODE_ID so each install differs.
+	// NodeID is this install's sync identity (origin_node_id on outbox rows); changing it
+	// would break per-origin sync sequencing. The edge derives a stable one from its org and
+	// mode unless NODE_ID is set. The cloud has no org to derive from, so it must be set, to
+	// CloudNodeIDFor(<Laguna>) for the cloud Laguna's box already syncs against.
 	nodeID := os.Getenv("NODE_ID")
 	if nodeID == "" {
-		nodeID = uuid.NewSHA1(uuid.NameSpaceURL, []byte("laguna-escondida/node/"+organizationID+"/"+string(appMode))).String()
+		if appMode == ModeCloud {
+			return nil, errors.New("NODE_ID is required in cloud mode")
+		}
+		nodeID = deriveNodeID(organizationID, appMode)
 	}
 
 	// NodeSyncKey authenticates edge nodes calling the cloud sync endpoints
@@ -201,8 +219,8 @@ func NewConfig() (*Config, error) {
 	// to the cloud's derived node id for this organization (same formula as NodeID with
 	// the "cloud" mode), so a stock cloud needs no extra config; override with CLOUD_NODE_ID.
 	cloudNodeID := os.Getenv("CLOUD_NODE_ID")
-	if cloudNodeID == "" {
-		cloudNodeID = uuid.NewSHA1(uuid.NameSpaceURL, []byte("laguna-escondida/node/"+organizationID+"/cloud")).String()
+	if cloudNodeID == "" && appMode == ModeEdge {
+		cloudNodeID = CloudNodeIDFor(organizationID)
 	}
 
 	// SyncPushCron is how often the edge drains its outbox to the cloud (cron expr).
@@ -325,11 +343,11 @@ func NewConfig() (*Config, error) {
 	// this service's own telemetry. Only the cloud sets it; an edge install leaves it empty.
 	telemetryForwardURL := os.Getenv("TELEMETRY_FORWARD_URL")
 
-	// TELEMETRY_TENANT_ID separates Grafana tenants when one stack serves several orgs;
-	// a single-org install needs no extra config.
+	// TELEMETRY_TENANT_ID is the Grafana tenant relayed telemetry lands in. It used to default
+	// to the deployment's org, which the cloud no longer has, so the ingest needs it set.
 	telemetryTenantID := os.Getenv("TELEMETRY_TENANT_ID")
-	if telemetryTenantID == "" {
-		telemetryTenantID = organizationID
+	if appMode == ModeCloud && telemetryForwardURL != "" && telemetryTenantID == "" {
+		return nil, errors.New("TELEMETRY_TENANT_ID is required when TELEMETRY_FORWARD_URL is set")
 	}
 
 	phoneHomeRegion := strings.ToUpper(os.Getenv("PHONE_HOME_REGION"))

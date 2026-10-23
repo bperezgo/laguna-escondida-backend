@@ -16,16 +16,13 @@ import (
 type UserHandler struct {
 	userService         *service.UserService
 	organizationService *service.OrganizationService
-	organizationID      string
 	logger              *slog.Logger
 }
 
-// organizationID is the deployment's ORGANIZATION_ID until tenancy step 3 takes it from the token.
-func NewUserHandler(userService *service.UserService, organizationService *service.OrganizationService, organizationID string, logger *slog.Logger) *UserHandler {
+func NewUserHandler(userService *service.UserService, organizationService *service.OrganizationService, logger *slog.Logger) *UserHandler {
 	return &UserHandler{
 		userService:         userService,
 		organizationService: organizationService,
-		organizationID:      organizationID,
 		logger:              logger,
 	}
 }
@@ -44,6 +41,18 @@ func (h *UserHandler) CreateUserHandler(c *gin.Context) {
 
 		if errors.Is(err, domainError.ErrUserAlreadyExists) {
 			c.JSON(http.StatusConflict, gin.H{"error": "User already exists"})
+			return
+		}
+		if errors.Is(err, domainError.ErrOrganizationRequired) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "organization is required"})
+			return
+		}
+		if errors.Is(err, domainError.ErrOrganizationMismatch) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "organization does not match this box's"})
+			return
+		}
+		if errors.Is(err, domainError.ErrOrganizationNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Organization not found"})
 			return
 		}
 		if errors.Is(err, domainError.ErrRoleNotFound) {
@@ -79,10 +88,15 @@ func (h *UserHandler) SignInHandler(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, domainError.ErrInvalidCredentials) {
 			h.logger.WarnContext(ctx, "sign-in rejected",
+				slog.String("organization", req.Organization),
 				slog.String("username", req.Username),
 				slog.String("reason", err.Error()),
 			)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid username or password"})
+			return
+		}
+		if errors.Is(err, domainError.ErrOrganizationRequired) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "organization is required"})
 			return
 		}
 
@@ -241,7 +255,7 @@ func (h *UserHandler) GetCurrentUserHandler(c *gin.Context) {
 		return
 	}
 
-	organization, err := h.organizationService.GetCurrent(c.Request.Context(), h.organizationID)
+	organization, err := h.organizationService.GetCurrent(c.Request.Context(), c.GetString("org_id"))
 	if err != nil {
 		log.Printf("Error getting current organization: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user information"})

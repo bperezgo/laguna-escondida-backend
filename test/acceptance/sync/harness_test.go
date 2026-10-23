@@ -201,6 +201,9 @@ func closeGorm(db *gorm.DB) {
 	}
 }
 
+// lagunaOrgID is the organization every row and token in these suites belongs to.
+const lagunaOrgID = "bb0cad3e-be13-4bad-9a37-bba9525bfece"
+
 // truncateAll wipes every table except schema_migrations and organizations (every tenant row
 // references Laguna's), restoring a clean slate without re-running migrations. CASCADE handles FK-linked child tables.
 func truncateAll(t *testing.T, db *gorm.DB) {

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"laguna-escondida/backend/internal/domain/service"
+	"laguna-escondida/backend/internal/domain/tenant"
 	"laguna-escondida/backend/internal/platform/config"
 
 	"github.com/gin-gonic/gin"
@@ -118,8 +119,10 @@ func JWTAuthMiddleware(jwtService *service.JWTService, requiredRoles ...int) gin
 		}
 
 		c.Set("user_id", claims.UserID)
+		c.Set("org_id", claims.OrgID)
 		c.Set("username", claims.Username)
 		c.Set("role_ids", claims.RoleIDs)
+		c.Request = c.Request.WithContext(tenant.WithOrg(c.Request.Context(), claims.OrgID))
 		c.Next()
 	}
 }

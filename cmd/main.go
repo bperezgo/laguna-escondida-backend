@@ -130,7 +130,7 @@ func main() {
 	publisher := eventbus.NewDetachedEventBus(eventBusImpl, postgres.Detach)
 
 	// Initialize JWT service
-	jwtService := service.NewJWTService(cfg.JWTSecret)
+	jwtService := service.NewJWTService(cfg.JWTSecret, cfg.OrganizationID)
 
 	// Initialize services
 	unitOfWork := postgres.NewUnitOfWork(db.DB)
@@ -190,11 +190,10 @@ func main() {
 	stockReconciliationService := service.NewStockReconciliationService(
 		stockReconciliationRepo, stockRepo, unitOfWork, stockMovementEmitter, logger,
 	)
-	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, jwtService, unitOfWork)
+	organizationRepo := repository.NewOrganizationRepository(db.DB)
+	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, organizationRepo, jwtService, unitOfWork, cfg.OrganizationID)
 	einvoicingSettingsRepo := repository.NewEInvoicingSettingsRepository(db.DB)
-	organizationService := service.NewOrganizationService(
-		repository.NewOrganizationRepository(db.DB), einvoicingSettingsRepo, unitOfWork,
-	)
+	organizationService := service.NewOrganizationService(organizationRepo, einvoicingSettingsRepo, unitOfWork)
 	billOwnerService := service.NewBillOwnerService(billOwnerRepo)
 	supplierService := service.NewSupplierService(supplierRepo, supplierCatalogRepo, productRepo)
 	purchaseEntryService := service.NewPurchaseEntryService(purchaseEntryRepo, supplierRepo, supplierCatalogRepo, productRepo, storageClient, publisher, unitOfWork, syncOutboxRepo, syncIdentity, logger, cfg.OrganizationID)
@@ -272,7 +271,7 @@ func main() {
 		service.NewOrderIdempotencyService(orderService, repository.NewIdempotencyKeyRepository(db.DB)))
 	productHandler := handler.NewProductHandler(productService)
 	stockHandler := handler.NewStockHandler(stockService, stockReconciliationService)
-	userHandler := handler.NewUserHandler(userService, organizationService, cfg.OrganizationID, logger)
+	userHandler := handler.NewUserHandler(userService, organizationService, logger)
 	billOwnerHandler := handler.NewBillOwnerHandler(billOwnerService)
 	supplierHandler := handler.NewSupplierHandler(supplierService)
 	purchaseEntryHandler := handler.NewPurchaseEntryHandler(purchaseEntryService)
@@ -305,7 +304,7 @@ func main() {
 	// Record request counts/latencies for Prometheus (scraped by Alloy on :METRICS_PORT).
 	router.Use(handler.MetricsMiddleware())
 
-	router.Use(handler.DBSessionMiddleware(db.DB, cfg.OrganizationID))
+	router.Use(handler.DBSessionMiddleware(db.DB))
 
 	registerAPIRoutes(router, cfg, jwtService, apiHandlers{
 		order:             orderHandler,

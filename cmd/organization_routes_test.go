@@ -24,7 +24,7 @@ var platformOrganizationRoutes = []struct{ method, path string }{
 
 func servePlatformRoute(t *testing.T, mode config.Mode, method, path string, headers map[string]string) int {
 	t.Helper()
-	router := fullRouter(mode, service.NewJWTService("test-secret"))
+	router := fullRouter(mode, service.NewJWTService("test-secret", ""))
 	req := httptest.NewRequest(method, pathParams.Replace(path), strings.NewReader("{}"))
 	req.Header.Set("Content-Type", "application/json")
 	for k, v := range headers {
@@ -36,10 +36,10 @@ func servePlatformRoute(t *testing.T, mode config.Mode, method, path string, hea
 }
 
 func TestPlatformOrganizationRoutes_RequireTheAdminAPIKey(t *testing.T) {
-	jwtService := service.NewJWTService("test-secret")
-	adminToken, err := jwtService.GenerateToken("019a0000-0000-7000-8000-0000000000ad", "admin", []int{permissions.RoleAdmin})
+	jwtService := service.NewJWTService("test-secret", "")
+	adminToken, err := jwtService.GenerateToken("019a0000-0000-7000-8000-0000000000ad", testOrgID, "admin", []int{permissions.RoleAdmin})
 	require.NoError(t, err)
-	agentToken, err := jwtService.GenerateToken("019a0000-0000-7000-8000-0000000000aa", "whatsapp-agent", []int{permissions.RoleAgent})
+	agentToken, err := jwtService.GenerateToken("019a0000-0000-7000-8000-0000000000aa", testOrgID, "whatsapp-agent", []int{permissions.RoleAgent})
 	require.NoError(t, err)
 
 	callers := []struct {
@@ -67,7 +67,7 @@ func TestPlatformOrganizationRoutes_RequireTheAdminAPIKey(t *testing.T) {
 
 func TestPlatformOrganizationRoutes_NotServedOnTheEdge(t *testing.T) {
 	registered := map[string]bool{}
-	for _, route := range fullRouter(config.ModeEdge, service.NewJWTService("test-secret")).Routes() {
+	for _, route := range fullRouter(config.ModeEdge, service.NewJWTService("test-secret", "")).Routes() {
 		registered[route.Method+" "+route.Path] = true
 	}
 	for _, route := range platformOrganizationRoutes {

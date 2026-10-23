@@ -8,6 +8,7 @@ import (
 
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
+	"laguna-escondida/backend/internal/domain/tenant"
 	"laguna-escondida/backend/internal/platform/postgres"
 
 	"github.com/google/uuid"
@@ -184,7 +185,7 @@ func TestEInvoicingSettingsRepository_Upsert_OnPinnedConnection_Integration(t *t
 	db := newApplierTestDB(t)
 	settingsRepo := NewEInvoicingSettingsRepository(db.DB)
 	orgID := seedOrganization(t, db)
-	ctx, release := postgres.WithSession(context.Background(), db.DB, orgID)
+	ctx, release := postgres.WithSession(tenant.WithOrg(context.Background(), orgID), db.DB)
 	defer release()
 
 	rollback := errors.New("rollback")

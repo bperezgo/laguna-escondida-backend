@@ -73,9 +73,17 @@ func (r *OrganizationRepository) Get(ctx context.Context, id string) (*dto.Organ
 	if uuid.Validate(id) != nil {
 		return nil, domainError.ErrOrganizationNotFound
 	}
+	return r.getWhere(ctx, "id = ?", id)
+}
+
+func (r *OrganizationRepository) GetBySlug(ctx context.Context, slug string) (*dto.Organization, error) {
+	return r.getWhere(ctx, "slug = ?", slug)
+}
+
+func (r *OrganizationRepository) getWhere(ctx context.Context, query, value string) (*dto.Organization, error) {
 	db := postgres.GetTxOrDB(ctx, r.db)
 	var model organizationModel
-	err := db.Where("id = ?", id).First(&model).Error
+	err := db.Where(query, value).First(&model).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, domainError.ErrOrganizationNotFound
 	}
@@ -83,7 +91,7 @@ func (r *OrganizationRepository) Get(ctx context.Context, id string) (*dto.Organ
 		return nil, fmt.Errorf("get organization: %w", err)
 	}
 	org := organizationToDTO(&model)
-	settings, err := findEInvoicingSettings(db, id)
+	settings, err := findEInvoicingSettings(db, model.ID)
 	switch {
 	case errors.Is(err, domainError.ErrEInvoicingNotConfigured):
 	case err != nil:
