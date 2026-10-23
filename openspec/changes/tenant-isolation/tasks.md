@@ -39,7 +39,7 @@
 
 ## 6. Release 2: leak suite and frontend
 
-- [ ] 6.1 Add `test/acceptance/tenancy`: seed orgs A and B with mirrored data and, acting as A, assert no endpoint, MCP-exposed endpoint, sync push or pull, cron run or event handler reads or changes B's data. Verify `make test-acceptance` passes and fails when one repository's scope is removed on purpose.
+- [ ] 6.1 Add `test/acceptance/tenancy`: seed orgs A and B with mirrored data and, acting as A, assert no endpoint, MCP-exposed endpoint, sync push or pull, cron run or event handler reads or changes B's data. Verify `make test-acceptance` passes and fails when one repository's scope is removed on purpose. _Deferred: built in a follow-up change that splits `cmd` into importable cloud and edge wiring, so the suite can boot the real routers._
 - [ ] 6.2 Frontend (`laguna-escondida-frontend`): "Restaurante" field on `app/signin/page.tsx`, remembered in the browser, passed through `app/api/auth/signin`; hidden or optional on the edge. Verify signing in to Laguna end-to-end against a local backend.
 - [ ] 6.3 Update `aws-infra` task definition: drop `ORGANIZATION_ID` from the cloud, set `NODE_ID` (task 2.3). Verify the cloud boots in staging with the new config.
 - [ ] 6.4 Release 2 to staging with a production snapshot: Laguna signs in with the slug, sync with Laguna's box continues (no resend or gap), the crons run for Laguna. Verify on staging before production.
