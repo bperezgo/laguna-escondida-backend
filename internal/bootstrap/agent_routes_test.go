@@ -1,4 +1,4 @@
-package main
+package bootstrap
 
 import (
 	"net/http"
@@ -62,14 +62,14 @@ func fullRouter(mode config.Mode, jwtService *service.JWTService) *gin.Engine {
 		user: &handler.UserHandler{}, billOwner: &handler.BillOwnerHandler{}, supplier: &handler.SupplierHandler{},
 		purchaseEntry: &handler.PurchaseEntryHandler{}, expense: &handler.ExpenseHandler{},
 		productIngredient: &handler.ProductIngredientHandler{}, financial: &handler.FinancialHandler{},
-		deliveryZone: &handler.DeliveryZoneHandler{}, sse: &handler.SSEHandler{}, edge: &handler.EdgeHandler{},
-	})
+		sse: &handler.SSEHandler{}, edge: &handler.EdgeHandler{},
+	}, mode == config.ModeCloud)
 	switch mode {
 	case config.ModeCloud:
 		registerCloudRoutes(router, cfg, jwtService, cloudHandlers{
 			invoice: &handler.InvoiceHandler{}, supportDocument: &handler.SupportDocumentHandler{},
 			sync: &handler.SyncHandler{}, telemetry: &handler.TelemetryHandler{},
-			organization: &handler.OrganizationHandler{},
+			organization: &handler.OrganizationHandler{}, deliveryZone: &handler.DeliveryZoneHandler{},
 		})
 	case config.ModeEdge:
 		registerEdgeRoutes(router, jwtService, &handler.DeviceHandler{})

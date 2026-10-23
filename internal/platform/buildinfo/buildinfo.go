@@ -3,7 +3,7 @@
 //
 // Stamp with:
 //
-//	go build -ldflags "-X laguna-escondida/backend/internal/platform/buildinfo.Version=v1.2.3" ./cmd
+//	go build -ldflags "-X laguna-escondida/backend/internal/platform/buildinfo.Version=v1.2.3" ./cmd/edge
 //
 // An unstamped build (go run, tests, local builds) reports "dev".
 package buildinfo

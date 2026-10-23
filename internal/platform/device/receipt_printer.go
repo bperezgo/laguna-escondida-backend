@@ -27,7 +27,7 @@ func NewReceiptPrinter(transport Transport, opts escpos.Options) *ReceiptPrinter
 }
 
 // NewReceiptPrinterFromConfig builds the transport and render options from cfg and
-// returns a ready ReceiptPrinter. Used by the edge wiring in cmd/main.go.
+// returns a ready ReceiptPrinter. Used by the edge wiring in internal/bootstrap/edge.go.
 func NewReceiptPrinterFromConfig(cfg Config) (*ReceiptPrinter, error) {
 	transport, err := NewTransport(cfg)
 	if err != nil {

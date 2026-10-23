@@ -228,10 +228,10 @@ If Docker Hub is unreachable and the rig image cannot be rebuilt, run the same s
 two local binaries against two databases — it exercises the identical code paths:
 
 ```bash
-go build -o /tmp/laguna ./cmd
+go build -o /tmp/laguna-cloud ./cmd/cloud && go build -o /tmp/laguna-edge ./cmd/edge
 # cloud
-APP_MODE=cloud PORT=8080 DB_NAME=laguna_rig_cloud STOCK_RECONCILE_CRON="* * * * *" ... /tmp/laguna
+PORT=8080 DB_NAME=laguna_rig_cloud STOCK_RECONCILE_CRON="* * * * *" ... /tmp/laguna-cloud
 # edge
-APP_MODE=edge PORT=8082 DB_NAME=laguna_rig_edge CLOUD_SYNC_URL=http://localhost:8080 \
-  SYNC_PUSH_CRON="* * * * *" SYNC_PULL_CRON="* * * * *" STOCK_PULL_CRON="* * * * *" ... /tmp/laguna
+PORT=8082 DB_NAME=laguna_rig_edge CLOUD_SYNC_URL=http://localhost:8080 \
+  SYNC_PUSH_CRON="* * * * *" SYNC_PULL_CRON="* * * * *" STOCK_PULL_CRON="* * * * *" ... /tmp/laguna-edge
 ```

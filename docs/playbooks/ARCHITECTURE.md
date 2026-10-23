@@ -112,54 +112,44 @@ Handler (API) → Service (Application) → Ports (Interfaces) ← Adapters (Inf
 
 ## Dependency Injection
 
-All wiring is done manually in `cmd/main.go`. No DI framework is used.
+All wiring is done manually in `internal/bootstrap`. No DI framework is used. There is one binary per deployment mode:
+
+| Binary | Entry point | Built as |
+|---|---|---|
+| Cloud | `cmd/cloud` | `/app/main` in the Docker image |
+| Edge (the restaurant's box) | `cmd/edge` | `edge-node.exe` (release workflow); `/app/edge` for the local sync rig |
+| MCP server | `cmd/mcp-server` | `/app/mcp-server` |
+
+The binary sets the mode. `APP_MODE` is optional; a value naming the other mode stops the boot.
+
+```
+internal/bootstrap/
+  main.go           Main(mode, assemble): .env, config, observability, migrations, DB, signals
+  infra.go          Infra: db, logger, HTTP client, storage, e-invoicing client, event bus
+  core.go           buildCore(cfg, infra, ModeOptions): shared repos, services, handlers,
+                    subscribers and the shared routes
+  cloud.go          NewCloud: core + e-invoicing, crons, sync API, telemetry ingest,
+                    organization admin, delivery zones, stock authoring
+  edge.go           NewEdge:  core + appliance updates, printer, push/pull sync loops
+  app.go            App{Router}; Run(ctx) starts subscribers, schedulers, servers; ordered shutdown
+  routes_*.go       route tables (shared, cloud, edge, stock)
+  subscriptions.go  event handler registration
+```
 
 ```go
+// cmd/edge/main.go
 func main() {
-    // 1. Load configuration
-    cfg, _ := config.NewConfig()
-
-    // 2. Initialize database
-    db, _ := postgres.NewDB(cfg)
-
-    // 3. Create repositories (implement ports)
-    productRepo := repository.NewProductRepository(db)
-    orderRepo   := repository.NewOpenBillRepository(db)
-    stockRepo   := repository.NewStockRepository(db)
-    // ...more repositories
-
-    // 4. Create infrastructure services
-    unitOfWork    := postgres.NewUnitOfWork(db)
-    storageClient := storage.NewS3Client(cfg)
-    jwtService    := service.NewJWTService(cfg.JWTSecret)
-
-    // 5. Create event bus
-    eventBus := eventbus.NewGoChannelEventBus(watermillLogger)
-
-    // 6. Create SSE hubs
-    sseHub := sse.NewHub()
-
-    // 7. Create application services (inject ports)
-    orderService := service.NewOrderService(orderRepo, productRepo, eventBus, unitOfWork, sseHub)
-    productService := service.NewProductService(productRepo)
-    // ...more services
-
-    // 8. Create event subscribers & register handlers
-    subscriber, _ := eventbus.NewGoChannelEventSubscriber(eventBus.PubSub(), watermillLogger)
-    subscriber.Subscribe(eventbus.NewTypedEventHandler(dto.OrderCreatedEventName, stockHandler.HandleOrderCreated))
-    subscriber.Subscribe(eventbus.NewTypedEventHandler(dto.OrderCreatedEventName, orderService.HandleOrderCreatedSSE))
-    go subscriber.Start(ctx)
-
-    // 9. Create HTTP handlers
-    orderHandler := handler.NewOrderHandler(orderService)
-
-    // 10. Setup router with middleware and routes
-    router := gin.Default()
-    // ...register routes with middleware
+    bootstrap.Main(config.ModeEdge, bootstrap.NewEdge)
 }
 ```
 
-**Key principle**: Dependencies flow inward. Concrete implementations are created in `main.go` and injected as interfaces into services.
+Rules:
+
+- **Only `cloud.go` and `edge.go` know the mode.** Shared code takes mode-dependent values through `ModeOptions` (pending-invoice initial status, stock movement emitter, stock authoring) and never reads `cfg.AppMode`.
+- **Building an app starts nothing.** Schedulers and subscribers start in `App.Run`, so a test can build the real router with `NewCloud(cfg, infra)` and an injected `Infra` (test database, stub clients) and drive `App.Router` with `httptest`.
+- **Route tables are pinned.** `internal/bootstrap/testdata/routes_{cloud,edge}.golden` lists every route each binary serves; `TestRoutes_MatchGolden` fails on any difference, so adding or moving a route means updating the golden file on purpose.
+
+**Key principle**: Dependencies flow inward. Concrete implementations are created in `internal/bootstrap` and injected as interfaces into services.
 
 ---
 

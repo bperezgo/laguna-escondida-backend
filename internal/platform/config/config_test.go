@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -31,11 +32,71 @@ func setEdgeEnv(t *testing.T) {
 	t.Setenv("ORGANIZATION_ID", "019a0000-0000-7000-8000-000000000123")
 }
 
+// newConfigFromEnv boots the binary APP_MODE names (cloud when unset), so the per-mode cases
+// below keep choosing their mode through the environment.
+func newConfigFromEnv() (*Config, error) {
+	mode := ModeCloud
+	if Mode(os.Getenv("APP_MODE")) == ModeEdge {
+		mode = ModeEdge
+	}
+	return NewConfig(mode)
+}
+
+func TestNewConfig_BinaryMode_AppModeMustAgree(t *testing.T) {
+	cases := []struct {
+		name    string
+		binary  Mode
+		appMode string
+		wantErr []string
+	}{
+		{name: "cloud binary, APP_MODE unset", binary: ModeCloud, appMode: ""},
+		{name: "cloud binary, APP_MODE matches", binary: ModeCloud, appMode: "cloud"},
+		{name: "cloud binary, APP_MODE contradicts", binary: ModeCloud, appMode: "edge", wantErr: []string{"binary is cloud", "APP_MODE says edge"}},
+		{name: "cloud binary, APP_MODE invalid", binary: ModeCloud, appMode: "staging", wantErr: []string{"binary is cloud", `"staging"`}},
+		{name: "edge binary, APP_MODE unset", binary: ModeEdge, appMode: ""},
+		{name: "edge binary, APP_MODE matches", binary: ModeEdge, appMode: "edge"},
+		{name: "edge binary, APP_MODE contradicts", binary: ModeEdge, appMode: "cloud", wantErr: []string{"binary is edge", "APP_MODE says cloud"}},
+		{name: "edge binary, APP_MODE invalid", binary: ModeEdge, appMode: "staging", wantErr: []string{"binary is edge", `"staging"`}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setRequiredEnv(t)
+			if tc.binary == ModeEdge {
+				setEdgeEnv(t)
+			}
+			t.Setenv("APP_MODE", tc.appMode)
+
+			cfg, err := NewConfig(tc.binary)
+
+			if tc.wantErr == nil {
+				require.NoError(t, err)
+				assert.Equal(t, tc.binary, cfg.AppMode)
+				return
+			}
+			require.Error(t, err)
+			assert.Nil(t, cfg)
+			for _, want := range tc.wantErr {
+				assert.Contains(t, err.Error(), want)
+			}
+		})
+	}
+}
+
+func TestNewConfig_BinaryMode_InvalidReturnsError(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("APP_MODE", "")
+
+	cfg, err := NewConfig(Mode("datacenter"))
+
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+}
+
 func TestNewConfig_AppMode_DefaultsToCloud(t *testing.T) {
 	setRequiredEnv(t)
 	t.Setenv("APP_MODE", "")
 
-	cfg, err := NewConfig()
+	cfg, err := newConfigFromEnv()
 
 	require.NoError(t, err)
 	assert.Equal(t, ModeCloud, cfg.AppMode)
@@ -45,7 +106,7 @@ func TestNewConfig_AppMode_Edge(t *testing.T) {
 	setRequiredEnv(t)
 	setEdgeEnv(t)
 
-	cfg, err := NewConfig()
+	cfg, err := newConfigFromEnv()
 
 	require.NoError(t, err)
 	assert.Equal(t, ModeEdge, cfg.AppMode)
@@ -55,7 +116,7 @@ func TestNewConfig_AppMode_Cloud(t *testing.T) {
 	setRequiredEnv(t)
 	t.Setenv("APP_MODE", "cloud")
 
-	cfg, err := NewConfig()
+	cfg, err := newConfigFromEnv()
 
 	require.NoError(t, err)
 	assert.Equal(t, ModeCloud, cfg.AppMode)
@@ -65,7 +126,7 @@ func TestNewConfig_AppMode_InvalidReturnsError(t *testing.T) {
 	setRequiredEnv(t)
 	t.Setenv("APP_MODE", "datacenter")
 
-	cfg, err := NewConfig()
+	cfg, err := newConfigFromEnv()
 
 	require.Error(t, err)
 	assert.Nil(t, cfg)
@@ -77,9 +138,9 @@ func TestNewConfig_NodeID_DefaultsToStableValue(t *testing.T) {
 	setEdgeEnv(t)
 	t.Setenv("NODE_ID", "")
 
-	first, err := NewConfig()
+	first, err := newConfigFromEnv()
 	require.NoError(t, err)
-	second, err := NewConfig()
+	second, err := newConfigFromEnv()
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, first.NodeID)
@@ -90,7 +151,7 @@ func TestNewConfig_NodeID_Override(t *testing.T) {
 	setRequiredEnv(t)
 	t.Setenv("NODE_ID", "22222222-2222-2222-2222-222222222222")
 
-	cfg, err := NewConfig()
+	cfg, err := newConfigFromEnv()
 
 	require.NoError(t, err)
 	assert.Equal(t, "22222222-2222-2222-2222-222222222222", cfg.NodeID)
@@ -100,7 +161,7 @@ func TestNewConfig_NodeSyncKey_FromEnv(t *testing.T) {
 	setRequiredEnv(t)
 	t.Setenv("NODE_SYNC_KEY", "node-secret")
 
-	cfg, err := NewConfig()
+	cfg, err := newConfigFromEnv()
 
 	require.NoError(t, err)
 	assert.Equal(t, "node-secret", cfg.NodeSyncKey)
@@ -110,7 +171,7 @@ func TestNewConfig_NodeSyncKey_DefaultsEmpty(t *testing.T) {
 	setRequiredEnv(t)
 	t.Setenv("NODE_SYNC_KEY", "")
 
-	cfg, err := NewConfig()
+	cfg, err := newConfigFromEnv()
 
 	require.NoError(t, err)
 	assert.Empty(t, cfg.NodeSyncKey)
@@ -120,7 +181,7 @@ func TestNewConfig_CloudSyncURL_FromEnv(t *testing.T) {
 	setRequiredEnv(t)
 	t.Setenv("CLOUD_SYNC_URL", "http://cloud.local:8081")
 
-	cfg, err := NewConfig()
+	cfg, err := newConfigFromEnv()
 
 	require.NoError(t, err)
 	assert.Equal(t, "http://cloud.local:8081", cfg.CloudSyncURL)
@@ -130,7 +191,7 @@ func TestNewConfig_CloudSyncURL_DefaultsEmpty(t *testing.T) {
 	setRequiredEnv(t)
 	t.Setenv("CLOUD_SYNC_URL", "")
 
-	cfg, err := NewConfig()
+	cfg, err := newConfigFromEnv()
 
 	require.NoError(t, err)
 	assert.Empty(t, cfg.CloudSyncURL)
@@ -140,7 +201,7 @@ func TestNewConfig_CloudNodeID_FromEnv(t *testing.T) {
 	setRequiredEnv(t)
 	t.Setenv("CLOUD_NODE_ID", "11111111-1111-1111-1111-111111111111")
 
-	cfg, err := NewConfig()
+	cfg, err := newConfigFromEnv()
 
 	require.NoError(t, err)
 	assert.Equal(t, "11111111-1111-1111-1111-111111111111", cfg.CloudNodeID)
@@ -154,9 +215,9 @@ func TestNewConfig_CloudNodeID_DerivedDefault_IsStable(t *testing.T) {
 	t.Setenv("NODE_ID", "")
 	t.Setenv("CLOUD_NODE_ID", "")
 
-	first, err := NewConfig()
+	first, err := newConfigFromEnv()
 	require.NoError(t, err)
-	second, err := NewConfig()
+	second, err := newConfigFromEnv()
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, first.CloudNodeID)
@@ -168,7 +229,7 @@ func TestNewConfig_SyncPushCron_DefaultsEveryMinute(t *testing.T) {
 	setRequiredEnv(t)
 	t.Setenv("SYNC_PUSH_CRON", "")
 
-	cfg, err := NewConfig()
+	cfg, err := newConfigFromEnv()
 
 	require.NoError(t, err)
 	assert.Equal(t, "* * * * *", cfg.SyncPushCron)
@@ -178,7 +239,7 @@ func TestNewConfig_SyncPushCron_FromEnv(t *testing.T) {
 	setRequiredEnv(t)
 	t.Setenv("SYNC_PUSH_CRON", "*/5 * * * *")
 
-	cfg, err := NewConfig()
+	cfg, err := newConfigFromEnv()
 
 	require.NoError(t, err)
 	assert.Equal(t, "*/5 * * * *", cfg.SyncPushCron)
@@ -188,7 +249,7 @@ func TestNewConfig_SyncPullCron_DefaultsEveryMinute(t *testing.T) {
 	setRequiredEnv(t)
 	t.Setenv("SYNC_PULL_CRON", "")
 
-	cfg, err := NewConfig()
+	cfg, err := newConfigFromEnv()
 
 	require.NoError(t, err)
 	assert.Equal(t, "* * * * *", cfg.SyncPullCron)
@@ -198,7 +259,7 @@ func TestNewConfig_SyncPullCron_FromEnv(t *testing.T) {
 	setRequiredEnv(t)
 	t.Setenv("SYNC_PULL_CRON", "*/2 * * * *")
 
-	cfg, err := NewConfig()
+	cfg, err := newConfigFromEnv()
 
 	require.NoError(t, err)
 	assert.Equal(t, "*/2 * * * *", cfg.SyncPullCron)
@@ -215,7 +276,7 @@ func TestNewConfig_Observability_Defaults(t *testing.T) {
 	t.Setenv("OTEL_TRACES_SAMPLER_ARG", "")
 	t.Setenv("METRICS_PORT", "")
 
-	cfg, err := NewConfig()
+	cfg, err := newConfigFromEnv()
 
 	require.NoError(t, err)
 	assert.False(t, cfg.ObservabilityEnabled)
@@ -236,7 +297,7 @@ func TestNewConfig_Observability_Enabled(t *testing.T) {
 	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("METRICS_PORT", "9091")
 
-	cfg, err := NewConfig()
+	cfg, err := newConfigFromEnv()
 
 	require.NoError(t, err)
 	assert.True(t, cfg.ObservabilityEnabled)
@@ -251,7 +312,7 @@ func TestNewConfig_TraceSampleRatio_FromEnv(t *testing.T) {
 	setRequiredEnv(t)
 	t.Setenv("OTEL_TRACES_SAMPLER_ARG", "0.25")
 
-	cfg, err := NewConfig()
+	cfg, err := newConfigFromEnv()
 
 	require.NoError(t, err)
 	assert.Equal(t, 0.25, cfg.TraceSampleRatio)
@@ -261,7 +322,7 @@ func TestNewConfig_TraceSampleRatio_InvalidReturnsError(t *testing.T) {
 	setRequiredEnv(t)
 	t.Setenv("OTEL_TRACES_SAMPLER_ARG", "not-a-number")
 
-	cfg, err := NewConfig()
+	cfg, err := newConfigFromEnv()
 
 	require.Error(t, err)
 	assert.Nil(t, cfg)
@@ -279,7 +340,7 @@ func TestNewConfig_TelemetryForward_ReadFromEnv(t *testing.T) {
 	t.Setenv("APP_MODE", "cloud")
 	t.Setenv("TELEMETRY_TENANT_ID", "tenant-abc")
 
-	cfg, err := NewConfig()
+	cfg, err := newConfigFromEnv()
 
 	require.NoError(t, err)
 	assert.Equal(t, "http://127.0.0.1:4319", cfg.TelemetryForwardURL)
@@ -294,7 +355,7 @@ func TestNewConfig_TelemetryTenantID_RequiredWithForwardURL(t *testing.T) {
 	t.Setenv("APP_MODE", "cloud")
 	t.Setenv("TELEMETRY_TENANT_ID", "")
 
-	cfg, err := NewConfig()
+	cfg, err := newConfigFromEnv()
 
 	require.Error(t, err)
 	assert.Nil(t, cfg)
@@ -308,7 +369,7 @@ func TestNewConfig_TelemetryIngest_DisabledOnEdge(t *testing.T) {
 	setTelemetryForwardEnv(t)
 	setEdgeEnv(t)
 
-	cfg, err := NewConfig()
+	cfg, err := newConfigFromEnv()
 
 	require.NoError(t, err)
 	assert.False(t, cfg.TelemetryIngestEnabled())
@@ -320,7 +381,7 @@ func TestNewConfig_TelemetryIngest_DisabledWhenForwardURLMissing(t *testing.T) {
 	t.Setenv("APP_MODE", "cloud")
 	t.Setenv("TELEMETRY_FORWARD_URL", "")
 
-	cfg, err := NewConfig()
+	cfg, err := newConfigFromEnv()
 
 	require.NoError(t, err)
 	assert.False(t, cfg.TelemetryIngestEnabled())
@@ -331,7 +392,7 @@ func TestNewConfig_StockPullCron_DefaultsToDaily(t *testing.T) {
 	setEdgeEnv(t)
 	t.Setenv("STOCK_PULL_CRON", "")
 
-	cfg, err := NewConfig()
+	cfg, err := newConfigFromEnv()
 
 	require.NoError(t, err)
 	assert.Equal(t, "0 5 * * *", cfg.StockPullCron, "the edge adopts the cloud's numbers once a day, before service")
@@ -342,7 +403,7 @@ func TestNewConfig_StockPullCron_Override(t *testing.T) {
 	setEdgeEnv(t)
 	t.Setenv("STOCK_PULL_CRON", "30 4 * * *")
 
-	cfg, err := NewConfig()
+	cfg, err := newConfigFromEnv()
 
 	require.NoError(t, err)
 	assert.Equal(t, "30 4 * * *", cfg.StockPullCron)
@@ -353,7 +414,7 @@ func TestNewConfig_StockPullCron_InvalidExpressionReturnsError(t *testing.T) {
 	setEdgeEnv(t)
 	t.Setenv("STOCK_PULL_CRON", "every day at five")
 
-	cfg, err := NewConfig()
+	cfg, err := newConfigFromEnv()
 
 	require.Error(t, err)
 	assert.Nil(t, cfg)
@@ -366,7 +427,7 @@ func TestNewConfig_StockPullCron_NotValidatedInCloudMode(t *testing.T) {
 	t.Setenv("APP_MODE", "cloud")
 	t.Setenv("STOCK_PULL_CRON", "every day at five")
 
-	cfg, err := NewConfig()
+	cfg, err := newConfigFromEnv()
 
 	require.NoError(t, err)
 	assert.Equal(t, "every day at five", cfg.StockPullCron)
@@ -378,7 +439,7 @@ func TestNewConfig_StockReconcileCron_DefaultsAndValidatesInCloudMode(t *testing
 		t.Setenv("APP_MODE", "cloud")
 		t.Setenv("STOCK_RECONCILE_CRON", "")
 
-		cfg, err := NewConfig()
+		cfg, err := newConfigFromEnv()
 
 		require.NoError(t, err)
 		assert.Equal(t, "15 3 * * *", cfg.StockReconcileCron)
@@ -389,7 +450,7 @@ func TestNewConfig_StockReconcileCron_DefaultsAndValidatesInCloudMode(t *testing
 		t.Setenv("APP_MODE", "cloud")
 		t.Setenv("STOCK_RECONCILE_CRON", "nightly")
 
-		cfg, err := NewConfig()
+		cfg, err := newConfigFromEnv()
 
 		require.Error(t, err)
 		assert.Nil(t, cfg)
@@ -416,7 +477,7 @@ func TestNewConfig_OrganizationID_ByMode(t *testing.T) {
 			t.Setenv("APP_MODE", tc.mode)
 			t.Setenv("ORGANIZATION_ID", tc.orgID)
 
-			cfg, err := NewConfig()
+			cfg, err := newConfigFromEnv()
 
 			if tc.wantErr != "" {
 				require.Error(t, err)
@@ -435,7 +496,7 @@ func TestNewConfig_NodeID_RequiredInCloud(t *testing.T) {
 	t.Setenv("APP_MODE", "cloud")
 	t.Setenv("NODE_ID", "")
 
-	cfg, err := NewConfig()
+	cfg, err := newConfigFromEnv()
 
 	require.Error(t, err)
 	assert.Nil(t, cfg)
@@ -449,7 +510,7 @@ func TestCloudNodeIDFor_Laguna_MatchesTheEdgeDefault(t *testing.T) {
 	t.Setenv("ORGANIZATION_ID", "bb0cad3e-be13-4bad-9a37-bba9525bfece")
 	t.Setenv("CLOUD_NODE_ID", "")
 
-	cfg, err := NewConfig()
+	cfg, err := newConfigFromEnv()
 
 	require.NoError(t, err)
 	assert.Equal(t, cfg.CloudNodeID, CloudNodeIDFor("bb0cad3e-be13-4bad-9a37-bba9525bfece"))

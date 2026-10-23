@@ -56,7 +56,7 @@ func TestS3Client_Upload_Integration(t *testing.T) {
 	skipIfIntegrationTestsDisabled(t)
 
 	// Load config
-	cfg, err := config.NewConfig()
+	cfg, err := config.NewConfig(config.ModeCloud)
 	require.NoError(t, err, "Failed to load config")
 
 	// Create client
@@ -108,7 +108,7 @@ func TestS3Client_UploadPDF_Integration(t *testing.T) {
 
 	skipIfIntegrationTestsDisabled(t)
 
-	cfg, err := config.NewConfig()
+	cfg, err := config.NewConfig(config.ModeCloud)
 	require.NoError(t, err)
 
 	client, err := storage.NewS3Client(cfg)

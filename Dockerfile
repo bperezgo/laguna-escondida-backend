@@ -26,7 +26,14 @@ ARG VERSION=dev
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags="-w -s -X laguna-escondida/backend/internal/platform/buildinfo.Version=${VERSION}" \
     -o /app/main \
-    ./cmd
+    ./cmd/cloud
+
+# The edge binary rides along only for the local sync rig (docker-compose.sync.yml); the
+# box itself gets edge-node.exe from the release workflow.
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-w -s -X laguna-escondida/backend/internal/platform/buildinfo.Version=${VERSION}" \
+    -o /app/edge \
+    ./cmd/edge
 
 # The MCP server (cmd/mcp-server) ships in the same image: aws-infra runs it as a
 # sidecar of the backend task (MCP_TOOLSET=customer, for the WhatsApp agent).
@@ -50,6 +57,7 @@ WORKDIR /app
 
 # Copy binary from builder
 COPY --from=builder /app/main .
+COPY --from=builder /app/edge .
 COPY --from=builder /app/mcp-server .
 
 # Copy migrations (if needed for runtime)

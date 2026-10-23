@@ -100,7 +100,7 @@ jobs:
           mkdir -p dist
           go build -trimpath \
             -ldflags "-s -w -X laguna-escondida/backend/internal/platform/buildinfo.Version=${GITHUB_REF_NAME}" \
-            -o dist/edge-node.exe ./cmd
+            -o dist/edge-node.exe ./cmd/edge
 
       - name: Package + checksum
         working-directory: dist

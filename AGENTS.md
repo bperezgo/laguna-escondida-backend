@@ -70,7 +70,7 @@ Default to **none** — let naming and structure carry it. Add a comment only wh
 
 1. DTOs → `domain/dto/`  2. Port → `domain/ports/`  3. Use case → `domain/service/` **+ tests (mandatory)**
 4. `make generate-mocks`  5. Repository → `platform/postgres/repository/`  6. Handler → `platform/handler/`
-7. Wire in `cmd/main.go`  8. If it's an endpoint: update API docs (below).
+7. Wire in `internal/bootstrap` (`core.go` if both modes serve it, else `cloud.go`/`edge.go`)  8. If it's an endpoint: update API docs (below).
 
 ## API documentation
 
@@ -78,6 +78,6 @@ Endpoints are documented for the frontend in `docs/api/{entity}.md`. **Create/up
 
 ## Make targets
 
-`make lint` · `lint-fix` · `test` · `test-ci` · `test-acceptance` · `test-acceptance-ci` · `generate-mocks` · `regenerate-mocks` · `run` · `migrate-up` / `migrate-down` / `new-migration`.
+`make lint` · `lint-fix` · `test` · `test-ci` · `test-acceptance` · `test-acceptance-ci` · `generate-mocks` · `regenerate-mocks` · `run` (= `run-cloud`) · `run-edge` · `build-cloud` · `build-edge` · `migrate-up` / `migrate-down` / `new-migration`.
 
 Remember: **domain is the heart, platform is the shell** — keep domain pure and independent.
