@@ -53,7 +53,7 @@ optional, names the OpenSpec change (`openspec/changes/<name>`) or links a ticke
 6. Assess risk from the diff: files under `internal/platform/postgres/migrations/` (is
    there a `.down.sql`? is it destructive? migrations run at boot), `docs/api/*.md` and
    handlers (contract change for the frontend and the MCP server), `domain/ports/`
-   (mocks regenerated?), sync code (edge ↔ cloud compatibility), `cmd/main.go` wiring,
+   (mocks regenerated?), sync code (edge ↔ cloud compatibility), `internal/bootstrap` wiring (and its route golden files),
    `internal/platform/config/` (a new required env var is a deploy step), `.github/`,
    the Dockerfile. Also deleted tests and skipped or weakened assertions.
 

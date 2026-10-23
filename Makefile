@@ -1,6 +1,6 @@
 # Every target is a command, not a file: `test` would otherwise match the test/ directory and
 # make would report it "up to date" without running anything.
-.PHONY: new-migration migrate-up migrate-down run test test-ci test-acceptance test-acceptance-ci lint lint-fix pre-push install-hooks uninstall-hooks generate-mocks regenerate-mocks sync-up sync-logs sync-down sync-reset run-mcp build-mcp
+.PHONY: new-migration migrate-up migrate-down run run-cloud run-edge build-cloud build-edge test test-ci test-acceptance test-acceptance-ci lint lint-fix pre-push install-hooks uninstall-hooks generate-mocks regenerate-mocks sync-up sync-logs sync-down sync-reset run-mcp build-mcp
 
 # Same gotestsum as CI; falls back to `go run` at that version when it isn't installed.
 GOTESTSUM_VERSION := v1.12.3
@@ -18,9 +18,23 @@ migrate-down:
 	@echo "Migrating down"
 	scripts/migrate-down.sh
 
-run:
-	@echo "Running the application"
-	go run ./cmd
+run: run-cloud
+
+run-cloud:
+	@echo "Running the cloud binary"
+	go run ./cmd/cloud
+
+run-edge:
+	@echo "Running the edge binary"
+	go run ./cmd/edge
+
+build-cloud:
+	@echo "Building the cloud binary"
+	go build -o bin/cloud ./cmd/cloud
+
+build-edge:
+	@echo "Building the edge binary"
+	go build -o bin/edge ./cmd/edge
 
 test:
 	@echo "Running tests with gotestsum..."

@@ -12,7 +12,7 @@ The logger middleware has been implemented using [Uber's Zap](https://github.com
    - Added `LoggerMiddleware` function that logs HTTP requests
    - Uses Zap's structured logging with JSON output
 
-2. **`cmd/main.go`**
+2. **`internal/bootstrap/core.go`**
    - Initialized Zap production logger (uses JSON format by default)
    - Applied the logger middleware globally to all routes
 
@@ -102,7 +102,7 @@ All logs are in JSON format. Example log output:
 
 ## Usage
 
-The middleware is automatically applied globally to all routes in `cmd/main.go`:
+The middleware is automatically applied globally to all routes in `internal/bootstrap/core.go`:
 
 ```go
 // Initialize Zap logger (production config uses JSON format)

@@ -8,7 +8,7 @@ package migrations
 import "embed"
 
 // FS holds every *.up.sql / *.down.sql in this directory, consumed via
-// golang-migrate's source/iofs driver in cmd/main.go.
+// golang-migrate's source/iofs driver in internal/bootstrap/migrate.go.
 //
 //go:embed *.sql
 var FS embed.FS

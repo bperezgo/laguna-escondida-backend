@@ -128,6 +128,7 @@ services:
       dockerfile: Dockerfile
     image: laguna-escondida-sync:latest
     container_name: laguna-sync-edge
+    command: ["./edge"]
     environment:
       <<: *app-env
       APP_MODE: edge
