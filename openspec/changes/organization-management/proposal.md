@@ -13,7 +13,7 @@ This change is the first piece of tenancy step 9 (onboarding), pulled forward be
   - receipt text: `ticket_footer`, `ticket_legal_notice`
   - branding: `display_name`, `logo_url`, `primary_color`, `secondary_color`
 
-  Laguna's row is backfilled: slug `laguna-escondida`, `active`, `America/Bogota`, `CO`, `es-CO`, `COP`. The timestamps become `TIMESTAMPTZ`.
+  Laguna's row is backfilled: slug `laguna-escondida`, `active`, `America/Bogota`, `CO`, `es-CO`, `COP`. The timestamps are left alone: migration 49 already made them `TIMESTAMPTZ`.
 - **Platform organization endpoints** (cloud only, behind `ADMIN_API_KEY`):
   - `POST /api/platform/organizations`: create an organization, optionally with its e-invoicing prefixes, in one transaction
   - `GET /api/platform/organizations`: list organizations
@@ -65,4 +65,4 @@ Out of scope, deferred to the tenancy steps named in `docs/multi-tenancy-plan.md
   - new `docs/api/organizations.md`
   - an example in `docs/examples/curl-examples.md`
   - the decisions log and step 9 of `docs/multi-tenancy-plan.md`
-- **No behavior change** for existing endpoints, sync, crons or the edge.
+- **No behavior change** for existing endpoints, sync, crons or the edge, except that `GET /api/auth/me` gains an `organization` object (design 10), which fails with `500` if the configured organization is missing.

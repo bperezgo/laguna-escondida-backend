@@ -5,11 +5,10 @@
   - optional columns nullable
   - `slug` backfilled (`laguna-escondida` for Laguna, `'org-' || id` otherwise), then `NOT NULL UNIQUE`
   - Laguna's `display_name` = `Laguna Escondida`
-  - timestamps converted to `TIMESTAMPTZ`
   - a down migration that reverses all of it
 
   Verify `make migrate-up` then `make migrate-down` then `make migrate-up` run clean. Verify Laguna reads back with the backfilled values, and an insert with `(id, name, slug)` gets the Colombia defaults.
-- [ ] 1.2 Check the timestamp conversion against a production snapshot (the server timezone is UTC, so the values don't shift). Verify by comparing Laguna's `created_at` before and after the migration.
+- [x] 1.2 Leave the timestamps alone: migration 49 already made them `TIMESTAMPTZ` (this replaces the planned conversion and its production-snapshot check). Verify in the migration test that Laguna's `created_at` is unchanged by up and down and stays `timestamp with time zone`.
 - [x] 1.3 `einvoicing_integration_test.go` seeds organizations with `(id, name)`, which now fails on `slug NOT NULL`. **Ask before editing this existing test helper**, then add a slug. Verify `DB_HOST= go test ./internal/platform/postgres/repository/ -run EInvoicing`.
 
 ## 2. Domain

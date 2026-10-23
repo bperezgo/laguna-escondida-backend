@@ -1,6 +1,6 @@
 ## Context
 
-- `organizations` was created by migration 33 with only `id`, `name`, `created_at` and `updated_at` (`TIMESTAMP`). It holds one row, Laguna (`bb0cad3e-…`). There is a `dto.Organization`, but no port, repository, service or endpoint for organizations.
+- `organizations` was created by migration 33 with only `id`, `name`, `created_at` and `updated_at` (`TIMESTAMP` in migration 33, converted to `TIMESTAMPTZ` by migration 49). It holds one row, Laguna (`bb0cad3e-…`). There is a `dto.Organization`, but no port, repository, service or endpoint for organizations.
 - `organization_einvoicing` (migration 67) stores per-org prefixes. Its port `EInvoicingSettingsRepository` only has `Get`, and the table is written only by migration 67's seed.
 - `ADMIN_API_KEY` (`AdminAPIKeyMiddleware`, header `X-API-Key`) is the only credential that isn't tied to a user. It already guards the bootstrap `POST /api/users` and the cloud maintenance routes.
 - `UnitOfWork.Do` runs on the request's pinned connection (`DBSessionMiddleware`) and nests as a savepoint.
@@ -35,8 +35,8 @@
   - then `SET NOT NULL` and `UNIQUE`
   - no default: a slug is a deliberate choice
 - Laguna's `display_name` is set to `Laguna Escondida`. Its logo, colors and business info stay NULL and are set with `PATCH` after deploy, because the real values live in edge env vars and frontend constants that the migration can't read.
-- `created_at` and `updated_at` become `TIMESTAMPTZ` (`USING … AT TIME ZONE 'UTC'`), matching the newer tables.
-- The down migration drops the added columns and constraints and restores `TIMESTAMP`.
+- `created_at` and `updated_at` are not touched. The plan was to convert them to `TIMESTAMPTZ`, but migration 49 already did, and converting again would shift the values whenever the session is not in UTC.
+- The down migration drops the added columns and constraints only.
 
 **3. A unique-violation error from the database means "slug taken", instead of checking first.**
 - The repository maps Postgres `23505` on the slug constraint to `ErrOrganizationSlugTaken`.
@@ -84,7 +84,6 @@
 - [Organizations created now can't be used, and someone may try to onboard a restaurant on them] → `docs/api/organizations.md` states that tenancy steps 2–4 must land first. Nothing can sign in to a new organization anyway: there are no memberships yet.
 - [`ADMIN_API_KEY` is one shared secret that can now create organizations] → It already creates users, so the exposure is equivalent. It is replaced by `platform_admin` in step 3, on the same paths.
 - [Changing prefixes mid-resolution makes invoice numbering restart at 1 for the new prefix, and pending invoices take the new prefix at submission] → Documented in the API doc as a "change only for a new DIAN resolution" warning. This matches how prefixes behave today.
-- [Converting the timestamps reinterprets existing values as UTC] → One row, and the RDS server runs in UTC. Verified against a production snapshot as part of the migration task.
 - [Status `suspended` is stored but not enforced] → Spec'd explicitly ("Stored settings do not yet change runtime behavior"), so it is visible rather than a surprise. Enforced in step 3.
 
 ## Migration Plan
