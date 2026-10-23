@@ -27,6 +27,15 @@ func TenantDB(ctx context.Context, db *gorm.DB) (*gorm.DB, error) {
 	return scoped.Session(&gorm.Session{}), nil
 }
 
+// TenantTx is InTx on TenantDB: every statement in fn through tx carries the organization filter.
+func TenantTx(ctx context.Context, db *gorm.DB, fn func(tx *gorm.DB) error) error {
+	scoped, err := TenantDB(ctx, db)
+	if err != nil {
+		return err
+	}
+	return scoped.Transaction(fn)
+}
+
 // OrgID is the context's organization, for raw SQL that TenantDB's filter can't reach.
 func OrgID(ctx context.Context) (string, error) {
 	return tenant.RequireOrg(ctx)

@@ -74,7 +74,7 @@ type purchaseEntryItemWithProductModel struct {
 }
 
 func (r *PurchaseEntryRepository) Create(ctx context.Context, entry *purchase_entry.Aggregate) error {
-	return postgres.InTx(ctx, r.db, func(tx *gorm.DB) error {
+	return postgres.TenantTx(ctx, r.db, func(tx *gorm.DB) error {
 		entryModel := &purchaseEntryModel{
 			ID:               entry.ID(),
 			SupplierID:       entry.SupplierID(),

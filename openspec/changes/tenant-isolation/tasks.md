@@ -25,7 +25,7 @@
 
 - [x] 4.1 Add the tenant helper in `platform/postgres` (design decision 5): scoped `*gorm.DB` from the context's org, error when missing. Verify unit tests for both cases.
 - [x] 4.2 Move every tenant repository onto the helper and stamp `organization_id` from the context on every create, including raw SQL (`claimConsecutive`, sync appliers' upserts). Work repository by repository; verify each with its integration test and `go test ./...`.
-- [ ] 4.3 Add a CI check (lint rule or grep in `make lint`) that flags direct `GetTxOrDB` use on tenant models outside the helper. Verify it fails on a deliberately unscoped call and passes on the tree.
+- [x] 4.3 Add a CI check (lint rule or grep in `make lint`) that flags direct `GetTxOrDB` use on tenant models outside the helper. Verify it fails on a deliberately unscoped call and passes on the tree.
 - [x] 4.4 Services drop their `organizationID` constructor argument and read `tenant.OrgFrom(ctx)`: `PurchaseEntryService`, `ExpenseService`, `SupportDocumentService`, `InvoiceSubmissionService`, `SupportDocumentRepository`, `UserHandler`. Run `make generate-mocks` if ports change. Verify service tests cover a missing org and S3 keys under the context's org (**ask before editing existing service tests**).
 - [x] 4.5 Add a migration that drops the Laguna `DEFAULT` on every `organization_id` added by migration A, once every create stamps the org. Verify an insert without the column fails and `make migrate-up/down/up` runs clean.
 

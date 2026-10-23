@@ -66,3 +66,12 @@ func TestTenantOwned_WithoutOrganization_RefusesTheWrite(t *testing.T) {
 
 	assert.ErrorIs(t, err, domainError.ErrNoOrganization)
 }
+
+func TestTenantTx_WithoutOrganization_Errors(t *testing.T) {
+	err := postgres.TenantTx(context.Background(), dryRunDB(t), func(*gorm.DB) error {
+		t.Fatal("no transaction without an organization")
+		return nil
+	})
+
+	assert.ErrorIs(t, err, domainError.ErrNoOrganization)
+}

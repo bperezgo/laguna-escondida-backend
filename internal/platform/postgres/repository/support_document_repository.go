@@ -75,7 +75,7 @@ func (r *SupportDocumentRepository) Create(ctx context.Context, doc *support_doc
 		return orgErr
 	}
 	var response *dto.CreateSupportDocumentResponse
-	err := postgres.InTx(ctx, r.db, func(tx *gorm.DB) error {
+	err := postgres.TenantTx(ctx, r.db, func(tx *gorm.DB) error {
 		settings, err := findEInvoicingSettings(tx, orgID)
 		if err != nil {
 			return err

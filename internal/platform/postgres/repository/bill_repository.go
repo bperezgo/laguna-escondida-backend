@@ -144,7 +144,7 @@ func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, produ
 		billOwnerID = &billDTO.Customer.DocumentNumber
 	}
 
-	return postgres.InTx(ctx, r.db, func(tx *gorm.DB) error {
+	return postgres.TenantTx(ctx, r.db, func(tx *gorm.DB) error {
 		bm := &billModel{
 			ID:             billDTO.ID,
 			BillOwnerID:    billOwnerID,

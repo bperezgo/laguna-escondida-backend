@@ -283,7 +283,7 @@ func (billProductModel) TableName() string {
 }
 
 func (r *OpenBillRepository) Create(ctx context.Context, aggregate *openBill.Aggregate) error {
-	return postgres.InTx(ctx, r.db, func(tx *gorm.DB) error {
+	return postgres.TenantTx(ctx, r.db, func(tx *gorm.DB) error {
 		var user userModel
 		if err := tx.Where("id = ? AND deleted_at IS NULL", aggregate.CreatedByID()).First(&user).Error; err != nil {
 			return err
@@ -659,7 +659,7 @@ func (r *OpenBillRepository) findAggregate(ctx context.Context, where string, id
 }
 
 func (r *OpenBillRepository) Update(ctx context.Context, aggregate *openBill.Aggregate) error {
-	return postgres.InTx(ctx, r.db, func(tx *gorm.DB) error {
+	return postgres.TenantTx(ctx, r.db, func(tx *gorm.DB) error {
 		updateData := map[string]any{
 			"total_amount":        aggregate.TotalAmount(),
 			"temporal_identifier": aggregate.TemporalIdentifier(),
@@ -780,7 +780,7 @@ func (r *OpenBillRepository) Update(ctx context.Context, aggregate *openBill.Agg
 
 func (r *OpenBillRepository) PayOrder(ctx context.Context, openBillID string) (*dto.Bill, error) {
 	var bill *dto.Bill
-	err := postgres.InTx(ctx, r.db, func(tx *gorm.DB) error {
+	err := postgres.TenantTx(ctx, r.db, func(tx *gorm.DB) error {
 		// Fetch the open bill
 		var openBillModelInstance openBillModel
 		if err := tx.Where("id = ? AND deleted_at IS NULL", openBillID).First(&openBillModelInstance).Error; err != nil {
@@ -1408,7 +1408,7 @@ func (r *OpenBillRepository) GetProductPreparationResponsibilities(ctx context.C
 }
 
 func (r *OpenBillRepository) UpdateProductStatus(ctx context.Context, aggregate *openBill.Aggregate) error {
-	return postgres.InTx(ctx, r.db, func(tx *gorm.DB) error {
+	return postgres.TenantTx(ctx, r.db, func(tx *gorm.DB) error {
 		if err := tx.Model(&openBillModel{}).
 			Where("id = ? AND deleted_at IS NULL", aggregate.ID()).
 			Updates(map[string]any{
