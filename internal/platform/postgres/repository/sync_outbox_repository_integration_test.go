@@ -88,7 +88,7 @@ func TestSyncOutboxRepository_Append_WritesRow_Integration(t *testing.T) {
 		Payload:      json.RawMessage(`{"id":"` + entityID + `","status":"open"}`),
 	}
 
-	err := uow.Do(context.Background(), func(ctx context.Context) error {
+	err := uow.Do(lagunaCtx(), func(ctx context.Context) error {
 		return repo.Append(ctx, entry)
 	})
 	require.NoError(t, err)
@@ -117,7 +117,7 @@ func TestSyncOutboxRepository_Append_RollbackLeavesNone_Integration(t *testing.T
 	t.Cleanup(func() { db.DB.Exec("DELETE FROM sync_outbox WHERE origin_node_id = ?", origin) })
 
 	boom := fmt.Errorf("business change failed after append")
-	err := uow.Do(context.Background(), func(ctx context.Context) error {
+	err := uow.Do(lagunaCtx(), func(ctx context.Context) error {
 		if appendErr := repo.Append(ctx, &dto.SyncOutboxEntry{
 			OpID:         uuid.Must(uuid.NewV7()).String(),
 			OriginNodeID: origin,
@@ -148,7 +148,7 @@ func TestSyncOutboxRepository_Append_SeqIncrementsPerOrigin_Integration(t *testi
 	first := &dto.SyncOutboxEntry{OpID: uuid.Must(uuid.NewV7()).String(), OriginNodeID: origin, EntityType: dto.SyncEntityOpenBill, EntityID: uuid.NewString(), Operation: dto.SyncOperationCreate, Payload: json.RawMessage(`{}`)}
 	second := &dto.SyncOutboxEntry{OpID: uuid.Must(uuid.NewV7()).String(), OriginNodeID: origin, EntityType: dto.SyncEntityOpenBill, EntityID: uuid.NewString(), Operation: dto.SyncOperationUpdate, Payload: json.RawMessage(`{}`)}
 
-	err := uow.Do(context.Background(), func(ctx context.Context) error {
+	err := uow.Do(lagunaCtx(), func(ctx context.Context) error {
 		if appendErr := repo.Append(ctx, first); appendErr != nil {
 			return appendErr
 		}
@@ -173,14 +173,14 @@ func TestSyncOutboxRepository_ListUnsynced_And_MarkSynced_Integration(t *testing
 
 	first := &dto.SyncOutboxEntry{OpID: uuid.Must(uuid.NewV7()).String(), OriginNodeID: origin, EntityType: dto.SyncEntityOpenBill, EntityID: uuid.NewString(), Operation: dto.SyncOperationCreate, Payload: json.RawMessage(`{"a":1}`)}
 	second := &dto.SyncOutboxEntry{OpID: uuid.Must(uuid.NewV7()).String(), OriginNodeID: origin, EntityType: dto.SyncEntityOpenBill, EntityID: uuid.NewString(), Operation: dto.SyncOperationUpdate, Payload: json.RawMessage(`{"a":2}`)}
-	require.NoError(t, uow.Do(context.Background(), func(ctx context.Context) error {
+	require.NoError(t, uow.Do(lagunaCtx(), func(ctx context.Context) error {
 		if err := repo.Append(ctx, first); err != nil {
 			return err
 		}
 		return repo.Append(ctx, second)
 	}))
 
-	ctx := context.Background()
+	ctx := lagunaCtx()
 	unsynced, err := repo.ListUnsynced(ctx, origin, 10)
 	require.NoError(t, err)
 	require.Len(t, unsynced, 2)
@@ -210,7 +210,7 @@ func TestSyncStateRepository_AdvancePushedSeq_Integration(t *testing.T) {
 	peer := uuid.NewString()
 	t.Cleanup(func() { db.DB.Exec("DELETE FROM sync_state WHERE peer_node_id = ?", peer) })
 
-	ctx := context.Background()
+	ctx := lagunaCtx()
 	require.NoError(t, repo.AdvancePushedSeq(ctx, peer, 5))
 
 	var seq int64
@@ -237,7 +237,7 @@ func TestSyncStateRepository_PulledCursor_Integration(t *testing.T) {
 	peer := uuid.NewString()
 	t.Cleanup(func() { db.DB.Exec("DELETE FROM sync_state WHERE peer_node_id = ?", peer) })
 
-	ctx := context.Background()
+	ctx := lagunaCtx()
 	cursor, err := repo.GetPulledCursor(ctx, peer)
 	require.NoError(t, err)
 	assert.Nil(t, cursor, "no cursor before the first pull")

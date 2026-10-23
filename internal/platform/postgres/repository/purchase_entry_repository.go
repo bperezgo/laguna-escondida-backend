@@ -22,6 +22,7 @@ func NewPurchaseEntryRepository(db *gorm.DB) ports.PurchaseEntryRepository {
 }
 
 type purchaseEntryModel struct {
+	postgres.TenantOwned
 	ID               string          `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	SupplierID       string          `gorm:"type:uuid;not null;column:supplier_id"`
 	TotalAmount      decimal.Decimal `gorm:"type:numeric(19,4);not null;column:total_amount"`
@@ -36,6 +37,7 @@ func (purchaseEntryModel) TableName() string {
 }
 
 type purchaseEntryItemModel struct {
+	postgres.TenantOwned
 	ID              string          `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	PurchaseEntryID string          `gorm:"type:uuid;not null;column:purchase_entry_id"`
 	ProductID       string          `gorm:"type:uuid;not null;column:product_id"`
@@ -107,9 +109,13 @@ func (r *PurchaseEntryRepository) Create(ctx context.Context, entry *purchase_en
 }
 
 func (r *PurchaseEntryRepository) FindByID(ctx context.Context, id string) (*dto.PurchaseEntryWithSupplier, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var entryModel purchaseEntryWithSupplierModel
 
-	err := postgres.GetTxOrDB(ctx, r.db).
+	err = db.
 		Table("purchase_entries pe").
 		Select("pe.id, pe.supplier_id, s.name as supplier_name, pe.total_amount, pe.invoice_reference, pe.entry_date, pe.notes, pe.pdf_storage_path, pe.xml_storage_path, pe.created_at").
 		Joins("JOIN suppliers s ON s.id = pe.supplier_id").
@@ -141,9 +147,13 @@ func (r *PurchaseEntryRepository) FindByID(ctx context.Context, id string) (*dto
 }
 
 func (r *PurchaseEntryRepository) FindAll(ctx context.Context) ([]*dto.PurchaseEntryWithSupplier, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var models []purchaseEntryWithSupplierModel
 
-	err := postgres.GetTxOrDB(ctx, r.db).
+	err = db.
 		Table("purchase_entries pe").
 		Select("pe.id, pe.supplier_id, s.name as supplier_name, pe.total_amount, pe.invoice_reference, pe.entry_date, pe.notes, pe.pdf_storage_path, pe.xml_storage_path, pe.created_at").
 		Joins("JOIN suppliers s ON s.id = pe.supplier_id AND s.deleted_at IS NULL").
@@ -174,9 +184,13 @@ func (r *PurchaseEntryRepository) FindAll(ctx context.Context) ([]*dto.PurchaseE
 }
 
 func (r *PurchaseEntryRepository) FindByCriteria(ctx context.Context, criteria *dto.PurchaseEntryListCriteria) ([]*dto.PurchaseEntryWithSupplier, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var models []purchaseEntryWithSupplierModel
 
-	query := postgres.GetTxOrDB(ctx, r.db).
+	query := db.
 		Table("purchase_entries pe").
 		Select("pe.id, pe.supplier_id, s.name as supplier_name, pe.total_amount, pe.invoice_reference, pe.entry_date, pe.notes, pe.pdf_storage_path, pe.xml_storage_path, pe.created_at").
 		Joins("JOIN suppliers s ON s.id = pe.supplier_id AND s.deleted_at IS NULL")
@@ -193,7 +207,7 @@ func (r *PurchaseEntryRepository) FindByCriteria(ctx context.Context, criteria *
 		query = query.Where("pe.entry_date <= ?", *criteria.EndDate)
 	}
 
-	err := query.Order("pe.entry_date DESC").Find(&models).Error
+	err = query.Order("pe.entry_date DESC").Find(&models).Error
 	if err != nil {
 		return nil, err
 	}
@@ -218,9 +232,13 @@ func (r *PurchaseEntryRepository) FindByCriteria(ctx context.Context, criteria *
 }
 
 func (r *PurchaseEntryRepository) FindBySupplierID(ctx context.Context, supplierID string) ([]*dto.PurchaseEntryWithSupplier, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var models []purchaseEntryWithSupplierModel
 
-	err := postgres.GetTxOrDB(ctx, r.db).
+	err = db.
 		Table("purchase_entries pe").
 		Select("pe.id, pe.supplier_id, s.name as supplier_name, pe.total_amount, pe.invoice_reference, pe.entry_date, pe.notes, pe.pdf_storage_path, pe.xml_storage_path, pe.created_at").
 		Joins("JOIN suppliers s ON s.id = pe.supplier_id AND s.deleted_at IS NULL").
@@ -252,9 +270,13 @@ func (r *PurchaseEntryRepository) FindBySupplierID(ctx context.Context, supplier
 }
 
 func (r *PurchaseEntryRepository) findItemsByEntryID(ctx context.Context, entryID string) ([]*dto.PurchaseEntryItem, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var models []purchaseEntryItemWithProductModel
 
-	err := postgres.GetTxOrDB(ctx, r.db).
+	err = db.
 		Table("purchase_entry_items pei").
 		Select("pei.id, pei.purchase_entry_id, pei.product_id, p.name as product_name, pei.quantity, pei.unit_cost, pei.total_cost").
 		Joins("JOIN products p ON p.id = pei.product_id").
@@ -282,12 +304,16 @@ func (r *PurchaseEntryRepository) findItemsByEntryID(ctx context.Context, entryI
 }
 
 func (r *PurchaseEntryRepository) GetPurchaseSummary(ctx context.Context, startDate time.Time, endDate time.Time) (*dto.PurchaseSummary, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var result struct {
 		TotalAmount float64 `gorm:"column:total_amount"`
 		Count       int     `gorm:"column:count"`
 	}
 
-	err := postgres.GetTxOrDB(ctx, r.db).
+	err = db.
 		Table("purchase_entries").
 		Select("COALESCE(SUM(total_amount), 0) as total_amount, COUNT(*) as count").
 		Where("entry_date >= ? AND entry_date <= ?", startDate, endDate).
@@ -304,6 +330,10 @@ func (r *PurchaseEntryRepository) GetPurchaseSummary(ctx context.Context, startD
 }
 
 func (r *PurchaseEntryRepository) UpdateStoragePaths(ctx context.Context, id string, pdfPath *string, xmlPath *string) error {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 	updates := make(map[string]any)
 
 	if pdfPath != nil {
@@ -318,7 +348,7 @@ func (r *PurchaseEntryRepository) UpdateStoragePaths(ctx context.Context, id str
 		return nil
 	}
 
-	return postgres.GetTxOrDB(ctx, r.db).
+	return db.
 		Table("purchase_entries").
 		Where("id = ?", id).
 		Updates(updates).Error

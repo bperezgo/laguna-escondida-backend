@@ -11,6 +11,7 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
+	"laguna-escondida/backend/internal/domain/tenant"
 
 	"github.com/google/uuid"
 )
@@ -20,7 +21,6 @@ type ExpenseService struct {
 	expenseRepo         ports.ExpenseRepository
 	supplierRepo        ports.SupplierRepository
 	storageClient       ports.StorageClient
-	organizationID      string
 }
 
 func NewExpenseService(
@@ -28,14 +28,12 @@ func NewExpenseService(
 	expenseRepo ports.ExpenseRepository,
 	supplierRepo ports.SupplierRepository,
 	storageClient ports.StorageClient,
-	organizationID string,
 ) *ExpenseService {
 	return &ExpenseService{
 		expenseCategoryRepo: expenseCategoryRepo,
 		expenseRepo:         expenseRepo,
 		supplierRepo:        supplierRepo,
 		storageClient:       storageClient,
-		organizationID:      organizationID,
 	}
 }
 
@@ -241,6 +239,10 @@ func (s *ExpenseService) populateExpenseDownloadURLs(expenses []*dto.ExpenseWith
 }
 
 func (s *ExpenseService) UploadExpenseDocument(ctx context.Context, expenseID string, categoryCode string, fileData []byte, fileType string) (*dto.DocumentUploadResult, error) {
+	orgID, err := tenant.RequireOrg(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if _, err := s.expenseRepo.FindByID(ctx, expenseID); err != nil {
 		return nil, fmt.Errorf("%w: %w", domainError.ErrExpenseNotFound, err)
 	}
@@ -259,7 +261,7 @@ func (s *ExpenseService) UploadExpenseDocument(ctx context.Context, expenseID st
 		return nil, fmt.Errorf("unsupported file type: %s", fileType)
 	}
 
-	storageKey := fmt.Sprintf("%s/expenses/%s_%s.%s", s.organizationID, categoryCode, expenseID, extension)
+	storageKey := fmt.Sprintf("%s/expenses/%s_%s.%s", orgID, categoryCode, expenseID, extension)
 
 	if err := s.storageClient.Upload(ctx, storageKey, fileData, contentType); err != nil {
 		return nil, fmt.Errorf("failed to upload document: %w", err)
@@ -285,12 +287,16 @@ func (s *ExpenseService) UploadExpenseDocument(ctx context.Context, expenseID st
 // UploadExpenseDocuments uploads both PDF and XML files for an expense
 // This is typically used when processing a ZIP file containing both documents
 func (s *ExpenseService) UploadExpenseDocuments(ctx context.Context, expenseID string, categoryCode string, pdfData []byte, xmlData []byte) (*dto.DocumentUploadResult, error) {
+	orgID, err := tenant.RequireOrg(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if _, err := s.expenseRepo.FindByID(ctx, expenseID); err != nil {
 		return nil, fmt.Errorf("%w: %w", domainError.ErrExpenseNotFound, err)
 	}
 
-	pdfStorageKey := fmt.Sprintf("%s/expenses/%s_%s.pdf", s.organizationID, categoryCode, expenseID)
-	xmlStorageKey := fmt.Sprintf("%s/expenses/%s_%s.xml", s.organizationID, categoryCode, expenseID)
+	pdfStorageKey := fmt.Sprintf("%s/expenses/%s_%s.pdf", orgID, categoryCode, expenseID)
+	xmlStorageKey := fmt.Sprintf("%s/expenses/%s_%s.xml", orgID, categoryCode, expenseID)
 
 	if err := s.storageClient.Upload(ctx, pdfStorageKey, pdfData, "application/pdf"); err != nil {
 		return nil, fmt.Errorf("failed to upload PDF document: %w", err)

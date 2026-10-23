@@ -196,8 +196,8 @@ func main() {
 	organizationService := service.NewOrganizationService(organizationRepo, einvoicingSettingsRepo, unitOfWork)
 	billOwnerService := service.NewBillOwnerService(billOwnerRepo)
 	supplierService := service.NewSupplierService(supplierRepo, supplierCatalogRepo, productRepo)
-	purchaseEntryService := service.NewPurchaseEntryService(purchaseEntryRepo, supplierRepo, supplierCatalogRepo, productRepo, storageClient, publisher, unitOfWork, syncOutboxRepo, syncIdentity, logger, cfg.OrganizationID)
-	expenseService := service.NewExpenseService(expenseCategoryRepo, expenseRepo, supplierRepo, storageClient, cfg.OrganizationID)
+	purchaseEntryService := service.NewPurchaseEntryService(purchaseEntryRepo, supplierRepo, supplierCatalogRepo, productRepo, storageClient, publisher, unitOfWork, syncOutboxRepo, syncIdentity, logger)
+	expenseService := service.NewExpenseService(expenseCategoryRepo, expenseRepo, supplierRepo, storageClient)
 	productIngredientService := service.NewProductIngredientService(productIngredientRepo, productRepo)
 	financialService := service.NewFinancialService(billRepo, expenseRepo, purchaseEntryRepo)
 	deliveryZoneService := service.NewDeliveryZoneService(deliveryZoneRepo)
@@ -374,12 +374,12 @@ func main() {
 			logger.Error("Edge sync push disabled: set CLOUD_SYNC_URL and NODE_SYNC_KEY to enable it")
 			os.Exit(1)
 		}
-		syncPushClient := httpclient.NewSyncPushClient(httpClient, cfg.CloudSyncURL, cfg.NodeSyncKey)
+		syncPushClient := httpclient.NewSyncPushClient(httpClient, cfg.CloudSyncURL, cfg.NodeSyncKey, cfg.NodeID)
 		syncPushService := service.NewSyncPushService(
 			unitOfWork, syncOutboxRepo, syncStateRepo, syncPushClient,
 			syncIdentity, 0, logger,
 		)
-		syncPullClient := httpclient.NewSyncPullClient(httpClient, cfg.CloudSyncURL, cfg.NodeSyncKey)
+		syncPullClient := httpclient.NewSyncPullClient(httpClient, cfg.CloudSyncURL, cfg.NodeSyncKey, cfg.NodeID)
 		syncPullService := service.NewSyncPullService(
 			unitOfWork, syncPullClient, syncReferenceRepo, syncStateRepo,
 			syncIdentity, logger,
@@ -387,7 +387,7 @@ func main() {
 		// Stock pulls on a channel and a cursor of its own: daily, because the numbers
 		// should be stable through a service day, and separate so neither job's failure
 		// hides the other's progress (design D4).
-		stockPullClient := httpclient.NewSyncStockPullClient(httpClient, cfg.CloudSyncURL, cfg.NodeSyncKey)
+		stockPullClient := httpclient.NewSyncStockPullClient(httpClient, cfg.CloudSyncURL, cfg.NodeSyncKey, cfg.NodeID)
 		stockPullService := service.NewStockPullService(
 			unitOfWork, stockPullClient, syncReferenceRepo, syncStateRepo,
 			syncIdentity, logger,
@@ -412,13 +412,13 @@ func main() {
 
 		electronicInvoiceClient := httpclient.NewElectronicInvoiceClient(cfg, httpClient)
 		invoiceService := service.NewInvoiceService(
-			electronicInvoiceClient, productRepo, billRepo, pendingInvoiceRepo, unitOfWork, storageClient, cfg.OrganizationID,
+			electronicInvoiceClient, productRepo, billRepo, pendingInvoiceRepo, unitOfWork, storageClient,
 		)
-		supportDocRepo := repository.NewSupportDocumentRepository(db.DB, electronicInvoiceClient, cfg.OrganizationID)
-		supportDocService := service.NewSupportDocumentService(electronicInvoiceClient, supportDocRepo, storageClient, cfg.OrganizationID)
+		supportDocRepo := repository.NewSupportDocumentRepository(db.DB, electronicInvoiceClient)
+		supportDocService := service.NewSupportDocumentService(electronicInvoiceClient, supportDocRepo, storageClient)
 		invoiceSubmissionService := service.NewInvoiceSubmissionService(
 			pendingInvoiceRepo, billRepo, electronicInvoiceClient, unitOfWork, syncOutboxRepo,
-			einvoicingSettingsRepo, syncIdentity, cfg.OrganizationID, logger,
+			einvoicingSettingsRepo, syncIdentity, logger,
 		)
 
 		cronScheduler, cronErr := cron.NewScheduler(
@@ -450,7 +450,7 @@ func main() {
 			logger.Info("Telemetry ingest disabled: set TELEMETRY_FORWARD_URL to the cloud Alloy OTLP/HTTP receiver to enable it")
 		} else {
 			telemetryForwarder := httpclient.NewTelemetryForwardClient(httpClient, cfg.TelemetryForwardURL)
-			telemetryIngestService := service.NewTelemetryIngestService(telemetryForwarder, cfg.TelemetryTenantID, cfg.OrganizationID)
+			telemetryIngestService := service.NewTelemetryIngestService(telemetryForwarder, cfg.TelemetryTenantID)
 			telemetryHandler = handler.NewTelemetryHandler(telemetryIngestService)
 			logger.Info("Telemetry ingest enabled", slog.String("collector", cfg.TelemetryForwardURL))
 		}
@@ -461,6 +461,7 @@ func main() {
 			sync:            syncHandler,
 			telemetry:       telemetryHandler,
 			organization:    organizationHandler,
+			nodes:           service.NewNodeService(repository.NewNodeRepository(db.DB)),
 		})
 	}
 

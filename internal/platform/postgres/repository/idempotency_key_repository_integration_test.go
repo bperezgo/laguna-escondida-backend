@@ -1,7 +1,6 @@
 package repository_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -16,7 +15,7 @@ import (
 func TestIdempotencyKeyRepository_Lifecycle_Integration(t *testing.T) {
 	db := newSyncTestDB(t)
 	repo := repository.NewIdempotencyKeyRepository(db.DB)
-	ctx := context.Background()
+	ctx := lagunaCtx()
 
 	key := &dto.IdempotencyKey{Scope: "order.create", Key: uuid.NewString(), UserID: uuid.NewString(), RequestHash: "a1b2"}
 	t.Cleanup(func() { db.DB.Exec("DELETE FROM idempotency_keys WHERE key = ?", key.Key) })
@@ -53,7 +52,7 @@ func TestIdempotencyKeyRepository_Lifecycle_Integration(t *testing.T) {
 func TestIdempotencyKeyRepository_ReleaseStaleAndRelease_Integration(t *testing.T) {
 	db := newSyncTestDB(t)
 	repo := repository.NewIdempotencyKeyRepository(db.DB)
-	ctx := context.Background()
+	ctx := lagunaCtx()
 
 	stale := &dto.IdempotencyKey{Scope: "order.create", Key: uuid.NewString(), UserID: uuid.NewString(), RequestHash: "a1b2"}
 	fresh := &dto.IdempotencyKey{Scope: "order.create", Key: uuid.NewString(), UserID: uuid.NewString(), RequestHash: "a1b2"}

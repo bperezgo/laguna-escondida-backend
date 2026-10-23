@@ -17,6 +17,7 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
 	"laguna-escondida/backend/internal/domain/service"
+	"laguna-escondida/backend/internal/domain/tenant"
 	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/handler"
 	"laguna-escondida/backend/internal/platform/httpclient"
@@ -273,6 +274,11 @@ func newRig(t *testing.T) *rig {
 		NodeID:      deriveNodeID(testOrg, "edge"),
 		CloudNodeID: deriveNodeID(testOrg, "cloud"),
 	}
+	// The cloud acts for the organization a calling node is registered to.
+	require.NoError(t, cloudGDB.Exec(
+		"INSERT INTO nodes (id, name, kind, organization_id) VALUES (?, 'acceptance edge', 'edge', ?)",
+		identity.NodeID, lagunaOrgID,
+	).Error)
 
 	// --- cloud side: the sync aggregate served over a real HTTP boundary ---
 	cloudUoW := postgres.NewUnitOfWork(cloudGDB)
@@ -319,7 +325,9 @@ func newRig(t *testing.T) *rig {
 		}
 		c.Next()
 	})
-	nodeAuth := handler.NodeAuthMiddleware(&config.Config{NodeSyncKey: testNodeKey})
+	router.Use(handler.DBSessionMiddleware(cloudGDB))
+	nodeAuth := handler.NodeAuthMiddleware(&config.Config{NodeSyncKey: testNodeKey},
+		service.NewNodeService(repository.NewNodeRepository(cloudGDB)))
 	router.POST("/api/sync/push", nodeAuth, syncHandler.PushHandler)
 	router.GET("/api/sync/pull", nodeAuth, syncHandler.PullHandler)
 	router.GET("/api/sync/pull/stock", nodeAuth, syncHandler.PullStockHandler)
@@ -332,13 +340,13 @@ func newRig(t *testing.T) *rig {
 	edgeState := repository.NewSyncStateRepository(edgeGDB)
 	edgeRef := repository.NewSyncReferenceRepository(edgeGDB)
 
-	pullClient := httpclient.NewSyncPullClient(httpClient, server.URL, testNodeKey)
+	pullClient := httpclient.NewSyncPullClient(httpClient, server.URL, testNodeKey, identity.NodeID)
 	edgePull := service.NewSyncPullService(edgeUoW, pullClient, edgeRef, edgeState, identity, logger)
 
-	pushClient := httpclient.NewSyncPushClient(httpClient, server.URL, testNodeKey)
+	pushClient := httpclient.NewSyncPushClient(httpClient, server.URL, testNodeKey, identity.NodeID)
 	edgePush := service.NewSyncPushService(edgeUoW, edgeOutbox, edgeState, pushClient, identity, 0, logger)
 
-	stockPullClient := httpclient.NewSyncStockPullClient(httpClient, server.URL, testNodeKey)
+	stockPullClient := httpclient.NewSyncStockPullClient(httpClient, server.URL, testNodeKey, identity.NodeID)
 	edgeStockPull := service.NewStockPullService(edgeUoW, stockPullClient, edgeRef, edgeState, identity, logger)
 
 	// The restaurant's stock writes: they queue movements (never an amount) for the cloud.
@@ -355,8 +363,9 @@ func newRig(t *testing.T) *rig {
 	t.Cleanup(server.Close)
 
 	return &rig{
-		t:                t,
-		ctx:              context.Background(),
+		t: t,
+		// Both nodes are Laguna's: the edge's own work runs as the box's organization.
+		ctx:              tenant.WithOrg(context.Background(), lagunaOrgID),
 		cloudDB:          cloudGDB,
 		edgeDB:           edgeGDB,
 		cloudSync:        cloudSync,

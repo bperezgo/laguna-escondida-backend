@@ -20,6 +20,7 @@ func NewUserRoleRepository(db *gorm.DB) ports.UserRoleRepository {
 }
 
 type userRoleModel struct {
+	postgres.TenantOwned
 	ID        int       `gorm:"type:serial;primaryKey"`
 	UserID    string    `gorm:"type:uuid;not null"`
 	RoleID    int       `gorm:"type:integer;not null"`
@@ -31,7 +32,10 @@ func (userRoleModel) TableName() string {
 }
 
 func (r *UserRoleRepository) Create(ctx context.Context, userRole *dto.UserRole) error {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 	model := &userRoleModel{
 		UserID:    userRole.UserID,
 		RoleID:    userRole.RoleID,
@@ -42,7 +46,10 @@ func (r *UserRoleRepository) Create(ctx context.Context, userRole *dto.UserRole)
 }
 
 func (r *UserRoleRepository) FindByUserID(ctx context.Context, userID string) ([]*dto.UserRole, error) {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var models []userRoleModel
 	if err := db.WithContext(ctx).
 		Where("user_id = ?", userID).
@@ -58,13 +65,17 @@ func (r *UserRoleRepository) FindByUserID(ctx context.Context, userID string) ([
 	return userRoles, nil
 }
 
+// FindRolesByUserID reads the global roles table, so the organization filter goes on user_roles.
 func (r *UserRoleRepository) FindRolesByUserID(ctx context.Context, userID string) ([]*dto.Role, error) {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	orgID, err := postgres.OrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var models []roleModel
-	if err := db.WithContext(ctx).
+	if err := postgres.GetTxOrDB(ctx, r.db).
 		Table("roles").
 		Joins("INNER JOIN user_roles ON roles.id = user_roles.role_id").
-		Where("user_roles.user_id = ?", userID).
+		Where("user_roles.user_id = ? AND user_roles.organization_id = ?", userID, orgID).
 		Find(&models).Error; err != nil {
 		return nil, err
 	}
@@ -78,7 +89,10 @@ func (r *UserRoleRepository) FindRolesByUserID(ctx context.Context, userID strin
 }
 
 func (r *UserRoleRepository) DeleteByUserID(ctx context.Context, userID string) error {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 	return db.WithContext(ctx).
 		Where("user_id = ?", userID).
 		Delete(&userRoleModel{}).Error
@@ -86,7 +100,10 @@ func (r *UserRoleRepository) DeleteByUserID(ctx context.Context, userID string) 
 
 // CountUsersByRoleID counts active, non-deleted users that hold the given role.
 func (r *UserRoleRepository) CountUsersByRoleID(ctx context.Context, roleID int) (int, error) {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return 0, err
+	}
 	var count int64
 	if err := db.WithContext(ctx).
 		Table("user_roles").

@@ -20,6 +20,7 @@ func NewExpenseCategoryRepository(db *gorm.DB) ports.ExpenseCategoryRepository {
 }
 
 type expenseCategoryModel struct {
+	postgres.TenantOwned
 	ID          string    `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	Code        string    `gorm:"type:varchar(50);not null;uniqueIndex"`
 	Name        string    `gorm:"type:varchar(255);not null"`
@@ -33,6 +34,10 @@ func (expenseCategoryModel) TableName() string {
 }
 
 func (r *ExpenseCategoryRepository) Create(ctx context.Context, category *dto.ExpenseCategory) error {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 	model := &expenseCategoryModel{
 		ID:          category.ID,
 		Code:        category.Code,
@@ -42,11 +47,15 @@ func (r *ExpenseCategoryRepository) Create(ctx context.Context, category *dto.Ex
 		CreatedAt:   category.CreatedAt,
 	}
 
-	return postgres.GetTxOrDB(ctx, r.db).Create(model).Error
+	return db.Create(model).Error
 }
 
 func (r *ExpenseCategoryRepository) Update(ctx context.Context, id string, category *dto.ExpenseCategory) error {
-	return postgres.GetTxOrDB(ctx, r.db).
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	return db.
 		Model(&expenseCategoryModel{}).
 		Where("id = ?", id).
 		Updates(map[string]interface{}{
@@ -58,9 +67,13 @@ func (r *ExpenseCategoryRepository) Update(ctx context.Context, id string, categ
 }
 
 func (r *ExpenseCategoryRepository) FindAll(ctx context.Context) ([]*dto.ExpenseCategory, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var models []expenseCategoryModel
 
-	err := postgres.GetTxOrDB(ctx, r.db).
+	err = db.
 		Order("name ASC").
 		Find(&models).Error
 
@@ -72,9 +85,13 @@ func (r *ExpenseCategoryRepository) FindAll(ctx context.Context) ([]*dto.Expense
 }
 
 func (r *ExpenseCategoryRepository) FindByID(ctx context.Context, id string) (*dto.ExpenseCategory, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var model expenseCategoryModel
 
-	err := postgres.GetTxOrDB(ctx, r.db).
+	err = db.
 		Where("id = ?", id).
 		First(&model).Error
 
@@ -86,9 +103,13 @@ func (r *ExpenseCategoryRepository) FindByID(ctx context.Context, id string) (*d
 }
 
 func (r *ExpenseCategoryRepository) FindByCode(ctx context.Context, code string) (*dto.ExpenseCategory, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var model expenseCategoryModel
 
-	err := postgres.GetTxOrDB(ctx, r.db).
+	err = db.
 		Where("code = ?", code).
 		First(&model).Error
 
@@ -100,9 +121,13 @@ func (r *ExpenseCategoryRepository) FindByCode(ctx context.Context, code string)
 }
 
 func (r *ExpenseCategoryRepository) FindAllActive(ctx context.Context) ([]*dto.ExpenseCategory, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var models []expenseCategoryModel
 
-	err := postgres.GetTxOrDB(ctx, r.db).
+	err = db.
 		Where("is_active = ?", true).
 		Order("name ASC").
 		Find(&models).Error

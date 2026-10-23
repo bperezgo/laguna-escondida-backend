@@ -374,9 +374,9 @@ func (_c *MockBillRepository_FindByNullDocumentURL_Call) RunAndReturn(run func(c
 	return _c
 }
 
-// GetNextConsecutive provides a mock function with given fields: ctx, organizationID, prefix
-func (_m *MockBillRepository) GetNextConsecutive(ctx context.Context, organizationID string, prefix string) (int, error) {
-	ret := _m.Called(ctx, organizationID, prefix)
+// GetNextConsecutive provides a mock function with given fields: ctx, prefix
+func (_m *MockBillRepository) GetNextConsecutive(ctx context.Context, prefix string) (int, error) {
+	ret := _m.Called(ctx, prefix)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetNextConsecutive")
@@ -384,17 +384,17 @@ func (_m *MockBillRepository) GetNextConsecutive(ctx context.Context, organizati
 
 	var r0 int
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) (int, error)); ok {
-		return rf(ctx, organizationID, prefix)
+	if rf, ok := ret.Get(0).(func(context.Context, string) (int, error)); ok {
+		return rf(ctx, prefix)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) int); ok {
-		r0 = rf(ctx, organizationID, prefix)
+	if rf, ok := ret.Get(0).(func(context.Context, string) int); ok {
+		r0 = rf(ctx, prefix)
 	} else {
 		r0 = ret.Get(0).(int)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
-		r1 = rf(ctx, organizationID, prefix)
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, prefix)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -409,15 +409,14 @@ type MockBillRepository_GetNextConsecutive_Call struct {
 
 // GetNextConsecutive is a helper method to define mock.On call
 //   - ctx context.Context
-//   - organizationID string
 //   - prefix string
-func (_e *MockBillRepository_Expecter) GetNextConsecutive(ctx interface{}, organizationID interface{}, prefix interface{}) *MockBillRepository_GetNextConsecutive_Call {
-	return &MockBillRepository_GetNextConsecutive_Call{Call: _e.mock.On("GetNextConsecutive", ctx, organizationID, prefix)}
+func (_e *MockBillRepository_Expecter) GetNextConsecutive(ctx interface{}, prefix interface{}) *MockBillRepository_GetNextConsecutive_Call {
+	return &MockBillRepository_GetNextConsecutive_Call{Call: _e.mock.On("GetNextConsecutive", ctx, prefix)}
 }
 
-func (_c *MockBillRepository_GetNextConsecutive_Call) Run(run func(ctx context.Context, organizationID string, prefix string)) *MockBillRepository_GetNextConsecutive_Call {
+func (_c *MockBillRepository_GetNextConsecutive_Call) Run(run func(ctx context.Context, prefix string)) *MockBillRepository_GetNextConsecutive_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string))
+		run(args[0].(context.Context), args[1].(string))
 	})
 	return _c
 }
@@ -427,7 +426,7 @@ func (_c *MockBillRepository_GetNextConsecutive_Call) Return(_a0 int, _a1 error)
 	return _c
 }
 
-func (_c *MockBillRepository_GetNextConsecutive_Call) RunAndReturn(run func(context.Context, string, string) (int, error)) *MockBillRepository_GetNextConsecutive_Call {
+func (_c *MockBillRepository_GetNextConsecutive_Call) RunAndReturn(run func(context.Context, string) (int, error)) *MockBillRepository_GetNextConsecutive_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -13,6 +13,7 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
+	"laguna-escondida/backend/internal/domain/tenant"
 	pkgPorts "laguna-escondida/backend/pkg/domain/ports"
 
 	"github.com/google/uuid"
@@ -29,7 +30,6 @@ type PurchaseEntryService struct {
 	outboxRepo          ports.SyncOutboxRepository
 	syncIdentity        dto.SyncIdentity
 	logger              *slog.Logger
-	organizationID      string
 }
 
 func NewPurchaseEntryService(
@@ -43,7 +43,6 @@ func NewPurchaseEntryService(
 	outboxRepo ports.SyncOutboxRepository,
 	syncIdentity dto.SyncIdentity,
 	logger *slog.Logger,
-	organizationID string,
 ) *PurchaseEntryService {
 	return &PurchaseEntryService{
 		purchaseEntryRepo:   purchaseEntryRepo,
@@ -56,7 +55,6 @@ func NewPurchaseEntryService(
 		outboxRepo:          outboxRepo,
 		syncIdentity:        syncIdentity,
 		logger:              logger,
-		organizationID:      organizationID,
 	}
 }
 
@@ -223,6 +221,10 @@ func (s *PurchaseEntryService) populateDownloadURLs(entries []*dto.PurchaseEntry
 }
 
 func (s *PurchaseEntryService) UploadPurchaseEntryDocument(ctx context.Context, purchaseEntryID string, fileData []byte, fileType string) (*dto.DocumentUploadResult, error) {
+	orgID, err := tenant.RequireOrg(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if _, err := s.purchaseEntryRepo.FindByID(ctx, purchaseEntryID); err != nil {
 		return nil, fmt.Errorf("%w: %w", domainError.ErrPurchaseEntryNotFound, err)
 	}
@@ -241,7 +243,7 @@ func (s *PurchaseEntryService) UploadPurchaseEntryDocument(ctx context.Context, 
 		return nil, fmt.Errorf("unsupported file type: %s", fileType)
 	}
 
-	storageKey := fmt.Sprintf("%s/purchase-entries/%s.%s", s.organizationID, purchaseEntryID, extension)
+	storageKey := fmt.Sprintf("%s/purchase-entries/%s.%s", orgID, purchaseEntryID, extension)
 
 	if err := s.storageClient.Upload(ctx, storageKey, fileData, contentType); err != nil {
 		return nil, fmt.Errorf("failed to upload document: %w", err)
@@ -267,12 +269,16 @@ func (s *PurchaseEntryService) UploadPurchaseEntryDocument(ctx context.Context, 
 // UploadPurchaseEntryDocuments uploads both PDF and XML files for a purchase entry
 // This is typically used when processing a ZIP file containing both documents
 func (s *PurchaseEntryService) UploadPurchaseEntryDocuments(ctx context.Context, purchaseEntryID string, pdfData []byte, xmlData []byte) (*dto.DocumentUploadResult, error) {
+	orgID, err := tenant.RequireOrg(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if _, err := s.purchaseEntryRepo.FindByID(ctx, purchaseEntryID); err != nil {
 		return nil, fmt.Errorf("%w: %w", domainError.ErrPurchaseEntryNotFound, err)
 	}
 
-	pdfStorageKey := fmt.Sprintf("%s/purchase-entries/%s.pdf", s.organizationID, purchaseEntryID)
-	xmlStorageKey := fmt.Sprintf("%s/purchase-entries/%s.xml", s.organizationID, purchaseEntryID)
+	pdfStorageKey := fmt.Sprintf("%s/purchase-entries/%s.pdf", orgID, purchaseEntryID)
+	xmlStorageKey := fmt.Sprintf("%s/purchase-entries/%s.xml", orgID, purchaseEntryID)
 
 	if err := s.storageClient.Upload(ctx, pdfStorageKey, pdfData, "application/pdf"); err != nil {
 		return nil, fmt.Errorf("failed to upload PDF document: %w", err)

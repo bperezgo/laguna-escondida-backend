@@ -30,7 +30,10 @@ func (a *PurchaseEntrySyncApplier) Apply(ctx context.Context, op *dto.SyncOutbox
 		return fmt.Errorf("purchase_entry does not support delete sync (op %s)", op.OpID)
 	}
 
-	db := postgres.GetTxOrDB(ctx, a.db)
+	db, err := postgres.TenantDB(ctx, a.db)
+	if err != nil {
+		return err
+	}
 
 	var payload dto.PurchaseEntry
 	if err := json.Unmarshal(op.Payload, &payload); err != nil {
@@ -48,6 +51,7 @@ func (a *PurchaseEntrySyncApplier) Apply(ctx context.Context, op *dto.SyncOutbox
 	}
 	if err := db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "id"}},
+		Where:   postgres.SameOrganization("purchase_entries"),
 		DoUpdates: clause.AssignmentColumns([]string{
 			"supplier_id", "total_amount", "invoice_reference", "entry_date", "notes",
 		}),
@@ -66,6 +70,7 @@ func (a *PurchaseEntrySyncApplier) Apply(ctx context.Context, op *dto.SyncOutbox
 		}
 		if err := db.Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "id"}},
+			Where:   postgres.SameOrganization("purchase_entry_items"),
 			DoUpdates: clause.AssignmentColumns([]string{
 				"purchase_entry_id", "product_id", "quantity", "unit_cost", "total_cost",
 			}),

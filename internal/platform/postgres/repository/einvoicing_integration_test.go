@@ -7,6 +7,7 @@ import (
 
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
+	"laguna-escondida/backend/internal/domain/tenant"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -55,14 +56,14 @@ func TestBillRepository_GetNextConsecutive_CountsPerOrganization_Integration(t *
 	ctx := context.Background()
 	orgA, orgB := seedOrganization(t, db), seedOrganization(t, db)
 
-	first, err := repo.GetNextConsecutive(ctx, orgA, "LAG")
+	first, err := repo.GetNextConsecutive(tenant.WithOrg(ctx, orgA), "LAG")
 	require.NoError(t, err)
 	assert.Equal(t, 1, first, "a new organization starts at 1")
-	second, err := repo.GetNextConsecutive(ctx, orgA, "LAG")
+	second, err := repo.GetNextConsecutive(tenant.WithOrg(ctx, orgA), "LAG")
 	require.NoError(t, err)
 	assert.Equal(t, 2, second)
 
-	other, err := repo.GetNextConsecutive(ctx, orgB, "LAG")
+	other, err := repo.GetNextConsecutive(tenant.WithOrg(ctx, orgB), "LAG")
 	require.NoError(t, err)
 	assert.Equal(t, 1, other, "the same prefix in another organization has its own counter")
 }
@@ -70,10 +71,10 @@ func TestBillRepository_GetNextConsecutive_CountsPerOrganization_Integration(t *
 func TestPendingInvoiceRepository_AssignConsecutive_OnlyOnce_Integration(t *testing.T) {
 	db := newApplierTestDB(t)
 	repo := NewPendingInvoiceRepository(db.DB)
-	ctx := context.Background()
+	ctx := lagunaCtx()
 
 	id := uuid.NewString()
-	require.NoError(t, db.DB.Create(&pendingInvoiceModel{ID: id, BillID: uuid.NewString(), Status: string(dto.PendingInvoiceStatusPending)}).Error)
+	require.NoError(t, db.DB.WithContext(lagunaCtx()).Create(&pendingInvoiceModel{ID: id, BillID: uuid.NewString(), Status: string(dto.PendingInvoiceStatusPending)}).Error)
 	t.Cleanup(func() { db.DB.Exec("DELETE FROM pending_invoices WHERE id = ?", id) })
 
 	require.NoError(t, repo.AssignConsecutive(ctx, id, "LAG", 7, json.RawMessage(`{"Prefix":"LAG"}`)))

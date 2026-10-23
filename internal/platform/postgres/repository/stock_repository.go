@@ -20,6 +20,7 @@ func NewStockRepository(db *gorm.DB) ports.StockRepository {
 }
 
 type stockModel struct {
+	postgres.TenantOwned
 	ProductID     string     `gorm:"type:uuid;primaryKey"`
 	Version       int        `gorm:"type:integer;primaryKey"`
 	Amount        int        `gorm:"type:integer;not null"`
@@ -34,6 +35,7 @@ func (stockModel) TableName() string {
 }
 
 type historicStockModel struct {
+	postgres.TenantOwned
 	ID            int       `gorm:"type:serial;primaryKey"`
 	OpID          *string   `gorm:"type:uuid;column:op_id"`
 	ProductID     string    `gorm:"type:uuid;not null"`
@@ -48,6 +50,10 @@ func (historicStockModel) TableName() string {
 }
 
 func (r *StockRepository) Create(ctx context.Context, stock *dto.Stock) error {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 	model := &stockModel{
 		ProductID:     stock.ProductID,
 		Version:       stock.Version,
@@ -57,12 +63,16 @@ func (r *StockRepository) Create(ctx context.Context, stock *dto.Stock) error {
 		UpdatedAt:     stock.UpdatedAt,
 	}
 
-	return postgres.GetTxOrDB(ctx, r.db).Create(model).Error
+	return db.Create(model).Error
 }
 
 func (r *StockRepository) FindByProductID(ctx context.Context, productID string) (*dto.Stock, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var model stockModel
-	if err := postgres.GetTxOrDB(ctx, r.db).
+	if err := db.
 		Where("product_id = ? AND deleted_at IS NULL", productID).
 		First(&model).Error; err != nil {
 		return nil, err
@@ -72,8 +82,12 @@ func (r *StockRepository) FindByProductID(ctx context.Context, productID string)
 }
 
 func (r *StockRepository) FindAll(ctx context.Context) ([]*dto.Stock, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var models []stockModel
-	if err := postgres.GetTxOrDB(ctx, r.db).
+	if err := db.
 		Where("deleted_at IS NULL").
 		Find(&models).Error; err != nil {
 		return nil, err
@@ -88,8 +102,12 @@ func (r *StockRepository) FindAll(ctx context.Context) ([]*dto.Stock, error) {
 }
 
 func (r *StockRepository) UpdateAmount(ctx context.Context, productID string, amount int) error {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 	now := time.Now()
-	return postgres.GetTxOrDB(ctx, r.db).
+	return db.
 		Model(&stockModel{}).
 		Where("product_id = ? AND deleted_at IS NULL", productID).
 		Updates(map[string]any{
@@ -99,8 +117,12 @@ func (r *StockRepository) UpdateAmount(ctx context.Context, productID string, am
 }
 
 func (r *StockRepository) Delete(ctx context.Context, productID string) error {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 	now := time.Now()
-	return postgres.GetTxOrDB(ctx, r.db).
+	return db.
 		Model(&stockModel{}).
 		Where("product_id = ? AND deleted_at IS NULL", productID).
 		Updates(map[string]any{
@@ -117,7 +139,10 @@ func (r *StockRepository) BulkCreateOrUpdate(ctx context.Context, stocks []*dto.
 		return nil
 	}
 
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 	for _, stock := range stocks {
 		model := &stockModel{
 			ProductID:     stock.ProductID,
@@ -151,6 +176,10 @@ func (r *StockRepository) BulkCreateOrUpdate(ctx context.Context, stocks []*dto.
 }
 
 func (r *StockRepository) CreateHistoricRecord(ctx context.Context, historicStock *dto.HistoricStock) error {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 	model := &historicStockModel{
 		ProductID:     historicStock.ProductID,
 		UnitOfMeasure: string(historicStock.UnitOfMeasure),
@@ -162,12 +191,16 @@ func (r *StockRepository) CreateHistoricRecord(ctx context.Context, historicStoc
 		model.OpID = &historicStock.OpID
 	}
 
-	return postgres.GetTxOrDB(ctx, r.db).Create(model).Error
+	return db.Create(model).Error
 }
 
 func (r *StockRepository) FindHistoricByProductID(ctx context.Context, productID string) ([]*dto.HistoricStock, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var models []historicStockModel
-	if err := postgres.GetTxOrDB(ctx, r.db).
+	if err := db.
 		Where("product_id = ?", productID).
 		Order("created_at DESC").
 		Find(&models).Error; err != nil {

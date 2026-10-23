@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -39,7 +38,7 @@ func TestSyncReferenceRepository_FindChangedProducts_Integration(t *testing.T) {
 	repo := NewSyncReferenceRepository(db.DB)
 
 	productID := seedProduct(t, db)
-	ctx := context.Background()
+	ctx := lagunaCtx()
 
 	// Read the product's own updated_at back through the repo so the cursor and the
 	// stored timestamp share one driver conversion (avoids timestamp-without-tz vs
@@ -81,7 +80,7 @@ func TestSyncReferenceRepository_UpsertProducts_InsertThenSoftDelete_Integration
 
 	id := uuid.NewString()
 	t.Cleanup(func() { db.DB.Exec("DELETE FROM products WHERE id = ?", id) })
-	ctx := context.Background()
+	ctx := lagunaCtx()
 
 	// Insert via upsert.
 	payload := newProductSyncPayload(id)
@@ -111,7 +110,7 @@ func TestSyncReferenceRepository_UpsertUsers_Integration(t *testing.T) {
 
 	id := uuid.NewString()
 	t.Cleanup(func() { db.DB.Exec("DELETE FROM users WHERE id = ?", id) })
-	ctx := context.Background()
+	ctx := lagunaCtx()
 
 	now := time.Now()
 	require.NoError(t, repo.UpsertUsers(ctx, []dto.UserSyncPayload{{
@@ -137,11 +136,11 @@ func TestSyncReferenceRepository_FindChangedUsers_IncludesRoles_Integration(t *t
 	repo := NewSyncReferenceRepository(db.DB)
 
 	userID := seedUser(t, db)
-	require.NoError(t, db.DB.Create([]userRoleModel{
+	require.NoError(t, db.DB.WithContext(lagunaCtx()).Create([]userRoleModel{
 		{UserID: userID, RoleID: 1},
 		{UserID: userID, RoleID: 3},
 	}).Error)
-	ctx := context.Background()
+	ctx := lagunaCtx()
 
 	users, err := repo.FindChangedUsers(ctx, time.Time{})
 	require.NoError(t, err)
@@ -172,7 +171,7 @@ func TestSyncReferenceRepository_UpsertSuppliers_Integration(t *testing.T) {
 
 	id := uuid.NewString()
 	t.Cleanup(func() { db.DB.Exec("DELETE FROM suppliers WHERE id = ?", id) })
-	ctx := context.Background()
+	ctx := lagunaCtx()
 
 	now := time.Now()
 	require.NoError(t, repo.UpsertSuppliers(ctx, []dto.SupplierSyncPayload{{

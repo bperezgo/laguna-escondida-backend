@@ -39,7 +39,10 @@ func (a *HistoricStockSyncApplier) Apply(ctx context.Context, op *dto.SyncOutbox
 	}
 
 	opID := payload.OpID
-	db := postgres.GetTxOrDB(ctx, a.db)
+	db, err := postgres.TenantDB(ctx, a.db)
+	if err != nil {
+		return err
+	}
 	inserted := db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "op_id"}},
 		DoNothing: true,
@@ -58,12 +61,16 @@ func (a *HistoricStockSyncApplier) Apply(ctx context.Context, op *dto.SyncOutbox
 		return nil // already in the ledger: its effect is already in the amount
 	}
 
-	return a.fold(db, &payload)
+	orgID, err := postgres.OrgID(ctx)
+	if err != nil {
+		return err
+	}
+	return a.fold(db, orgID, &payload)
 }
 
 // fold adds the movement's signed change to the product's live on-hand. A negative result is
 // kept: on-hand is an accounting figure here, and a negative one is a real signal.
-func (a *HistoricStockSyncApplier) fold(db *gorm.DB, payload *dto.HistoricStockSyncPayload) error {
+func (a *HistoricStockSyncApplier) fold(db *gorm.DB, orgID string, payload *dto.HistoricStockSyncPayload) error {
 	now := time.Now()
 
 	folded := db.Model(&stockModel{}).
@@ -85,13 +92,14 @@ func (a *HistoricStockSyncApplier) fold(db *gorm.DB, payload *dto.HistoricStockS
 	// same key takes the delta rather than being resurrected — reviving a deleted stock row
 	// is an authoring decision, not something a replicated sale should make.
 	if err := db.Exec(`
-		INSERT INTO stock (product_id, version, amount, unit_of_measure, created_at, updated_at)
-		SELECT p.id, p.version, ?, ?, ?, ?
+		INSERT INTO stock (organization_id, product_id, version, amount, unit_of_measure, created_at, updated_at)
+		SELECT p.organization_id, p.id, p.version, ?, ?, ?, ?
 		FROM products p
-		WHERE p.id = ?
+		WHERE p.organization_id = ? AND p.id = ?
 		ON CONFLICT (product_id, version) DO UPDATE
 		SET amount = stock.amount + EXCLUDED.amount, updated_at = EXCLUDED.updated_at
-	`, payload.Change, payload.UnitOfMeasure, now, now, payload.ProductID).Error; err != nil {
+		WHERE stock.organization_id = EXCLUDED.organization_id
+	`, payload.Change, payload.UnitOfMeasure, now, now, orgID, payload.ProductID).Error; err != nil {
 		return fmt.Errorf("create stock from historic_stock: %w", err)
 	}
 	return nil

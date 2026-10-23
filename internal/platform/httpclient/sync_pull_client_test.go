@@ -15,11 +15,12 @@ import (
 )
 
 func TestSyncPullClient_Pull_SendsSinceAndKey(t *testing.T) {
-	var gotKey, gotPath, gotMethod, gotSince string
+	var gotKey, gotNodeID, gotPath, gotMethod, gotSince string
 
 	cursor := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotKey = r.Header.Get("X-Node-Key")
+		gotNodeID = r.Header.Get("X-Node-ID")
 		gotPath = r.URL.Path
 		gotMethod = r.Method
 		gotSince = r.URL.Query().Get("since")
@@ -32,7 +33,7 @@ func TestSyncPullClient_Pull_SendsSinceAndKey(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewSyncPullClient(&Client{Client: server.Client()}, server.URL, "secret-key")
+	client := NewSyncPullClient(&Client{Client: server.Client()}, server.URL, "secret-key", "node-a")
 
 	since := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
 	resp, err := client.Pull(context.Background(), since)
@@ -40,6 +41,7 @@ func TestSyncPullClient_Pull_SendsSinceAndKey(t *testing.T) {
 
 	assert.Equal(t, http.MethodGet, gotMethod)
 	assert.Equal(t, "/api/sync/pull", gotPath)
+	assert.Equal(t, "node-a", gotNodeID, "the cloud resolves the organization from the node id")
 	assert.Equal(t, "secret-key", gotKey)
 	assert.Equal(t, since.Format(time.RFC3339Nano), gotSince, "cursor sent as RFC3339Nano since param")
 
@@ -55,7 +57,7 @@ func TestSyncPullClient_Pull_Non200_IsError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewSyncPullClient(&Client{Client: server.Client()}, server.URL, "")
+	client := NewSyncPullClient(&Client{Client: server.Client()}, server.URL, "", "node-a")
 
 	resp, err := client.Pull(context.Background(), time.Time{})
 	require.Error(t, err)

@@ -10,6 +10,7 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports/mocks"
+	"laguna-escondida/backend/internal/domain/tenant"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -30,7 +31,7 @@ func createTestPurchaseEntryRequest() *dto.CreatePurchaseEntryRequest {
 // outbox row, stamped with this node's id and the create operation, and the payload
 // is the full entry snapshot.
 func TestCreatePurchaseEntry_WritesOutboxRowInTransaction(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-1")
 	mockPurchaseEntryRepo := mocks.NewMockPurchaseEntryRepository(t)
 	mockSupplierRepo := mocks.NewMockSupplierRepository(t)
 	mockSupplierCatalogRepo := mocks.NewMockSupplierCatalogRepository(t)
@@ -42,7 +43,7 @@ func TestCreatePurchaseEntry_WritesOutboxRowInTransaction(t *testing.T) {
 
 	purchaseEntryService := NewPurchaseEntryService(
 		mockPurchaseEntryRepo, mockSupplierRepo, mockSupplierCatalogRepo, mockProductRepo,
-		mockStorage, mockEventBus, mockUnitOfWork, mockOutbox, dto.SyncIdentity{NodeID: testNodeID}, slog.Default(), "org-1",
+		mockStorage, mockEventBus, mockUnitOfWork, mockOutbox, dto.SyncIdentity{NodeID: testNodeID}, slog.Default(),
 	)
 
 	req := createTestPurchaseEntryRequest()
@@ -79,7 +80,7 @@ func TestCreatePurchaseEntry_WritesOutboxRowInTransaction(t *testing.T) {
 }
 
 func TestCreatePurchaseEntry_SupplierNotFound(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-1")
 	mockPurchaseEntryRepo := mocks.NewMockPurchaseEntryRepository(t)
 	mockSupplierRepo := mocks.NewMockSupplierRepository(t)
 	mockSupplierCatalogRepo := mocks.NewMockSupplierCatalogRepository(t)
@@ -91,7 +92,7 @@ func TestCreatePurchaseEntry_SupplierNotFound(t *testing.T) {
 
 	purchaseEntryService := NewPurchaseEntryService(
 		mockPurchaseEntryRepo, mockSupplierRepo, mockSupplierCatalogRepo, mockProductRepo,
-		mockStorage, mockEventBus, mockUnitOfWork, mockOutbox, dto.SyncIdentity{NodeID: testNodeID}, slog.Default(), "org-1",
+		mockStorage, mockEventBus, mockUnitOfWork, mockOutbox, dto.SyncIdentity{NodeID: testNodeID}, slog.Default(),
 	)
 
 	req := createTestPurchaseEntryRequest()
@@ -105,7 +106,7 @@ func TestCreatePurchaseEntry_SupplierNotFound(t *testing.T) {
 }
 
 func TestCreatePurchaseEntry_ProductNotFound(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-1")
 	mockPurchaseEntryRepo := mocks.NewMockPurchaseEntryRepository(t)
 	mockSupplierRepo := mocks.NewMockSupplierRepository(t)
 	mockSupplierCatalogRepo := mocks.NewMockSupplierCatalogRepository(t)
@@ -117,7 +118,7 @@ func TestCreatePurchaseEntry_ProductNotFound(t *testing.T) {
 
 	purchaseEntryService := NewPurchaseEntryService(
 		mockPurchaseEntryRepo, mockSupplierRepo, mockSupplierCatalogRepo, mockProductRepo,
-		mockStorage, mockEventBus, mockUnitOfWork, mockOutbox, dto.SyncIdentity{NodeID: testNodeID}, slog.Default(), "org-1",
+		mockStorage, mockEventBus, mockUnitOfWork, mockOutbox, dto.SyncIdentity{NodeID: testNodeID}, slog.Default(),
 	)
 
 	req := createTestPurchaseEntryRequest()

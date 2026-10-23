@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -64,7 +63,7 @@ func TestBillSyncApplier_Apply_Create_Integration(t *testing.T) {
 		UpdatedAt:   now,
 	}
 
-	require.NoError(t, applier.Apply(context.Background(), billOp(t, dto.SyncOperationCreate, billID, marshalBillPayload(t, payload))))
+	require.NoError(t, applier.Apply(lagunaCtx(), billOp(t, dto.SyncOperationCreate, billID, marshalBillPayload(t, payload))))
 
 	var headerCount, ownerCount, productCount int64
 	db.DB.Raw("SELECT COUNT(*) FROM bills WHERE id = ? AND deleted_at IS NULL", billID).Scan(&headerCount)
@@ -75,7 +74,7 @@ func TestBillSyncApplier_Apply_Create_Integration(t *testing.T) {
 	assert.Equal(t, int64(1), productCount, "bill line item inserted")
 
 	// Re-apply is idempotent: products are replaced wholesale, still exactly one row.
-	require.NoError(t, applier.Apply(context.Background(), billOp(t, dto.SyncOperationCreate, billID, marshalBillPayload(t, payload))))
+	require.NoError(t, applier.Apply(lagunaCtx(), billOp(t, dto.SyncOperationCreate, billID, marshalBillPayload(t, payload))))
 	db.DB.Raw("SELECT COUNT(*) FROM bill_products WHERE bill_id = ?", billID).Scan(&productCount)
 	assert.Equal(t, int64(1), productCount, "re-apply leaves exactly one line item")
 }
@@ -102,12 +101,12 @@ func TestBillSyncApplier_Apply_Update_SetsInvoiceResult_Integration(t *testing.T
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
-	require.NoError(t, applier.Apply(context.Background(), billOp(t, dto.SyncOperationCreate, billID, marshalBillPayload(t, createPayload))))
+	require.NoError(t, applier.Apply(lagunaCtx(), billOp(t, dto.SyncOperationCreate, billID, marshalBillPayload(t, createPayload))))
 
 	cufe := "cufe-abc"
 	tascode := "tas-789"
 	updatePayload := dto.BillSyncPayload{ID: billID, CUFE: &cufe, Tascode: &tascode}
-	require.NoError(t, applier.Apply(context.Background(), billOp(t, dto.SyncOperationUpdate, billID, marshalBillPayload(t, updatePayload))))
+	require.NoError(t, applier.Apply(lagunaCtx(), billOp(t, dto.SyncOperationUpdate, billID, marshalBillPayload(t, updatePayload))))
 
 	var gotCUFE, gotTascode string
 	db.DB.Raw("SELECT cufe FROM bills WHERE id = ?", billID).Scan(&gotCUFE)

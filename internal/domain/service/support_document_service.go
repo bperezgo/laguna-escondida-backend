@@ -11,6 +11,7 @@ import (
 	"laguna-escondida/backend/internal/domain/aggregate/support_document"
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
+	"laguna-escondida/backend/internal/domain/tenant"
 
 	"github.com/samber/lo"
 )
@@ -19,20 +20,17 @@ type SupportDocumentService struct {
 	electronicInvoiceClient ports.ElectronicInvoiceClient
 	supportDocRepo          ports.SupportDocumentRepository
 	storageClient           ports.StorageClient
-	organizationID          string
 }
 
 func NewSupportDocumentService(
 	electronicInvoiceClient ports.ElectronicInvoiceClient,
 	supportDocRepo ports.SupportDocumentRepository,
 	storageClient ports.StorageClient,
-	organizationID string,
 ) *SupportDocumentService {
 	return &SupportDocumentService{
 		electronicInvoiceClient: electronicInvoiceClient,
 		supportDocRepo:          supportDocRepo,
 		storageClient:           storageClient,
-		organizationID:          organizationID,
 	}
 }
 
@@ -89,6 +87,10 @@ func (s *SupportDocumentService) ListSupportDocuments(ctx context.Context, req *
 }
 
 func (s *SupportDocumentService) UpdateMissingDocumentURLs(ctx context.Context) (*dto.UpdateDocumentURLsResponse, error) {
+	// Fail before any provider call: every upload is stored under the organization.
+	if _, err := tenant.RequireOrg(ctx); err != nil {
+		return nil, err
+	}
 	docs, err := s.supportDocRepo.FindByNullDocumentURL(ctx)
 	if err != nil {
 		return nil, err
@@ -247,6 +249,10 @@ func (s *SupportDocumentService) populateDownloadURLs(docs []dto.SupportDocument
 }
 
 func (s *SupportDocumentService) uploadToStorage(ctx context.Context, docID, pdfURL, xmlURL string) (*string, *string, error) {
+	orgID, err := tenant.RequireOrg(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
 	var pdfStoragePath, xmlStoragePath *string
 
 	if pdfURL != "" {
@@ -255,7 +261,7 @@ func (s *SupportDocumentService) uploadToStorage(ctx context.Context, docID, pdf
 			return nil, nil, fmt.Errorf("failed to download PDF: %w", err)
 		}
 
-		pdfKey := fmt.Sprintf("%s/support_documents/%s.pdf", s.organizationID, docID)
+		pdfKey := fmt.Sprintf("%s/support_documents/%s.pdf", orgID, docID)
 		if err := s.storageClient.Upload(ctx, pdfKey, pdfData, "application/pdf"); err != nil {
 			return nil, nil, fmt.Errorf("failed to upload PDF: %w", err)
 		}
@@ -268,7 +274,7 @@ func (s *SupportDocumentService) uploadToStorage(ctx context.Context, docID, pdf
 			return pdfStoragePath, nil, fmt.Errorf("failed to download XML: %w", err)
 		}
 
-		xmlKey := fmt.Sprintf("%s/support_documents/%s.xml", s.organizationID, docID)
+		xmlKey := fmt.Sprintf("%s/support_documents/%s.xml", orgID, docID)
 		if err := s.storageClient.Upload(ctx, xmlKey, xmlData, "application/xml"); err != nil {
 			return pdfStoragePath, nil, fmt.Errorf("failed to upload XML: %w", err)
 		}

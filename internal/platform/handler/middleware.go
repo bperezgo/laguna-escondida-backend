@@ -1,13 +1,18 @@
 package handler
 
 import (
+	"bytes"
 	"crypto/subtle"
+	"encoding/json"
+	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"slices"
 	"strings"
 	"time"
 
+	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/domain/tenant"
 	"laguna-escondida/backend/internal/platform/config"
@@ -59,10 +64,13 @@ func AdminAPIKeyMiddleware(cfg *config.Config) gin.HandlerFunc {
 	}
 }
 
-// NodeAuthMiddleware authenticates an edge node calling the cloud sync endpoints
-// via the X-Node-Key header. It fails closed: if no node key is configured, every
-// request is rejected.
-func NodeAuthMiddleware(cfg *config.Config) gin.HandlerFunc {
+// NodeIDHeader names the calling edge node; its registered organization is the one it syncs for.
+const NodeIDHeader = "X-Node-ID"
+
+// NodeAuthMiddleware authenticates an edge node calling the cloud sync endpoints via the
+// X-Node-Key header, then acts for the organization its X-Node-ID is registered to. It fails
+// closed: no node key configured, or a node the cloud doesn't know, rejects the request.
+func NodeAuthMiddleware(cfg *config.Config, nodes *service.NodeService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		nodeKey := c.GetHeader("X-Node-Key")
 		// Constant-time compare so a wrong key can't be recovered byte-by-byte via a timing
@@ -73,6 +81,47 @@ func NodeAuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
+		nodeID := c.GetHeader(NodeIDHeader)
+		orgID, err := nodes.OrganizationOf(c.Request.Context(), nodeID)
+		if err != nil {
+			_ = c.Error(err)
+			if errors.Is(err, domainError.ErrNodeNotFound) {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "unknown node"})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to resolve node"})
+			}
+			c.Abort()
+			return
+		}
+
+		c.Set("node_id", nodeID)
+		c.Request = c.Request.WithContext(tenant.WithOrg(c.Request.Context(), orgID))
+		c.Next()
+	}
+}
+
+// PushNodeIDFromBody fills X-Node-ID from a push body's node_id when the edge sent no header.
+// Edge boxes running the previous release name themselves only there; remove once every box
+// sends the header.
+func PushNodeIDFromBody() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.GetHeader(NodeIDHeader) != "" || c.Request.Body == nil {
+			c.Next()
+			return
+		}
+		body, err := io.ReadAll(c.Request.Body)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+			c.Abort()
+			return
+		}
+		c.Request.Body = io.NopCloser(bytes.NewReader(body))
+		var push struct {
+			NodeID string `json:"node_id"`
+		}
+		if json.Unmarshal(body, &push) == nil && push.NodeID != "" {
+			c.Request.Header.Set(NodeIDHeader, push.NodeID)
+		}
 		c.Next()
 	}
 }

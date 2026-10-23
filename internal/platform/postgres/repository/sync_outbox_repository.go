@@ -14,6 +14,7 @@ import (
 )
 
 type syncOutboxModel struct {
+	postgres.TenantOwned
 	OpID         string     `gorm:"column:op_id;primaryKey"`
 	OriginNodeID string     `gorm:"column:origin_node_id"`
 	EntityType   string     `gorm:"column:entity_type"`
@@ -49,19 +50,23 @@ func (r *SyncOutboxRepository) Append(ctx context.Context, entry *dto.SyncOutbox
 		return fmt.Errorf("sync outbox entry requires a caller-provided op_id")
 	}
 
+	orgID, err := postgres.OrgID(ctx)
+	if err != nil {
+		return err
+	}
 	db := postgres.GetTxOrDB(ctx, r.db)
 
 	// Serialize seq assignment for this origin so two concurrent appends can't read
-	// the same MAX(seq) and collide on UNIQUE(origin_node_id, seq). The lock auto-
-	// releases at commit/rollback.
+	// the same MAX(seq) and collide on UNIQUE(organization_id, origin_node_id, seq). The
+	// lock auto-releases at commit/rollback.
 	if err := db.Exec("SELECT pg_advisory_xact_lock(hashtext(?))", entry.OriginNodeID).Error; err != nil {
 		return fmt.Errorf("lock outbox origin: %w", err)
 	}
 
 	var maxSeq int64
 	if err := db.Raw(
-		"SELECT COALESCE(MAX(seq), 0) FROM sync_outbox WHERE origin_node_id = ?",
-		entry.OriginNodeID,
+		"SELECT COALESCE(MAX(seq), 0) FROM sync_outbox WHERE organization_id = ? AND origin_node_id = ?",
+		orgID, entry.OriginNodeID,
 	).Scan(&maxSeq).Error; err != nil {
 		return fmt.Errorf("read outbox max seq: %w", err)
 	}
@@ -87,7 +92,10 @@ func (r *SyncOutboxRepository) Append(ctx context.Context, entry *dto.SyncOutbox
 
 // ListUnsynced returns this origin's unacknowledged rows in seq order, capped at limit.
 func (r *SyncOutboxRepository) ListUnsynced(ctx context.Context, originNodeID string, limit int) ([]*dto.SyncOutboxEntry, error) {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 
 	var models []syncOutboxModel
 	if err := db.
@@ -110,7 +118,10 @@ func (r *SyncOutboxRepository) MarkSynced(ctx context.Context, opIDs []string) e
 	if len(opIDs) == 0 {
 		return nil
 	}
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 
 	if err := db.Model(&syncOutboxModel{}).
 		Where("op_id IN ?", opIDs).
@@ -123,7 +134,10 @@ func (r *SyncOutboxRepository) MarkSynced(ctx context.Context, opIDs []string) e
 // PendingStats returns this origin's unsynced row count and the oldest unsynced
 // created_at (nil when none) in a single aggregate query.
 func (r *SyncOutboxRepository) PendingStats(ctx context.Context, originNodeID string) (*dto.SyncOutboxPendingStats, error) {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 
 	var row struct {
 		PendingCount int64
@@ -147,12 +161,15 @@ func (r *SyncOutboxRepository) PendingStats(ctx context.Context, originNodeID st
 // ListUnsynced means the current node ID doesn't match what was written —
 // typically caused by APP_MODE or ORGANIZATION_ID changing between runs.
 func (r *SyncOutboxRepository) HasUnsyncedFromOtherOrigins(ctx context.Context, myOriginNodeID string) (bool, error) {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	orgID, err := postgres.OrgID(ctx)
+	if err != nil {
+		return false, err
+	}
 
 	var exists bool
-	if err := db.Raw(
-		"SELECT EXISTS(SELECT 1 FROM sync_outbox WHERE origin_node_id != ? AND synced_at IS NULL)",
-		myOriginNodeID,
+	if err := postgres.GetTxOrDB(ctx, r.db).Raw(
+		"SELECT EXISTS(SELECT 1 FROM sync_outbox WHERE organization_id = ? AND origin_node_id != ? AND synced_at IS NULL)",
+		orgID, myOriginNodeID,
 	).Scan(&exists).Error; err != nil {
 		return false, fmt.Errorf("check unsynced from other origins: %w", err)
 	}

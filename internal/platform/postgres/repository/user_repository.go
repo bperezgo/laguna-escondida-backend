@@ -21,6 +21,7 @@ func NewUserRepository(db *gorm.DB) ports.UserRepository {
 }
 
 type userModel struct {
+	postgres.TenantOwned
 	ID        string     `gorm:"type:uuid;primaryKey"`
 	Username  string     `gorm:"type:varchar(255);not null;uniqueIndex"`
 	Name      string     `gorm:"type:varchar(255);not null"`
@@ -36,7 +37,10 @@ func (userModel) TableName() string {
 }
 
 func (r *UserRepository) Create(ctx context.Context, user *dto.User) error {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 	model := &userModel{
 		ID:        user.ID,
 		Username:  user.Username,
@@ -56,7 +60,10 @@ func (r *UserRepository) Create(ctx context.Context, user *dto.User) error {
 }
 
 func (r *UserRepository) FindByUsername(ctx context.Context, username string) (*dto.User, error) {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var model userModel
 	if err := db.WithContext(ctx).
 		Where("username = ? AND deleted_at IS NULL", username).
@@ -71,7 +78,10 @@ func (r *UserRepository) FindByUsername(ctx context.Context, username string) (*
 }
 
 func (r *UserRepository) FindByID(ctx context.Context, id string) (*dto.User, error) {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var model userModel
 	if err := db.WithContext(ctx).
 		Where("id = ? AND deleted_at IS NULL", id).
@@ -86,7 +96,10 @@ func (r *UserRepository) FindByID(ctx context.Context, id string) (*dto.User, er
 }
 
 func (r *UserRepository) FindAll(ctx context.Context) ([]*dto.User, error) {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var models []userModel
 	if err := db.WithContext(ctx).
 		Where("deleted_at IS NULL").
@@ -104,7 +117,10 @@ func (r *UserRepository) FindAll(ctx context.Context) ([]*dto.User, error) {
 }
 
 func (r *UserRepository) Update(ctx context.Context, user *dto.User) error {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 	result := db.WithContext(ctx).
 		Model(&userModel{}).
 		Where("id = ? AND deleted_at IS NULL", user.ID).
@@ -123,7 +139,10 @@ func (r *UserRepository) Update(ctx context.Context, user *dto.User) error {
 }
 
 func (r *UserRepository) UpdatePassword(ctx context.Context, id, hashedPassword string) error {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 	result := db.WithContext(ctx).
 		Model(&userModel{}).
 		Where("id = ? AND deleted_at IS NULL", id).
@@ -141,7 +160,10 @@ func (r *UserRepository) UpdatePassword(ctx context.Context, id, hashedPassword 
 }
 
 func (r *UserRepository) SoftDelete(ctx context.Context, id string) error {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 	now := time.Now()
 	result := db.WithContext(ctx).
 		Model(&userModel{}).

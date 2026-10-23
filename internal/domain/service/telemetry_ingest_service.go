@@ -7,20 +7,20 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 	domainerror "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
+	"laguna-escondida/backend/internal/domain/tenant"
 )
 
 // TelemetryIngestService is the cloud side of edge telemetry: it validates an authenticated
 // node's OTLP export, stamps the tenant context, and hands it to the forwarder. Tenant
 // identity is decided here and never read from the payload, so a node cannot write itself
-// into another tenant's telemetry.
+// into another tenant's telemetry. The organization is the calling node's, from the context.
 type TelemetryIngestService struct {
-	forwarder      ports.TelemetryForwarder
-	tenantID       string
-	organizationID string
+	forwarder ports.TelemetryForwarder
+	tenantID  string
 }
 
-func NewTelemetryIngestService(forwarder ports.TelemetryForwarder, tenantID, organizationID string) *TelemetryIngestService {
-	return &TelemetryIngestService{forwarder: forwarder, tenantID: tenantID, organizationID: organizationID}
+func NewTelemetryIngestService(forwarder ports.TelemetryForwarder, tenantID string) *TelemetryIngestService {
+	return &TelemetryIngestService{forwarder: forwarder, tenantID: tenantID}
 }
 
 func (s *TelemetryIngestService) Ingest(ctx context.Context, export dto.TelemetryExport) error {
@@ -38,9 +38,13 @@ func (s *TelemetryIngestService) Ingest(ctx context.Context, export dto.Telemetr
 		return domainerror.ErrTelemetryEmptyPayload
 	}
 
+	orgID, err := tenant.RequireOrg(ctx)
+	if err != nil {
+		return err
+	}
 	export.TenantAttributes = []dto.TelemetryAttribute{
 		{Key: "tenant.id", Value: s.tenantID},
-		{Key: "organization.id", Value: s.organizationID},
+		{Key: "organization.id", Value: orgID},
 	}
 
 	if err := s.forwarder.Forward(ctx, export); err != nil {

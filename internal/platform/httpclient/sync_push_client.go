@@ -18,10 +18,11 @@ type SyncPushClient struct {
 	client  *Client
 	baseURL string
 	nodeKey string
+	nodeID  string
 }
 
-func NewSyncPushClient(client *Client, baseURL, nodeKey string) ports.SyncPushClient {
-	return &SyncPushClient{client: client, baseURL: baseURL, nodeKey: nodeKey}
+func NewSyncPushClient(client *Client, baseURL, nodeKey, nodeID string) ports.SyncPushClient {
+	return &SyncPushClient{client: client, baseURL: baseURL, nodeKey: nodeKey, nodeID: nodeID}
 }
 
 func (c *SyncPushClient) Push(ctx context.Context, req *dto.SyncPushRequest) (res *dto.SyncPushResponse, err error) {
@@ -36,6 +37,7 @@ func (c *SyncPushClient) Push(ctx context.Context, req *dto.SyncPushRequest) (re
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("X-Node-Key", c.nodeKey)
+	httpReq.Header.Set("X-Node-ID", c.nodeID)
 
 	resp, err := c.client.Do(httpReq)
 	if err != nil {

@@ -4,30 +4,30 @@
 - [x] 1.2 In the same migration, swap the uniques to per-org: `users.username` → `(organization_id, username)`, `bill_owners` PK → `(organization_id, id)`, `expense_categories.code` → `(organization_id, code)`, `sync_outbox` → `(organization_id, origin_node_id, seq)`. Verify with a migration test that the same username and the same expense code can exist in two orgs, and not twice in one.
 - [x] 1.3 Add composite unique `(organization_id, id)` on the parent tables and composite foreign keys on the relations in plan §2 (open bill products, bill products, bills → bill owners, stock and historic stock → products, supplier catalog, purchase entry items). Verify with a migration test that a child row pointing at another org's parent is rejected.
 - [ ] 1.4 Rehearse the migration on a restored production snapshot and record its duration. If the foreign keys lock too long, switch them to `NOT VALID` + `VALIDATE`. Verify the rehearsal notes are in the PR.
-- [ ] 1.5 Existing integration-test seed helpers that insert tenant rows without `organization_id` fail once the column has no default (task 4.5). **Ask before editing existing test helpers**, then add the org. Verify `DB_HOST= go test ./internal/platform/postgres/...`.
+- [x] 1.5 Existing integration-test seed helpers that insert tenant rows without `organization_id` fail once the column has no default (task 4.5). **Ask before editing existing test helpers**, then add the org. Verify `DB_HOST= go test ./internal/platform/postgres/...`.
 
 ## 2. Release 2: tenant context and boot checks
 
-- [ ] 2.1 Add `domain/tenant` with `WithOrg` and `OrgFrom`, and a domain error for a missing org. Verify `go build ./...`.
-- [ ] 2.2 Config: `ORGANIZATION_ID` required in edge mode, rejected in cloud mode; `NODE_ID` required in cloud mode; the edge keeps deriving its ids. Verify with `config_test.go` cases for all four `APP_MODE` × `ORGANIZATION_ID` combinations and a missing cloud `NODE_ID` (**ask before editing existing config tests**).
+- [x] 2.1 Add `domain/tenant` with `WithOrg` and `OrgFrom`, and a domain error for a missing org. Verify `go build ./...`.
+- [x] 2.2 Config: `ORGANIZATION_ID` required in edge mode, rejected in cloud mode; `NODE_ID` required in cloud mode; the edge keeps deriving its ids. Verify with `config_test.go` cases for all four `APP_MODE` × `ORGANIZATION_ID` combinations and a missing cloud `NODE_ID` (**ask before editing existing config tests**).
 - [ ] 2.3 Compute Laguna's current cloud node id and document it for the cloud task definition in `aws-infra`. Verify it equals the edge's default `CLOUD_NODE_ID` with a unit test.
-- [ ] 2.4 `DBSessionMiddleware(db)`: drop the `orgID` parameter, take the org from `tenant.OrgFrom`, open no session without one; register it inside the authenticated route groups after auth instead of globally. Verify a handler test that two requests with tokens of different orgs get sessions with different `app.org_id`, and an unauthenticated request gets none.
+- [x] 2.4 `DBSessionMiddleware(db)`: drop the `orgID` parameter, take the org from `tenant.OrgFrom`, open no session without one; register it inside the authenticated route groups after auth instead of globally. Verify a handler test that two requests with tokens of different orgs get sessions with different `app.org_id`, and an unauthenticated request gets none.
 
 ## 3. Release 2: sign-in and tokens
 
-- [ ] 3.1 Add `org_id` to the JWT claims and `UserDomain`; auth middleware rejects a token without it and calls `tenant.WithOrg`; on the edge it also rejects a token of another org. Verify middleware tests for each case in `specs/organization-sign-in` and `specs/tenant-isolation` ("An edge box serves only its own organization").
-- [ ] 3.2 Sign-in takes `organization`: resolve the slug through the organization repository, reject unknown or suspended with the opaque `401`, then look up the user in that org's session. Edge: optional, must match the box's slug. Verify service tests `TestAuthService_SignIn_*` for every scenario in `specs/organization-sign-in` (**ask before editing existing sign-in tests**).
-- [ ] 3.3 User creation: users created by a signed-in user land in the creator's org; `POST /api/users` with the admin key names the org by slug in the cloud (`400` without it, `404` unknown). Duplicate username in one org → `409`. Verify `user_service_test.go` cases (**ask before editing existing user tests**).
-- [ ] 3.4 `GET /api/auth/me` returns the token's organization. Verify a handler test with a user of a second org.
+- [x] 3.1 Add `org_id` to the JWT claims and `UserDomain`; auth middleware rejects a token without it and calls `tenant.WithOrg`; on the edge it also rejects a token of another org. Verify middleware tests for each case in `specs/organization-sign-in` and `specs/tenant-isolation` ("An edge box serves only its own organization").
+- [x] 3.2 Sign-in takes `organization`: resolve the slug through the organization repository, reject unknown or suspended with the opaque `401`, then look up the user in that org's session. Edge: optional, must match the box's slug. Verify service tests `TestAuthService_SignIn_*` for every scenario in `specs/organization-sign-in` (**ask before editing existing sign-in tests**).
+- [x] 3.3 User creation: users created by a signed-in user land in the creator's org; `POST /api/users` with the admin key names the org by slug in the cloud (`400` without it, `404` unknown). Duplicate username in one org → `409`. Verify `user_service_test.go` cases (**ask before editing existing user tests**).
+- [x] 3.4 `GET /api/auth/me` returns the token's organization. Verify a handler test with a user of a second org.
 - [ ] 3.5 Update `docs/api/auth.md` (request body, `org_id` claim, re-sign-in note), `docs/api/users.md` (bootstrap body) and `docs/examples/curl-examples.md`. Verify the curl example signs in against a local server.
 
 ## 4. Release 2: repositories and services
 
-- [ ] 4.1 Add the tenant helper in `platform/postgres` (design decision 5): scoped `*gorm.DB` from the context's org, error when missing. Verify unit tests for both cases.
-- [ ] 4.2 Move every tenant repository onto the helper and stamp `organization_id` from the context on every create, including raw SQL (`claimConsecutive`, sync appliers' upserts). Work repository by repository; verify each with its integration test and `go test ./...`.
+- [x] 4.1 Add the tenant helper in `platform/postgres` (design decision 5): scoped `*gorm.DB` from the context's org, error when missing. Verify unit tests for both cases.
+- [x] 4.2 Move every tenant repository onto the helper and stamp `organization_id` from the context on every create, including raw SQL (`claimConsecutive`, sync appliers' upserts). Work repository by repository; verify each with its integration test and `go test ./...`.
 - [ ] 4.3 Add a CI check (lint rule or grep in `make lint`) that flags direct `GetTxOrDB` use on tenant models outside the helper. Verify it fails on a deliberately unscoped call and passes on the tree.
-- [ ] 4.4 Services drop their `organizationID` constructor argument and read `tenant.OrgFrom(ctx)`: `PurchaseEntryService`, `ExpenseService`, `SupportDocumentService`, `InvoiceSubmissionService`, `SupportDocumentRepository`, `UserHandler`. Run `make generate-mocks` if ports change. Verify service tests cover a missing org and S3 keys under the context's org (**ask before editing existing service tests**).
-- [ ] 4.5 Add a migration that drops the Laguna `DEFAULT` on every `organization_id` added by migration A, once every create stamps the org. Verify an insert without the column fails and `make migrate-up/down/up` runs clean.
+- [x] 4.4 Services drop their `organizationID` constructor argument and read `tenant.OrgFrom(ctx)`: `PurchaseEntryService`, `ExpenseService`, `SupportDocumentService`, `InvoiceSubmissionService`, `SupportDocumentRepository`, `UserHandler`. Run `make generate-mocks` if ports change. Verify service tests cover a missing org and S3 keys under the context's org (**ask before editing existing service tests**).
+- [x] 4.5 Add a migration that drops the Laguna `DEFAULT` on every `organization_id` added by migration A, once every create stamps the org. Verify an insert without the column fails and `make migrate-up/down/up` runs clean.
 
 ## 5. Release 2: background work
 

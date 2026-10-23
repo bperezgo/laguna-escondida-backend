@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"laguna-escondida/backend/internal/domain/dto"
@@ -20,10 +21,14 @@ func NewStockReconciliationRepository(db *gorm.DB) ports.StockReconciliationRepo
 }
 
 func (r *StockReconciliationRepository) FindLedgerTotals(ctx context.Context) ([]dto.StockLedgerTotal, error) {
+	orgID, err := postgres.OrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var totals []dto.StockLedgerTotal
 	// Tombstoned rows are left out: a deleted stock row keeps its movements, so it would
 	// always read as diverged without saying anything useful.
-	err := postgres.GetTxOrDB(ctx, r.db).Raw(`
+	err = postgres.GetTxOrDB(ctx, r.db).Raw(`
 		SELECT s.product_id      AS product_id,
 		       s.amount          AS amount,
 		       s.unit_of_measure AS unit_of_measure,
@@ -32,11 +37,12 @@ func (r *StockReconciliationRepository) FindLedgerTotals(ctx context.Context) ([
 		LEFT JOIN (
 			SELECT product_id, SUM(change) AS total
 			FROM historic_stock
+			WHERE organization_id = @org
 			GROUP BY product_id
 		) h ON h.product_id = s.product_id
-		WHERE s.deleted_at IS NULL
+		WHERE s.organization_id = @org AND s.deleted_at IS NULL
 		ORDER BY s.product_id
-	`).Scan(&totals).Error
+	`, sql.Named("org", orgID)).Scan(&totals).Error
 	if err != nil {
 		return nil, err
 	}
@@ -48,12 +54,17 @@ func (r *StockReconciliationRepository) FindLedgerTotals(ctx context.Context) ([
 // sync op id it arrived as, and only a peer's movements reach the cloud that way, so the join
 // is exactly "the last movement replicated from the restaurant".
 func (r *StockReconciliationRepository) LastEdgeMovementAppliedAt(ctx context.Context) (*time.Time, error) {
+	orgID, err := postgres.OrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var appliedAt *time.Time
-	err := postgres.GetTxOrDB(ctx, r.db).Raw(`
+	err = postgres.GetTxOrDB(ctx, r.db).Raw(`
 		SELECT MAX(i.applied_at)
 		FROM sync_inbox i
 		JOIN historic_stock h ON h.op_id = i.op_id
-	`).Scan(&appliedAt).Error
+		WHERE i.organization_id = @org AND h.organization_id = @org
+	`, sql.Named("org", orgID)).Scan(&appliedAt).Error
 	if err != nil {
 		return nil, err
 	}

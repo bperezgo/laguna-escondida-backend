@@ -23,6 +23,7 @@ func NewDeliveryZoneRepository(db *gorm.DB) ports.DeliveryZoneRepository {
 }
 
 type deliveryZoneModel struct {
+	postgres.TenantOwned
 	ID        string          `gorm:"type:uuid;primaryKey"`
 	Name      string          `gorm:"type:varchar(100);not null"`
 	Boundary  json.RawMessage `gorm:"type:jsonb;not null"`
@@ -37,7 +38,11 @@ func (deliveryZoneModel) TableName() string {
 }
 
 func (r *DeliveryZoneRepository) Create(ctx context.Context, zone *dto.DeliveryZone) error {
-	return postgres.GetTxOrDB(ctx, r.db).Create(&deliveryZoneModel{
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	return db.Create(&deliveryZoneModel{
 		ID:        zone.ID,
 		Name:      zone.Name,
 		Boundary:  zone.Boundary,
@@ -48,7 +53,11 @@ func (r *DeliveryZoneRepository) Create(ctx context.Context, zone *dto.DeliveryZ
 }
 
 func (r *DeliveryZoneRepository) Update(ctx context.Context, zone *dto.DeliveryZone) error {
-	return postgres.GetTxOrDB(ctx, r.db).
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	return db.
 		Model(&deliveryZoneModel{}).
 		Where("id = ? AND deleted_at IS NULL", zone.ID).
 		Updates(map[string]any{
@@ -60,16 +69,24 @@ func (r *DeliveryZoneRepository) Update(ctx context.Context, zone *dto.DeliveryZ
 }
 
 func (r *DeliveryZoneRepository) Delete(ctx context.Context, id string) error {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 	now := time.Now()
-	return postgres.GetTxOrDB(ctx, r.db).
+	return db.
 		Model(&deliveryZoneModel{}).
 		Where("id = ? AND deleted_at IS NULL", id).
 		Updates(map[string]any{"deleted_at": now, "updated_at": now}).Error
 }
 
 func (r *DeliveryZoneRepository) FindByID(ctx context.Context, id string) (*dto.DeliveryZone, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var model deliveryZoneModel
-	err := postgres.GetTxOrDB(ctx, r.db).Where("id = ? AND deleted_at IS NULL", id).First(&model).Error
+	err = db.Where("id = ? AND deleted_at IS NULL", id).First(&model).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, domainError.ErrDeliveryZoneNotFound
 	}
@@ -80,11 +97,19 @@ func (r *DeliveryZoneRepository) FindByID(ctx context.Context, id string) (*dto.
 }
 
 func (r *DeliveryZoneRepository) FindAll(ctx context.Context) ([]*dto.DeliveryZone, error) {
-	return r.find(ctx, postgres.GetTxOrDB(ctx, r.db).Where("deleted_at IS NULL"))
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
+	return r.find(ctx, db.Where("deleted_at IS NULL"))
 }
 
 func (r *DeliveryZoneRepository) ListActive(ctx context.Context) ([]*dto.DeliveryZone, error) {
-	return r.find(ctx, postgres.GetTxOrDB(ctx, r.db).Where("deleted_at IS NULL AND active = true"))
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
+	return r.find(ctx, db.Where("deleted_at IS NULL AND active = true"))
 }
 
 func (r *DeliveryZoneRepository) find(_ context.Context, query *gorm.DB) ([]*dto.DeliveryZone, error) {

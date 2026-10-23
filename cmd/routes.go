@@ -35,6 +35,7 @@ type cloudHandlers struct {
 	sync            *handler.SyncHandler
 	telemetry       *handler.TelemetryHandler
 	organization    *handler.OrganizationHandler
+	nodes           *service.NodeService
 }
 
 // registerAPIRoutes wires the routes served in both modes.
@@ -177,14 +178,16 @@ func registerCloudRoutes(router *gin.Engine, cfg *config.Config, jwtService *ser
 	router.GET("/api/support-documents/export", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SupportDocumentsExport), h.supportDocument.ExportSupportDocumentsCSVHandler)
 
 	// Cloud sync aggregate: accept pushes from edge nodes and serve reference changes.
-	router.POST("/api/sync/push", handler.NodeAuthMiddleware(cfg), h.sync.PushHandler)
-	router.GET("/api/sync/pull", handler.NodeAuthMiddleware(cfg), h.sync.PullHandler)
-	router.GET("/api/sync/pull/stock", handler.NodeAuthMiddleware(cfg), h.sync.PullStockHandler)
+	// Each acts for the organization the calling node is registered to.
+	nodeAuth := handler.NodeAuthMiddleware(cfg, h.nodes)
+	router.POST("/api/sync/push", handler.PushNodeIDFromBody(), nodeAuth, h.sync.PushHandler)
+	router.GET("/api/sync/pull", nodeAuth, h.sync.PullHandler)
+	router.GET("/api/sync/pull/stock", nodeAuth, h.sync.PullStockHandler)
 
 	if h.telemetry != nil {
-		router.POST("/api/telemetry/v1/logs", handler.NodeAuthMiddleware(cfg), h.telemetry.IngestLogsHandler)
-		router.POST("/api/telemetry/v1/traces", handler.NodeAuthMiddleware(cfg), h.telemetry.IngestTracesHandler)
-		router.POST("/api/telemetry/v1/metrics", handler.NodeAuthMiddleware(cfg), h.telemetry.IngestMetricsHandler)
+		router.POST("/api/telemetry/v1/logs", nodeAuth, h.telemetry.IngestLogsHandler)
+		router.POST("/api/telemetry/v1/traces", nodeAuth, h.telemetry.IngestTracesHandler)
+		router.POST("/api/telemetry/v1/metrics", nodeAuth, h.telemetry.IngestMetricsHandler)
 	}
 }
 

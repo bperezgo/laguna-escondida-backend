@@ -19,6 +19,7 @@ import (
 // Consecutive and RequestPayload are NULL until the cloud cron assigns them
 // right before the first submission attempt.
 type pendingInvoiceModel struct {
+	postgres.TenantOwned
 	ID             string     `gorm:"column:id;primaryKey;default:gen_random_uuid()"`
 	BillID         string     `gorm:"column:bill_id"`
 	PaymentCode    string     `gorm:"column:payment_code"`
@@ -48,7 +49,10 @@ func NewPendingInvoiceRepository(db *gorm.DB) ports.PendingInvoiceRepository {
 
 // Create persists a new pending invoice row exactly as the caller constructed it.
 func (r *PendingInvoiceRepository) Create(ctx context.Context, p *dto.PendingInvoice) error {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 	m := &pendingInvoiceModel{
 		ID:          p.ID,
 		BillID:      p.BillID,
@@ -63,7 +67,10 @@ func (r *PendingInvoiceRepository) Create(ctx context.Context, p *dto.PendingInv
 // issued in sequence. A row is due when it has never been attempted (next_attempt_at IS NULL)
 // or its backoff timer has elapsed.
 func (r *PendingInvoiceRepository) ListDue(ctx context.Context, limit int) ([]*dto.PendingInvoice, error) {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 
 	var models []pendingInvoiceModel
 	if err := db.
@@ -86,7 +93,10 @@ func (r *PendingInvoiceRepository) ListDue(ctx context.Context, limit int) ([]*d
 // The WHERE consecutive IS NULL guard keeps concurrent cron ticks from double-assigning; the
 // loser gets ErrConsecutiveAlreadyAssigned so it can roll back the number it claimed.
 func (r *PendingInvoiceRepository) AssignConsecutive(ctx context.Context, id string, prefix string, consecutive int, requestPayload json.RawMessage) error {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 	payload := string(requestPayload)
 	res := db.Model(&pendingInvoiceModel{}).
 		Where("id = ? AND consecutive IS NULL", id).
@@ -109,7 +119,10 @@ func (r *PendingInvoiceRepository) AssignConsecutive(ctx context.Context, id str
 // untouched. Used to rebuild a stale/broken payload (e.g. after an operator sets
 // request_payload = NULL) so the invoice re-submits with the SAME fiscal number — no gap.
 func (r *PendingInvoiceRepository) UpdateRequestPayload(ctx context.Context, id string, requestPayload json.RawMessage) error {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 	payload := string(requestPayload)
 	if err := db.Model(&pendingInvoiceModel{}).
 		Where("id = ?", id).
@@ -124,7 +137,10 @@ func (r *PendingInvoiceRepository) UpdateRequestPayload(ctx context.Context, id 
 
 // MarkSubmitted flips a row to submitted after the provider accepts it.
 func (r *PendingInvoiceRepository) MarkSubmitted(ctx context.Context, id string) error {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 
 	now := time.Now()
 	if err := db.Model(&pendingInvoiceModel{}).
@@ -143,7 +159,10 @@ func (r *PendingInvoiceRepository) MarkSubmitted(ctx context.Context, id string)
 // sets the backoff timer. The row stays pending (never auto-fails on a transient outage), so
 // the submitter keeps retrying until the provider answers.
 func (r *PendingInvoiceRepository) MarkFailed(ctx context.Context, id string, errMsg string, nextAttemptAt time.Time) error {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 
 	now := time.Now()
 	if err := db.Model(&pendingInvoiceModel{}).

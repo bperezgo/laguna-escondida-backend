@@ -50,7 +50,10 @@ func (a *StockSyncApplier) discardSnapshot(op *dto.SyncOutboxEntry) error {
 }
 
 func (a *StockSyncApplier) applyDelete(ctx context.Context, op *dto.SyncOutboxEntry) error {
-	db := postgres.GetTxOrDB(ctx, a.db)
+	db, err := postgres.TenantDB(ctx, a.db)
+	if err != nil {
+		return err
+	}
 
 	var tombstone dto.SyncTombstone
 	if err := json.Unmarshal(op.Payload, &tombstone); err != nil {

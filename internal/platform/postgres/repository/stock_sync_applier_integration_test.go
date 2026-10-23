@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"context"
 	"encoding/json"
 	"log/slog"
 	"os"
@@ -72,7 +71,7 @@ func stockSnapshotOp(t *testing.T, productID string, version, amount int) *dto.S
 func seedStock(t *testing.T, db *Database, productID string, version, amount int) {
 	t.Helper()
 	now := time.Now()
-	require.NoError(t, db.DB.Create(&stockModel{
+	require.NoError(t, db.DB.WithContext(lagunaCtx()).Create(&stockModel{
 		ProductID:     productID,
 		Version:       version,
 		Amount:        amount,
@@ -112,7 +111,7 @@ func ledgerCount(t *testing.T, db *Database, productID string) int {
 func TestHistoricStockSyncApplier_Apply_FoldsIntoOnHand_Integration(t *testing.T) {
 	db := newApplierTestDB(t)
 	applier := NewHistoricStockSyncApplier(db.DB)
-	ctx := context.Background()
+	ctx := lagunaCtx()
 
 	productID := seedProduct(t, db)
 	cleanupStockAndLedger(t, db, productID)
@@ -127,7 +126,7 @@ func TestHistoricStockSyncApplier_Apply_FoldsIntoOnHand_Integration(t *testing.T
 func TestHistoricStockSyncApplier_Apply_CreatesRowWhenNoneExists_Integration(t *testing.T) {
 	db := newApplierTestDB(t)
 	applier := NewHistoricStockSyncApplier(db.DB)
-	ctx := context.Background()
+	ctx := lagunaCtx()
 
 	productID := seedProduct(t, db)
 	cleanupStockAndLedger(t, db, productID)
@@ -144,7 +143,7 @@ func TestHistoricStockSyncApplier_Apply_CreatesRowWhenNoneExists_Integration(t *
 func TestHistoricStockSyncApplier_Apply_AllowsNegativeResult_Integration(t *testing.T) {
 	db := newApplierTestDB(t)
 	applier := NewHistoricStockSyncApplier(db.DB)
-	ctx := context.Background()
+	ctx := lagunaCtx()
 
 	productID := seedProduct(t, db)
 	cleanupStockAndLedger(t, db, productID)
@@ -159,7 +158,7 @@ func TestHistoricStockSyncApplier_Apply_AllowsNegativeResult_Integration(t *test
 // SyncService is the guarantee; this pins it end to end.
 func TestHistoricStockSyncApplier_ApplyPush_ReplayIsExactlyOnce_Integration(t *testing.T) {
 	db := newApplierTestDB(t)
-	ctx := context.Background()
+	ctx := lagunaCtx()
 
 	productID := seedProduct(t, db)
 	cleanupStockAndLedger(t, db, productID)
@@ -191,7 +190,7 @@ func TestHistoricStockSyncApplier_ApplyPush_ReplayIsExactlyOnce_Integration(t *t
 func TestHistoricStockSyncApplier_Apply_ConflictingInsertDoesNotDoubleApply_Integration(t *testing.T) {
 	db := newApplierTestDB(t)
 	applier := NewHistoricStockSyncApplier(db.DB)
-	ctx := context.Background()
+	ctx := lagunaCtx()
 
 	productID := seedProduct(t, db)
 	cleanupStockAndLedger(t, db, productID)
@@ -208,7 +207,7 @@ func TestHistoricStockSyncApplier_Apply_ConflictingInsertDoesNotDoubleApply_Inte
 func TestHistoricStockSyncApplier_Apply_OrderIndependent_Integration(t *testing.T) {
 	db := newApplierTestDB(t)
 	applier := NewHistoricStockSyncApplier(db.DB)
-	ctx := context.Background()
+	ctx := lagunaCtx()
 
 	changes := []int{-3, 12, -5, 20, -1}
 
@@ -233,7 +232,7 @@ func TestHistoricStockSyncApplier_Apply_OrderIndependent_Integration(t *testing.
 func TestStockSyncApplier_Apply_SnapshotDoesNotAssignAmount_Integration(t *testing.T) {
 	db := newApplierTestDB(t)
 	applier := NewStockSyncApplier(db.DB)
-	ctx := context.Background()
+	ctx := lagunaCtx()
 
 	productID := seedProduct(t, db)
 	cleanupStockAndLedger(t, db, productID)
@@ -247,7 +246,7 @@ func TestStockSyncApplier_Apply_SnapshotDoesNotAssignAmount_Integration(t *testi
 // A snapshot produced before a cloud-authored purchase must not roll the purchase back.
 func TestStockSyncApplier_Apply_SnapshotCannotEraseCloudIncrease_Integration(t *testing.T) {
 	db := newApplierTestDB(t)
-	ctx := context.Background()
+	ctx := lagunaCtx()
 
 	productID := seedProduct(t, db)
 	cleanupStockAndLedger(t, db, productID)
@@ -268,7 +267,7 @@ func TestStockSyncApplier_Apply_SnapshotCannotEraseCloudIncrease_Integration(t *
 func TestStockSyncApplier_Apply_DeleteStillTombstones_Integration(t *testing.T) {
 	db := newApplierTestDB(t)
 	applier := NewStockSyncApplier(db.DB)
-	ctx := context.Background()
+	ctx := lagunaCtx()
 
 	productID := seedProduct(t, db)
 	cleanupStockAndLedger(t, db, productID)
@@ -297,7 +296,7 @@ func TestStockSyncApplier_Apply_DeleteStillTombstones_Integration(t *testing.T) 
 // real fold, because that interaction is the whole point of recording a count as a change.
 func TestStockService_CountThenReplicatedSale_Integration(t *testing.T) {
 	db := newApplierTestDB(t)
-	ctx := context.Background()
+	ctx := lagunaCtx()
 
 	productID := seedProduct(t, db)
 	cleanupStockAndLedger(t, db, productID)
@@ -337,7 +336,7 @@ func ledgerRows(t *testing.T, db *Database, productID string) []dto.HistoricStoc
 // absolute. This is what keeps amount == SUM(change) true and what makes the ledger readable.
 func TestStockService_AuthoringPathsRecordKindedDeltas_Integration(t *testing.T) {
 	db := newApplierTestDB(t)
-	ctx := context.Background()
+	ctx := lagunaCtx()
 
 	newStockService := func() *service.StockService {
 		return service.NewStockService(
@@ -417,7 +416,7 @@ func newOpeningBalanceService(db *Database) *service.StockReconciliationService 
 
 func TestStockReconciliationService_WriteOpeningBalances_Integration(t *testing.T) {
 	db := newApplierTestDB(t)
-	ctx := context.Background()
+	ctx := lagunaCtx()
 	svc := newOpeningBalanceService(db)
 
 	// Adopted from the edge: an amount with no history behind it, the cutover case.

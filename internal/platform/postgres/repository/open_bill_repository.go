@@ -23,6 +23,7 @@ func NewOpenBillRepository(db *gorm.DB) ports.OpenBillRepository {
 }
 
 type openBillModel struct {
+	postgres.TenantOwned
 	ID                 string           `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	TemporalIdentifier string           `gorm:"type:varchar(255);not null"`
 	TotalAmount        decimal.Decimal  `gorm:"type:numeric(19,4);not null"`
@@ -47,6 +48,7 @@ func (openBillModel) TableName() string {
 }
 
 type openBillProductModel struct {
+	postgres.TenantOwned
 	ID          string     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	OpenBillID  string     `gorm:"type:uuid;not null"`
 	ProductID   string     `gorm:"type:uuid;not null"`
@@ -127,6 +129,7 @@ func (openBillProductModel) TableName() string {
 }
 
 type openBillProductSideDishModel struct {
+	postgres.TenantOwned
 	ID                  string    `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	OpenBillProductID   string    `gorm:"type:uuid;not null;column:open_bill_product_id"`
 	IngredientProductID string    `gorm:"type:uuid;not null;column:ingredient_product_id"`
@@ -240,6 +243,7 @@ func loadSideDishSSEByLine(db *gorm.DB, openBillProductIDs []string) (map[string
 }
 
 type billModel struct {
+	postgres.TenantOwned
 	ID             string          `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	BillOwnerID    *string         `gorm:"type:varchar(255)"`
 	TotalAmount    decimal.Decimal `gorm:"type:numeric(19,4);not null;column:total_amount"`
@@ -264,6 +268,7 @@ func (billModel) TableName() string {
 }
 
 type billProductModel struct {
+	postgres.TenantOwned
 	ID        string     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	BillID    string     `gorm:"type:uuid;not null"`
 	ProductID string     `gorm:"type:uuid;not null"`
@@ -341,8 +346,12 @@ func (r *OpenBillRepository) Create(ctx context.Context, aggregate *openBill.Agg
 // and its status is neither completed nor cancelled, so a finalized order's
 // identifier can be reused while a live one cannot be duplicated.
 func (r *OpenBillRepository) ExistsActiveByTemporalIdentifier(ctx context.Context, temporalIdentifier string) (bool, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return false, err
+	}
 	var count int64
-	err := postgres.GetTxOrDB(ctx, r.db).
+	err = db.
 		Model(&openBillModel{}).
 		Where(
 			"temporal_identifier = ? AND deleted_at IS NULL AND status NOT IN ?",
@@ -357,6 +366,10 @@ func (r *OpenBillRepository) ExistsActiveByTemporalIdentifier(ctx context.Contex
 }
 
 func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.OpenBillWithProducts, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	type result struct {
 		// Open Bill fields
 		ID                 string
@@ -375,7 +388,7 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 	}
 
 	var res result
-	err := postgres.GetTxOrDB(ctx, r.db).
+	err = db.
 		Table("open_bills").
 		Select(`
 			open_bills.id,
@@ -440,7 +453,7 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 
 	var productResults []productResult
 
-	err = postgres.GetTxOrDB(ctx, r.db).
+	err = db.
 		Table("open_bills_products").
 		Select(`
 			open_bills_products.id,
@@ -484,7 +497,7 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 	for i, pr := range productResults {
 		lineIDs[i] = pr.ID
 	}
-	sideDishesByLine, err := loadSideDishesByLine(postgres.GetTxOrDB(ctx, r.db), lineIDs)
+	sideDishesByLine, err := loadSideDishesByLine(db, lineIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -541,14 +554,20 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 
 func (r *OpenBillRepository) Delete(ctx context.Context, openBillID string) error {
 	now := time.Now()
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 	return db.Model(&openBillModel{}).
 		Where("id = ? AND deleted_at IS NULL", openBillID).
 		Update("deleted_at", now).Error
 }
 
 func (r *OpenBillRepository) ClosePaid(ctx context.Context, openBillID string, paidAt time.Time) error {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 	return db.Model(&openBillModel{}).
 		Where("id = ? AND deleted_at IS NULL", openBillID).
 		Updates(map[string]any{
@@ -566,10 +585,13 @@ func (r *OpenBillRepository) FindAggregateForKitchen(ctx context.Context, id str
 }
 
 func (r *OpenBillRepository) findAggregate(ctx context.Context, where string, id string) (*openBill.Aggregate, error) {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 
 	var model openBillModel
-	err := db.Where(where, id).First(&model).Error
+	err = db.Where(where, id).First(&model).Error
 	if err != nil {
 		return nil, err
 	}
@@ -825,6 +847,10 @@ func (r *OpenBillRepository) PayOrder(ctx context.Context, openBillID string) (*
 }
 
 func (r *OpenBillRepository) FindAll(ctx context.Context, filter dto.OrderListFilter) ([]*dto.OpenBillWithCreator, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	type result struct {
 		// Open Bill fields
 		ID                 string
@@ -843,7 +869,7 @@ func (r *OpenBillRepository) FindAll(ctx context.Context, filter dto.OrderListFi
 	}
 
 	var results []result
-	query := postgres.GetTxOrDB(ctx, r.db).
+	query := db.
 		Table("open_bills").
 		Select(`
 			open_bills.id,
@@ -860,7 +886,7 @@ func (r *OpenBillRepository) FindAll(ctx context.Context, filter dto.OrderListFi
 		`).
 		Joins("INNER JOIN users ON open_bills.created_by = users.id AND users.deleted_at IS NULL").
 		Where("open_bills.deleted_at IS NULL")
-	err := applyOrderListFilter(query, filter).
+	err = applyOrderListFilter(query, filter).
 		Scan(&results).Error
 
 	if err != nil {
@@ -891,6 +917,10 @@ func (r *OpenBillRepository) FindAll(ctx context.Context, filter dto.OrderListFi
 }
 
 func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string) (*dto.OpenBillWithProducts, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	type billResult struct {
 		// Open Bill fields
 		ID                 string
@@ -909,7 +939,7 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 	}
 
 	var result billResult
-	err := postgres.GetTxOrDB(ctx, r.db).
+	err = db.
 		Table("open_bills").
 		Select(`
 			open_bills.id,
@@ -969,7 +999,7 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 
 	var productResults []productResult
 
-	err = postgres.GetTxOrDB(ctx, r.db).
+	err = db.
 		Table("open_bills_products").
 		Select(`
 			open_bills_products.id,
@@ -1011,7 +1041,7 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 	for i, pr := range productResults {
 		lineIDs[i] = pr.ID
 	}
-	sideDishesByLine, err := loadSideDishesByLine(postgres.GetTxOrDB(ctx, r.db), lineIDs)
+	sideDishesByLine, err := loadSideDishesByLine(db, lineIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -1076,6 +1106,10 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 // Mirrors FindAll but selects the deleted rows instead of the active ones and orders
 // by deleted_at (close time) so the most recently closed order shows first.
 func (r *OpenBillRepository) FindDeletedByCreatedAtBetween(ctx context.Context, from, to time.Time, filter dto.OrderListFilter) ([]*dto.OpenBillWithCreator, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	type result struct {
 		// Open Bill fields
 		ID                 string
@@ -1094,7 +1128,7 @@ func (r *OpenBillRepository) FindDeletedByCreatedAtBetween(ctx context.Context, 
 	}
 
 	var results []result
-	query := postgres.GetTxOrDB(ctx, r.db).
+	query := db.
 		Table("open_bills").
 		Select(`
 			open_bills.id,
@@ -1112,7 +1146,7 @@ func (r *OpenBillRepository) FindDeletedByCreatedAtBetween(ctx context.Context, 
 		Joins("LEFT JOIN users ON open_bills.created_by = users.id AND users.deleted_at IS NULL").
 		Where("open_bills.deleted_at IS NOT NULL AND open_bills.created_at >= ? AND open_bills.created_at < ?", from, to).
 		Order("open_bills.deleted_at DESC")
-	err := applyOrderListFilter(query, filter).
+	err = applyOrderListFilter(query, filter).
 		Scan(&results).Error
 
 	if err != nil {
@@ -1148,6 +1182,10 @@ func (r *OpenBillRepository) FindDeletedByCreatedAtBetween(ctx context.Context, 
 // selected with deleted_at IS NULL — paying does not soft-delete the individual
 // open_bills_products, so the bill reprints exactly the lines it was charged with.
 func (r *OpenBillRepository) FindByIDIncludingDeletedWithProducts(ctx context.Context, id string) (*dto.OpenBillWithProducts, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	type billResult struct {
 		// Open Bill fields
 		ID                 string
@@ -1166,7 +1204,7 @@ func (r *OpenBillRepository) FindByIDIncludingDeletedWithProducts(ctx context.Co
 	}
 
 	var result billResult
-	err := postgres.GetTxOrDB(ctx, r.db).
+	err = db.
 		Table("open_bills").
 		Select(`
 			open_bills.id,
@@ -1226,7 +1264,7 @@ func (r *OpenBillRepository) FindByIDIncludingDeletedWithProducts(ctx context.Co
 
 	var productResults []productResult
 
-	err = postgres.GetTxOrDB(ctx, r.db).
+	err = db.
 		Table("open_bills_products").
 		Select(`
 			open_bills_products.id,
@@ -1268,7 +1306,7 @@ func (r *OpenBillRepository) FindByIDIncludingDeletedWithProducts(ctx context.Co
 	for i, pr := range productResults {
 		lineIDs[i] = pr.ID
 	}
-	sideDishesByLine, err := loadSideDishesByLine(postgres.GetTxOrDB(ctx, r.db), lineIDs)
+	sideDishesByLine, err := loadSideDishesByLine(db, lineIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -1328,7 +1366,10 @@ func (r *OpenBillRepository) FindByIDIncludingDeletedWithProducts(ctx context.Co
 }
 
 func (r *OpenBillRepository) GetProductPreparationResponsibilities(ctx context.Context, productIDs []string) ([]dto.ProductPreparationResponsibilityWithProduct, error) {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 
 	type result struct {
 		ProductID   string
@@ -1338,7 +1379,7 @@ func (r *OpenBillRepository) GetProductPreparationResponsibilities(ctx context.C
 	}
 
 	var results []result
-	err := db.Table("product_preparation_responsibilities").
+	err = db.Table("product_preparation_responsibilities").
 		Select(`
 			product_preparation_responsibilities.product_id,
 			products.name as product_name,
@@ -1395,7 +1436,10 @@ func (r *OpenBillRepository) UpdateProductStatus(ctx context.Context, aggregate 
 }
 
 func (r *OpenBillRepository) FindPendingByArea(ctx context.Context, area string) ([]*dto.OpenBillProductSSE, error) {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 
 	type result struct {
 		OpenBillProductID  string
@@ -1413,7 +1457,7 @@ func (r *OpenBillRepository) FindPendingByArea(ctx context.Context, area string)
 	}
 
 	var results []result
-	err := db.Table("open_bills_products").
+	err = db.Table("open_bills_products").
 		Select(`
 			open_bills_products.id as open_bill_product_id,
 			open_bills_products.open_bill_id,
@@ -1491,7 +1535,10 @@ func (r *OpenBillRepository) FindPendingByArea(ctx context.Context, area string)
 // done for the given area (no pending line left) and whose completion
 // falls within [from, to). Powers the read-only "Comandas Listas" review view.
 func (r *OpenBillRepository) FindCompletedByAreaBetween(ctx context.Context, area string, from, to time.Time) ([]*dto.OpenBillProductSSE, error) {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 
 	type result struct {
 		OpenBillProductID  string
@@ -1509,7 +1556,7 @@ func (r *OpenBillRepository) FindCompletedByAreaBetween(ctx context.Context, are
 	}
 
 	var results []result
-	err := db.Table("open_bills_products").
+	err = db.Table("open_bills_products").
 		Select(`
 			open_bills_products.id as open_bill_product_id,
 			open_bills_products.open_bill_id,

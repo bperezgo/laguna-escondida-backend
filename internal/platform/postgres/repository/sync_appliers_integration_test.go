@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -75,7 +74,7 @@ func loadEnvForApplierTest() {
 func seedUser(t *testing.T, db *Database) string {
 	t.Helper()
 	id := uuid.NewString()
-	require.NoError(t, db.DB.Create(&userModel{
+	require.NoError(t, db.DB.WithContext(lagunaCtx()).Create(&userModel{
 		ID:       id,
 		Username: "applier-user-" + id[:8],
 		Name:     "Applier Tester",
@@ -88,7 +87,7 @@ func seedUser(t *testing.T, db *Database) string {
 func seedProduct(t *testing.T, db *Database) string {
 	t.Helper()
 	id := uuid.NewString()
-	require.NoError(t, db.DB.Create(&productModel{
+	require.NoError(t, db.DB.WithContext(lagunaCtx()).Create(&productModel{
 		ID:                  id,
 		Name:                "Applier Product",
 		Category:            "test",
@@ -110,7 +109,7 @@ func seedProduct(t *testing.T, db *Database) string {
 func seedSupplier(t *testing.T, db *Database) string {
 	t.Helper()
 	id := uuid.NewString()
-	require.NoError(t, db.DB.Create(&supplierModel{
+	require.NoError(t, db.DB.WithContext(lagunaCtx()).Create(&supplierModel{
 		ID:   id,
 		Name: "Applier Supplier " + id[:8],
 	}).Error)
@@ -179,7 +178,7 @@ func TestOpenBillSyncApplier_Apply_Create_Integration(t *testing.T) {
 		UpdatedAt: now,
 	}
 
-	require.NoError(t, applier.Apply(context.Background(), openBillOp(t, dto.SyncOperationCreate, marshalOpenBillPayload(t, payload))))
+	require.NoError(t, applier.Apply(lagunaCtx(), openBillOp(t, dto.SyncOperationCreate, marshalOpenBillPayload(t, payload))))
 
 	var headerCount int64
 	db.DB.Raw("SELECT COUNT(*) FROM open_bills WHERE id = ? AND deleted_at IS NULL", billID).Scan(&headerCount)
@@ -200,7 +199,7 @@ func TestOpenBillSyncApplier_Apply_Create_Integration(t *testing.T) {
 	assert.Equal(t, 3, priority, "line item priority replicated from snapshot")
 
 	// Re-applying the same snapshot is an upsert: state is unchanged, still one row.
-	require.NoError(t, applier.Apply(context.Background(), openBillOp(t, dto.SyncOperationCreate, marshalOpenBillPayload(t, payload))))
+	require.NoError(t, applier.Apply(lagunaCtx(), openBillOp(t, dto.SyncOperationCreate, marshalOpenBillPayload(t, payload))))
 	var afterReapply int64
 	db.DB.Raw("SELECT COUNT(*) FROM open_bills_products WHERE open_bill_id = ? AND deleted_at IS NULL", billID).Scan(&afterReapply)
 	assert.Equal(t, int64(1), afterReapply, "re-apply leaves exactly one live line item")
@@ -232,14 +231,14 @@ func TestOpenBillSyncApplier_Apply_Update_ReconcilesProducts_Integration(t *test
 		},
 		CreatedAt: now, UpdatedAt: now,
 	}
-	require.NoError(t, applier.Apply(context.Background(), openBillOp(t, dto.SyncOperationCreate, marshalOpenBillPayload(t, create))))
+	require.NoError(t, applier.Apply(lagunaCtx(), openBillOp(t, dto.SyncOperationCreate, marshalOpenBillPayload(t, create))))
 
 	// Update drops itemB, bumps itemA's quantity, and marks itemA completed — the exact
 	// shape of a kitchen status transition replicating via an update op.
 	update := create
 	update.Products = []dto.OpenBillSyncProduct{{OpenBillProductID: itemA, ProductID: productA, Quantity: 5, Status: dto.CommandStatusCompleted}}
 	update.TotalAmount = decimal.NewFromInt(50)
-	require.NoError(t, applier.Apply(context.Background(), openBillOp(t, dto.SyncOperationUpdate, marshalOpenBillPayload(t, update))))
+	require.NoError(t, applier.Apply(lagunaCtx(), openBillOp(t, dto.SyncOperationUpdate, marshalOpenBillPayload(t, update))))
 
 	var qtyA int
 	db.DB.Raw("SELECT quantity FROM open_bills_products WHERE id = ? AND deleted_at IS NULL", itemA).Scan(&qtyA)
@@ -275,9 +274,9 @@ func TestOpenBillSyncApplier_Apply_DeleteTombstone_Integration(t *testing.T) {
 		Products:  []dto.OpenBillSyncProduct{{OpenBillProductID: openBillProductID, ProductID: productID, Quantity: 1, Status: dto.CommandStatusCreated}},
 		CreatedAt: now, UpdatedAt: now,
 	}
-	require.NoError(t, applier.Apply(context.Background(), openBillOp(t, dto.SyncOperationCreate, marshalOpenBillPayload(t, create))))
+	require.NoError(t, applier.Apply(lagunaCtx(), openBillOp(t, dto.SyncOperationCreate, marshalOpenBillPayload(t, create))))
 
-	require.NoError(t, applier.Apply(context.Background(), openBillOp(t, dto.SyncOperationDelete, marshalTombstone(t, dto.SyncTombstone{ID: billID}))))
+	require.NoError(t, applier.Apply(lagunaCtx(), openBillOp(t, dto.SyncOperationDelete, marshalTombstone(t, dto.SyncTombstone{ID: billID}))))
 
 	var liveHeader int64
 	db.DB.Raw("SELECT COUNT(*) FROM open_bills WHERE id = ? AND deleted_at IS NULL", billID).Scan(&liveHeader)
@@ -319,7 +318,7 @@ func TestPurchaseEntrySyncApplier_Apply_Create_Integration(t *testing.T) {
 		EntityType: dto.SyncEntityPurchaseEntry, EntityID: entryID, Operation: dto.SyncOperationCreate,
 		Payload: marshalPurchaseEntryPayload(t, payload),
 	}
-	require.NoError(t, applier.Apply(context.Background(), op))
+	require.NoError(t, applier.Apply(lagunaCtx(), op))
 
 	var entryCount int64
 	db.DB.Raw("SELECT COUNT(*) FROM purchase_entries WHERE id = ?", entryID).Scan(&entryCount)
@@ -330,7 +329,7 @@ func TestPurchaseEntrySyncApplier_Apply_Create_Integration(t *testing.T) {
 	assert.Equal(t, int64(1), itemCount, "purchase entry item upserted")
 
 	// Idempotent at the applier level: re-applying the snapshot keeps one row each.
-	require.NoError(t, applier.Apply(context.Background(), op))
+	require.NoError(t, applier.Apply(lagunaCtx(), op))
 	db.DB.Raw("SELECT COUNT(*) FROM purchase_entry_items WHERE purchase_entry_id = ?", entryID).Scan(&itemCount)
 	assert.Equal(t, int64(1), itemCount, "re-apply leaves exactly one item")
 }

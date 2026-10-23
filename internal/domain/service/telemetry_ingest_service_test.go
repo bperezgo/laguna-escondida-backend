@@ -8,6 +8,7 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 	domainerror "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports/mocks"
+	"laguna-escondida/backend/internal/domain/tenant"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -35,9 +36,9 @@ func TestTelemetryIngestService_Ingest_ForwardsEachSignalType(t *testing.T) {
 				return e.Signal == signal
 			})).Return(nil).Once()
 
-			svc := NewTelemetryIngestService(forwarder, testTelemetryTenantID, testTelemetryOrgID)
+			svc := NewTelemetryIngestService(forwarder, testTelemetryTenantID)
 
-			require.NoError(t, svc.Ingest(context.Background(), telemetryExport(signal)))
+			require.NoError(t, svc.Ingest(tenant.WithOrg(context.Background(), testTelemetryOrgID), telemetryExport(signal)))
 		})
 	}
 }
@@ -55,12 +56,12 @@ func TestTelemetryIngestService_Ingest_StampsTenantContextOverEdgeSuppliedValues
 		}).
 		Return(nil).Once()
 
-	svc := NewTelemetryIngestService(forwarder, testTelemetryTenantID, testTelemetryOrgID)
+	svc := NewTelemetryIngestService(forwarder, testTelemetryTenantID)
 
 	export := telemetryExport(dto.TelemetrySignalLogs)
 	export.TenantAttributes = []dto.TelemetryAttribute{{Key: "tenant.id", Value: "someone-elses-tenant"}}
 
-	require.NoError(t, svc.Ingest(context.Background(), export))
+	require.NoError(t, svc.Ingest(tenant.WithOrg(context.Background(), testTelemetryOrgID), export))
 	assert.Equal(t, []dto.TelemetryAttribute{
 		{Key: "tenant.id", Value: testTelemetryTenantID},
 		{Key: "organization.id", Value: testTelemetryOrgID},
@@ -69,9 +70,9 @@ func TestTelemetryIngestService_Ingest_StampsTenantContextOverEdgeSuppliedValues
 
 func TestTelemetryIngestService_Ingest_UnsupportedSignalIsNotForwarded(t *testing.T) {
 	forwarder := mocks.NewMockTelemetryForwarder(t)
-	svc := NewTelemetryIngestService(forwarder, testTelemetryTenantID, testTelemetryOrgID)
+	svc := NewTelemetryIngestService(forwarder, testTelemetryTenantID)
 
-	err := svc.Ingest(context.Background(), telemetryExport("profiles"))
+	err := svc.Ingest(tenant.WithOrg(context.Background(), testTelemetryOrgID), telemetryExport("profiles"))
 
 	require.ErrorIs(t, err, domainerror.ErrTelemetryUnsupportedSignal)
 	forwarder.AssertNotCalled(t, "Forward", mock.Anything, mock.Anything)
@@ -79,12 +80,12 @@ func TestTelemetryIngestService_Ingest_UnsupportedSignalIsNotForwarded(t *testin
 
 func TestTelemetryIngestService_Ingest_UnsupportedContentTypeIsNotForwarded(t *testing.T) {
 	forwarder := mocks.NewMockTelemetryForwarder(t)
-	svc := NewTelemetryIngestService(forwarder, testTelemetryTenantID, testTelemetryOrgID)
+	svc := NewTelemetryIngestService(forwarder, testTelemetryTenantID)
 
 	export := telemetryExport(dto.TelemetrySignalTraces)
 	export.ContentType = "application/json"
 
-	err := svc.Ingest(context.Background(), export)
+	err := svc.Ingest(tenant.WithOrg(context.Background(), testTelemetryOrgID), export)
 
 	require.ErrorIs(t, err, domainerror.ErrTelemetryUnsupportedContentType)
 	forwarder.AssertNotCalled(t, "Forward", mock.Anything, mock.Anything)
@@ -92,12 +93,12 @@ func TestTelemetryIngestService_Ingest_UnsupportedContentTypeIsNotForwarded(t *t
 
 func TestTelemetryIngestService_Ingest_EmptyPayloadIsNotForwarded(t *testing.T) {
 	forwarder := mocks.NewMockTelemetryForwarder(t)
-	svc := NewTelemetryIngestService(forwarder, testTelemetryTenantID, testTelemetryOrgID)
+	svc := NewTelemetryIngestService(forwarder, testTelemetryTenantID)
 
 	export := telemetryExport(dto.TelemetrySignalMetrics)
 	export.Body = nil
 
-	err := svc.Ingest(context.Background(), export)
+	err := svc.Ingest(tenant.WithOrg(context.Background(), testTelemetryOrgID), export)
 
 	require.ErrorIs(t, err, domainerror.ErrTelemetryEmptyPayload)
 	forwarder.AssertNotCalled(t, "Forward", mock.Anything, mock.Anything)
@@ -108,9 +109,9 @@ func TestTelemetryIngestService_Ingest_ForwardErrorIsWrapped(t *testing.T) {
 	forwarder := mocks.NewMockTelemetryForwarder(t)
 	forwarder.On("Forward", mock.Anything, mock.Anything).Return(upstream).Once()
 
-	svc := NewTelemetryIngestService(forwarder, testTelemetryTenantID, testTelemetryOrgID)
+	svc := NewTelemetryIngestService(forwarder, testTelemetryTenantID)
 
-	err := svc.Ingest(context.Background(), telemetryExport(dto.TelemetrySignalLogs))
+	err := svc.Ingest(tenant.WithOrg(context.Background(), testTelemetryOrgID), telemetryExport(dto.TelemetrySignalLogs))
 
 	require.ErrorIs(t, err, upstream)
 	assert.Contains(t, err.Error(), "forward logs")

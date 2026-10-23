@@ -14,6 +14,7 @@ import (
 )
 
 type supportDocumentModel struct {
+	postgres.TenantOwned
 	ID                     string          `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	ProviderDocumentNumber string          `gorm:"type:varchar(255);not null"`
 	ProviderDocumentType   string          `gorm:"type:varchar(10);not null"`
@@ -39,6 +40,7 @@ func (supportDocumentModel) TableName() string {
 }
 
 type supportDocumentProductModel struct {
+	postgres.TenantOwned
 	ID                string          `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	SupportDocumentID string          `gorm:"type:uuid;not null"`
 	Description       string          `gorm:"type:text;not null"`
@@ -56,28 +58,30 @@ func (supportDocumentProductModel) TableName() string {
 type SupportDocumentRepository struct {
 	db                      *gorm.DB
 	electronicInvoiceClient ports.ElectronicInvoiceClient
-	organizationID          string
 }
 
-func NewSupportDocumentRepository(db *gorm.DB, electronicInvoiceClient ports.ElectronicInvoiceClient, organizationID string) ports.SupportDocumentRepository {
+func NewSupportDocumentRepository(db *gorm.DB, electronicInvoiceClient ports.ElectronicInvoiceClient) ports.SupportDocumentRepository {
 	return &SupportDocumentRepository{
 		db:                      db,
 		electronicInvoiceClient: electronicInvoiceClient,
-		organizationID:          organizationID,
 	}
 }
 
 func (r *SupportDocumentRepository) Create(ctx context.Context, doc *support_document.Aggregate) error {
 	docDTO := doc.ToDTO()
 
+	orgID, orgErr := postgres.OrgID(ctx)
+	if orgErr != nil {
+		return orgErr
+	}
 	var response *dto.CreateSupportDocumentResponse
 	err := postgres.InTx(ctx, r.db, func(tx *gorm.DB) error {
-		settings, err := findEInvoicingSettings(tx, r.organizationID)
+		settings, err := findEInvoicingSettings(tx, orgID)
 		if err != nil {
 			return err
 		}
 		// Claimed inside the transaction so a failed provider call rolls the counter back.
-		consecutive, err := claimConsecutive(tx, r.organizationID, settings.SupportDocumentPrefix)
+		consecutive, err := claimConsecutive(tx, orgID, settings.SupportDocumentPrefix)
 		if err != nil {
 			return err
 		}
@@ -132,7 +136,10 @@ func (r *SupportDocumentRepository) Create(ctx context.Context, doc *support_doc
 	}
 
 	if response != nil {
-		db := postgres.GetTxOrDB(ctx, r.db)
+		db, err := postgres.TenantDB(ctx, r.db)
+		if err != nil {
+			return err
+		}
 		if err := db.Model(&supportDocumentModel{}).
 			Where("id = ?", docDTO.ID).
 			Updates(map[string]any{
@@ -147,7 +154,11 @@ func (r *SupportDocumentRepository) Create(ctx context.Context, doc *support_doc
 }
 
 func (r *SupportDocumentRepository) FindByCriteria(ctx context.Context, criteria *dto.SupportDocumentCriteria) ([]dto.SupportDocumentListItem, int64, error) {
-	query := postgres.GetTxOrDB(ctx, r.db).Model(&supportDocumentModel{})
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, 0, err
+	}
+	query := db.Model(&supportDocumentModel{})
 
 	if criteria.CreatedAtStart != nil {
 		query = query.Where("created_at >= ?", criteria.CreatedAtStart)
@@ -208,7 +219,11 @@ func (r *SupportDocumentRepository) FindByCriteria(ctx context.Context, criteria
 }
 
 func (r *SupportDocumentRepository) FindAllByCriteria(ctx context.Context, criteria *dto.SupportDocumentCriteria) ([]dto.SupportDocumentListItem, error) {
-	query := postgres.GetTxOrDB(ctx, r.db).Model(&supportDocumentModel{})
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
+	query := db.Model(&supportDocumentModel{})
 
 	if criteria.CreatedAtStart != nil {
 		query = query.Where("created_at >= ?", criteria.CreatedAtStart)
@@ -260,8 +275,12 @@ func (r *SupportDocumentRepository) FindAllByCriteria(ctx context.Context, crite
 }
 
 func (r *SupportDocumentRepository) FindByNullDocumentURL(ctx context.Context) ([]*dto.SupportDocumentWithTascode, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var docs []supportDocumentModel
-	if err := postgres.GetTxOrDB(ctx, r.db).
+	if err := db.
 		Where("document_url IS NULL AND tascode IS NOT NULL AND deleted_at IS NULL").
 		Find(&docs).Error; err != nil {
 		return nil, err
@@ -281,7 +300,11 @@ func (r *SupportDocumentRepository) FindByNullDocumentURL(ctx context.Context) (
 }
 
 func (r *SupportDocumentRepository) UpdateDocumentURL(ctx context.Context, docID string, documentURL string) error {
-	return postgres.GetTxOrDB(ctx, r.db).
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	return db.
 		Model(&supportDocumentModel{}).
 		Where("id = ?", docID).
 		Update("document_url", documentURL).
@@ -289,6 +312,10 @@ func (r *SupportDocumentRepository) UpdateDocumentURL(ctx context.Context, docID
 }
 
 func (r *SupportDocumentRepository) UpdateStoragePaths(ctx context.Context, docID string, pdfPath *string, xmlPath *string) error {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 	updates := make(map[string]any)
 	if pdfPath != nil {
 		updates["pdf_storage_path"] = *pdfPath
@@ -301,7 +328,7 @@ func (r *SupportDocumentRepository) UpdateStoragePaths(ctx context.Context, docI
 		return nil
 	}
 
-	return postgres.GetTxOrDB(ctx, r.db).
+	return db.
 		Model(&supportDocumentModel{}).
 		Where("id = ?", docID).
 		Updates(updates).

@@ -12,6 +12,7 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
+	"laguna-escondida/backend/internal/domain/tenant"
 
 	"github.com/google/uuid"
 	"github.com/samber/lo"
@@ -24,7 +25,6 @@ type InvoiceService struct {
 	pendingInvoiceRepo      ports.PendingInvoiceRepository
 	unitOfWork              ports.UnitOfWork
 	storageClient           ports.StorageClient
-	organizationID          string
 }
 
 func NewInvoiceService(
@@ -34,7 +34,6 @@ func NewInvoiceService(
 	pendingInvoiceRepo ports.PendingInvoiceRepository,
 	unitOfWork ports.UnitOfWork,
 	storageClient ports.StorageClient,
-	organizationID string,
 ) *InvoiceService {
 	return &InvoiceService{
 		electronicInvoiceClient: electronicInvoiceClient,
@@ -43,7 +42,6 @@ func NewInvoiceService(
 		pendingInvoiceRepo:      pendingInvoiceRepo,
 		unitOfWork:              unitOfWork,
 		storageClient:           storageClient,
-		organizationID:          organizationID,
 	}
 }
 
@@ -157,6 +155,10 @@ func (s *InvoiceService) ListInvoices(ctx context.Context, req *dto.ListInvoices
 }
 
 func (s *InvoiceService) UpdateMissingDocumentURLs(ctx context.Context) (*dto.UpdateDocumentURLsResponse, error) {
+	// Fail before any provider call: every upload is stored under the organization.
+	if _, err := tenant.RequireOrg(ctx); err != nil {
+		return nil, err
+	}
 	bills, err := s.billRepo.FindByNullDocumentURL(ctx)
 	if err != nil {
 		return nil, err
@@ -239,6 +241,10 @@ func (s *InvoiceService) populateInvoiceDownloadURLs(invoices []dto.InvoiceListI
 }
 
 func (s *InvoiceService) uploadInvoiceToStorage(ctx context.Context, billID, pdfURL, xmlURL string) (*string, *string, error) {
+	orgID, err := tenant.RequireOrg(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
 	var pdfStoragePath, xmlStoragePath *string
 
 	if pdfURL != "" {
@@ -247,7 +253,7 @@ func (s *InvoiceService) uploadInvoiceToStorage(ctx context.Context, billID, pdf
 			return nil, nil, fmt.Errorf("failed to download PDF: %w", err)
 		}
 
-		pdfKey := fmt.Sprintf("%s/sales_invoices/%s.pdf", s.organizationID, billID)
+		pdfKey := fmt.Sprintf("%s/sales_invoices/%s.pdf", orgID, billID)
 		if err := s.storageClient.Upload(ctx, pdfKey, pdfData, "application/pdf"); err != nil {
 			return nil, nil, fmt.Errorf("failed to upload PDF: %w", err)
 		}
@@ -260,7 +266,7 @@ func (s *InvoiceService) uploadInvoiceToStorage(ctx context.Context, billID, pdf
 			return pdfStoragePath, nil, fmt.Errorf("failed to download XML: %w", err)
 		}
 
-		xmlKey := fmt.Sprintf("%s/sales_invoices/%s.xml", s.organizationID, billID)
+		xmlKey := fmt.Sprintf("%s/sales_invoices/%s.xml", orgID, billID)
 		if err := s.storageClient.Upload(ctx, xmlKey, xmlData, "application/xml"); err != nil {
 			return pdfStoragePath, nil, fmt.Errorf("failed to upload XML: %w", err)
 		}

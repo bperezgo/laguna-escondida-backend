@@ -162,9 +162,9 @@ func TestEInvoicingSettingsRepository_Upsert_ReplaceKeepsOldCounter_Integration(
 	orgID := seedOrganization(t, db)
 
 	require.NoError(t, settingsRepo.Upsert(ctx, &dto.EInvoicingSettings{OrganizationID: orgID, InvoicePrefix: "OLD", SupportDocumentPrefix: "DSO"}))
-	_, err := billRepo.GetNextConsecutive(ctx, orgID, "OLD")
+	_, err := billRepo.GetNextConsecutive(tenant.WithOrg(ctx, orgID), "OLD")
 	require.NoError(t, err)
-	_, err = billRepo.GetNextConsecutive(ctx, orgID, "OLD")
+	_, err = billRepo.GetNextConsecutive(tenant.WithOrg(ctx, orgID), "OLD")
 	require.NoError(t, err)
 
 	require.NoError(t, settingsRepo.Upsert(ctx, &dto.EInvoicingSettings{OrganizationID: orgID, InvoicePrefix: "NEW", SupportDocumentPrefix: "DSN"}))
@@ -173,7 +173,7 @@ func TestEInvoicingSettingsRepository_Upsert_ReplaceKeepsOldCounter_Integration(
 	require.NoError(t, err)
 	assert.Equal(t, "NEW", got.InvoicePrefix)
 	assert.Equal(t, "DSN", got.SupportDocumentPrefix)
-	first, err := billRepo.GetNextConsecutive(ctx, orgID, "NEW")
+	first, err := billRepo.GetNextConsecutive(tenant.WithOrg(ctx, orgID), "NEW")
 	require.NoError(t, err)
 	assert.Equal(t, 1, first, "a new prefix starts at 1")
 	var oldLast int

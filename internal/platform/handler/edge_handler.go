@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"laguna-escondida/backend/internal/domain/service"
+	"laguna-escondida/backend/internal/domain/tenant"
 	"laguna-escondida/backend/internal/platform/buildinfo"
 	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/syncstatus"
@@ -50,7 +51,8 @@ func (h *EdgeHandler) GetStatusHandler(c *gin.Context) {
 	if h.cfg.AppMode == config.ModeEdge {
 		resp.Online = h.tracker.Online()
 
-		health, err := h.statusService.GetSyncHealth(c.Request.Context())
+		// Unauthenticated, but it reads only the box's own outbox, so it acts for the box's org.
+		health, err := h.statusService.GetSyncHealth(tenant.WithOrg(c.Request.Context(), h.cfg.OrganizationID))
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error":   "edge_status_error",

@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -19,7 +18,7 @@ import (
 func TestStockRepository_HistoricRecord_KindRoundTrips_Integration(t *testing.T) {
 	db := newApplierTestDB(t)
 	repo := NewStockRepository(db.DB)
-	ctx := context.Background()
+	ctx := lagunaCtx()
 	productID := seedProduct(t, db)
 
 	for _, kind := range []dto.StockMovementKind{
@@ -65,7 +64,7 @@ func TestStockRepository_HistoricRecord_KindRoundTrips_Integration(t *testing.T)
 func TestStockRepository_HistoricRecord_MissingKindDefaultsToUnknown_Integration(t *testing.T) {
 	db := newApplierTestDB(t)
 	repo := NewStockRepository(db.DB)
-	ctx := context.Background()
+	ctx := lagunaCtx()
 	productID := seedProduct(t, db)
 
 	var payload dto.HistoricStockSyncPayload

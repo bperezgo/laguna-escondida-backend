@@ -7,6 +7,7 @@ import (
 
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports/mocks"
+	"laguna-escondida/backend/internal/domain/tenant"
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -28,7 +29,6 @@ func createTestSupportDocumentService(t *testing.T) (
 		mockInvoiceClient,
 		mockSupportDocRepo,
 		mockStorageClient,
-		"org-123",
 	)
 
 	return svc, mockInvoiceClient, mockSupportDocRepo, mockStorageClient
@@ -46,7 +46,7 @@ func createTestProvider() dto.Provider {
 // ==================== CreateSupportDocument Tests ====================
 
 func TestCreateSupportDocument_Success(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	svc, _, mockSupportDocRepo, _ := createTestSupportDocumentService(t)
 
 	doc := &dto.SupportDocument{
@@ -66,7 +66,7 @@ func TestCreateSupportDocument_Success(t *testing.T) {
 }
 
 func TestCreateSupportDocument_MultipleItems(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	svc, _, mockSupportDocRepo, _ := createTestSupportDocumentService(t)
 
 	doc := &dto.SupportDocument{
@@ -87,7 +87,7 @@ func TestCreateSupportDocument_MultipleItems(t *testing.T) {
 }
 
 func TestCreateSupportDocument_EmptyItems(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	svc, _, _, _ := createTestSupportDocumentService(t)
 
 	doc := &dto.SupportDocument{
@@ -102,7 +102,7 @@ func TestCreateSupportDocument_EmptyItems(t *testing.T) {
 }
 
 func TestCreateSupportDocument_MissingProvider(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	svc, _, _, _ := createTestSupportDocumentService(t)
 
 	doc := &dto.SupportDocument{
@@ -121,7 +121,7 @@ func TestCreateSupportDocument_MissingProvider(t *testing.T) {
 // ==================== ListSupportDocuments Tests ====================
 
 func TestListSupportDocuments_Success(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	svc, _, mockSupportDocRepo, _ := createTestSupportDocumentService(t)
 
 	docs := []dto.SupportDocumentListItem{
@@ -157,7 +157,7 @@ func TestListSupportDocuments_Success(t *testing.T) {
 }
 
 func TestListSupportDocuments_WithProviderFilter(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	svc, _, mockSupportDocRepo, _ := createTestSupportDocumentService(t)
 
 	mockSupportDocRepo.On("FindByCriteria", ctx, mock.MatchedBy(func(c *dto.SupportDocumentCriteria) bool {
@@ -178,7 +178,7 @@ func TestListSupportDocuments_WithProviderFilter(t *testing.T) {
 // ==================== ExportSupportDocumentsCSV Tests ====================
 
 func TestExportSupportDocumentsCSV_Success(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	svc, _, mockSupportDocRepo, _ := createTestSupportDocumentService(t)
 
 	docs := []dto.SupportDocumentListItem{
@@ -213,7 +213,7 @@ func TestExportSupportDocumentsCSV_Success(t *testing.T) {
 // ==================== UpdateMissingDocumentURLs Tests ====================
 
 func TestUpdateMissingDocumentURLs_Success(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	svc, mockInvoiceClient, mockSupportDocRepo, _ := createTestSupportDocumentService(t)
 
 	docs := []*dto.SupportDocumentWithTascode{
@@ -237,7 +237,7 @@ func TestUpdateMissingDocumentURLs_Success(t *testing.T) {
 }
 
 func TestUpdateMissingDocumentURLs_NoPendingDocs(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	svc, _, mockSupportDocRepo, _ := createTestSupportDocumentService(t)
 
 	mockSupportDocRepo.On("FindByNullDocumentURL", ctx).Return([]*dto.SupportDocumentWithTascode{}, nil)

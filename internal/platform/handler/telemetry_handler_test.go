@@ -26,14 +26,16 @@ const telemetryNodeKey = "node-secret"
 // (resource_logs/resource_spans/resource_metrics) holding one empty message.
 var telemetryPayload = []byte{0x0a, 0x00}
 
-func telemetryRouter(cfg *config.Config, forwarder *mocks.MockTelemetryForwarder) *gin.Engine {
-	ingestService := service.NewTelemetryIngestService(forwarder, "tenant-abc", "org-123")
+func telemetryRouter(t *testing.T, cfg *config.Config, forwarder *mocks.MockTelemetryForwarder) *gin.Engine {
+	t.Helper()
+	nodeAuth := NodeAuthMiddleware(cfg, registeredNodes(t))
+	ingestService := service.NewTelemetryIngestService(forwarder, "tenant-abc")
 	h := NewTelemetryHandler(ingestService)
 
 	router := gin.New()
-	router.POST("/api/telemetry/v1/logs", NodeAuthMiddleware(cfg), h.IngestLogsHandler)
-	router.POST("/api/telemetry/v1/traces", NodeAuthMiddleware(cfg), h.IngestTracesHandler)
-	router.POST("/api/telemetry/v1/metrics", NodeAuthMiddleware(cfg), h.IngestMetricsHandler)
+	router.POST("/api/telemetry/v1/logs", nodeAuth, h.IngestLogsHandler)
+	router.POST("/api/telemetry/v1/traces", nodeAuth, h.IngestTracesHandler)
+	router.POST("/api/telemetry/v1/metrics", nodeAuth, h.IngestMetricsHandler)
 	return router
 }
 
@@ -43,6 +45,7 @@ func telemetryRequest(path, nodeKey string, body []byte) *http.Request {
 	if nodeKey != "" {
 		req.Header.Set("X-Node-Key", nodeKey)
 	}
+	req.Header.Set(NodeIDHeader, testNodeID)
 	return req
 }
 
@@ -59,7 +62,7 @@ func TestTelemetryHandler_ValidNodeKeyIsAccepted(t *testing.T) {
 			})).Return(nil).Once()
 
 			w := httptest.NewRecorder()
-			telemetryRouter(&config.Config{NodeSyncKey: telemetryNodeKey}, forwarder).
+			telemetryRouter(t, &config.Config{NodeSyncKey: telemetryNodeKey}, forwarder).
 				ServeHTTP(w, telemetryRequest(path, telemetryNodeKey, telemetryPayload))
 
 			assert.Equal(t, http.StatusOK, w.Code)
@@ -84,7 +87,7 @@ func TestTelemetryHandler_InvalidOrMissingNodeKeyForwardsNothing(t *testing.T) {
 			forwarder := mocks.NewMockTelemetryForwarder(t)
 
 			w := httptest.NewRecorder()
-			telemetryRouter(&config.Config{NodeSyncKey: telemetryNodeKey}, forwarder).
+			telemetryRouter(t, &config.Config{NodeSyncKey: telemetryNodeKey}, forwarder).
 				ServeHTTP(w, telemetryRequest("/api/telemetry/v1/logs", tt.nodeKey, telemetryPayload))
 
 			assert.Equal(t, http.StatusUnauthorized, w.Code)
@@ -111,7 +114,7 @@ func TestTelemetryHandler_GzippedBodyIsDecompressed(t *testing.T) {
 	req.Header.Set("Content-Encoding", "gzip")
 
 	w := httptest.NewRecorder()
-	telemetryRouter(&config.Config{NodeSyncKey: telemetryNodeKey}, forwarder).ServeHTTP(w, req)
+	telemetryRouter(t, &config.Config{NodeSyncKey: telemetryNodeKey}, forwarder).ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 }
@@ -123,7 +126,7 @@ func TestTelemetryHandler_NonProtobufContentTypeIsRejected(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
-	telemetryRouter(&config.Config{NodeSyncKey: telemetryNodeKey}, forwarder).ServeHTTP(w, req)
+	telemetryRouter(t, &config.Config{NodeSyncKey: telemetryNodeKey}, forwarder).ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusUnsupportedMediaType, w.Code)
 	forwarder.AssertNotCalled(t, "Forward", mock.Anything, mock.Anything)
@@ -135,7 +138,7 @@ func TestTelemetryHandler_MalformedPayloadIsClientError(t *testing.T) {
 		Return(domainerror.ErrTelemetryMalformedPayload).Once()
 
 	w := httptest.NewRecorder()
-	telemetryRouter(&config.Config{NodeSyncKey: telemetryNodeKey}, forwarder).
+	telemetryRouter(t, &config.Config{NodeSyncKey: telemetryNodeKey}, forwarder).
 		ServeHTTP(w, telemetryRequest("/api/telemetry/v1/metrics", telemetryNodeKey, []byte{0xff}))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -148,7 +151,7 @@ func TestTelemetryHandler_UpstreamFailureIsRetryable(t *testing.T) {
 	forwarder.On("Forward", mock.Anything, mock.Anything).Return(errors.New("gateway down")).Once()
 
 	w := httptest.NewRecorder()
-	telemetryRouter(&config.Config{NodeSyncKey: telemetryNodeKey}, forwarder).
+	telemetryRouter(t, &config.Config{NodeSyncKey: telemetryNodeKey}, forwarder).
 		ServeHTTP(w, telemetryRequest("/api/telemetry/v1/logs", telemetryNodeKey, telemetryPayload))
 
 	assert.Equal(t, http.StatusBadGateway, w.Code)

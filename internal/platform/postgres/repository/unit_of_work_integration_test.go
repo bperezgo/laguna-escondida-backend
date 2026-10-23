@@ -44,7 +44,7 @@ func TestUnitOfWork_Do_NestedJoinsOuterTransaction_Integration(t *testing.T) {
 
 	var outerTxID, innerTxID int64
 	boom := fmt.Errorf("outer fails after inner succeeded")
-	err := uow.Do(context.Background(), func(ctx context.Context) error {
+	err := uow.Do(lagunaCtx(), func(ctx context.Context) error {
 		require.NoError(t, postgres.GetTxOrDB(ctx, db.DB).Raw("SELECT txid_current()").Scan(&outerTxID).Error)
 		if innerErr := uow.Do(ctx, func(ctx context.Context) error {
 			require.NoError(t, postgres.GetTxOrDB(ctx, db.DB).Raw("SELECT txid_current()").Scan(&innerTxID).Error)
@@ -69,7 +69,7 @@ func TestUnitOfWork_Do_NestedFailureRollsBackOnlyInner_Integration(t *testing.T)
 	t.Cleanup(func() { db.DB.Exec("DELETE FROM sync_outbox WHERE origin_node_id = ?", origin) })
 
 	boom := fmt.Errorf("inner fails")
-	require.NoError(t, uow.Do(context.Background(), func(ctx context.Context) error {
+	require.NoError(t, uow.Do(lagunaCtx(), func(ctx context.Context) error {
 		if err := repo.Append(ctx, outboxEntry(origin)); err != nil {
 			return err
 		}
@@ -95,7 +95,7 @@ func TestInTx_JoinsUnitOfWorkTransaction_Integration(t *testing.T) {
 	t.Cleanup(func() { db.DB.Exec("DELETE FROM sync_outbox WHERE origin_node_id = ?", origin) })
 
 	boom := fmt.Errorf("outer fails after InTx succeeded")
-	err := uow.Do(context.Background(), func(ctx context.Context) error {
+	err := uow.Do(lagunaCtx(), func(ctx context.Context) error {
 		if txErr := postgres.InTx(ctx, db.DB, func(tx *gorm.DB) error {
 			return repo.Append(ctx, outboxEntry(origin))
 		}); txErr != nil {
@@ -115,7 +115,7 @@ func TestUnitOfWork_Do_WithoutOuterTransaction_Commits_Integration(t *testing.T)
 	origin := uuid.NewString()
 	t.Cleanup(func() { db.DB.Exec("DELETE FROM sync_outbox WHERE origin_node_id = ?", origin) })
 
-	require.NoError(t, postgres.NewUnitOfWork(db.DB).Do(context.Background(), func(ctx context.Context) error {
+	require.NoError(t, postgres.NewUnitOfWork(db.DB).Do(lagunaCtx(), func(ctx context.Context) error {
 		return repo.Append(ctx, outboxEntry(origin))
 	}))
 	assert.Equal(t, int64(1), countOutbox(t, db, origin))

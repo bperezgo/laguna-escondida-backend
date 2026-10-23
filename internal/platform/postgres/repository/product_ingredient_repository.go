@@ -21,6 +21,7 @@ func NewProductIngredientRepository(db *gorm.DB) ports.ProductIngredientReposito
 }
 
 type productIngredientModel struct {
+	postgres.TenantOwned
 	ID                  string          `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	CompositeProductID  string          `gorm:"type:uuid;not null;column:composite_product_id"`
 	IngredientProductID string          `gorm:"type:uuid;not null;column:ingredient_product_id"`
@@ -65,6 +66,10 @@ type productIngredientWithProductModel struct {
 }
 
 func (r *ProductIngredientRepository) Create(ctx context.Context, ingredient *dto.ProductIngredient) error {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 	model := &productIngredientModel{
 		ID:                  ingredient.ID,
 		CompositeProductID:  ingredient.CompositeProductID,
@@ -77,10 +82,14 @@ func (r *ProductIngredientRepository) Create(ctx context.Context, ingredient *dt
 		UpdatedAt:           ingredient.UpdatedAt,
 	}
 
-	return postgres.GetTxOrDB(ctx, r.db).Create(model).Error
+	return db.Create(model).Error
 }
 
 func (r *ProductIngredientRepository) Update(ctx context.Context, id string, ingredient *dto.ProductIngredient) error {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 	updateData := map[string]interface{}{
 		"default_quantity": ingredient.DefaultQuantity,
 		"is_side_dish":     ingredient.IsSideDish,
@@ -89,21 +98,29 @@ func (r *ProductIngredientRepository) Update(ctx context.Context, id string, ing
 		"updated_at":       ingredient.UpdatedAt,
 	}
 
-	return postgres.GetTxOrDB(ctx, r.db).
+	return db.
 		Model(&productIngredientModel{}).
 		Where("id = ?", id).
 		Updates(updateData).Error
 }
 
 func (r *ProductIngredientRepository) Delete(ctx context.Context, id string) error {
-	return postgres.GetTxOrDB(ctx, r.db).
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	return db.
 		Where("id = ?", id).
 		Delete(&productIngredientModel{}).Error
 }
 
 func (r *ProductIngredientRepository) FindByID(ctx context.Context, id string) (*dto.ProductIngredient, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var model productIngredientModel
-	if err := postgres.GetTxOrDB(ctx, r.db).Where("id = ?", id).First(&model).Error; err != nil {
+	if err := db.Where("id = ?", id).First(&model).Error; err != nil {
 		return nil, err
 	}
 
@@ -111,9 +128,13 @@ func (r *ProductIngredientRepository) FindByID(ctx context.Context, id string) (
 }
 
 func (r *ProductIngredientRepository) FindByCompositeProductID(ctx context.Context, compositeProductID string) ([]*dto.ProductIngredient, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var models []productIngredientModel
 
-	err := postgres.GetTxOrDB(ctx, r.db).
+	err = db.
 		Where("composite_product_id = ?", compositeProductID).
 		Find(&models).Error
 
@@ -130,9 +151,13 @@ func (r *ProductIngredientRepository) FindByCompositeProductID(ctx context.Conte
 }
 
 func (r *ProductIngredientRepository) FindByCompositeProductIDWithProducts(ctx context.Context, compositeProductID string) ([]*dto.ProductIngredientWithProduct, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var models []productIngredientWithProductModel
 
-	err := postgres.GetTxOrDB(ctx, r.db).
+	err = db.
 		Table("product_ingredients pi").
 		Select(`
 			pi.id,
@@ -207,9 +232,13 @@ func (r *ProductIngredientRepository) FindByCompositeProductIDWithProducts(ctx c
 }
 
 func (r *ProductIngredientRepository) FindSideDishesByCompositeProductID(ctx context.Context, compositeProductID string) ([]*dto.ProductIngredient, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var models []productIngredientModel
 
-	err := postgres.GetTxOrDB(ctx, r.db).
+	err = db.
 		Where("composite_product_id = ? AND is_side_dish = ?", compositeProductID, true).
 		Find(&models).Error
 
@@ -226,9 +255,13 @@ func (r *ProductIngredientRepository) FindSideDishesByCompositeProductID(ctx con
 }
 
 func (r *ProductIngredientRepository) FindByIngredientProductID(ctx context.Context, ingredientProductID string) ([]*dto.ProductIngredient, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var models []productIngredientModel
 
-	err := postgres.GetTxOrDB(ctx, r.db).
+	err = db.
 		Where("ingredient_product_id = ?", ingredientProductID).
 		Find(&models).Error
 
