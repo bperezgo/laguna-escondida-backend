@@ -1,4 +1,4 @@
-package main
+package bootstrap
 
 import (
 	"laguna-escondida/backend/internal/domain/permissions"

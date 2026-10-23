@@ -8,7 +8,7 @@
 
 ## 3. Move the wiring into `internal/bootstrap`
 
-- [ ] 3.1 Move only, no edits. Move the following to `internal/bootstrap`, changing package names and imports only:
+- [x] 3.1 Move only, no edits. Move the following to `internal/bootstrap`, changing package names and imports only:
   - `cmd/routes.go`, `cmd/stock_routes.go` and `cmd/event_subscriptions.go`;
   - the migration and DSN helpers from `cmd/main.go`;
   - the five `cmd/*_test.go` files.

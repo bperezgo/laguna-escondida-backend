@@ -1,4 +1,4 @@
-package main
+package bootstrap
 
 import (
 	"fmt"
@@ -45,7 +45,7 @@ func TestWriteRouteGolden(t *testing.T) {
 			registerEdgeUpdateRoutes(router, jwtService, &handler.EdgeUpdateHandler{})
 		}
 
-		path := filepath.Join("..", "internal", "bootstrap", "testdata", "routes_"+string(mode)+".golden")
+		path := filepath.Join("testdata", "routes_"+string(mode)+".golden")
 		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
 		require.NoError(t, os.WriteFile(path, []byte(routeTable(router)), 0o600))
 	}
