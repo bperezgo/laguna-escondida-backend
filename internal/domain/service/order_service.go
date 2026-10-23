@@ -19,6 +19,7 @@ import (
 	orderError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/permissions"
 	"laguna-escondida/backend/internal/domain/ports"
+	"laguna-escondida/backend/internal/domain/tenant"
 	pkgports "laguna-escondida/backend/pkg/domain/ports"
 
 	"github.com/google/uuid"
@@ -276,6 +277,7 @@ func (s *OrderService) CreateOrder(
 			req.Products,
 		)
 		event.OrderType = openBillAggregate.OrderType()
+		event.OrganizationID, _ = tenant.OrgFrom(ctx)
 		if err := s.eventBus.Publish(ctx, event); err != nil {
 			s.logger.ErrorContext(ctx, "failed to publish order created event", slog.Any("error", err))
 		}
@@ -603,6 +605,7 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 		req.Products,
 	)
 	event.OrderType = existingBillAggregate.OrderType()
+	event.OrganizationID, _ = tenant.OrgFrom(ctx)
 	if err := s.eventBus.Publish(ctx, event); err != nil {
 		s.logger.ErrorContext(ctx, "failed to publish order updated event", slog.Any("error", err))
 	}
@@ -703,6 +706,7 @@ func (s *OrderService) PayOrder(ctx context.Context, payOrderCommand command.Pay
 
 	// After the commit, so the kitchen never shows lines of a payment that rolled back.
 	if released != nil {
+		released.OrganizationID, _ = tenant.OrgFrom(ctx)
 		if err := s.eventBus.Publish(ctx, *released); err != nil {
 			s.logger.ErrorContext(ctx, "failed to publish order released to kitchen event", slog.Any("error", err))
 		}
@@ -924,6 +928,7 @@ func (s *OrderService) DeleteOrder(ctx context.Context, openBillID string, user 
 
 	event := dto.NewOrderDeletedEvent(openBillID, existingOpenBill.Products)
 	event.OrderType = existingOpenBill.OrderType
+	event.OrganizationID, _ = tenant.OrgFrom(ctx)
 	if err := s.eventBus.Publish(ctx, event); err != nil {
 		s.logger.ErrorContext(ctx, "failed to publish order deleted event", slog.Any("error", err))
 	}

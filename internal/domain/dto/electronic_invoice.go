@@ -95,6 +95,13 @@ type VerifyInvoiceStatusResponse struct {
 type UpdateDocumentURLsResponse struct {
 	UpdatedCount int                            `json:"updated_count"`
 	FailedBills  []UpdateDocumentURLsFailedBill `json:"failed_bills"`
+	// FailedOrganizations lists organizations whose whole run failed, when run for each one.
+	FailedOrganizations []UpdateDocumentURLsFailedOrganization `json:"failed_organizations,omitempty"`
+}
+
+type UpdateDocumentURLsFailedOrganization struct {
+	OrganizationID string `json:"organization_id"`
+	Error          string `json:"error"`
 }
 
 type UpdateDocumentURLsFailedBill struct {

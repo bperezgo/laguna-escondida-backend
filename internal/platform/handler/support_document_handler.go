@@ -14,11 +14,13 @@ import (
 
 type SupportDocumentHandler struct {
 	supportDocumentService *service.SupportDocumentService
+	maintenance            *service.DocumentURLMaintenanceService
 }
 
-func NewSupportDocumentHandler(supportDocumentService *service.SupportDocumentService) *SupportDocumentHandler {
+func NewSupportDocumentHandler(supportDocumentService *service.SupportDocumentService, maintenance *service.DocumentURLMaintenanceService) *SupportDocumentHandler {
 	return &SupportDocumentHandler{
 		supportDocumentService: supportDocumentService,
+		maintenance:            maintenance,
 	}
 }
 
@@ -143,7 +145,7 @@ func (h *SupportDocumentHandler) ExportSupportDocumentsCSVHandler(c *gin.Context
 }
 
 func (h *SupportDocumentHandler) UpdateMissingSupportDocumentURLsHandler(c *gin.Context) {
-	response, err := h.supportDocumentService.UpdateMissingDocumentURLs(c.Request.Context())
+	response, err := h.maintenance.UpdateSupportDocumentURLs(c.Request.Context())
 	if err != nil {
 		log.Printf("Error updating missing support document URLs: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update missing support document URLs"})

@@ -105,6 +105,7 @@ func (s *PurchaseEntryService) CreatePurchaseEntry(ctx context.Context, req *dto
 
 	// Publish event for stock update
 	event := dto.NewPurchaseEntryCreatedEvent(purchaseEntryDTO.ID, purchaseEntryDTO.SupplierID, purchaseEntryDTO.Items)
+	event.OrganizationID, _ = tenant.OrgFrom(ctx)
 	if err := s.eventBus.Publish(ctx, event); err != nil {
 		s.logger.Error("failed to publish purchase entry created event",
 			slog.String("purchase_entry_id", purchaseEntryDTO.ID),

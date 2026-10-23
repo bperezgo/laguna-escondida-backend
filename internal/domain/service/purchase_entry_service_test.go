@@ -11,6 +11,8 @@ import (
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports/mocks"
 	"laguna-escondida/backend/internal/domain/tenant"
+	pkgports "laguna-escondida/backend/pkg/domain/ports"
+	pkgmocks "laguna-escondida/backend/pkg/domain/ports/mocks"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -132,4 +134,36 @@ func TestCreatePurchaseEntry_ProductNotFound(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.ErrorIs(t, err, domainError.ErrProductNotFound)
+}
+
+// Its stock handler runs on another goroutine with no request, so the event names the organization.
+func TestCreatePurchaseEntry_EventCarriesTheOrganization(t *testing.T) {
+	ctx := tenant.WithOrg(context.Background(), "org-1")
+	mockSupplierRepo := mocks.NewMockSupplierRepository(t)
+	mockProductRepo := mocks.NewMockProductRepository(t)
+	mockPurchaseEntryRepo := mocks.NewMockPurchaseEntryRepository(t)
+	mockSupplierCatalogRepo := mocks.NewMockSupplierCatalogRepository(t)
+	mockOutbox := mocks.NewMockSyncOutboxRepository(t)
+	eventBus := pkgmocks.NewMockEventBus(t)
+	var published dto.PurchaseEntryCreatedEvent
+	eventBus.EXPECT().Publish(mock.Anything, mock.AnythingOfType("dto.PurchaseEntryCreatedEvent")).
+		Run(func(_ context.Context, e pkgports.Event) { published, _ = e.(dto.PurchaseEntryCreatedEvent) }).
+		Return(nil).Once()
+
+	svc := NewPurchaseEntryService(mockPurchaseEntryRepo, mockSupplierRepo, mockSupplierCatalogRepo, mockProductRepo,
+		mocks.NewMockStorageClient(t), eventBus, createMockUnitOfWork(t), mockOutbox, dto.SyncIdentity{NodeID: testNodeID}, slog.Default())
+
+	req := createTestPurchaseEntryRequest()
+	productID := req.Items[0].ProductID
+	mockSupplierRepo.On("FindByID", ctx, req.SupplierID).Return(&dto.Supplier{}, nil)
+	mockProductRepo.On("FindByIDs", ctx, []string{productID}).Return([]*dto.Product{{ID: productID}}, nil)
+	mockPurchaseEntryRepo.On("Create", ctx, mock.AnythingOfType("*purchase_entry.Aggregate")).Return(nil)
+	mockSupplierCatalogRepo.On("FindBySupplierAndProduct", ctx, req.SupplierID, productID).Return(nil, errors.New("not found")).Maybe()
+	mockSupplierCatalogRepo.On("Create", ctx, mock.AnythingOfType("*dto.SupplierCatalog")).Return(nil).Maybe()
+	mockOutbox.EXPECT().Append(mock.Anything, mock.Anything).Return(nil).Once()
+
+	_, err := svc.CreatePurchaseEntry(ctx, req)
+
+	require.NoError(t, err)
+	assert.Equal(t, "org-1", published.Organization())
 }

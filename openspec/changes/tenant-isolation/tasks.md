@@ -31,11 +31,11 @@
 
 ## 5. Release 2: background work
 
-- [ ] 5.1 Cloud crons loop over active organizations with a tenant context and session each; e-invoicing jobs only for orgs with an `organization_einvoicing` row; one org's failure is logged and the loop continues. Verify scheduler tests: two orgs, one failing, one suspended.
-- [ ] 5.2 The admin-key maintenance triggers (`update-missing-document-urls` for invoices and support documents) run per org like the crons; `POST /api/stock/opening-balances` requires the org to be named. Verify handler tests for each scenario under "Admin-key operations name their organization".
-- [ ] 5.3 Event payloads (`order.*`, `purchase_entry.created`) carry `organization_id`; subscribers restore it on their detached context and open their own session; a payload without it is rejected and logged. Verify subscriber tests for both cases.
-- [ ] 5.4 Cloud sync push and pull resolve the org from the calling node's `nodes.organization_id`; an unregistered node is rejected with `401`. Verify sync handler tests, and an integration test that the pull returns only the node's org's users and products.
-- [ ] 5.5 Edge background work (push and pull loops, local crons) uses the box's `ORGANIZATION_ID`. Verify the edge boots and its loops run against a testcontainers database.
+- [x] 5.1 Cloud crons loop over active organizations with a tenant context and session each; e-invoicing jobs only for orgs with an `organization_einvoicing` row; one org's failure is logged and the loop continues. Verify scheduler tests: two orgs, one failing, one suspended.
+- [x] 5.2 The admin-key maintenance triggers (`update-missing-document-urls` for invoices and support documents) run per org like the crons; `POST /api/stock/opening-balances` requires the org to be named. Verify handler tests for each scenario under "Admin-key operations name their organization".
+- [x] 5.3 Event payloads (`order.*`, `purchase_entry.created`) carry `organization_id`; subscribers restore it on their detached context and open their own session; a payload without it is rejected and logged. Verify subscriber tests for both cases.
+- [x] 5.4 Cloud sync push and pull resolve the org from the calling node's `nodes.organization_id`; an unregistered node is rejected with `401`. Verify sync handler tests, and an integration test that the pull returns only the node's org's users and products.
+- [x] 5.5 Edge background work (push and pull loops, local crons) uses the box's `ORGANIZATION_ID`. Verify the edge boots and its loops run against a testcontainers database.
 
 ## 6. Release 2: leak suite and frontend
 

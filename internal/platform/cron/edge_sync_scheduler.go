@@ -16,6 +16,8 @@ import (
 // the edge sync concern is started and stopped independently of the cloud cron jobs.
 type EdgeSyncScheduler struct {
 	scheduler        gocron.Scheduler
+	organizations    *service.OrganizationRunner
+	boxOrgID         string
 	pushService      *service.SyncPushService
 	pullService      *service.SyncPullService
 	stockPullService *service.StockPullService
@@ -26,7 +28,10 @@ type EdgeSyncScheduler struct {
 	logger           *slog.Logger
 }
 
+// NewEdgeSyncScheduler runs every loop as the box's organization, boxOrgID.
 func NewEdgeSyncScheduler(
+	organizations *service.OrganizationRunner,
+	boxOrgID string,
 	pushService *service.SyncPushService,
 	pullService *service.SyncPullService,
 	stockPullService *service.StockPullService,
@@ -43,6 +48,8 @@ func NewEdgeSyncScheduler(
 
 	return &EdgeSyncScheduler{
 		scheduler:        scheduler,
+		organizations:    organizations,
+		boxOrgID:         boxOrgID,
 		pushService:      pushService,
 		pullService:      pullService,
 		stockPullService: stockPullService,
@@ -101,7 +108,10 @@ func (s *EdgeSyncScheduler) registerJobs() error {
 // nothing about whether the cloud is reachable right now. A failure leaves the previous
 // amounts in place and touches nothing else — selling never depends on this.
 func (s *EdgeSyncScheduler) stockPullJob() {
-	ctx := context.Background()
+	s.asBox(s.stockPull)
+}
+
+func (s *EdgeSyncScheduler) stockPull(ctx context.Context) {
 	result, err := s.stockPullService.RefreshStock(ctx)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "Edge stock refresh job failed", slog.Any("error", err))
@@ -112,13 +122,24 @@ func (s *EdgeSyncScheduler) stockPullJob() {
 	)
 }
 
+// asBox runs job for the box's organization, in a database session of its own.
+func (s *EdgeSyncScheduler) asBox(job func(ctx context.Context)) {
+	_ = s.organizations.Run(context.Background(), s.boxOrgID, func(ctx context.Context) error {
+		job(ctx)
+		return nil
+	})
+}
+
 func (s *EdgeSyncScheduler) Stop() error {
 	s.logger.Info("Stopping edge sync scheduler...")
 	return s.scheduler.Shutdown()
 }
 
 func (s *EdgeSyncScheduler) pushJob() {
-	ctx := context.Background()
+	s.asBox(s.push)
+}
+
+func (s *EdgeSyncScheduler) push(ctx context.Context) {
 	result, err := s.pushService.PushPending(ctx)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "Edge sync push job failed", slog.Any("error", err))
@@ -133,7 +154,10 @@ func (s *EdgeSyncScheduler) pushJob() {
 }
 
 func (s *EdgeSyncScheduler) pullJob() {
-	ctx := context.Background()
+	s.asBox(s.pull)
+}
+
+func (s *EdgeSyncScheduler) pull(ctx context.Context) {
 	result, err := s.pullService.PullChanges(ctx)
 	if err != nil {
 		// The pull loop always contacts the cloud, so its outcome is the edge's

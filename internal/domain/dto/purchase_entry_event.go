@@ -18,6 +18,7 @@ type PurchaseEntryCreatedEventItem struct {
 
 type PurchaseEntryCreatedEvent struct {
 	event.BaseEvent
+	EventOrganization
 	PurchaseEntryID string                          `json:"purchase_entry_id"`
 	SupplierID      string                          `json:"supplier_id"`
 	Items           []PurchaseEntryCreatedEventItem `json:"items"`

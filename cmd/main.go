@@ -194,6 +194,8 @@ func main() {
 	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, organizationRepo, jwtService, unitOfWork, cfg.OrganizationID)
 	einvoicingSettingsRepo := repository.NewEInvoicingSettingsRepository(db.DB)
 	organizationService := service.NewOrganizationService(organizationRepo, einvoicingSettingsRepo, unitOfWork)
+	sessionOpener := postgres.NewSessionOpener(db.DB)
+	organizationRunner := service.NewOrganizationRunner(organizationRepo, sessionOpener)
 	billOwnerService := service.NewBillOwnerService(billOwnerRepo)
 	supplierService := service.NewSupplierService(supplierRepo, supplierCatalogRepo, productRepo)
 	purchaseEntryService := service.NewPurchaseEntryService(purchaseEntryRepo, supplierRepo, supplierCatalogRepo, productRepo, storageClient, publisher, unitOfWork, syncOutboxRepo, syncIdentity, logger)
@@ -213,7 +215,7 @@ func main() {
 		}
 	}()
 
-	if err = subscribeKitchenFeed(eventSubscriber, orderService); err != nil {
+	if err = subscribeKitchenFeed(eventSubscriber, orderService, sessionOpener, logger); err != nil {
 		log.Fatalf("Failed to subscribe kitchen feed handlers: %v", err)
 	}
 
@@ -251,7 +253,7 @@ func main() {
 		}
 	}()
 
-	if err = subscribeStockHandlers(stockSubscriber, stockEventHandler); err != nil {
+	if err = subscribeStockHandlers(stockSubscriber, stockEventHandler, sessionOpener, logger); err != nil {
 		log.Fatalf("Failed to subscribe stock handlers: %v", err)
 	}
 
@@ -270,7 +272,7 @@ func main() {
 	orderHandler := handler.NewOrderHandler(orderService,
 		service.NewOrderIdempotencyService(orderService, repository.NewIdempotencyKeyRepository(db.DB)))
 	productHandler := handler.NewProductHandler(productService)
-	stockHandler := handler.NewStockHandler(stockService, stockReconciliationService)
+	stockHandler := handler.NewStockHandler(stockService, stockReconciliationService, organizationRunner)
 	userHandler := handler.NewUserHandler(userService, organizationService, logger)
 	billOwnerHandler := handler.NewBillOwnerHandler(billOwnerService)
 	supplierHandler := handler.NewSupplierHandler(supplierService)
@@ -393,7 +395,7 @@ func main() {
 			syncIdentity, logger,
 		)
 		edgeScheduler, edgeErr := cron.NewEdgeSyncScheduler(
-			syncPushService, syncPullService, stockPullService, syncStatusTracker,
+			organizationRunner, cfg.OrganizationID, syncPushService, syncPullService, stockPullService, syncStatusTracker,
 			cfg.SyncPushCron, cfg.SyncPullCron, cfg.StockPullCron, logger,
 		)
 		if edgeErr != nil {
@@ -422,7 +424,7 @@ func main() {
 		)
 
 		cronScheduler, cronErr := cron.NewScheduler(
-			invoiceService, supportDocService, invoiceSubmissionService, stockReconciliationService,
+			organizationRunner, invoiceService, supportDocService, invoiceSubmissionService, stockReconciliationService,
 			cfg.InvoiceURLCron, cfg.SupportDocumentURLCron, cfg.InvoiceSubmitCron, cfg.StockReconcileCron,
 			logger,
 		)
@@ -438,8 +440,9 @@ func main() {
 			}
 		}()
 
-		invoiceHandler := handler.NewInvoiceHandler(invoiceService)
-		supportDocHandler := handler.NewSupportDocumentHandler(supportDocService)
+		documentURLMaintenance := service.NewDocumentURLMaintenanceService(organizationRunner, invoiceService, supportDocService)
+		invoiceHandler := handler.NewInvoiceHandler(invoiceService, documentURLMaintenance)
+		supportDocHandler := handler.NewSupportDocumentHandler(supportDocService, documentURLMaintenance)
 
 		syncHandler := handler.NewSyncHandler(syncService, syncReferenceService)
 

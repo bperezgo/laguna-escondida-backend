@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sync"
 
+	"laguna-escondida/backend/internal/domain/ports"
 	"laguna-escondida/backend/internal/domain/tenant"
 
 	"gorm.io/gorm"
@@ -106,4 +107,16 @@ func (s *session) release() {
 	}
 	_ = s.conn.Close()
 	s.conn, s.pinned = nil, nil
+}
+
+type sessionOpener struct {
+	db *gorm.DB
+}
+
+func NewSessionOpener(db *gorm.DB) ports.SessionOpener {
+	return &sessionOpener{db: db}
+}
+
+func (o *sessionOpener) Open(ctx context.Context) (context.Context, func()) {
+	return WithSession(ctx, o.db)
 }
