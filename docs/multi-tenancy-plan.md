@@ -1,7 +1,7 @@
 # Multi-tenancy: one database, one container, organization from the token
 
 **Opened:** 2026-10-21 · **For:** this backend, the MCP server, `laguna-escondida-frontend`
-· **Status:** plan only, nothing changed yet · **Related:** `marketing-app/docs/multi-restaurant-plan.md`
+· **Status:** steps 1–3 shipped, step 4 in progress (repository scopes done; leak suite and RLS next); `openspec/changes/tenant-isolation` · **Related:** `marketing-app/docs/multi-restaurant-plan.md`
 (the WhatsApp agent's side)
 
 ## 0. Goal
@@ -30,6 +30,11 @@ one location each, all using the whole POS — edge box, DIAN invoicing, stock),
 | 2026-10-21 | The invoice and support-document prefixes live in `organization_einvoicing` (migration 67, Laguna seeded `LAG`/`DS`); `ELECTRONIC_INVOICE_PREFIX` and `SUPPORT_DOCUMENT_PREFIX` are no longer read. `invoice_sequences` is keyed `(organization_id, prefix)`, and the two prefixes of an org must differ so they never share a counter. A consecutive is claimed and assigned in one transaction. |
 | 2026-10-21 | Order idempotency uses an `idempotency_keys` table, per node and not synced, in front of `OrderService.CreateOrder`. The key gets `organization_id` with the other tables in step 2. |
 | 2026-10-22 | Organization settings are **columns on `organizations`** (migration 68: slug, status, timezone, country, locale, currency, business info, receipt text, branding), not a settings table or a JSON column. Platform routes `/api/platform/organizations` (create, list, get, PATCH, PUT e-invoicing prefixes) are cloud-only behind `ADMIN_API_KEY` until `platform_admin` replaces it on the same paths in step 3. There is **no delete** (invoices are legal records; retire with `status = suspended`), and the **slug is immutable**. Settings are stored but not yet read: each consumer switches over in its own step. |
+| 2026-10-23 | **One organization per user.** `users.organization_id` (`NOT NULL`) and `user_roles` carry the org; the `memberships`/`membership_roles` tables are **dropped from the plan**. There is no org picker and no switching; a person working for two orgs has two users. |
+| 2026-10-23 | **Usernames are unique per organization** (`UNIQUE (organization_id, username)`), so **sign-in names the organization by its immutable slug**: `POST /api/auth/signin {"organization", "username", "password"}`. Required in the cloud; optional on an edge box, where it must be the box's slug. An unknown or suspended org returns the same opaque `401` as a bad password. The JWT carries `org_id`; a token without it is rejected. |
+| 2026-10-23 | **The mode comes from `APP_MODE`, checked at boot.** Edge requires `ORGANIZATION_ID` (a UUID) and rejects tokens of another org. The cloud refuses to boot with `ORGANIZATION_ID` set and requires `NODE_ID`, set to `config.CloudNodeIDFor(<Laguna>)` (`45598059-e12e-530c-86b6-758477c4423d`) so Laguna's box keeps its `sync_state`. |
+| 2026-10-23 | **Background work runs per organization.** Cloud crons list the active orgs (e-invoicing jobs only those with `organization_einvoicing`) and run each in its own tenant context and DB session (`service.OrganizationRunner`); one org's failure is logged and the rest run. Events carry `organization_id`. The cloud's sync and telemetry endpoints resolve the org from the calling node's `X-Node-ID` through `nodes.organization_id` (migration 71 registers Laguna's box); the edge's own loops act for the box's org. |
+| 2026-10-23 | `DBSessionMiddleware` stays global but reads the org lazily, from the first statement's context (which authentication filled), instead of a value fixed before authentication runs. A request with no org pins no connection. |
 | 2026-10-22 | `GET /api/auth/me` returns an `organization` object (settings only: no status, e-invoicing or timestamps) so the frontend can build branding and formatting now. Until step 3 it is the configured `ORGANIZATION_ID`; step 3 swaps the source for the token's `org_id` without changing the response. A missing organization is a `500`, never `null`. |
 
 ## 1. Starting point
@@ -59,16 +64,14 @@ Problems that exist **today** and become leaks once tenants share the service:
 
 ```
 organizations (exists)   id, slug, name, status, settings…          global, no RLS
-users                    id, username UNIQUE, password_hash, active,
-                         platform_role NULL | 'platform_admin'       global identity
-memberships              id, user_id, organization_id, active        UNIQUE(user_id, organization_id)
-membership_roles         membership_id, role_id                      replaces user_roles
+users                    id, organization_id, username, password_hash, active   UNIQUE(organization_id, username)
+user_roles               user_id, role_id, organization_id
 roles                    unchanged: global, ids 1–6 hardcoded in permissions/role_permissions.go
 ```
 
-- **Identity is global and membership is per org.** One user can belong to several orgs, with different
-  roles in each. At launch everyone has exactly one membership.
-- **`platform_admin`** onboards orgs and replaces `ADMIN_API_KEY` for anything that crosses orgs.
+- **A user belongs to exactly one org**, fixed at creation; usernames are unique within it. (Memberships across
+  orgs were planned and dropped on 2026-10-23.)
+- **`platform_admin`** onboards orgs and replaces `ADMIN_API_KEY` for anything that crosses orgs (not built yet).
 - **Every tenant-owned table gets `organization_id uuid NOT NULL REFERENCES organizations`.**
   Child tables carry it too, so every policy is one predicate with no join. The tables are:
   - products
@@ -84,6 +87,7 @@ roles                    unchanged: global, ids 1–6 hardcoded in permissions/r
   - delivery_zones
   - nodes, sync_outbox, sync_inbox, sync_state
 - **Uniques become per org:**
+  - `users.username` → `(organization_id, username)`
   - `bill_owners` PK → `(organization_id, id)`
   - `invoice_sequences` PK → `(organization_id, prefix)`
   - `expense_categories.code` → `(organization_id, code)`, seeded per org at onboarding instead of by m36
@@ -100,8 +104,8 @@ roles                    unchanged: global, ids 1–6 hardcoded in permissions/r
 ## 3. Enforcement: three layers
 
 1. **Token → context.**
-   - Sign-in resolves the membership: automatic with one; with several, the response lists them and the client retries with `organization_id`.
-   - The JWT carries `org_id`, plus the roles and permissions **of that membership**.
+   - Sign-in names the org by slug, resolves it, then looks the user up in that org alone.
+   - The JWT carries `org_id`, plus the user's roles and permissions.
    - `JWTAuthMiddleware` puts the org in the context through a small domain package (`domain/tenant`:
      `WithOrg(ctx, id)`, `OrgFrom(ctx) (string, bool)`). Services already take `ctx` first, so the domain stays free of platform imports.
    - A token without `org_id` is rejected.
@@ -173,13 +177,12 @@ have e-invoicing configured. Each org gets its own transaction and credentials, 
 Consecutives are assigned per `(org, prefix)`, in order within the org, inside the cron's transaction.
 
 **Edge sync.**
-- `nodes` gets `organization_id` and a hashed per-node key, which replaces `NODE_SYNC_KEY`.
-  The middleware resolves the key to `(node_id, org_id)` and sets the tenant context.
+- `nodes` has `organization_id` (shipped: the edge sends `X-Node-ID`, the middleware resolves it to its org and sets
+  the tenant context). Still planned: a hashed per-node key, which replaces the shared `NODE_SYNC_KEY`; until then only
+  Laguna's box may be registered.
 - Push appliers **stamp** the node's org and ignore any org in the payload. Inbox, outbox and state are per org.
-- The pull is filtered by the node's org. Users are sent **with their password hashes**, as today, but only those with
-  an active membership in that org, together with that membership's roles.
-  - A user who belongs to orgs A and B has the same hash on both boxes. That is accepted, since it is the same person.
-  - When a membership is deactivated, the next pull must remove or deactivate that user on the box. Today's pull only adds or updates.
+- The pull is filtered by the node's org (shipped). Users are sent **with their password hashes**, as before, but only
+  that org's users, with their roles.
 - The edge database has the same schema, holding one org.
 - Node ids: existing ones keep the current derivation, so `sync_state` stays valid. New nodes get a stored random id instead of
   `SHA1("laguna-escondida/node/"+org+…)`.
@@ -187,8 +190,8 @@ Consecutives are assigned per `(org, prefix)`, in order within the org, inside t
 **Real time and events.**
 - `OpenBillProductHub` is keyed by `(org_id, area)`, with the org taken from the token.
 - `sse.Hub` has no broadcaster; remove it.
-- Watermill payloads (`order.*`, `purchase_entry.created`) carry `organization_id`.
-  The stock handler opens its own tenant transaction, rather than relying on `msg.Context()`.
+- Watermill payloads (`order.*`, `purchase_entry.created`) carry `organization_id` (shipped). Subscribers restore it
+  and open their own session, rather than relying on `msg.Context()`; an event without one is dropped and logged.
 - `ProductLockManager` stays in memory because there is one container. Before running more than one,
   replace it with `SELECT … FOR UPDATE` or an advisory lock on `(org, product)`.
 
@@ -201,22 +204,21 @@ Consecutives are assigned per `(org, prefix)`, in order within the org, inside t
   - `X-Customer-Phone` and `X-Customer-Location` are unchanged.
 - The admin tools that use `LAGUNA_ADMIN_API_KEY` move behind platform-admin keys, or are dropped from the customer toolset.
 
-**Storage.** S3 keys are already `{orgID}/…`. Take the org from the context instead of from config.
+**Storage.** S3 keys are `{orgID}/…`, with the org taken from the context (shipped).
 
 ## 6. Frontend (`laguna-escondida-frontend`)
 
 The browser only calls Next route handlers, which forward the cookie's token as a Bearer, so **the API calls need no change**.
 What changes:
-- **Sign-in page:** keeps the Laguna branding. It handles the "pick an organization" response, which no one gets at launch.
-- **`/auth/me`:** returns the org (id, name, branding, timezone, locale, currency, business info) and the user's memberships.
-  The `organization` object is already there (`docs/api/auth.md`); the memberships come with step 3.
-  An `OrganizationProvider` exposes them.
+- **Sign-in page:** keeps the Laguna branding and gains a "Restaurante" field (the org's slug), remembered in the browser
+  and passed through `app/api/auth/signin`; hidden or optional on the edge.
+- **`/auth/me`:** returns the token's org (id, name, branding, timezone, locale, currency, business info)
+  (`docs/api/auth.md`). An `OrganizationProvider` exposes it.
 - **Branding:** after sign-in, the header name, logo and title come from the org, and the colors are injected as CSS variables.
 - **Formatting:** one `lib/format.ts` replaces the ~20 hardcoded `es-CO`/`COP` uses and the `America/Bogota` in the kitchen and daily close.
   The map center comes from the org.
 - **Receipt:** prints the org's name, NIT and address.
 - **`proxy.ts`:** every non-public route is protected.
-- **Later, with single sign-on:** `POST /auth/switch-organization` reissues the token. The switcher closes any open `EventSource`.
 
 ## 7. Migrating Laguna (production data)
 
@@ -225,10 +227,9 @@ What changes:
 3. Run the migration:
    - Laguna's org id is hardcoded: `bb0cad3e-be13-4bad-9a37-bba9525bfece`. m33 already inserts that row, so the
      foreign key holds in production and in fresh (testcontainers) databases alike.
-   - Per table: add `organization_id` with `DEFAULT 'bb0cad3e-be13-4bad-9a37-bba9525bfece'`, backfill, set `NOT NULL`, drop the default.
+   - Per table: add `organization_id` with `DEFAULT 'bb0cad3e-be13-4bad-9a37-bba9525bfece'`, backfill, set `NOT NULL` (migration 69); the default is dropped once every create stamps the org (migration 70).
    - `invoice_sequences` already keeps its counters keyed `(bb0cad3e-…, prefix)` (migration 67).
    - Swap the uniques and keys.
-   - Turn `user_roles` into `memberships` + `membership_roles`.
    - `pos_app` and its grants already exist (migration 65). Create the login user (`CREATE ROLE laguna_app LOGIN PASSWORD … IN ROLE pos_app`), point `DB_USER` at it and `DB_MIGRATION_USER` at the owner.
    - Laguna's `organization_einvoicing` row already exists with its prefixes (migration 67). Its credentials are **not**
      written by a migration, because the password must never appear in a SQL file. Instead there is a one-time import at boot:
@@ -237,7 +238,7 @@ What changes:
      The envs are deleted from `laguna/app` in the release after the import is confirmed in production.
      `ELECTRONIC_INVOICE_PREFIX` and `SUPPORT_DOCUMENT_PREFIX` can go as soon as migration 67 ships: drop them from the
      task definition first, then from the secret, or the task fails to start.
-4. Ship the backend, edge and frontend together, and give the edge box its per-node key.
+4. Ship the backend, edge and frontend together. (The per-node key comes with its own change.)
    Old tokens have no `org_id` and are rejected, so everyone signs in once more.
 5. Enable RLS only after the leak suite passes with the app scopes in place. In staging, also run it with a scope deliberately removed.
 
@@ -251,22 +252,26 @@ What changes:
    - [x] prefixes per organization in `organization_einvoicing`, counters per `(organization, prefix)` (migration 67); fixes the support-document prefix bug
    - [x] claim and assign the invoice consecutive in one transaction
    - [x] order idempotency (`X-Idempotency-Key`, migration 66)
-2. **Schema:** `organization_id`, the new uniques and composite foreign keys, and memberships. (The org settings columns landed early with step 9's organization endpoints, migration 68.)
-3. **Auth:** the `org_id` claim, membership-scoped roles, `domain/tenant`, the middleware, `platform_admin`.
+2. [x] **Schema:** `organization_id`, the new uniques and composite foreign keys (migrations 69–70). (The org settings columns landed early with step 9's organization endpoints, migration 68.)
+3. [x] **Auth:** the `org_id` claim, sign-in by slug, `domain/tenant`, the middleware. (`platform_admin` is not built; `/api/platform/*` keeps `ADMIN_API_KEY`.)
 4. **Repository scopes and the leak suite**, then RLS.
+   - [x] repository scopes (`postgres.TenantDB`/`TenantTx`, creates stamped from the context, checked in `make lint`)
+   - [x] background work per org: crons, events, sync and telemetry by node
+   - [ ] the leak suite (`test/acceptance/tenancy`)
+   - [ ] RLS
 5. **Per-org configuration:** timezone and formatting, business info, encrypted e-invoicing; crons loop per org.
 6. **Sync:** per-node keys, an org-filtered pull, user removal on the box. Also the hub keyed by `(org, area)` and events carrying the org.
 7. **Org API keys and the multi-tenant MCP server.** Switch the WhatsApp agent to the global MCP URL.
 8. **Frontend:** org context, branding, formatting, receipt, route guard.
 9. **Onboarding:** a platform-admin flow that creates the org, its settings and e-invoicing, its first admin and its agent API key.
    - [x] organization settings columns (migration 68) and `/api/platform/organizations` create, list, get, update and e-invoicing prefixes (`docs/api/organizations.md`); pulled forward, stored only
-   - [ ] the first admin and membership (needs step 2), the agent API key (needs step 7)
+   - [x] the first admin: `POST /api/users` with the admin key names the org by slug
+   - [ ] the agent API key (needs step 7)
    Then onboard restaurants 2 and 3.
 
 Per this repo's rules:
 - Each step ships with service tests.
 - `docs/api/*.md` is updated for every changed endpoint: sign-in, `/auth/me`, API keys, platform admin, sync.
-- Existing tests that change because of memberships, such as the user service and the sync appliers, need sign-off before they are edited.
 
 ## 9. Open questions
 

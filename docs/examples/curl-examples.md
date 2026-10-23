@@ -26,10 +26,15 @@ export ADMIN_API_KEY="your_admin_api_key"
 curl -X POST "$BASE_URL/auth/signin" \
   -H "Content-Type: application/json" \
   -d '{
+    "organization": "laguna-escondida",
     "username": "your_username",
     "password": "your_password"
   }'
 ```
+
+`organization` is the organization's slug. It is required in the cloud; on an edge box it can be
+left out, and when sent it must be the box's own. Tokens issued before organizations were added
+are rejected: sign in again to get one that carries `org_id`.
 
 Save the token from the response:
 
@@ -57,13 +62,15 @@ curl -s "$BASE_URL/auth/me" \
 
 ### Create User (admin only)
 
-Uses the admin API key via the `X-API-Key` header, not a JWT. `name` is required.
+Uses the admin API key via the `X-API-Key` header, not a JWT. `name` is required, and in the
+cloud so is `organization` (the slug), since the admin key belongs to no organization.
 
 ```bash
 curl -X POST "$BASE_URL/users" \
   -H "X-API-Key: $ADMIN_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
+    "organization": "laguna-escondida",
     "username": "john_doe",
     "name": "John Doe",
     "password": "securepassword123",
@@ -1107,7 +1114,9 @@ call reports `"written_balances": 0`. See `docs/playbooks/STOCK_CUTOVER_RUNBOOK.
 
 ```bash
 curl -X POST "$BASE_URL/stock/opening-balances" \
-  -H "X-API-Key: $ADMIN_API_KEY"
+  -H "X-API-Key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "organization": "laguna-escondida" }'
 ```
 
 ---

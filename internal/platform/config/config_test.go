@@ -28,7 +28,7 @@ func setRequiredEnv(t *testing.T) {
 func setEdgeEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("APP_MODE", "edge")
-	t.Setenv("ORGANIZATION_ID", "org-123")
+	t.Setenv("ORGANIZATION_ID", "019a0000-0000-7000-8000-000000000123")
 }
 
 func TestNewConfig_AppMode_DefaultsToCloud(t *testing.T) {
@@ -404,9 +404,10 @@ func TestNewConfig_OrganizationID_ByMode(t *testing.T) {
 		orgID   string
 		wantErr string
 	}{
-		{name: "edge with organization", mode: "edge", orgID: "org-123"},
+		{name: "edge with organization", mode: "edge", orgID: "019a0000-0000-7000-8000-000000000123"},
+		{name: "edge with a malformed organization", mode: "edge", orgID: "test-org", wantErr: "is not an organization id"},
 		{name: "edge without organization", mode: "edge", wantErr: "ORGANIZATION_ID is required in edge mode"},
-		{name: "cloud with organization", mode: "cloud", orgID: "org-123", wantErr: "ORGANIZATION_ID must not be set in cloud mode"},
+		{name: "cloud with organization", mode: "cloud", orgID: "019a0000-0000-7000-8000-000000000123", wantErr: "ORGANIZATION_ID must not be set in cloud mode"},
 		{name: "cloud without organization", mode: "cloud"},
 	}
 	for _, tc := range cases {

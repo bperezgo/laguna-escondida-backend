@@ -10,7 +10,7 @@
 
 - [x] 2.1 Add `domain/tenant` with `WithOrg` and `OrgFrom`, and a domain error for a missing org. Verify `go build ./...`.
 - [x] 2.2 Config: `ORGANIZATION_ID` required in edge mode, rejected in cloud mode; `NODE_ID` required in cloud mode; the edge keeps deriving its ids. Verify with `config_test.go` cases for all four `APP_MODE` × `ORGANIZATION_ID` combinations and a missing cloud `NODE_ID` (**ask before editing existing config tests**).
-- [ ] 2.3 Compute Laguna's current cloud node id and document it for the cloud task definition in `aws-infra`. Verify it equals the edge's default `CLOUD_NODE_ID` with a unit test.
+- [x] 2.3 Compute Laguna's current cloud node id and document it for the cloud task definition in `aws-infra`. Verify it equals the edge's default `CLOUD_NODE_ID` with a unit test.
 - [x] 2.4 `DBSessionMiddleware(db)`: drop the `orgID` parameter, take the org from `tenant.OrgFrom`, open no session without one; register it inside the authenticated route groups after auth instead of globally. Verify a handler test that two requests with tokens of different orgs get sessions with different `app.org_id`, and an unauthenticated request gets none.
 
 ## 3. Release 2: sign-in and tokens
@@ -19,7 +19,7 @@
 - [x] 3.2 Sign-in takes `organization`: resolve the slug through the organization repository, reject unknown or suspended with the opaque `401`, then look up the user in that org's session. Edge: optional, must match the box's slug. Verify service tests `TestAuthService_SignIn_*` for every scenario in `specs/organization-sign-in` (**ask before editing existing sign-in tests**).
 - [x] 3.3 User creation: users created by a signed-in user land in the creator's org; `POST /api/users` with the admin key names the org by slug in the cloud (`400` without it, `404` unknown). Duplicate username in one org → `409`. Verify `user_service_test.go` cases (**ask before editing existing user tests**).
 - [x] 3.4 `GET /api/auth/me` returns the token's organization. Verify a handler test with a user of a second org.
-- [ ] 3.5 Update `docs/api/auth.md` (request body, `org_id` claim, re-sign-in note), `docs/api/users.md` (bootstrap body) and `docs/examples/curl-examples.md`. Verify the curl example signs in against a local server.
+- [x] 3.5 Update `docs/api/auth.md` (request body, `org_id` claim, re-sign-in note), `docs/api/users.md` (bootstrap body) and `docs/examples/curl-examples.md`. Verify the curl example signs in against a local server.
 
 ## 4. Release 2: repositories and services
 

@@ -16,7 +16,9 @@ For authentication (sign in) and reading the current user, see [Authentication](
 
 `POST /api/users`
 
-Creates a new user, hashes the password, and assigns the given roles. All fields are required — a user can no longer be created without a `name`.
+Creates a new user in an organization, hashes the password, and assigns the given roles. A user belongs to exactly one organization; usernames are unique within it, and the same username may exist in another organization.
+
+This is the bootstrap path, authenticated by the admin API key alone, so it names the organization. A signed-in manager creating users through `POST /api/admin/users` always creates them in their own organization; any `organization` in that body is ignored.
 
 ### Headers
 
@@ -27,12 +29,13 @@ Creates a new user, hashes the password, and assigns the given roles. All fields
 
 ### Request Body
 
-| Field     | Type     | Required | Description                                                        |
-| --------- | -------- | -------- | ------------------------------------------------------------------ |
-| username  | string   | Yes      | Unique username (3–255 chars)                                      |
-| name      | string   | Yes      | Display name of the user (1–255 chars)                             |
-| password  | string   | Yes      | Plain-text password (min 6 chars). Hashed before storage           |
-| role_ids  | number[] | Yes      | At least one valid role ID. Every ID must exist (see Roles below)  |
+| Field        | Type     | Required             | Description                                                        |
+| ------------ | -------- | -------------------- | ------------------------------------------------------------------ |
+| organization | string   | Cloud: Yes; Edge: No | Slug of the organization the user belongs to. On an edge box it may be omitted (the box's organization is used); when sent it must be the box's. |
+| username     | string   | Yes                  | Username, unique within the organization (3–255 chars)            |
+| name         | string   | Yes                  | Display name of the user (1–255 chars)                             |
+| password     | string   | Yes                  | Plain-text password (min 6 chars). Hashed before storage           |
+| role_ids     | number[] | Yes                  | At least one valid role ID. Every ID must exist (see Roles below)  |
 
 ### Roles
 
@@ -49,6 +52,7 @@ Creates a new user, hashes the password, and assigns the given roles. All fields
 
 ```json
 {
+  "organization": "laguna-escondida",
   "username": "john_doe",
   "name": "John Doe",
   "password": "securepassword123",
@@ -96,6 +100,22 @@ The created user (without the password) together with its assigned roles.
 }
 ```
 
+**400 Bad Request** — No `organization` in the cloud
+
+```json
+{
+  "error": "organization is required"
+}
+```
+
+**400 Bad Request** — On an edge box, an `organization` other than the box's
+
+```json
+{
+  "error": "organization does not match this box's"
+}
+```
+
 **400 Bad Request** — One or more `role_ids` are not valid roles
 
 ```json
@@ -120,6 +140,14 @@ The created user (without the password) together with its assigned roles.
 }
 ```
 
+**404 Not Found** — No organization has that slug
+
+```json
+{
+  "error": "Organization not found"
+}
+```
+
 **404 Not Found** — One or more roles do not exist
 
 ```json
@@ -128,7 +156,7 @@ The created user (without the password) together with its assigned roles.
 }
 ```
 
-**409 Conflict** — Username already taken
+**409 Conflict** — Username already taken in this organization
 
 ```json
 {

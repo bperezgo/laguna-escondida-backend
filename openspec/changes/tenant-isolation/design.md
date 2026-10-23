@@ -25,8 +25,8 @@
 **1. The org comes from the principal, through a domain package.**
 - `domain/tenant` exposes `WithOrg(ctx, orgID) context.Context` and `OrgFrom(ctx) (string, bool)`. Services already take `ctx` first, so the domain needs no platform import.
 - Auth middleware validates the JWT, rejects it without `org_id`, and calls `tenant.WithOrg`.
-- `DBSessionMiddleware(db)` drops its `orgID` parameter, reads `tenant.OrgFrom`, and opens a session only when an org is present. It is attached inside the authenticated route groups, after auth, instead of globally. SSE routes still skip it.
-- Rejected: keeping the global middleware and overwriting `app.org_id` later in the request. Any statement issued between the two would run as the wrong org.
+- `DBSessionMiddleware(db)` drops its `orgID` parameter. It stays registered globally, but the session reads `tenant.OrgFrom` from the context of the **first statement** that uses it, which runs after authentication filled the org; a statement with no org pins nothing, and a second org on the same session is an error. SSE routes still skip it. (Decided 2026-10-23: the routes attach `JWTAuthMiddleware` per route, not in groups, so registering the session "inside the groups" would mean editing ~80 registrations.)
+- Rejected: keeping the global middleware with a fixed org and overwriting `app.org_id` later in the request. Any statement issued between the two would run as the wrong org. The lazy read has no such window.
 
 **2. Mode comes from `APP_MODE`, never from whether `ORGANIZATION_ID` is set.**
 - Edge: `ORGANIZATION_ID` required. Auth additionally rejects a token whose `org_id` differs from it.
@@ -56,7 +56,9 @@
 **6. Background work runs per org.** Under RLS, a query without `app.org_id` returns no rows, so every path without a request must set an org or it silently stops working for Laguna.
 - **Crons (cloud):** each job lists the active organizations (global table) and runs once per org with `tenant.WithOrg` and a session for it; one org's failure is logged and doesn't stop the others. The e-invoicing jobs only run for orgs with an `organization_einvoicing` row. The provider credentials stay global until the credentials change, so only Laguna may have that row in production until then.
 - **Event subscribers:** payloads gain `organization_id`; the subscriber restores it with `tenant.WithOrg` on its detached context and opens its own session. A payload without it is rejected and logged.
-- **Sync push and pull (cloud):** the node authenticated by `NODE_SYNC_KEY` sends its node id, and the cloud resolves it through `nodes.organization_id`; appliers and the pull run in that org's session, so the pull's users list is filtered by RLS. An unknown node is rejected. The shared key stays until the per-node keys change, which is why only Laguna's box may be registered until then.
+- **Sync push and pull (cloud):** the node authenticated by `NODE_SYNC_KEY` sends its node id in `X-Node-ID` on push, pull and stock pull, and the cloud resolves it through `nodes.organization_id`; appliers and the pull run in that org's session. An unknown node is rejected with `401`. A push without the header falls back to the body's `node_id`, so a box on the previous release keeps pushing; its pull is rejected until it updates. Migration 71 registers Laguna's box under the id it derives today (`ce6ebef8-…`; a box that overrides `NODE_ID` needs its own row). The shared key stays until the per-node keys change, which is why only Laguna's box may be registered until then.
+- **Upserts can't cross orgs:** every `ON CONFLICT … DO UPDATE` on a tenant table carries `WHERE <table>.organization_id = EXCLUDED.organization_id`, so a key that collides with another org's row leaves that row alone.
+- **Telemetry (cloud):** the ingest uses the same node resolution and stamps `organization.id` with the node's org; `TELEMETRY_TENANT_ID` is required when the ingest is enabled (it used to default to the deployment's org). The edge's Alloy sidecar must send `X-Node-ID`.
 - **Edge:** background work uses the box's `ORGANIZATION_ID`. That is the one legitimate use of the configured org.
 - Rejected: running background work as the table owner (RLS bypass). It brings back "no org means everything".
 

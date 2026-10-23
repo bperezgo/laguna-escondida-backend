@@ -189,6 +189,9 @@ func NewConfig() (*Config, error) {
 	if appMode == ModeEdge && organizationID == "" {
 		return nil, errors.New("ORGANIZATION_ID is required in edge mode")
 	}
+	if appMode == ModeEdge && uuid.Validate(organizationID) != nil {
+		return nil, fmt.Errorf("ORGANIZATION_ID %q is not an organization id (a UUID)", organizationID)
+	}
 	if appMode == ModeCloud && organizationID != "" {
 		return nil, errors.New("ORGANIZATION_ID must not be set in cloud mode: the organization comes from each caller")
 	}

@@ -15,19 +15,21 @@ Handles user authentication and current user information.
 
 `POST /api/auth/signin`
 
-Authenticates a user and returns a JWT token with user information and permissions.
+Authenticates a user of an organization and returns a JWT token with user information and permissions. Usernames are unique per organization, so the organization is named alongside them.
 
 ### Request Body
 
-| Field    | Type   | Required | Description    |
-| -------- | ------ | -------- | -------------- |
-| username | string | Yes      | User's username |
-| password | string | Yes      | User's password |
+| Field        | Type   | Required             | Description                                                                                         |
+| ------------ | ------ | -------------------- | --------------------------------------------------------------------------------------------------- |
+| organization | string | Cloud: Yes; Edge: No | The organization's slug, e.g. `laguna-escondida`. On an edge box it may be omitted; when sent it must be the box's own slug. |
+| username     | string | Yes                  | User's username within that organization                                                            |
+| password     | string | Yes                  | User's password                                                                                     |
 
 ### Example Request
 
 ```json
 {
+  "organization": "laguna-escondida",
   "username": "john_doe",
   "password": "securepassword123"
 }
@@ -67,7 +69,15 @@ Authenticates a user and returns a JWT token with user information and permissio
 
 ### Error Responses
 
-**401 Unauthorized** - Invalid credentials
+**400 Bad Request** - No `organization` in the cloud
+
+```json
+{
+  "error": "organization is required"
+}
+```
+
+**401 Unauthorized** - Unknown or suspended organization, a username that doesn't exist in that organization, an inactive user, a wrong password, or (on an edge box) an organization other than the box's. All return the same body, so the response can't reveal which organizations or usernames exist.
 
 ```json
 {
@@ -85,7 +95,7 @@ Returns the currently authenticated user's information including roles and permi
 
 - `organization` is always present. Its optional fields (`legal_name` … `secondary_color`) are `null` when the organization has not set them; fall back to the current defaults.
 - `organization` holds settings only: no status, e-invoicing prefixes or timestamps. They are maintained through the [Platform Organizations API](./organizations.md).
-- Until the token carries the organization (tenancy step 3), it is the deployment's configured organization. On the edge, the optional fields stay `null` until the sync carries them.
+- It is the organization named by the token's `org_id`. On the edge, the optional fields stay `null` until the sync carries them.
 
 ### Headers
 
@@ -200,11 +210,14 @@ The JWT token contains the following claims:
 | Claim       | Type     | Description                              |
 | ----------- | -------- | ---------------------------------------- |
 | user_id     | string   | User's unique identifier (UUID)          |
+| org_id      | string   | The organization the user signed in to (UUID); every request acts for it |
 | username    | string   | User's username                          |
 | role_ids    | []int    | Array of role IDs assigned to the user   |
 | permissions | []string | Array of permission strings              |
 | exp         | number   | Token expiration timestamp (Unix epoch)  |
 | iat         | number   | Token issued at timestamp (Unix epoch)   |
+
+A token without `org_id` is rejected with `401 Unauthorized`. Tokens issued before organizations were added carry none, so everyone signs in once more after that release. An edge box also rejects a token whose `org_id` is not the box's organization.
 
 ### Token Expiration
 
