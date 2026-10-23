@@ -3,6 +3,7 @@
 import type { Supplier } from "@/types/supplier";
 import { PermissionGate } from "@/components/permissions";
 import { PERMISSIONS } from "@/lib/permissions";
+import { formatDate } from "@/lib/format";
 
 interface SupplierCardProps {
   supplier: Supplier;
@@ -17,14 +18,6 @@ export default function SupplierCard({
   onDelete,
   onViewCatalog,
 }: SupplierCardProps) {
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("es-CO", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
-
   return (
     <div
       style={{

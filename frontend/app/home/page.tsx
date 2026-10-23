@@ -1,6 +1,7 @@
 "use client";
 
 import { usePermissions, PERMISSIONS } from "@/lib/permissions";
+import { organizationDisplayName, organizationLogoUrl } from "@/lib/organization";
 import { PermissionGate } from "@/components/permissions";
 import { Card, CardBody, Button } from "@/components/ui";
 
@@ -106,7 +107,11 @@ const navItems = [
 ];
 
 export default function HomePage() {
-  const { user, isLoading, isAdmin, isEdge } = usePermissions();
+  const { user, organization, isLoading, isAdmin, isEdge } = usePermissions();
+  const businessName = organization
+    ? organizationDisplayName(organization)
+    : "Laguna Escondida";
+  const logoUrl = organization ? organizationLogoUrl(organization) : null;
 
   const handleSignOut = async () => {
     try {
@@ -140,6 +145,18 @@ export default function HomePage() {
           }}
         >
           <div>
+            {logoUrl && (
+              <img
+                src={logoUrl}
+                alt={businessName}
+                style={{
+                  height: "3rem",
+                  width: "auto",
+                  objectFit: "contain",
+                  marginBottom: "0.75rem",
+                }}
+              />
+            )}
             <h1
               style={{
                 fontSize: "1.875rem",
@@ -158,7 +175,7 @@ export default function HomePage() {
                 marginTop: "0.5rem",
               }}
             >
-              Bienvenido al Sistema de Gestión de Laguna Escondida
+              Bienvenido al Sistema de Gestión de {businessName}
               {user && ` — ${user.username}`}
             </p>
           </div>

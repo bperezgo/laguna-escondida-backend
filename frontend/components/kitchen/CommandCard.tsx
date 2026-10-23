@@ -9,6 +9,7 @@ import {
   getCountdownColor,
   getCountdownRowStyle,
 } from "@/lib/kitchen/countdown";
+import { formatTime, inBusinessTimeZone } from "@/lib/format";
 
 // "In progress" blue — mirrors STATUS_CONFIG.in_progress (orderTakingParts.tsx) so
 // the kitchen board and the order-taking status badge speak the same visual language.
@@ -42,16 +43,12 @@ export default function CommandCard({
 }: CommandCardProps) {
   const { isEdge } = usePermissions();
 
-  // Format time to UTC-5 (America/Bogota or America/Lima timezone)
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString("es-CO", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-      timeZone: "America/Bogota",
-    });
-  };
+  // Format an instant to the restaurant's local time, whatever the device's.
+  const formatClock = (dateString: string) =>
+    formatTime(
+      dateString,
+      inBusinessTimeZone({ hour: "2-digit", minute: "2-digit", hour12: true })
+    );
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -179,7 +176,7 @@ export default function CommandCard({
               color: "var(--color-secondary)",
             }}
           >
-            🕐 {formatTime(command.created_at)}
+            🕐 {formatClock(command.created_at)}
           </span>
           <span
             style={{
@@ -307,7 +304,7 @@ export default function CommandCard({
                       whiteSpace: "nowrap",
                     }}
                   >
-                    ✓{item.completed_at ? ` ${formatTime(item.completed_at)}` : " Lista"}
+                    ✓{item.completed_at ? ` ${formatClock(item.completed_at)}` : " Lista"}
                   </span>
                 ) : (
                   <span

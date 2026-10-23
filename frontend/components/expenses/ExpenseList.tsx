@@ -5,6 +5,7 @@ import type { Expense } from "@/types/expense";
 import { Badge, Button, Input, Table } from "@/components/ui";
 import { PermissionGate } from "@/components/permissions";
 import { PERMISSIONS } from "@/lib/permissions";
+import { formatDate, formatMoney } from "@/lib/format";
 
 interface ExpenseListProps {
   expenses: Expense[];
@@ -40,23 +41,6 @@ export default function ExpenseList({
       0
     );
   }, [filteredExpenses]);
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("es-CO", {
-      style: "currency",
-      currency: "COP",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("es-CO", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
 
   if (isLoading) {
     return (
@@ -117,7 +101,7 @@ export default function ExpenseList({
             color: "var(--color-danger)",
           }}
         >
-          Total: {formatCurrency(totalAmount)}
+          Total: {formatMoney(totalAmount)}
         </span>
       </div>
 
@@ -172,7 +156,7 @@ export default function ExpenseList({
                   data-numeric
                   style={{ color: "var(--color-danger)", fontWeight: 600 }}
                 >
-                  {formatCurrency(parseFloat(expense.amount))}
+                  {formatMoney(parseFloat(expense.amount))}
                 </td>
                 <td style={{ textAlign: "right" }}>
                   <div

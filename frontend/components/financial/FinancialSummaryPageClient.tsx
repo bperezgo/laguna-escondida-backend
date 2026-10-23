@@ -5,6 +5,7 @@ import { financialSummaryApi } from "@/lib/api/financialSummary";
 import type { FinancialSummary } from "@/types/financialSummary";
 import { Card, CardBody, Input, Button, StatCard } from "@/components/ui";
 import ExpenseCategoryBreakdown from "./ExpenseCategoryBreakdown";
+import { formatMoney } from "@/lib/format";
 
 const getMonthBounds = () => {
   const now = new Date();
@@ -12,17 +13,6 @@ const getMonthBounds = () => {
   const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
   const fmt = (d: Date) => d.toISOString().split("T")[0];
   return { start: fmt(first), end: fmt(last) };
-};
-
-const formatCurrency = (value: string | number) => {
-  const num = typeof value === "number" ? value : parseFloat(value);
-  if (isNaN(num)) return "$0";
-  return new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency: "COP",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(num);
 };
 
 export default function FinancialSummaryPageClient() {
@@ -189,17 +179,17 @@ export default function FinancialSummaryPageClient() {
             >
               <StatCard
                 label="Ingresos"
-                value={formatCurrency(summary.revenue.total_amount)}
+                value={formatMoney(summary.revenue.total_amount)}
                 delta={`${summary.revenue.count} registros`}
               />
               <StatCard
                 label="Gastos"
-                value={formatCurrency(summary.expenses.total_amount)}
+                value={formatMoney(summary.expenses.total_amount)}
                 delta={`${summary.expenses.count} registros`}
               />
               <StatCard
                 label="Compras"
-                value={formatCurrency(summary.purchases.total_amount)}
+                value={formatMoney(summary.purchases.total_amount)}
                 delta={`${summary.purchases.count} registros`}
               />
             </div>
@@ -237,7 +227,7 @@ export default function FinancialSummaryPageClient() {
                       lineHeight: 1.1,
                     }}
                   >
-                    {formatCurrency(netIncome)}
+                    {formatMoney(netIncome)}
                   </p>
                 </div>
                 <p

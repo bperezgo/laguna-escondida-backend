@@ -10,6 +10,7 @@ import ExpenseForm from "./ExpenseForm";
 import ExpenseDetail from "./ExpenseDetail";
 import { PermissionGate } from "@/components/permissions";
 import { PERMISSIONS } from "@/lib/permissions";
+import { formatMoney } from "@/lib/format";
 
 const getMonthBounds = () => {
   const now = new Date();
@@ -260,15 +261,6 @@ export default function ExpensesPageClient({
 
   const handleDeleteCancel = () => {
     setDeleteConfirm(null);
-  };
-
-  const formatCurrency = (amount: string) => {
-    return new Intl.NumberFormat("es-CO", {
-      style: "currency",
-      currency: "COP",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(parseFloat(amount));
   };
 
   return (
@@ -674,7 +666,7 @@ export default function ExpensesPageClient({
                     color: "var(--color-danger)",
                   }}
                 >
-                  {formatCurrency(deleteConfirm.amount)}
+                  {formatMoney(deleteConfirm.amount)}
                 </p>
               </div>
               <div

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { dailyCloseApi } from "@/lib/api/dailyClose";
 import type { DailyCloseReport } from "@/types/dailyClose";
 import { Card, CardBody, Input, Button, StatCard } from "@/components/ui";
+import { formatDate, formatMoney, todayInBusinessTz } from "@/lib/format";
 
 // One row per payment kind — cards are NOT bucketed (user decision). Canonical order +
 // Spanish labels. Any kind the backend returns that isn't here is appended and labeled
@@ -21,26 +22,11 @@ const CANONICAL_KINDS = Object.keys(PAYMENT_LABELS);
 const labelFor = (code: string) =>
   PAYMENT_LABELS[code] ?? (code === "" ? "Sin clasificar" : code);
 
-// America/Bogota is UTC-5 year-round (no DST). en-CA formats as YYYY-MM-DD.
-const todayBogota = () =>
-  new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(new Date());
-
 const shiftDate = (dateStr: string, days: number) => {
   const [y, m, d] = dateStr.split("-").map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d));
   dt.setUTCDate(dt.getUTCDate() + days);
   return dt.toISOString().split("T")[0];
-};
-
-const formatCurrency = (value: string | number) => {
-  const num = typeof value === "number" ? value : parseFloat(value);
-  if (isNaN(num)) return "$0";
-  return new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency: "COP",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(num);
 };
 
 interface Row {
@@ -51,7 +37,7 @@ interface Row {
 }
 
 export default function DailyClosePageClient() {
-  const [date, setDate] = useState<string>(todayBogota());
+  const [date, setDate] = useState<string>(todayInBusinessTz());
   const [report, setReport] = useState<DailyCloseReport | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
@@ -84,7 +70,7 @@ export default function DailyClosePageClient() {
     setDate((d) => shiftDate(d, days));
   };
 
-  const isToday = date === todayBogota();
+  const isToday = date === todayInBusinessTz();
 
   // Build the reconciliation rows: canonical kinds first (always shown, even with 0 sales),
   // then any extra kinds the backend returned that aren't canonical.
@@ -165,13 +151,13 @@ export default function DailyClosePageClient() {
                 marginTop: "0.25rem",
               }}
             >
-              Cuadre del día — {new Intl.DateTimeFormat("es-CO", {
+              Cuadre del día — {formatDate(new Date(`${date}T00:00:00Z`), {
                 weekday: "long",
                 day: "numeric",
                 month: "long",
                 year: "numeric",
                 timeZone: "UTC",
-              }).format(new Date(`${date}T00:00:00Z`))}
+              })}
             </p>
           </div>
 
@@ -268,16 +254,16 @@ export default function DailyClosePageClient() {
               />
               <StatCard
                 label="Ingreso total"
-                value={formatCurrency(report.total_collected)}
+                value={formatMoney(report.total_collected)}
                 delta="bruto cobrado"
               />
               <StatCard
                 label="Propinas"
-                value={formatCurrency(report.total_tip)}
+                value={formatMoney(report.total_tip)}
               />
               <StatCard
                 label="Descuentos"
-                value={formatCurrency(report.total_discount)}
+                value={formatMoney(report.total_discount)}
               />
             </div>
 
@@ -382,7 +368,7 @@ export default function DailyClosePageClient() {
                                 fontVariantNumeric: "tabular-nums",
                               }}
                             >
-                              {formatCurrency(row.expected)}
+                              {formatMoney(row.expected)}
                             </td>
                             <td style={{ padding: "0.4rem 0.75rem", textAlign: "right" }}>
                               <input
@@ -421,8 +407,8 @@ export default function DailyClosePageClient() {
                               {diff === null
                                 ? "—"
                                 : diff === 0
-                                ? `${formatCurrency(0)} ✓`
-                                : `${diff > 0 ? "+" : ""}${formatCurrency(diff)} ✗`}
+                                ? `${formatMoney(0)} ✓`
+                                : `${diff > 0 ? "+" : ""}${formatMoney(diff)} ✗`}
                             </td>
                           </tr>
                         );
@@ -452,7 +438,7 @@ export default function DailyClosePageClient() {
                             fontVariantNumeric: "tabular-nums",
                           }}
                         >
-                          {formatCurrency(totalExpected)}
+                          {formatMoney(totalExpected)}
                         </td>
                         <td
                           style={{
@@ -461,7 +447,7 @@ export default function DailyClosePageClient() {
                             fontVariantNumeric: "tabular-nums",
                           }}
                         >
-                          {formatCurrency(totalCounted)}
+                          {formatMoney(totalCounted)}
                         </td>
                         <td
                           style={{
@@ -475,7 +461,7 @@ export default function DailyClosePageClient() {
                             whiteSpace: "nowrap",
                           }}
                         >
-                          {`${totalDiff > 0 ? "+" : ""}${formatCurrency(totalDiff)}`}
+                          {`${totalDiff > 0 ? "+" : ""}${formatMoney(totalDiff)}`}
                         </td>
                       </tr>
                     </tfoot>

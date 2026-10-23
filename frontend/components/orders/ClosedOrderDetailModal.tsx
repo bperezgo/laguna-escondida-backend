@@ -6,22 +6,12 @@ import { useReceiptPrint } from "@/lib/hooks/useReceiptPrint";
 import ReceiptPrintContent from "@/components/orders/ReceiptPrintContent";
 import { calculateReceiptTotals, groupBillProducts } from "@/lib/orders/receipt";
 import { Button, Modal } from "@/components/ui";
+import { formatDateTime } from "@/lib/format";
 
 interface ClosedOrderDetailModalProps {
   openBill: OpenBillWithProducts;
   onClose: () => void;
 }
-
-const formatDate = (dateString: string) => {
-  const date = new Date(dateString);
-  return date.toLocaleString("es-CO", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-};
 
 /**
  * Read-only view of a closed (paid) order with a button to reprint its cuenta.
@@ -105,7 +95,7 @@ export default function ClosedOrderDetailModal({
         )}
         <div style={{ fontSize: "0.875rem", color: "var(--color-text-muted)" }}>
           <div>Creado por: {openBill.created_by?.name}</div>
-          <div>Fecha: {formatDate(openBill.created_at)}</div>
+          <div>Fecha: {formatDateTime(openBill.created_at)}</div>
         </div>
       </div>
 

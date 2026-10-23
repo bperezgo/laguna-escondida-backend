@@ -6,6 +6,7 @@ import { Input } from "@/components/ui";
 import type { Product, SideDishOption } from "@/types/product";
 import type { SideDishSelection } from "@/types/order";
 import type { OpenBillProductStatus } from "@/types/commandItem";
+import { formatMoney, formatTime } from "@/lib/format";
 
 // A "weighed" product is priced by a measure (grams, kg, ml, l) rather than per
 // unit. Its quantity IS the measure amount (e.g. 6000 g of fish), so it gets a
@@ -29,17 +30,6 @@ export function defaultSelections(
 // Shared presentational parts for the order-taking screens (CreateOrderForm +
 // EditOrderForm). Keeping these in one place guarantees the create and edit flows
 // stay visually identical across the desktop two-pane POS and the mobile tabs.
-
-export const formatCOP = (value: string | number) => {
-  const num = typeof value === "number" ? value : parseFloat(value);
-  if (isNaN(num)) return "$0";
-  return new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency: "COP",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(num);
-};
 
 export const STATUS_CONFIG: Record<
   OpenBillProductStatus,
@@ -186,7 +176,7 @@ export function ProductCard({
           fontVariantNumeric: "tabular-nums",
         }}
       >
-        {formatCOP(product.total_price_with_taxes)}
+        {formatMoney(product.total_price_with_taxes)}
       </span>
     </button>
   );
@@ -521,13 +511,13 @@ export function OrderLineItem({
             </span>
           ) : weighed ? (
             <>
-              {quantity} {unit} × {formatCOP(product.total_price_with_taxes)} ={" "}
-              {formatCOP(lineTotal)}
+              {quantity} {unit} × {formatMoney(product.total_price_with_taxes)} ={" "}
+              {formatMoney(lineTotal)}
             </>
           ) : (
             <>
-              {quantity} × {formatCOP(product.total_price_with_taxes)} ={" "}
-              {formatCOP(lineTotal)}
+              {quantity} × {formatMoney(product.total_price_with_taxes)} ={" "}
+              {formatMoney(lineTotal)}
             </>
           )}
         </div>
@@ -540,10 +530,7 @@ export function OrderLineItem({
             }}
           >
             {createdAt &&
-              new Date(createdAt).toLocaleTimeString("es-CO", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
+              formatTime(createdAt)}
             {createdAt && createdByName && " · "}
             {createdByName}
           </div>

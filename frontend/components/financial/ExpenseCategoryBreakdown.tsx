@@ -2,23 +2,13 @@
 
 import type { ExpenseCategoryData } from "@/types/financialSummary";
 import { Card, CardBody } from "@/components/ui";
+import { formatMoney } from "@/lib/format";
 
 interface ExpenseCategoryBreakdownProps {
   categories: ExpenseCategoryData[];
   totalAmount: string;
   totalCount: number;
 }
-
-const formatCurrency = (value: string) => {
-  const num = parseFloat(value);
-  if (isNaN(num)) return "$0";
-  return new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency: "COP",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(num);
-};
 
 export default function ExpenseCategoryBreakdown({
   categories,
@@ -96,7 +86,7 @@ export default function ExpenseCategoryBreakdown({
                       whiteSpace: "nowrap",
                     }}
                   >
-                    {formatCurrency(cat.total_amount)}
+                    {formatMoney(cat.total_amount)}
                     <span
                       style={{
                         fontSize: "0.75rem",
@@ -158,7 +148,7 @@ export default function ExpenseCategoryBreakdown({
                 color: "var(--color-text-primary)",
               }}
             >
-              {formatCurrency(totalAmount)}
+              {formatMoney(totalAmount)}
               <span
                 style={{
                   fontSize: "0.75rem",

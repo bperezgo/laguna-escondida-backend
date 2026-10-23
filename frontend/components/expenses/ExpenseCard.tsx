@@ -3,6 +3,7 @@
 import type { Expense } from "@/types/expense";
 import { PermissionGate } from "@/components/permissions";
 import { PERMISSIONS } from "@/lib/permissions";
+import { LONG_DATE, formatDate, formatDateTime, formatMoney } from "@/lib/format";
 
 interface ExpenseCardProps {
   expense: Expense;
@@ -17,33 +18,6 @@ export default function ExpenseCard({
   onEdit,
   onDelete,
 }: ExpenseCardProps) {
-  const formatCurrency = (amount: string) => {
-    return new Intl.NumberFormat("es-CO", {
-      style: "currency",
-      currency: "COP",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(parseFloat(amount));
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("es-CO", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  };
-
-  const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString("es-CO", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
   const getCategoryColor = (code?: string) => {
     const colors: Record<string, string> = {
       indirect_cost: "#6366f1",
@@ -139,7 +113,7 @@ export default function ExpenseCard({
               fontSize: "0.9rem",
             }}
           >
-            <strong>Fecha:</strong> {formatDate(expense.expense_date)}
+            <strong>Fecha:</strong> {formatDate(expense.expense_date, LONG_DATE)}
           </p>
 
           {expense.supplier_name && (
@@ -186,7 +160,7 @@ export default function ExpenseCard({
               color: "var(--color-danger)",
             }}
           >
-            {formatCurrency(expense.amount)}
+            {formatMoney(expense.amount)}
           </p>
         </div>
       </div>

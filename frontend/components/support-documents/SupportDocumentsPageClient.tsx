@@ -11,6 +11,7 @@ import SupportDocumentForm from "@/components/support-documents/SupportDocumentF
 import { PermissionGate } from "@/components/permissions";
 import { PERMISSIONS } from "@/lib/permissions";
 import { Button, Input, Table } from "@/components/ui";
+import { NUMERIC_DATE_TIME, formatDateTime } from "@/lib/format";
 
 export default function SupportDocumentsPageClient() {
   const [showForm, setShowForm] = useState<boolean>(false);
@@ -159,19 +160,6 @@ export default function SupportDocumentsPageClient() {
 
   const handleDocumentClick = (url: string) => {
     window.open(url, "_blank", "noopener,noreferrer");
-  };
-
-  const formatDateTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleString("es-CO", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    });
   };
 
   return (
@@ -416,7 +404,7 @@ export default function SupportDocumentsPageClient() {
               <tbody>
                 {documents.map((doc) => (
                   <tr key={doc.id}>
-                    <td>{formatDateTime(doc.created_at)}</td>
+                    <td>{formatDateTime(doc.created_at, NUMERIC_DATE_TIME)}</td>
                     <td>
                       <div>{doc.provider_name}</div>
                       <div

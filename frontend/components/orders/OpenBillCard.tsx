@@ -4,6 +4,7 @@ import { OpenBill } from "@/types/order";
 import { PermissionGate } from "@/components/permissions";
 import { PERMISSIONS } from "@/lib/permissions";
 import { Badge, Button, Card } from "@/components/ui";
+import { formatDateTime } from "@/lib/format";
 
 interface OpenBillCardProps {
   openBill: OpenBill;
@@ -20,17 +21,6 @@ export default function OpenBillCard({
   onPayClick,
   onRemoveClick,
 }: OpenBillCardProps) {
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleString("es-CO", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
   return (
     <Card
       interactive={!!onClick}
@@ -146,7 +136,7 @@ export default function OpenBillCard({
             Creado el:
           </span>
           <span style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
-            {formatDate(openBill.created_at)}
+            {formatDateTime(openBill.created_at)}
           </span>
         </div>
       </div>

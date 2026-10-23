@@ -4,6 +4,7 @@ import type { Product } from "@/types/product";
 import { PRODUCT_TYPES, UNITS_OF_MEASURE, requiresPricing } from "@/types/product";
 import { PermissionGate } from "@/components/permissions";
 import { PERMISSIONS } from "@/lib/permissions";
+import { formatDate, formatMoney } from "@/lib/format";
 
 interface ProductCardProps {
   product: Product;
@@ -16,23 +17,6 @@ export default function ProductCard({
   onEdit,
   onDelete,
 }: ProductCardProps) {
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("es-CO", {
-      style: "currency",
-      currency: "COP",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("es-CO", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
-
   const getProductTypeLabel = () => {
     const type = PRODUCT_TYPES.find((t) => t.value === product.product_type);
     return type?.label || product.product_type;
@@ -242,7 +226,7 @@ export default function ProductCard({
                 color: "var(--color-text-primary)",
               }}
             >
-              {formatCurrency(parseFloat(product.unit_price || "0"))}
+              {formatMoney(parseFloat(product.unit_price || "0"))}
             </p>
           </div>
           <div>
@@ -263,7 +247,7 @@ export default function ProductCard({
                 color: "var(--color-text-primary)",
               }}
             >
-              {formatCurrency(
+              {formatMoney(
                 product.vat_amount
                   ? parseFloat(product.vat_amount)
                   : parseFloat(product.unit_price || "0") * parseFloat(product.vat || "0")
@@ -288,7 +272,7 @@ export default function ProductCard({
                 color: "var(--color-text-primary)",
               }}
             >
-              {formatCurrency(
+              {formatMoney(
                 product.ico_amount
                   ? parseFloat(product.ico_amount)
                   : parseFloat(product.unit_price || "0") * parseFloat(product.ico || "0")
@@ -319,7 +303,7 @@ export default function ProductCard({
                 color: "var(--color-success)",
               }}
             >
-              {formatCurrency(parseFloat(totalPrice || "0"))}
+              {formatMoney(parseFloat(totalPrice || "0"))}
             </p>
           </div>
         </div>

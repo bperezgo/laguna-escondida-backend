@@ -5,6 +5,7 @@ import type { PurchaseEntry } from "@/types/purchaseEntry";
 import { purchaseEntriesApi } from "@/lib/api/purchaseEntries";
 import { PermissionGate } from "@/components/permissions";
 import { PERMISSIONS } from "@/lib/permissions";
+import { LONG_DATE, formatDate, formatMoney } from "@/lib/format";
 
 interface PurchaseEntryDetailProps {
   entryId: string;
@@ -121,23 +122,6 @@ export default function PurchaseEntryDetail({
       setUploading(false);
       if (zipInputRef.current) zipInputRef.current.value = "";
     }
-  };
-
-  const formatCurrency = (amount: string) => {
-    return new Intl.NumberFormat("es-CO", {
-      style: "currency",
-      currency: "COP",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(parseFloat(amount));
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("es-CO", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
   };
 
   return (
@@ -284,7 +268,7 @@ export default function PurchaseEntryDetail({
                     color: "var(--color-text-primary)",
                   }}
                 >
-                  {formatDate(entry.entry_date)}
+                  {formatDate(entry.entry_date, LONG_DATE)}
                 </p>
               </div>
               {entry.invoice_reference && (
@@ -329,7 +313,7 @@ export default function PurchaseEntryDetail({
                     color: "var(--color-success)",
                   }}
                 >
-                  {formatCurrency(entry.total_amount)}
+                  {formatMoney(entry.total_amount)}
                 </p>
               </div>
             </div>
@@ -691,7 +675,7 @@ export default function PurchaseEntryDetail({
                           textAlign: "right",
                         }}
                       >
-                        {formatCurrency(item.unit_cost)}
+                        {formatMoney(item.unit_cost)}
                       </td>
                       <td
                         style={{
@@ -701,7 +685,7 @@ export default function PurchaseEntryDetail({
                           fontWeight: "600",
                         }}
                       >
-                        {formatCurrency(item.total_cost)}
+                        {formatMoney(item.total_cost)}
                       </td>
                     </tr>
                   ))}
@@ -732,7 +716,7 @@ export default function PurchaseEntryDetail({
                         color: "var(--color-success)",
                       }}
                     >
-                      {formatCurrency(entry.total_amount)}
+                      {formatMoney(entry.total_amount)}
                     </td>
                   </tr>
                 </tfoot>

@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import type { PurchaseEntry } from "@/types/purchaseEntry";
 import { Button, Input, Table } from "@/components/ui";
+import { formatDate, formatMoney } from "@/lib/format";
 
 interface PurchaseEntryListProps {
   entries: PurchaseEntry[];
@@ -33,23 +34,6 @@ export default function PurchaseEntryList({
       0
     );
   }, [filteredEntries]);
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("es-CO", {
-      style: "currency",
-      currency: "COP",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("es-CO", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
 
   if (isLoading) {
     return (
@@ -110,7 +94,7 @@ export default function PurchaseEntryList({
             color: "var(--color-primary)",
           }}
         >
-          Total: {formatCurrency(totalAmount)}
+          Total: {formatMoney(totalAmount)}
         </span>
       </div>
 
@@ -155,7 +139,7 @@ export default function PurchaseEntryList({
                   )}
                 </td>
                 <td data-numeric style={{ fontWeight: 600 }}>
-                  {formatCurrency(parseFloat(entry.total_amount))}
+                  {formatMoney(parseFloat(entry.total_amount))}
                 </td>
                 <td style={{ textAlign: "right" }}>
                   <Button

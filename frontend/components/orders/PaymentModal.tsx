@@ -11,6 +11,7 @@ import { isOrderActionPinRequired } from "@/lib/orders/actionPin";
 import type { OpenBillWithProducts } from "@/types/order";
 import type { PaymentType, PayOrderRequest } from "@/types/billOwner";
 import { Button, Input, Modal, PinConfirmModal, Select } from "@/components/ui";
+import { formatDateTime } from "@/lib/format";
 
 // Card payment types require internet (cleared by the bank in real time).
 const CARD_PAYMENT_TYPES: PaymentType[] = ["credit_card", "debit_card"];
@@ -180,17 +181,6 @@ export default function PaymentModal({
     }
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleString("es-CO", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
   const sectionCard: React.CSSProperties = {
     padding: "1rem",
     backgroundColor: "var(--color-bg)",
@@ -280,7 +270,7 @@ export default function PaymentModal({
         )}
         <div style={{ fontSize: "0.875rem", color: "var(--color-text-muted)" }}>
           <div>Creado por: {openBill.created_by?.name}</div>
-          <div>Fecha: {formatDate(openBill.created_at)}</div>
+          <div>Fecha: {formatDateTime(openBill.created_at)}</div>
         </div>
       </div>
 

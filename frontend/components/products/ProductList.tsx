@@ -12,6 +12,7 @@ import { Button, Input, Select, Table, Badge } from "@/components/ui";
 import type { BadgeTone } from "@/components/ui";
 import { PermissionGate } from "@/components/permissions";
 import { PERMISSIONS } from "@/lib/permissions";
+import { formatMoney } from "@/lib/format";
 
 interface ProductListProps {
   products: Product[];
@@ -19,15 +20,6 @@ interface ProductListProps {
   onDelete: (id: string) => void;
   isLoading?: boolean;
 }
-
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency: "COP",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-};
 
 const getProductTypeLabel = (product: Product) => {
   const type = PRODUCT_TYPES.find((t) => t.value === product.product_type);
@@ -205,7 +197,7 @@ export default function ProductList({
                 <td>{getUnitLabel(product)}</td>
                 <td data-numeric style={{ fontWeight: 600 }}>
                   {requiresPricing(product.product_type) ? (
-                    formatCurrency(
+                    formatMoney(
                       parseFloat(product.total_price_with_taxes || "0")
                     )
                   ) : (

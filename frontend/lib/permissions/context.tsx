@@ -8,7 +8,7 @@ import {
   useEffect,
   ReactNode,
 } from "react";
-import { AuthUser, PermissionsContextValue } from "./types";
+import { AuthUser, Organization, PermissionsContextValue } from "./types";
 
 const PermissionsContext = createContext<PermissionsContextValue | undefined>(
   undefined,
@@ -90,6 +90,7 @@ export function PermissionsProvider({ children }: PermissionsProviderProps) {
 
   const value: PermissionsContextValue = {
     user,
+    organization: user?.organization ?? null,
     permissions,
     isLoading,
     error,
@@ -114,6 +115,14 @@ export function usePermissions(): PermissionsContextValue {
     throw new Error("usePermissions must be used within a PermissionsProvider");
   }
   return context;
+}
+
+/**
+ * The signed-in user's organization (from the same /auth/me request as the
+ * permissions); null while loading or signed out.
+ */
+export function useOrganization(): Organization | null {
+  return usePermissions().organization;
 }
 
 /**

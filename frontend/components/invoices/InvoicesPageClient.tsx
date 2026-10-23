@@ -13,6 +13,7 @@ import { PermissionGate } from "@/components/permissions";
 import { PERMISSIONS } from "@/lib/permissions";
 import { Badge, Button, Input, Table } from "@/components/ui";
 import type { BadgeTone } from "@/components/ui";
+import { NUMERIC_DATE_TIME, formatDateTime } from "@/lib/format";
 
 const SUBMISSION_STATUS: Record<
   InvoiceSubmissionStatus,
@@ -198,20 +199,6 @@ export default function InvoicesPageClient() {
     } finally {
       setRetryingId(null);
     }
-  };
-
-  // Format date and time
-  const formatDateTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleString("es-CO", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    });
   };
 
   return (
@@ -463,7 +450,7 @@ export default function InvoicesPageClient() {
                     invoice.submission_status === "pending_submission";
                   return (
                   <tr key={invoice.id}>
-                    <td>{formatDateTime(invoice.created_at)}</td>
+                    <td>{formatDateTime(invoice.created_at, NUMERIC_DATE_TIME)}</td>
                     <td>
                       {submission ? (
                         <div

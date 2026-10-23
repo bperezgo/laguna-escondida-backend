@@ -11,11 +11,11 @@ import { PERMISSIONS, usePermissions } from "@/lib/permissions";
 import { canOverrideItemLock, isItemPastGrace } from "@/lib/orders/itemLock";
 import { fuzzyFilter } from "@/lib/search/fuzzy";
 import { Button, Input, Textarea } from "@/components/ui";
+import ReceiptFooter from "./ReceiptFooter";
 import {
   ProductCard,
   OrderLineItem,
   CategoryPills,
-  formatCOP,
   sendIcon,
   isWeighedProduct,
   defaultSelections,
@@ -27,6 +27,7 @@ import type {
   SideDishSelection,
 } from "@/types/order";
 import type { OpenBillProductStatus } from "@/types/commandItem";
+import { formatDateTime, formatMoney } from "@/lib/format";
 
 interface EditOrderFormProps {
   openBill: OpenBillWithProducts;
@@ -628,17 +629,7 @@ export default function EditOrderForm({
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  const createdChip = new Date(openBill.created_at).toLocaleString("es-CO", {
+  const createdChip = formatDateTime(openBill.created_at, {
     day: "numeric",
     month: "short",
     hour: "2-digit",
@@ -748,7 +739,7 @@ export default function EditOrderForm({
           <div className="bill-number">
             Factura - {openBill.temporal_identifier}
           </div>
-          <div className="date">{formatDate(openBill.created_at)}</div>
+          <div className="date">{formatDateTime(openBill.created_at)}</div>
           {openBill.created_by && (
             <div className="date">
               Atendido por: {openBill.created_by.name}
@@ -790,10 +781,7 @@ export default function EditOrderForm({
             <span>${printTotals.total.toFixed(2)}</span>
           </div>
         </div>
-        <div className="footer">
-          <div>Gracias por su visita!</div>
-          <div>Laguna Escondida</div>
-        </div>
+        <ReceiptFooter />
       </div>
     </div>
   );
@@ -1183,7 +1171,7 @@ export default function EditOrderForm({
                     fontVariantNumeric: "tabular-nums",
                   }}
                 >
-                  {formatCOP(orderTotal)}
+                  {formatMoney(orderTotal)}
                 </span>
               </div>
               {pendingWeightHint}
@@ -1621,7 +1609,7 @@ export default function EditOrderForm({
                     fontVariantNumeric: "tabular-nums",
                   }}
                 >
-                  {formatCOP(orderTotal)}
+                  {formatMoney(orderTotal)}
                 </span>
               </div>
               {pendingWeightHint}

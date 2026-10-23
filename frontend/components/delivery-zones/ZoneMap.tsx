@@ -16,12 +16,18 @@ import { parseBoundary } from "@/lib/deliveryZones/geojson";
 const DEFAULT_CENTER: L.LatLngExpression = [4.6, -74.08];
 const DEFAULT_ZOOM = 12;
 
-const ACTIVE_STYLE: L.PathOptions = {
-  color: "#0d9488",
+// Leaflet writes colors as SVG attributes, which cannot hold var(): read the
+// brand variables (globals.css, or the organization's) when drawing.
+const brandColor = (name: string, fallback: string) =>
+  getComputedStyle(document.documentElement).getPropertyValue(name).trim() ||
+  fallback;
+
+const activeStyle = (): L.PathOptions => ({
+  color: brandColor("--color-primary-hover", "#0d9488"),
   weight: 2,
-  fillColor: "#14b8a6",
+  fillColor: brandColor("--color-primary", "#14b8a6"),
   fillOpacity: 0.2,
-};
+});
 const INACTIVE_STYLE: L.PathOptions = {
   color: "#64748b",
   weight: 2,
@@ -29,11 +35,9 @@ const INACTIVE_STYLE: L.PathOptions = {
   fillColor: "#94a3b8",
   fillOpacity: 0.1,
 };
-const EDITING_STYLE: L.PathOptions = {
-  color: "#c9a227",
-  weight: 3,
-  fillColor: "#c9a227",
-  fillOpacity: 0.25,
+const editingStyle = (): L.PathOptions => {
+  const secondary = brandColor("--color-secondary", "#c9a227");
+  return { color: secondary, weight: 3, fillColor: secondary, fillOpacity: 0.25 };
 };
 
 export interface ZoneEditState {
@@ -116,7 +120,7 @@ export default function ZoneMap({
     };
 
     map.on("pm:create", (e) => {
-      if (e.layer instanceof L.Path) e.layer.setStyle(EDITING_STYLE);
+      if (e.layer instanceof L.Path) e.layer.setStyle(editingStyle());
       watchLayer(e.layer);
       emitBoundary();
     });
@@ -153,7 +157,7 @@ export default function ZoneMap({
     for (const zone of zones) {
       if (editing && editing.zoneId === zone.id) continue;
       const selected = zone.id === selectedZoneId;
-      const base = zone.active ? ACTIVE_STYLE : INACTIVE_STYLE;
+      const base = zone.active ? activeStyle() : INACTIVE_STYLE;
       const layer = L.geoJSON(zone.boundary, {
         pmIgnore: true,
         style: {
@@ -225,7 +229,7 @@ export default function ZoneMap({
 
     const boundary = editBoundaryRef.current;
     if (boundary) {
-      const group = L.geoJSON(boundary, { style: EDITING_STYLE });
+      const group = L.geoJSON(boundary, { style: editingStyle() });
       group.eachLayer((layer) => {
         layer.addTo(map);
         watchLayerRef.current(layer);

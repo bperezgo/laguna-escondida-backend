@@ -9,6 +9,7 @@ import type {
   CreatePurchaseEntryItemRequest,
 } from "@/types/purchaseEntry";
 import { Input, Select, Textarea, Button, Table } from "@/components/ui";
+import { formatMoney } from "@/lib/format";
 
 interface PurchaseEntryFormProps {
   suppliers: Supplier[];
@@ -462,15 +463,6 @@ export default function PurchaseEntryForm({
     return items.reduce((sum, item) => sum + calculateItemTotal(item), 0);
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("es-CO", {
-      style: "currency",
-      currency: "COP",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
   // Get catalog items that haven't been selected yet
   const getAvailableCatalogItems = (currentIndex: number) => {
     const selectedProductIds = items
@@ -919,7 +911,7 @@ export default function PurchaseEntryForm({
                               value={catalogItem.product_id}
                             >
                               {catalogItem.product_name} -{" "}
-                              {formatCurrency(
+                              {formatMoney(
                                 parseFloat(catalogItem.unit_cost),
                               )}
                             </option>
@@ -934,7 +926,7 @@ export default function PurchaseEntryForm({
                           ) && (
                             <option value={selectedCatalogItem.product_id}>
                               {selectedCatalogItem.product_name} -{" "}
-                              {formatCurrency(
+                              {formatMoney(
                                 parseFloat(selectedCatalogItem.unit_cost),
                               )}
                             </option>
@@ -1019,7 +1011,7 @@ export default function PurchaseEntryForm({
                     borderTop: "2px solid var(--color-border)",
                   }}
                 >
-                  {formatCurrency(calculateGrandTotal())}
+                  {formatMoney(calculateGrandTotal())}
                 </td>
                 <td
                   style={{ borderTop: "2px solid var(--color-border)" }}

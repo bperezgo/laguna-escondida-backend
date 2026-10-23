@@ -5,6 +5,7 @@ import type { Stock } from "@/types/stock";
 import { Button, Input, Table, Badge } from "@/components/ui";
 import { PermissionGate } from "@/components/permissions";
 import { PERMISSIONS } from "@/lib/permissions";
+import { formatDate } from "@/lib/format";
 
 interface StockListProps {
   stocks: Stock[];
@@ -25,14 +26,6 @@ export default function StockList({
 
   // Create a map of product IDs to product names
   const productMap = new Map(products.map((p) => [p.id, p.name]));
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("es-CO", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
 
   // Filter stocks based on search term
   const filteredStocks = stocks.filter((stock) => {

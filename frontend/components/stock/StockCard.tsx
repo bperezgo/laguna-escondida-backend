@@ -3,6 +3,7 @@
 import type { Stock } from "@/types/stock";
 import { PermissionGate } from "@/components/permissions";
 import { PERMISSIONS } from "@/lib/permissions";
+import { formatDate } from "@/lib/format";
 
 interface StockCardProps {
   stock: Stock;
@@ -17,14 +18,6 @@ export default function StockCard({
   onAdjust,
   onDelete,
 }: StockCardProps) {
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
-
   const getAmountColor = (amount: number) => {
     if (amount === 0) return "var(--color-danger)";
     if (amount < 10) return "var(--color-warning)";

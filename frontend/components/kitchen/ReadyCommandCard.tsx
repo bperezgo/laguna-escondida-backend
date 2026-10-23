@@ -1,5 +1,7 @@
 "use client";
 
+import { formatTime, inBusinessTimeZone } from "@/lib/format";
+
 export interface ReadyCommand {
   id: string; // temporal_identifier
   temporal_identifier: string;
@@ -20,15 +22,12 @@ interface ReadyCommandCardProps {
   command: ReadyCommand;
 }
 
-// Format an instant to the restaurant's local time (America/Bogota).
-function formatTime(dateString: string) {
-  return new Date(dateString).toLocaleTimeString("es-CO", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-    timeZone: "America/Bogota",
-  });
-}
+// Format an instant to the restaurant's local time, whatever the device's.
+const formatClock = (dateString: string) =>
+  formatTime(
+    dateString,
+    inBusinessTimeZone({ hour: "2-digit", minute: "2-digit", hour12: true })
+  );
 
 export default function ReadyCommandCard({ command }: ReadyCommandCardProps) {
   return (
@@ -97,7 +96,7 @@ export default function ReadyCommandCard({ command }: ReadyCommandCardProps) {
               }}
               title="Hora de finalización"
             >
-              ✓ {formatTime(command.completed_at)}
+              ✓ {formatClock(command.completed_at)}
             </span>
           )}
           <span

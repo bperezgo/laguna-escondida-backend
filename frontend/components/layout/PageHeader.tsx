@@ -2,10 +2,14 @@
 
 import { useRouter, usePathname } from "next/navigation";
 import ConnectivityBadge from "@/components/layout/ConnectivityBadge";
+import { useOrganization } from "@/lib/permissions";
+import { organizationDisplayName, organizationLogoUrl } from "@/lib/organization";
 
 export default function PageHeader() {
   const router = useRouter();
   const pathname = usePathname();
+  const organization = useOrganization();
+  const logoUrl = organization ? organizationLogoUrl(organization) : null;
 
   // Determine page title based on current path
   const getPageTitle = () => {
@@ -21,7 +25,9 @@ export default function PageHeader() {
     if (pathname.startsWith("/close")) return "Cierre de Caja";
     if (pathname.startsWith("/users")) return "Usuarios";
     if (pathname.startsWith("/delivery-zones")) return "Zonas de Domicilio";
-    return "Laguna Escondida";
+    return organization
+      ? organizationDisplayName(organization)
+      : "Laguna Escondida";
   };
 
   const title = getPageTitle();
@@ -102,6 +108,13 @@ export default function PageHeader() {
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
           </button>
+          {logoUrl && (
+            <img
+              src={logoUrl}
+              alt={organization ? organizationDisplayName(organization) : ""}
+              style={{ height: "2rem", width: "auto", objectFit: "contain" }}
+            />
+          )}
           <h1
             style={{
               fontSize: "1.5rem",

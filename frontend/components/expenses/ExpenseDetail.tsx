@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import type { Expense } from "@/types/expense";
 import { expensesApi } from "@/lib/api/expenses";
+import { LONG_DATE, LONG_DATE_TIME, formatDate, formatDateTime, formatMoney } from "@/lib/format";
 
 interface ExpenseDetailProps {
   expenseId: string;
@@ -32,33 +33,6 @@ export default function ExpenseDetail({
     } finally {
       setLoading(false);
     }
-  };
-
-  const formatCurrency = (amount: string) => {
-    return new Intl.NumberFormat("es-CO", {
-      style: "currency",
-      currency: "COP",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(parseFloat(amount));
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("es-CO", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  };
-
-  const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString("es-CO", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
   };
 
   const getCategoryColor = (code?: string) => {
@@ -224,7 +198,7 @@ export default function ExpenseDetail({
                     color: "var(--color-danger)",
                   }}
                 >
-                  {formatCurrency(expense.amount)}
+                  {formatMoney(expense.amount)}
                 </p>
               </div>
             </div>
@@ -283,7 +257,7 @@ export default function ExpenseDetail({
                     color: "var(--color-text-primary)",
                   }}
                 >
-                  {formatDate(expense.expense_date)}
+                  {formatDate(expense.expense_date, LONG_DATE)}
                 </p>
               </div>
 
@@ -329,7 +303,7 @@ export default function ExpenseDetail({
                     color: "var(--color-text-primary)",
                   }}
                 >
-                  {formatDateTime(expense.created_at)}
+                  {formatDateTime(expense.created_at, LONG_DATE_TIME)}
                 </p>
               </div>
             </div>

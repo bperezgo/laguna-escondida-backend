@@ -7,6 +7,7 @@ import type {
   ProviderDocumentType,
 } from "@/types/support-document";
 import { Modal, Input, Select, Button, Table } from "@/components/ui";
+import { formatNumber } from "@/lib/format";
 
 interface SupportDocumentFormProps {
   onSubmit: (data: CreateSupportDocumentRequest) => Promise<void>;
@@ -586,7 +587,7 @@ export default function SupportDocumentForm({
                   }}
                 >
                   $
-                  {purchaseSummary.totalAmount.toLocaleString("es-CO", {
+                  {formatNumber(purchaseSummary.totalAmount, {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}
@@ -642,7 +643,7 @@ export default function SupportDocumentForm({
               }}
             >
               $
-              {purchaseSummary.totalAmount.toLocaleString("es-CO", {
+              {formatNumber(purchaseSummary.totalAmount, {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}

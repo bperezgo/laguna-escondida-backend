@@ -13,6 +13,7 @@ import type {
   OpenBillProductStatus,
 } from "@/types/commandItem";
 import { useNow } from "@/lib/kitchen/useNow";
+import { redirectIfSessionEnded } from "@/lib/api/session";
 
 // How long a fully-completed comanda flashes "✓ Lista" before it leaves the board.
 const READY_FLASH_MS = 3000;
@@ -252,8 +253,9 @@ export default function KitchenCommandView() {
           setIsConnecting(false);
           setConnectionError("Conexión perdida. Reconectando...");
 
-          reconnectTimeoutRef.current = setTimeout(() => {
-            connectToSSE();
+          reconnectTimeoutRef.current = setTimeout(async () => {
+            if (await redirectIfSessionEnded()) return;
+            if (isMounted) connectToSSE();
           }, 3000);
         }
       };

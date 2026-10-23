@@ -12,6 +12,7 @@ import type {
 import type { Product } from "@/types/product";
 import { productsApi } from "@/lib/api/products";
 import { Modal, Input, Select, Button } from "@/components/ui";
+import { formatNumber } from "@/lib/format";
 
 interface InvoiceFormProps {
   onSubmit: (data: CreateElectronicInvoiceRequest) => Promise<void>;
@@ -1151,7 +1152,7 @@ export default function InvoiceForm({
                   }}
                 >
                   $
-                  {purchaseSummary.totalAmount.toLocaleString("es-CO", {
+                  {formatNumber(purchaseSummary.totalAmount, {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}
@@ -1202,7 +1203,7 @@ export default function InvoiceForm({
               }}
             >
               $
-              {purchaseSummary.totalAmount.toLocaleString("es-CO", {
+              {formatNumber(purchaseSummary.totalAmount, {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}

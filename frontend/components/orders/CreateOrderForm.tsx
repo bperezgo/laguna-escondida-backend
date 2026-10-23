@@ -12,11 +12,11 @@ import {
   ProductCard,
   OrderLineItem,
   CategoryPills,
-  formatCOP,
   sendIcon,
   isWeighedProduct,
   defaultSelections,
 } from "./orderTakingParts";
+import { formatMoney } from "@/lib/format";
 
 // Prefix pre-filled into the temporal identifier input so the waitress only
 // types the table number after it (e.g. "MESA-12"). This is a frontend-only
@@ -737,7 +737,7 @@ export default function CreateOrderForm({
                     fontVariantNumeric: "tabular-nums",
                   }}
                 >
-                  {formatCOP(orderTotal)}
+                  {formatMoney(orderTotal)}
                 </span>
               </div>
               {pendingWeightHint}
@@ -1061,7 +1061,7 @@ export default function CreateOrderForm({
                     fontVariantNumeric: "tabular-nums",
                   }}
                 >
-                  {formatCOP(orderTotal)}
+                  {formatMoney(orderTotal)}
                 </span>
               </div>
               {pendingWeightHint}
