@@ -146,7 +146,7 @@ func (a *BillSyncApplier) upsertBillOwner(db *gorm.DB, customer *dto.Customer) e
 		UpdatedAt:          now,
 	}
 	if err := db.Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "id"}},
+		Columns: []clause.Column{{Name: "organization_id"}, {Name: "id"}},
 		DoUpdates: clause.Assignments(map[string]any{
 			"email":               owner.Email,
 			"name":                owner.Name,
