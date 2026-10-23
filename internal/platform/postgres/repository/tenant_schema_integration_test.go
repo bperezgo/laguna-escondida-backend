@@ -22,21 +22,13 @@ func beginTenantSchemaProbe(t *testing.T) (*gorm.DB, string) {
 	return tx, orgB
 }
 
-// execRejected runs sql inside a savepoint and reports whether Postgres rejected it.
-func execRejected(t *testing.T, tx *gorm.DB, sql string, args ...string) error {
+// inSavepoint runs write and rolls it back, returning whatever Postgres said about it.
+func inSavepoint(t *testing.T, tx *gorm.DB, write func(tx *gorm.DB) error) error {
 	t.Helper()
 	require.NoError(t, tx.SavePoint("probe").Error)
-	err := tx.Exec(sql, toValues(args)...).Error
+	err := write(tx)
 	require.NoError(t, tx.RollbackTo("probe").Error)
 	return err
-}
-
-func toValues(args []string) []interface{} {
-	values := make([]interface{}, len(args))
-	for i, a := range args {
-		values[i] = a
-	}
-	return values
 }
 
 func TestTenantSchema_UniquesArePerOrganization_Integration(t *testing.T) {
@@ -48,91 +40,108 @@ func TestTenantSchema_UniquesArePerOrganization_Integration(t *testing.T) {
 
 	cases := []struct {
 		name   string
-		insert string
-		args   func(org string) []string
+		insert func(tx *gorm.DB, org string) error
 	}{
-		{
-			name:   "username",
-			insert: "INSERT INTO users (organization_id, username, password, name) VALUES (?, ?, 'x', 'X')",
-			args:   func(org string) []string { return []string{org, username} },
-		},
-		{
-			name:   "expense category code",
-			insert: "INSERT INTO expense_categories (organization_id, code, name) VALUES (?, ?, 'X')",
-			args:   func(org string) []string { return []string{org, code} },
-		},
-		{
-			name:   "bill owner id",
-			insert: "INSERT INTO bill_owners (organization_id, id, email, name) VALUES (?, ?, 'x@x.co', 'X')",
-			args:   func(org string) []string { return []string{org, ownerID} },
-		},
-		{
-			name: "sync outbox origin and seq",
-			insert: `INSERT INTO sync_outbox (organization_id, origin_node_id, entity_type, entity_id, operation, payload, seq)
-				VALUES (?, ?, 'product', gen_random_uuid(), 'create', '{}', 1)`,
-			args: func(org string) []string { return []string{org, nodeID} },
-		},
+		{"username", func(tx *gorm.DB, org string) error {
+			return tx.Exec("INSERT INTO users (organization_id, username, password, name) VALUES (?, ?, 'x', 'X')", org, username).Error
+		}},
+		{"expense category code", func(tx *gorm.DB, org string) error {
+			return tx.Exec("INSERT INTO expense_categories (organization_id, code, name) VALUES (?, ?, 'X')", org, code).Error
+		}},
+		{"bill owner id", func(tx *gorm.DB, org string) error {
+			return tx.Exec("INSERT INTO bill_owners (organization_id, id, email, name) VALUES (?, ?, 'x@x.co', 'X')", org, ownerID).Error
+		}},
+		{"sync outbox origin and seq", func(tx *gorm.DB, org string) error {
+			return tx.Exec(`INSERT INTO sync_outbox (organization_id, origin_node_id, entity_type, entity_id, operation, payload, seq)
+				VALUES (?, ?, 'product', gen_random_uuid(), 'create', '{}', 1)`, org, nodeID).Error
+		}},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			require.NoError(t, tx.Exec(tc.insert, toValues(tc.args(lagunaOrgID))...).Error)
+			require.NoError(t, tc.insert(tx, lagunaOrgID))
 
-			assert.NoError(t, execRejected(t, tx, tc.insert, tc.args(orgB)...), "allowed once in another organization")
-			assert.ErrorContains(t, execRejected(t, tx, tc.insert, tc.args(lagunaOrgID)...), "duplicate key",
-				"rejected twice in one organization")
+			assert.NoError(t, inSavepoint(t, tx, func(tx *gorm.DB) error { return tc.insert(tx, orgB) }),
+				"allowed once in another organization")
+			assert.ErrorContains(t, inSavepoint(t, tx, func(tx *gorm.DB) error { return tc.insert(tx, lagunaOrgID) }),
+				"duplicate key", "rejected twice in one organization")
 		})
 	}
 }
 
+type tenantParents struct {
+	product, bill, openBill, supplier, entry, user, owner string
+}
+
+func seedTenantParents(t *testing.T, tx *gorm.DB, org string) tenantParents {
+	t.Helper()
+	p := tenantParents{
+		product: uuid.NewString(), bill: uuid.NewString(), openBill: uuid.NewString(),
+		supplier: uuid.NewString(), entry: uuid.NewString(), user: uuid.NewString(),
+		owner: "doc-" + uuid.NewString()[:8],
+	}
+	require.NoError(t, tx.Exec("INSERT INTO products (organization_id, id, name, category, version, unit_price, vat, vat_amount, ico_amount) VALUES (?, ?, 'P', 'c', 1, 1, 0, 0, 0)", org, p.product).Error)
+	require.NoError(t, tx.Exec("INSERT INTO bills (organization_id, id, total_amount, vat, ico, tip) VALUES (?, ?, 1, 0, 0, 0)", org, p.bill).Error)
+	require.NoError(t, tx.Exec("INSERT INTO users (organization_id, id, username, password, name) VALUES (?, ?, ?, 'x', 'X')", org, p.user, "u-"+p.user[:8]).Error)
+	require.NoError(t, tx.Exec("INSERT INTO open_bills (organization_id, id, total_amount, created_by) VALUES (?, ?, 0, ?)", org, p.openBill, p.user).Error)
+	require.NoError(t, tx.Exec("INSERT INTO suppliers (organization_id, id, name) VALUES (?, ?, 'S')", org, p.supplier).Error)
+	require.NoError(t, tx.Exec("INSERT INTO purchase_entries (organization_id, id, supplier_id, total_amount, entry_date) VALUES (?, ?, ?, 0, now())", org, p.entry, p.supplier).Error)
+	require.NoError(t, tx.Exec("INSERT INTO bill_owners (organization_id, id, email, name) VALUES (?, ?, 'x@x.co', 'X')", org, p.owner).Error)
+	return p
+}
+
 func TestTenantSchema_ChildCannotReferenceAnotherOrganizationsParent_Integration(t *testing.T) {
 	tx, orgB := beginTenantSchemaProbe(t)
-	productB := uuid.NewString()
-	billB := uuid.NewString()
-	openBillB := uuid.NewString()
-	supplierB := uuid.NewString()
-	entryB := uuid.NewString()
-	userB := uuid.NewString()
-	ownerB := "doc-" + uuid.NewString()[:8]
+	a := seedTenantParents(t, tx, lagunaOrgID)
+	b := seedTenantParents(t, tx, orgB)
 
-	seed := []struct {
-		sql  string
-		args []string
-	}{
-		{"INSERT INTO products (organization_id, id, name, category, version, unit_price, vat, vat_amount, ico_amount) VALUES (?, ?, 'P', 'c', 1, 1, 0, 0, 0)", []string{orgB, productB}},
-		{"INSERT INTO bills (organization_id, id, total_amount, vat, ico, tip) VALUES (?, ?, 1, 0, 0, 0)", []string{orgB, billB}},
-		{"INSERT INTO users (organization_id, id, username, password, name) VALUES (?, ?, ?, 'x', 'X')", []string{orgB, userB, "u-" + userB[:8]}},
-		{"INSERT INTO open_bills (organization_id, id, total_amount, created_by) VALUES (?, ?, 0, ?)", []string{orgB, openBillB, userB}},
-		{"INSERT INTO suppliers (organization_id, id, name) VALUES (?, ?, 'S')", []string{orgB, supplierB}},
-		{"INSERT INTO purchase_entries (organization_id, id, supplier_id, total_amount, entry_date) VALUES (?, ?, ?, 0, now())", []string{orgB, entryB, supplierB}},
-		{"INSERT INTO bill_owners (organization_id, id, email, name) VALUES (?, ?, 'x@x.co', 'X')", []string{orgB, ownerB}},
-	}
-	for _, s := range seed {
-		require.NoError(t, tx.Exec(s.sql, toValues(s.args)...).Error)
-	}
-
+	// Each case points exactly one foreign key at B and the rest at A's own rows, so the named
+	// constraint is the only possible reason for the rejection.
 	cases := []struct {
-		name string
-		sql  string
-		args []string
+		constraint string
+		insert     func(tx *gorm.DB, own, other tenantParents) error
 	}{
-		{"bill product to B's bill", "INSERT INTO bill_products (organization_id, bill_id, product_id) VALUES (?, ?, ?)", []string{lagunaOrgID, billB, productB}},
-		{"open bill product to B's open bill", "INSERT INTO open_bills_products (organization_id, open_bill_id, product_id, created_by) VALUES (?, ?, ?, ?)", []string{lagunaOrgID, openBillB, productB, userB}},
-		{"bill to B's bill owner", "INSERT INTO bills (organization_id, total_amount, vat, ico, tip, bill_owner_id) VALUES (?, 1, 0, 0, 0, ?)", []string{lagunaOrgID, ownerB}},
-		{"stock to B's product", "INSERT INTO stock (organization_id, product_id, version, amount) VALUES (?, ?, 1, 1)", []string{lagunaOrgID, productB}},
-		{"historic stock to B's product", "INSERT INTO historic_stock (organization_id, product_id, change) VALUES (?, ?, 1)", []string{lagunaOrgID, productB}},
-		{"supplier catalog to B's supplier", "INSERT INTO supplier_catalog (organization_id, supplier_id, product_id) VALUES (?, ?, ?)", []string{lagunaOrgID, supplierB, productB}},
-		{"purchase entry item to B's entry", "INSERT INTO purchase_entry_items (organization_id, purchase_entry_id, product_id, quantity, unit_cost, total_cost) VALUES (?, ?, ?, 1, 1, 1)", []string{lagunaOrgID, entryB, productB}},
+		{"bill_products_bill_id_fkey", func(tx *gorm.DB, own, other tenantParents) error {
+			return tx.Exec("INSERT INTO bill_products (organization_id, bill_id, product_id) VALUES (?, ?, ?)", lagunaOrgID, other.bill, own.product).Error
+		}},
+		{"bill_products_product_id_fkey", func(tx *gorm.DB, own, other tenantParents) error {
+			return tx.Exec("INSERT INTO bill_products (organization_id, bill_id, product_id) VALUES (?, ?, ?)", lagunaOrgID, own.bill, other.product).Error
+		}},
+		{"open_bills_products_open_bill_id_fkey", func(tx *gorm.DB, own, other tenantParents) error {
+			return tx.Exec("INSERT INTO open_bills_products (organization_id, open_bill_id, product_id, created_by) VALUES (?, ?, ?, ?)", lagunaOrgID, other.openBill, own.product, own.user).Error
+		}},
+		{"open_bills_products_product_id_fkey", func(tx *gorm.DB, own, other tenantParents) error {
+			return tx.Exec("INSERT INTO open_bills_products (organization_id, open_bill_id, product_id, created_by) VALUES (?, ?, ?, ?)", lagunaOrgID, own.openBill, other.product, own.user).Error
+		}},
+		{"bills_bill_owner_id_fkey", func(tx *gorm.DB, _, other tenantParents) error {
+			return tx.Exec("INSERT INTO bills (organization_id, total_amount, vat, ico, tip, bill_owner_id) VALUES (?, 1, 0, 0, 0, ?)", lagunaOrgID, other.owner).Error
+		}},
+		{"stock_product_id_fkey", func(tx *gorm.DB, _, other tenantParents) error {
+			return tx.Exec("INSERT INTO stock (organization_id, product_id, version, amount) VALUES (?, ?, 1, 1)", lagunaOrgID, other.product).Error
+		}},
+		{"historic_stock_product_id_fkey", func(tx *gorm.DB, _, other tenantParents) error {
+			return tx.Exec("INSERT INTO historic_stock (organization_id, product_id, change) VALUES (?, ?, 1)", lagunaOrgID, other.product).Error
+		}},
+		{"supplier_catalog_supplier_id_fkey", func(tx *gorm.DB, own, other tenantParents) error {
+			return tx.Exec("INSERT INTO supplier_catalog (organization_id, supplier_id, product_id) VALUES (?, ?, ?)", lagunaOrgID, other.supplier, own.product).Error
+		}},
+		{"supplier_catalog_product_id_fkey", func(tx *gorm.DB, own, other tenantParents) error {
+			return tx.Exec("INSERT INTO supplier_catalog (organization_id, supplier_id, product_id) VALUES (?, ?, ?)", lagunaOrgID, own.supplier, other.product).Error
+		}},
+		{"purchase_entry_items_purchase_entry_id_fkey", func(tx *gorm.DB, own, other tenantParents) error {
+			return tx.Exec("INSERT INTO purchase_entry_items (organization_id, purchase_entry_id, product_id, quantity, unit_cost, total_cost) VALUES (?, ?, ?, 1, 1, 1)", lagunaOrgID, other.entry, own.product).Error
+		}},
+		{"purchase_entry_items_product_id_fkey", func(tx *gorm.DB, own, other tenantParents) error {
+			return tx.Exec("INSERT INTO purchase_entry_items (organization_id, purchase_entry_id, product_id, quantity, unit_cost, total_cost) VALUES (?, ?, ?, 1, 1, 1)", lagunaOrgID, own.entry, other.product).Error
+		}},
 	}
 
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			assert.ErrorContains(t, execRejected(t, tx, tc.sql, tc.args...), "violates foreign key constraint")
+		t.Run(tc.constraint, func(t *testing.T) {
+			assert.NoError(t, inSavepoint(t, tx, func(tx *gorm.DB) error { return tc.insert(tx, a, a) }),
+				"accepted when every parent is the row's own organization's")
+			assert.ErrorContains(t, inSavepoint(t, tx, func(tx *gorm.DB) error { return tc.insert(tx, a, b) }),
+				`violates foreign key constraint "`+tc.constraint+`"`)
 		})
 	}
-
-	t.Run("same parent in its own organization is accepted", func(t *testing.T) {
-		assert.NoError(t, execRejected(t, tx,
-			"INSERT INTO bill_products (organization_id, bill_id, product_id) VALUES (?, ?, ?)", orgB, billB, productB))
-	})
 }
