@@ -165,7 +165,7 @@ func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, produ
 			}
 
 			if err := tx.Clauses(clause.OnConflict{
-				Columns: []clause.Column{{Name: "id"}},
+				Columns: []clause.Column{{Name: "organization_id"}, {Name: "id"}},
 				DoUpdates: clause.Assignments(map[string]any{
 					"email":               billOwner.Email,
 					"name":                billOwner.Name,

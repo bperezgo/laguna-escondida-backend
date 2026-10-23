@@ -194,7 +194,7 @@ func truncateAll(t *testing.T, db *gorm.DB) {
 DECLARE tables text;
 BEGIN
   SELECT string_agg(quote_ident(tablename), ', ') INTO tables
-  FROM pg_tables WHERE schemaname = 'public' AND tablename <> 'schema_migrations';
+  FROM pg_tables WHERE schemaname = 'public' AND tablename NOT IN ('schema_migrations', 'organizations');
   IF tables IS NOT NULL THEN
     EXECUTE 'TRUNCATE TABLE ' || tables || ' RESTART IDENTITY CASCADE';
   END IF;
