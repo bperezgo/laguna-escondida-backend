@@ -45,7 +45,11 @@ func main() {
 		log.Println("No .env file found, using system environment variables")
 	}
 
-	cfg, err := config.NewConfig()
+	mode := config.Mode(os.Getenv("APP_MODE"))
+	if mode == "" {
+		mode = config.ModeCloud
+	}
+	cfg, err := config.NewConfig(mode)
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}

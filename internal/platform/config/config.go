@@ -13,7 +13,7 @@ import (
 )
 
 // Mode determines how the backend runs: as the cloud aggregate or as a
-// restaurant edge node. The wiring in cmd/main.go branches on this value.
+// restaurant edge node. Each binary (cmd/cloud, cmd/edge) passes its own.
 type Mode string
 
 const (
@@ -108,13 +108,19 @@ func (c *Config) TelemetryIngestEnabled() bool {
 	return c.AppMode == ModeCloud && c.TelemetryForwardURL != ""
 }
 
-func NewConfig() (*Config, error) {
-	appMode := Mode(os.Getenv("APP_MODE"))
-	if appMode == "" {
-		appMode = ModeCloud
+// NewConfig reads the config for the binary's mode. APP_MODE is optional; when set it must
+// agree, so a box running the wrong binary fails at boot instead of acting as the other mode.
+func NewConfig(mode Mode) (*Config, error) {
+	if mode != ModeCloud && mode != ModeEdge {
+		return nil, fmt.Errorf("invalid binary mode %q: must be %q or %q", mode, ModeCloud, ModeEdge)
 	}
-	if appMode != ModeCloud && appMode != ModeEdge {
-		return nil, fmt.Errorf("invalid APP_MODE %q: must be %q or %q", appMode, ModeCloud, ModeEdge)
+	appMode := mode
+	switch configured := Mode(os.Getenv("APP_MODE")); configured {
+	case "", mode:
+	case ModeCloud, ModeEdge:
+		return nil, fmt.Errorf("binary is %s, APP_MODE says %s", mode, configured)
+	default:
+		return nil, fmt.Errorf("invalid APP_MODE: binary is %s, APP_MODE says %q", mode, configured)
 	}
 
 	url := os.Getenv("ELECTRONIC_INVOICE_URL")
@@ -283,7 +289,7 @@ func NewConfig() (*Config, error) {
 			return nil, err
 		}
 	}
-	// Edge ticket printing. The route is only wired in edge mode (cmd/main.go), so
+	// Edge ticket printing. The route is only wired by the edge binary, so
 	// these stay optional with dev-friendly defaults (write ESC/POS to a file).
 	printerTransport := os.Getenv("PRINTER_TRANSPORT")
 	if printerTransport == "" {

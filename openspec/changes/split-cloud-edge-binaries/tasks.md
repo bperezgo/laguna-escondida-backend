@@ -4,7 +4,7 @@
 
 ## 2. Config takes the mode from the binary
 
-- [ ] 2.1 Change `config.NewConfig()` to `NewConfig(mode Mode)`. An unset `APP_MODE` uses `mode`, a matching one is accepted, anything else returns an error naming both values. Verify with table-driven cases in `config_test.go` (unset, matching, contradicting, invalid, for each mode), and check that the existing per-mode boot cases still pass.
+- [x] 2.1 Change `config.NewConfig()` to `NewConfig(mode Mode)`. An unset `APP_MODE` uses `mode`, a matching one is accepted, anything else returns an error naming both values. Verify with table-driven cases in `config_test.go` (unset, matching, contradicting, invalid, for each mode), and check that the existing per-mode boot cases still pass.
 
 ## 3. Move the wiring into `internal/bootstrap`
 
