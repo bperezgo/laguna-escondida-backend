@@ -3,7 +3,6 @@ package handler
 import (
 	"laguna-escondida/backend/internal/domain/permissions"
 	"laguna-escondida/backend/internal/domain/service"
-	"laguna-escondida/backend/internal/platform/config"
 
 	"github.com/gin-gonic/gin"
 )
@@ -25,19 +24,4 @@ func RegisterOrderRoutes(router *gin.Engine, orderHandler *OrderHandler, jwtServ
 	router.PATCH("/api/orders/:id/products/:open_bill_product_id/uncomplete", JWTAuthMiddleware(jwtService), RequirePermission(permissions.OrdersCompleteProduct), orderHandler.UncompleteOpenBillProductHandler)
 	router.PATCH("/api/orders/:id/products/:open_bill_product_id/in-progress", JWTAuthMiddleware(jwtService), RequirePermission(permissions.OrdersCompleteProduct), orderHandler.SetOpenBillProductInProgressHandler)
 	router.PATCH("/api/orders/:id/products/:open_bill_product_id/cancel", JWTAuthMiddleware(jwtService), RequirePermission(permissions.OrdersUpdate), orderHandler.CancelOpenBillProductHandler)
-}
-
-// RegisterDeliveryZoneRoutes is cloud-only: deliveries are taken in the cloud, and the edge's
-// empty zone table keeps a delivery from being created there by accident.
-func RegisterDeliveryZoneRoutes(router *gin.Engine, cfg *config.Config, zoneHandler *DeliveryZoneHandler, jwtService *service.JWTService) {
-	if cfg.AppMode != config.ModeCloud {
-		return
-	}
-
-	zones := router.Group("/api/delivery-zones", JWTAuthMiddleware(jwtService))
-	zones.GET("", RequirePermission(permissions.DeliveryZonesRead), zoneHandler.ListHandler)
-	zones.GET("/check", RequirePermission(permissions.OrdersCreate), zoneHandler.CheckHandler)
-	zones.POST("", RequirePermission(permissions.DeliveryZonesManage), zoneHandler.CreateHandler)
-	zones.PUT("/:id", RequirePermission(permissions.DeliveryZonesManage), zoneHandler.UpdateHandler)
-	zones.DELETE("/:id", RequirePermission(permissions.DeliveryZonesManage), zoneHandler.DeleteHandler)
 }

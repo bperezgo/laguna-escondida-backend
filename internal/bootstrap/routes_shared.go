@@ -23,23 +23,12 @@ type apiHandlers struct {
 	expense           *handler.ExpenseHandler
 	productIngredient *handler.ProductIngredientHandler
 	financial         *handler.FinancialHandler
-	deliveryZone      *handler.DeliveryZoneHandler
 	sse               *handler.SSEHandler
 	edge              *handler.EdgeHandler
 }
 
-// cloudHandlers back the cloud-only routes; telemetry is nil while the ingest is disabled.
-type cloudHandlers struct {
-	invoice         *handler.InvoiceHandler
-	supportDocument *handler.SupportDocumentHandler
-	sync            *handler.SyncHandler
-	telemetry       *handler.TelemetryHandler
-	organization    *handler.OrganizationHandler
-	nodes           *service.NodeService
-}
-
-// registerAPIRoutes wires the routes served in both modes.
-func registerAPIRoutes(router *gin.Engine, cfg *config.Config, jwtService *service.JWTService, h apiHandlers) {
+// registerAPIRoutes wires the routes served in both modes; stockAuthoring adds the cloud's stock writes.
+func registerAPIRoutes(router *gin.Engine, cfg *config.Config, jwtService *service.JWTService, h apiHandlers, stockAuthoring bool) {
 	// Health check
 	router.GET("/api/health", handler.HealthCheckHandler)
 
@@ -95,10 +84,7 @@ func registerAPIRoutes(router *gin.Engine, cfg *config.Config, jwtService *servi
 	router.DELETE("/api/products/:id/ingredients/:ingredient_id/side-dish", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), h.productIngredient.ClearSideDishHandler)
 
 	// Stock routes — reads in both modes, authoring cloud-only (see registerStockRoutes).
-	registerStockRoutes(router, cfg, h.stock, jwtService)
-
-	// Delivery zones — cloud-only (see RegisterDeliveryZoneRoutes).
-	handler.RegisterDeliveryZoneRoutes(router, cfg, h.deliveryZone, jwtService)
+	registerStockRoutes(router, h.stock, jwtService, handler.AdminAPIKeyMiddleware(cfg), stockAuthoring)
 
 	// Bill Owner routes
 	router.GET("/api/bill-owners/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.BillOwnersRead), h.billOwner.GetByIDHandler)
@@ -151,54 +137,4 @@ func registerAPIRoutes(router *gin.Engine, cfg *config.Config, jwtService *servi
 	router.GET("/api/sse/open-bill-products/:area", handler.SSEMiddleware(), handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SSECommandItemsRead), h.sse.StreamOpenBillProductsHandler)
 	router.GET("/api/open-bill-products/:area/pending", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersRead), h.sse.GetPendingOpenBillProductsHandler)
 	router.GET("/api/open-bill-products/:area/completed", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersRead), h.sse.GetCompletedOpenBillProductsHandler)
-}
-
-func registerCloudRoutes(router *gin.Engine, cfg *config.Config, jwtService *service.JWTService, h cloudHandlers) {
-	// Admin routes (protected with admin API key)
-	router.POST("/api/invoices/update-missing-document-urls", handler.AdminAPIKeyMiddleware(cfg), h.invoice.UpdateMissingDocumentURLsHandler)
-	router.POST("/api/support-documents/update-missing-document-urls", handler.AdminAPIKeyMiddleware(cfg), h.supportDocument.UpdateMissingSupportDocumentURLsHandler)
-
-	// Platform organization management: cross-org, so the admin API key until platform_admin exists.
-	// No DELETE on purpose: an organization's invoices are legal records; retire it with status=suspended.
-	organizations := router.Group("/api/platform/organizations", handler.AdminAPIKeyMiddleware(cfg))
-	organizations.POST("", h.organization.CreateHandler)
-	organizations.GET("", h.organization.ListHandler)
-	organizations.GET("/:id", h.organization.GetHandler)
-	organizations.PATCH("/:id", h.organization.UpdateHandler)
-	organizations.PUT("/:id/einvoicing", h.organization.SetEInvoicingHandler)
-
-	// Invoice routes
-	router.POST("/api/invoices", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.InvoicesCreate), h.invoice.CreateElectronicInvoiceHandler)
-	router.GET("/api/invoices", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.InvoicesRead), h.invoice.ListInvoicesHandler)
-	router.GET("/api/invoices/export", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.InvoicesExport), h.invoice.ExportInvoicesCSVHandler)
-
-	// Support Document routes
-	router.POST("/api/support-documents", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SupportDocumentsCreate), h.supportDocument.CreateSupportDocumentHandler)
-	router.GET("/api/support-documents", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SupportDocumentsRead), h.supportDocument.ListSupportDocumentsHandler)
-	router.GET("/api/support-documents/export", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SupportDocumentsExport), h.supportDocument.ExportSupportDocumentsCSVHandler)
-
-	// Cloud sync aggregate: accept pushes from edge nodes and serve reference changes.
-	// Each acts for the organization the calling node is registered to.
-	nodeAuth := handler.NodeAuthMiddleware(cfg, h.nodes)
-	router.POST("/api/sync/push", handler.PushNodeIDFromBody(), nodeAuth, h.sync.PushHandler)
-	router.GET("/api/sync/pull", nodeAuth, h.sync.PullHandler)
-	router.GET("/api/sync/pull/stock", nodeAuth, h.sync.PullStockHandler)
-
-	if h.telemetry != nil {
-		router.POST("/api/telemetry/v1/logs", nodeAuth, h.telemetry.IngestLogsHandler)
-		router.POST("/api/telemetry/v1/traces", nodeAuth, h.telemetry.IngestTracesHandler)
-		router.POST("/api/telemetry/v1/metrics", nodeAuth, h.telemetry.IngestMetricsHandler)
-	}
-}
-
-// registerEdgeRoutes wires ticket printing, only once the printer transport is up.
-func registerEdgeRoutes(router *gin.Engine, jwtService *service.JWTService, device *handler.DeviceHandler) {
-	router.POST("/api/device/print", handler.JWTAuthMiddleware(jwtService, permissions.RoleAdmin, permissions.RoleManager), device.PrintTicketHandler)
-}
-
-// registerEdgeUpdateRoutes wires owner-triggered appliance updates (edge only).
-func registerEdgeUpdateRoutes(router *gin.Engine, jwtService *service.JWTService, update *handler.EdgeUpdateHandler) {
-	edgeUpdate := router.Group("/api/edge/update", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.EdgeUpdate))
-	edgeUpdate.GET("", update.GetUpdateHandler)
-	edgeUpdate.POST("", update.RequestUpdateHandler)
 }

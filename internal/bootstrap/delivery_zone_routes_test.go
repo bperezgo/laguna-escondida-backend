@@ -7,18 +7,13 @@ import (
 
 	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/platform/config"
-	"laguna-escondida/backend/internal/platform/handler"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
 
 func deliveryZoneRoutesFor(mode config.Mode) *gin.Engine {
-	gin.SetMode(gin.TestMode)
-	router := gin.New()
-	handler.RegisterDeliveryZoneRoutes(router, &config.Config{AppMode: mode},
-		handler.NewDeliveryZoneHandler(nil), service.NewJWTService("test-secret", ""))
-	return router
+	return fullRouter(mode, service.NewJWTService("test-secret", ""))
 }
 
 func deliveryZoneRoutes() []struct{ method, path string } {

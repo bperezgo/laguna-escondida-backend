@@ -12,13 +12,13 @@ import (
 	"testing"
 	"time"
 
+	"laguna-escondida/backend/internal/bootstrap"
 	openBillError "laguna-escondida/backend/internal/domain/aggregate/open_bill/error"
 	"laguna-escondida/backend/internal/domain/command"
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/permissions"
 	"laguna-escondida/backend/internal/domain/ports"
 	"laguna-escondida/backend/internal/domain/service"
-	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/handler"
 	"laguna-escondida/backend/internal/platform/postgres"
 	"laguna-escondida/backend/internal/platform/postgres/repository"
@@ -325,8 +325,8 @@ func newDeliveryAPI(t *testing.T) *deliveryAPI {
 	orderHandler := handler.NewOrderHandler(d.orders,
 		service.NewOrderIdempotencyService(d.orders, repository.NewIdempotencyKeyRepository(d.cloudDB)))
 	handler.RegisterOrderRoutes(router, orderHandler, jwt)
-	handler.RegisterDeliveryZoneRoutes(router, &config.Config{AppMode: config.ModeCloud}, handler.NewDeliveryZoneHandler(d.zones), jwt)
-	// Mirrors cmd/main.go; the handler is never reached for a role without ProductsCreate.
+	bootstrap.RegisterDeliveryZoneRoutes(router, handler.NewDeliveryZoneHandler(d.zones), jwt)
+	// Mirrors the shared routes; the handler is never reached for a role without ProductsCreate.
 	router.POST("/api/products", handler.JWTAuthMiddleware(jwt), handler.RequirePermission(permissions.ProductsCreate),
 		func(c *gin.Context) { c.Status(http.StatusTeapot) })
 	server := httptest.NewServer(router)
