@@ -22,9 +22,9 @@
 name: laguna-sync
 
 # Shared env for both app instances. Per-service blocks below override the few
-# mode-specific values (APP_MODE, DB_HOST, storage, sync target). Both apps share
-# ORGANIZATION_ID so their sync node IDs derive consistently with no manual wiring:
-# the cloud's NodeID == the edge's derived CloudNodeID automatically.
+# mode-specific values (APP_MODE, DB_HOST, storage, sync target). The edge is Laguna's box
+# (ORGANIZATION_ID), so it derives the node id migrations register in the cloud and the
+# cloud id the cloud's NODE_ID below is set to; the cloud itself has no organization.
 #
 # App-level values use ${VAR:-default}: Compose auto-loads .env from the repo root
 # (or use `--env-file`, or a shell var, which wins over .env) and falls back to the
@@ -34,7 +34,6 @@ name: laguna-sync
 # overriding only the app side would silently break connections.
 x-app-env: &app-env
   PORT: "8080"
-  ORGANIZATION_ID: "${ORGANIZATION_ID:-test-org}"
   JWT_SECRET: "${JWT_SECRET:-test-jwt-secret}"
   ADMIN_API_KEY: "${ADMIN_API_KEY:-test-admin-key}"
   NODE_SYNC_KEY: "${NODE_SYNC_KEY:-test-sync-key}" # must match on both sides (cloud NodeAuth)
@@ -82,6 +81,8 @@ services:
       <<: *app-env
       APP_MODE: cloud
       DB_HOST: cloud-db
+      # config.CloudNodeIDFor(Laguna): the peer id Laguna's box syncs against.
+      NODE_ID: "45598059-e12e-530c-86b6-758477c4423d"
       # Production re-sums the stock ledger once a day; here it runs every minute so a
       # manual test can watch the invariant check report instead of waiting until 03:15.
       STOCK_RECONCILE_CRON: "* * * * *"
@@ -131,6 +132,7 @@ services:
       <<: *app-env
       APP_MODE: edge
       DB_HOST: edge-db
+      ORGANIZATION_ID: "bb0cad3e-be13-4bad-9a37-bba9525bfece" # Laguna, seeded by migrations
       CLOUD_SYNC_URL: http://cloud:8080
       SYNC_PUSH_CRON: "* * * * *" # every minute (5-field cron floor)
       SYNC_PULL_CRON: "* * * * *"

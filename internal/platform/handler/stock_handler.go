@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"log"
 	"net/http"
@@ -15,15 +16,18 @@ import (
 type StockHandler struct {
 	stockService          *service.StockService
 	reconciliationService *service.StockReconciliationService
+	organizations         *service.OrganizationRunner
 }
 
 func NewStockHandler(
 	stockService *service.StockService,
 	reconciliationService *service.StockReconciliationService,
+	organizations *service.OrganizationRunner,
 ) *StockHandler {
 	return &StockHandler{
 		stockService:          stockService,
 		reconciliationService: reconciliationService,
+		organizations:         organizations,
 	}
 }
 
@@ -44,8 +48,30 @@ func (h *StockHandler) GetStockSyncFreshnessHandler(c *gin.Context) {
 // WriteStockOpeningBalancesHandler is the cutover step that makes on-hand explainable: it
 // writes the one movement per product that closes the gap between the amount the cloud
 // adopted and the movements it actually holds. Safe to re-run — the second run finds no gap.
+// Admin-key only, so the caller names the organization: {"organization": "<slug>"}.
 func (h *StockHandler) WriteStockOpeningBalancesHandler(c *gin.Context) {
-	report, err := h.reconciliationService.WriteOpeningBalances(c.Request.Context())
+	var req dto.OrganizationTargetRequest
+	if c.Request.ContentLength != 0 {
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+			return
+		}
+	}
+
+	var report *dto.StockOpeningBalanceReport
+	err := h.organizations.RunBySlug(c.Request.Context(), req.Organization, func(ctx context.Context) error {
+		var runErr error
+		report, runErr = h.reconciliationService.WriteOpeningBalances(ctx)
+		return runErr
+	})
+	if errors.Is(err, domainError.ErrOrganizationRequired) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "organization is required"})
+		return
+	}
+	if errors.Is(err, domainError.ErrOrganizationNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Organization not found"})
+		return
+	}
 	if err != nil {
 		log.Printf("Error writing stock opening balances: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to write stock opening balances"})

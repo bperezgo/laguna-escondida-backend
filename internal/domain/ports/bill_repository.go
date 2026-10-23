@@ -16,7 +16,7 @@ type BillRepository interface {
 	// GetNextConsecutive atomically increments and returns the organization's next consecutive
 	// for prefix. Called only by the cloud submission service — never at bill-creation time — so
 	// that consecutive numbers are always assigned from a single centralized counter.
-	GetNextConsecutive(ctx context.Context, organizationID string, prefix string) (int, error)
+	GetNextConsecutive(ctx context.Context, prefix string) (int, error)
 	// FindBillForInvoice returns a fully-hydrated bill for the cloud submission service to
 	// build the provider request at submission time: header amounts (incl. PayAmount and the
 	// tax total), the Customer, and the line items as []BillProduct with quantities and the

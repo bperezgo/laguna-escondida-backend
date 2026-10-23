@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -25,7 +24,7 @@ func findStockPayload(rows []dto.StockSyncPayload, productID string) (dto.StockS
 func TestSyncReferenceRepository_FindChangedStock_Integration(t *testing.T) {
 	db := newApplierTestDB(t)
 	repo := NewSyncReferenceRepository(db.DB)
-	ctx := context.Background()
+	ctx := lagunaCtx()
 
 	productID := seedProduct(t, db)
 	cleanupStockAndLedger(t, db, productID)
@@ -90,7 +89,7 @@ func TestSyncReferenceRepository_FindChangedStock_Integration(t *testing.T) {
 func TestSyncReferenceRepository_ReplaceStockAmounts_Integration(t *testing.T) {
 	db := newApplierTestDB(t)
 	repo := NewSyncReferenceRepository(db.DB)
-	ctx := context.Background()
+	ctx := lagunaCtx()
 
 	productID := seedProduct(t, db)
 	cleanupStockAndLedger(t, db, productID)
@@ -138,7 +137,7 @@ func TestSyncReferenceRepository_ReplaceStockAmounts_Integration(t *testing.T) {
 func TestSyncStateRepository_StockPulledCursor_Integration(t *testing.T) {
 	db := newApplierTestDB(t)
 	repo := NewSyncStateRepository(db.DB)
-	ctx := context.Background()
+	ctx := lagunaCtx()
 
 	peerNodeID := uuid.NewString()
 	t.Cleanup(func() { db.DB.Exec("DELETE FROM sync_state WHERE peer_node_id = ?", peerNodeID) })

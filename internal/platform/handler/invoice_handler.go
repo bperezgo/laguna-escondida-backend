@@ -14,11 +14,13 @@ import (
 
 type InvoiceHandler struct {
 	invoiceService *service.InvoiceService
+	maintenance    *service.DocumentURLMaintenanceService
 }
 
-func NewInvoiceHandler(invoiceService *service.InvoiceService) *InvoiceHandler {
+func NewInvoiceHandler(invoiceService *service.InvoiceService, maintenance *service.DocumentURLMaintenanceService) *InvoiceHandler {
 	return &InvoiceHandler{
 		invoiceService: invoiceService,
+		maintenance:    maintenance,
 	}
 }
 
@@ -93,7 +95,7 @@ func (h *InvoiceHandler) ListInvoicesHandler(c *gin.Context) {
 }
 
 func (h *InvoiceHandler) UpdateMissingDocumentURLsHandler(c *gin.Context) {
-	response, err := h.invoiceService.UpdateMissingDocumentURLs(c.Request.Context())
+	response, err := h.maintenance.UpdateInvoiceURLs(c.Request.Context())
 	if err != nil {
 		log.Printf("Error updating missing document URLs: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update missing document URLs"})

@@ -11,6 +11,7 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
+	"laguna-escondida/backend/internal/domain/tenant"
 
 	"github.com/google/uuid"
 )
@@ -32,15 +33,14 @@ const (
 // It is safe to re-run — consecutive assignment is idempotent (WHERE consecutive IS NULL)
 // and the provider deduplicates on prefix+consecutive.
 type InvoiceSubmissionService struct {
-	pendingRepo    ports.PendingInvoiceRepository
-	billRepo       ports.BillRepository
-	invoiceClient  ports.ElectronicInvoiceClient
-	unitOfWork     ports.UnitOfWork
-	outboxRepo     ports.SyncOutboxRepository
-	settingsRepo   ports.EInvoicingSettingsRepository
-	syncIdentity   dto.SyncIdentity
-	organizationID string
-	logger         *slog.Logger
+	pendingRepo   ports.PendingInvoiceRepository
+	billRepo      ports.BillRepository
+	invoiceClient ports.ElectronicInvoiceClient
+	unitOfWork    ports.UnitOfWork
+	outboxRepo    ports.SyncOutboxRepository
+	settingsRepo  ports.EInvoicingSettingsRepository
+	syncIdentity  dto.SyncIdentity
+	logger        *slog.Logger
 }
 
 func NewInvoiceSubmissionService(
@@ -51,25 +51,27 @@ func NewInvoiceSubmissionService(
 	outboxRepo ports.SyncOutboxRepository,
 	settingsRepo ports.EInvoicingSettingsRepository,
 	syncIdentity dto.SyncIdentity,
-	organizationID string,
 	logger *slog.Logger,
 ) *InvoiceSubmissionService {
 	return &InvoiceSubmissionService{
-		pendingRepo:    pendingRepo,
-		billRepo:       billRepo,
-		invoiceClient:  invoiceClient,
-		unitOfWork:     unitOfWork,
-		outboxRepo:     outboxRepo,
-		settingsRepo:   settingsRepo,
-		syncIdentity:   syncIdentity,
-		organizationID: organizationID,
-		logger:         logger,
+		pendingRepo:   pendingRepo,
+		billRepo:      billRepo,
+		invoiceClient: invoiceClient,
+		unitOfWork:    unitOfWork,
+		outboxRepo:    outboxRepo,
+		settingsRepo:  settingsRepo,
+		syncIdentity:  syncIdentity,
+		logger:        logger,
 	}
 }
 
 // SubmitDue issues every due pending invoice, in consecutive order. A failure on one row is
 // recorded and backed off but does not stop the rest of the batch.
 func (s *InvoiceSubmissionService) SubmitDue(ctx context.Context) error {
+	orgID, err := tenant.RequireOrg(ctx)
+	if err != nil {
+		return err
+	}
 	pendings, err := s.pendingRepo.ListDue(ctx, invoiceSubmitBatchSize)
 	if err != nil {
 		return fmt.Errorf("list due pending invoices: %w", err)
@@ -77,7 +79,7 @@ func (s *InvoiceSubmissionService) SubmitDue(ctx context.Context) error {
 	if len(pendings) == 0 {
 		return nil
 	}
-	settings, err := s.settingsRepo.Get(ctx, s.organizationID)
+	settings, err := s.settingsRepo.Get(ctx, orgID)
 	if err != nil {
 		return fmt.Errorf("load e-invoicing settings: %w", err)
 	}
@@ -183,7 +185,7 @@ func (s *InvoiceSubmissionService) buildRequestPayload(ctx context.Context, sett
 	)
 	if err := s.unitOfWork.Do(ctx, func(txCtx context.Context) error {
 		var claimErr error
-		consecutive, claimErr = s.billRepo.GetNextConsecutive(txCtx, s.organizationID, prefix)
+		consecutive, claimErr = s.billRepo.GetNextConsecutive(txCtx, prefix)
 		if claimErr != nil {
 			return fmt.Errorf("get next consecutive: %w", claimErr)
 		}

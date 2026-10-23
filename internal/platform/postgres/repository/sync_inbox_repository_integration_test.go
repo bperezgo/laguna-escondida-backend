@@ -1,7 +1,6 @@
 package repository_test
 
 import (
-	"context"
 	"testing"
 
 	"laguna-escondida/backend/internal/platform/postgres/repository"
@@ -21,11 +20,11 @@ func TestSyncInboxRepository_MarkApplied_Idempotent_Integration(t *testing.T) {
 	opID := uuid.NewString()
 	t.Cleanup(func() { db.DB.Exec("DELETE FROM sync_inbox WHERE op_id = ?", opID) })
 
-	first, err := repo.MarkApplied(context.Background(), opID)
+	first, err := repo.MarkApplied(lagunaCtx(), opID)
 	require.NoError(t, err)
 	assert.False(t, first, "first MarkApplied should report a new op")
 
-	second, err := repo.MarkApplied(context.Background(), opID)
+	second, err := repo.MarkApplied(lagunaCtx(), opID)
 	require.NoError(t, err)
 	assert.True(t, second, "second MarkApplied should report already applied")
 }

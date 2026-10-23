@@ -11,27 +11,43 @@ import (
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/permissions"
 	"laguna-escondida/backend/internal/domain/ports"
+	"laguna-escondida/backend/internal/domain/tenant"
 )
 
 type UserService struct {
 	userRepo     ports.UserRepository
 	roleRepo     ports.RoleRepository
 	userRoleRepo ports.UserRoleRepository
+	orgRepo      ports.OrganizationRepository
 	jwtService   *JWTService
 	unitOfWork   ports.UnitOfWork
+	boxOrgID     string
 }
 
-func NewUserService(userRepo ports.UserRepository, roleRepo ports.RoleRepository, userRoleRepo ports.UserRoleRepository, jwtService *JWTService, unitOfWork ports.UnitOfWork) *UserService {
+// NewUserService takes boxOrgID, the edge box's organization, or "" in the cloud.
+func NewUserService(userRepo ports.UserRepository, roleRepo ports.RoleRepository, userRoleRepo ports.UserRoleRepository, orgRepo ports.OrganizationRepository, jwtService *JWTService, unitOfWork ports.UnitOfWork, boxOrgID string) *UserService {
 	return &UserService{
 		userRepo:     userRepo,
 		roleRepo:     roleRepo,
 		userRoleRepo: userRoleRepo,
+		orgRepo:      orgRepo,
 		jwtService:   jwtService,
 		unitOfWork:   unitOfWork,
+		boxOrgID:     boxOrgID,
 	}
 }
 
+// CreateUser puts the user in the caller's organization. Only a caller without one (the
+// admin-key bootstrap) names it, by slug in req.Organization.
 func (s *UserService) CreateUser(ctx context.Context, req *dto.CreateUserRequest) (*dto.UserWithRoles, error) {
+	if _, ok := tenant.OrgFrom(ctx); !ok {
+		orgID, err := s.bootstrapOrganization(ctx, req.Organization)
+		if err != nil {
+			return nil, err
+		}
+		ctx = tenant.WithOrg(ctx, orgID)
+	}
+
 	existingUser, err := s.userRepo.FindByUsername(ctx, req.Username)
 	if err != nil && !errors.Is(err, domainError.ErrUserNotFound) {
 		return nil, fmt.Errorf("failed to check existing user: %w", err)
@@ -82,6 +98,23 @@ func (s *UserService) CreateUser(ctx context.Context, req *dto.CreateUserRequest
 		User:  userDTO,
 		Roles: roles,
 	}, nil
+}
+
+func (s *UserService) bootstrapOrganization(ctx context.Context, slug string) (string, error) {
+	if slug == "" {
+		if s.boxOrgID != "" {
+			return s.boxOrgID, nil
+		}
+		return "", domainError.ErrOrganizationRequired
+	}
+	org, err := s.orgRepo.GetBySlug(ctx, slug)
+	if err != nil {
+		return "", err
+	}
+	if s.boxOrgID != "" && org.ID != s.boxOrgID {
+		return "", domainError.ErrOrganizationMismatch
+	}
+	return org.ID, nil
 }
 
 func (s *UserService) ListUsers(ctx context.Context) (*dto.UsersListResponse, error) {
@@ -245,7 +278,15 @@ func (s *UserService) ListRoles(ctx context.Context) (*dto.RolesListResponse, er
 	return &dto.RolesListResponse{Roles: roles}, nil
 }
 
+// SignIn resolves the organization before reading the user, so the lookup runs in that
+// organization alone. Every rejection wraps ErrInvalidCredentials so the response stays opaque.
 func (s *UserService) SignIn(ctx context.Context, req *dto.SignInRequest) (*dto.SignInResponse, error) {
+	orgID, err := s.signInOrganization(ctx, req.Organization)
+	if err != nil {
+		return nil, err
+	}
+	ctx = tenant.WithOrg(ctx, orgID)
+
 	userDTO, err := s.userRepo.FindByUsername(ctx, req.Username)
 	if err != nil {
 		if errors.Is(err, domainError.ErrUserNotFound) {
@@ -260,7 +301,7 @@ func (s *UserService) SignIn(ctx context.Context, req *dto.SignInRequest) (*dto.
 	}
 
 	if !userDTO.Active {
-		return nil, domainError.ErrUserInactive
+		return nil, fmt.Errorf("%w: %w", domainError.ErrInvalidCredentials, domainError.ErrUserInactive)
 	}
 
 	roles, err := s.userRoleRepo.FindRolesByUserID(ctx, userDTO.ID)
@@ -273,7 +314,7 @@ func (s *UserService) SignIn(ctx context.Context, req *dto.SignInRequest) (*dto.
 		roleIDs[i] = role.ID
 	}
 
-	token, err := s.jwtService.GenerateToken(userDTO.ID, userDTO.Username, roleIDs)
+	token, err := s.jwtService.GenerateToken(userDTO.ID, orgID, userDTO.Username, roleIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
@@ -287,6 +328,38 @@ func (s *UserService) SignIn(ctx context.Context, req *dto.SignInRequest) (*dto.
 		Roles:       roles,
 		Permissions: permStrings,
 	}, nil
+}
+
+func (s *UserService) signInOrganization(ctx context.Context, slug string) (string, error) {
+	if slug == "" {
+		if s.boxOrgID == "" {
+			return "", domainError.ErrOrganizationRequired
+		}
+		org, err := s.orgRepo.Get(ctx, s.boxOrgID)
+		if err != nil {
+			return "", fmt.Errorf("sign-in: failed to load the box's organization: %w", err)
+		}
+		return org.ID, checkActive(org)
+	}
+
+	org, err := s.orgRepo.GetBySlug(ctx, slug)
+	if errors.Is(err, domainError.ErrOrganizationNotFound) {
+		return "", fmt.Errorf("%w: %w", domainError.ErrInvalidCredentials, err)
+	}
+	if err != nil {
+		return "", fmt.Errorf("sign-in: failed to look up organization: %w", err)
+	}
+	if s.boxOrgID != "" && org.ID != s.boxOrgID {
+		return "", fmt.Errorf("%w: %w", domainError.ErrInvalidCredentials, domainError.ErrOrganizationMismatch)
+	}
+	return org.ID, checkActive(org)
+}
+
+func checkActive(org *dto.Organization) error {
+	if org.Status == dto.OrganizationStatusSuspended {
+		return fmt.Errorf("%w: organization %s is suspended", domainError.ErrInvalidCredentials, org.ID)
+	}
+	return nil
 }
 
 func (s *UserService) GetCurrentUser(ctx context.Context, userID string) (*dto.CurrentUserResponse, error) {

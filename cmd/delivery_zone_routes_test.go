@@ -17,7 +17,7 @@ func deliveryZoneRoutesFor(mode config.Mode) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	handler.RegisterDeliveryZoneRoutes(router, &config.Config{AppMode: mode},
-		handler.NewDeliveryZoneHandler(nil), service.NewJWTService("test-secret"))
+		handler.NewDeliveryZoneHandler(nil), service.NewJWTService("test-secret", ""))
 	return router
 }
 

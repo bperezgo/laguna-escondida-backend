@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"sync"
 
+	"laguna-escondida/backend/internal/domain/ports"
+	"laguna-escondida/backend/internal/domain/tenant"
+
 	"gorm.io/gorm"
 )
 
@@ -14,6 +17,8 @@ type sessionKey struct{}
 
 // session pins one pooled connection for a request so a session-level app.org_id
 // covers every statement, while each statement still autocommits as it did before.
+// The org is read from the first statement's context, so it is the one authentication
+// put there; a statement with no org pins nothing and runs on the pool.
 type session struct {
 	mu       sync.Mutex
 	root     *gorm.DB
@@ -24,10 +29,10 @@ type session struct {
 	released bool
 }
 
-// WithSession scopes ctx to a lazily acquired connection carrying app.org_id. The
-// returned release must run once the request is done.
-func WithSession(ctx context.Context, db *gorm.DB, orgID string) (context.Context, func()) {
-	s := &session{root: db, orgID: orgID}
+// WithSession scopes ctx to a lazily acquired connection carrying the org of the
+// context it is first used with. The returned release must run once the work is done.
+func WithSession(ctx context.Context, db *gorm.DB) (context.Context, func()) {
+	s := &session{root: db}
 	return context.WithValue(ctx, sessionKey{}, s), s.release
 }
 
@@ -51,7 +56,15 @@ func (s *session) db(ctx context.Context) (*gorm.DB, bool, error) {
 	if s.released {
 		return nil, false, nil
 	}
+	orgID, ok := tenant.OrgFrom(ctx)
+	if !ok {
+		return nil, false, nil
+	}
+	if s.pinned != nil && orgID != s.orgID {
+		return nil, true, fmt.Errorf("session: pinned for organization %s, used for %s", s.orgID, orgID)
+	}
 	if s.pinned == nil && s.err == nil {
+		s.orgID = orgID
 		s.err = s.acquire(ctx)
 	}
 	if s.err != nil {
@@ -94,4 +107,16 @@ func (s *session) release() {
 	}
 	_ = s.conn.Close()
 	s.conn, s.pinned = nil, nil
+}
+
+type sessionOpener struct {
+	db *gorm.DB
+}
+
+func NewSessionOpener(db *gorm.DB) ports.SessionOpener {
+	return &sessionOpener{db: db}
+}
+
+func (o *sessionOpener) Open(ctx context.Context) (context.Context, func()) {
+	return WithSession(ctx, o.db)
 }

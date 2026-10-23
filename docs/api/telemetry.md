@@ -41,14 +41,16 @@ The paths mirror the OTLP/HTTP layout, so an OTLP exporter only needs
 `POST /api/telemetry/v1/{logs|traces|metrics}`
 
 **Auth:** `X-Node-Key` header, matched against the cloud's `NODE_SYNC_KEY` — the same node
-credential the sync endpoints use. Fails closed: with no node key configured, every request
-is rejected.
+credential the sync endpoints use — plus `X-Node-ID`, the edge node's id, which must be
+registered in the cloud's `nodes` table. The export is stamped with that node's organization.
+Fails closed: with no node key configured, or an unregistered node, every request is rejected.
 
 ### Request Headers
 
 | Header             | Required | Description                                                       |
 | ------------------ | -------- | ----------------------------------------------------------------- |
 | `X-Node-Key`       | Yes      | The edge node's sync key                                           |
+| `X-Node-ID`        | Yes      | The edge node's `NODE_ID`; its organization is the export's         |
 | `Content-Type`     | Yes      | Must be `application/x-protobuf`                                   |
 | `Content-Encoding` | No       | `gzip` if the body is compressed (what Alloy sends by default)      |
 
@@ -68,8 +70,8 @@ export, replacing any value the edge sent:
 
 | Attribute         | Source                                          |
 | ----------------- | ----------------------------------------------- |
-| `tenant.id`       | `TELEMETRY_TENANT_ID` (defaults to `ORGANIZATION_ID`) |
-| `organization.id` | `ORGANIZATION_ID`                               |
+| `tenant.id`       | `TELEMETRY_TENANT_ID` (required when the ingest is enabled) |
+| `organization.id` | The calling node's organization (`nodes.organization_id`) |
 
 Identity the edge stamps itself (`node.id`, `service.instance.id`, `deployment.mode`) is
 left untouched, so telemetry stays filterable per box.
@@ -87,11 +89,17 @@ Content-Length: 0
 
 ### Error Responses
 
-**401 Unauthorized** — missing or invalid `X-Node-Key`. Nothing is forwarded.
+**401 Unauthorized** — missing or invalid `X-Node-Key`, or an `X-Node-ID` the cloud has not registered. Nothing is forwarded.
 
 ```json
 {
   "error": "invalid node key"
+}
+```
+
+```json
+{
+  "error": "unknown node"
 }
 ```
 
@@ -141,6 +149,7 @@ not here — one place to rotate them, shared with the sidecar's existing egress
 | Variable                      | Description                                                        |
 | ----------------------------- | ------------------------------------------------------------------ |
 | `NODE_SYNC_KEY`               | Sent as `X-Node-Key` by the Alloy sidecar                            |
+| `LAGUNA_NODE_ID`              | Sent as `X-Node-ID` by the Alloy sidecar; must equal `NODE_ID`       |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | The **local** Alloy sidecar, e.g. `http://127.0.0.1:4317`            |
 | `OBSERVABILITY_ENABLED`       | `true` to start the app's OTLP exporters                             |
 | `NODE_ID`, `ORGANIZATION_ID`  | Stamped onto the app's OTel resource as per-box identity             |

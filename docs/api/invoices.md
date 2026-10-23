@@ -9,6 +9,7 @@ Electronic invoices issued to customers (facturas electrónicas). Invoices are c
 | POST   | `/api/invoices`        | Create an electronic invoice         |
 | GET    | `/api/invoices`        | List invoices (paginated, filtered)  |
 | GET    | `/api/invoices/export` | Export invoices as CSV               |
+| POST   | `/api/invoices/update-missing-document-urls` | Update missing document URLs (admin) |
 
 ---
 
@@ -296,5 +297,47 @@ Fecha de Creacion,CUFE,Tascode,Total,Descuento,VAT,ICO,Propina,URL Documento,URL
 ```json
 {
   "error": "Failed to export invoices"
+}
+```
+
+---
+
+## Update Missing Document URLs (Admin)
+
+`POST /api/invoices/update-missing-document-urls`
+
+**Authentication:** Admin API Key (header: `X-API-Key`). **Cloud only.**
+
+Fetches the PDF/XML documents of invoices that have none yet. Like the hourly job it mirrors, it runs once for each active organization with e-invoicing configured, each on its own invoices. `updated_count` and `failed_bills` add up every organization's run; `failed_organizations` lists the organizations whose whole run failed, and is left out when none did.
+
+### Example Response (200 OK)
+
+```json
+{
+  "updated_count": 12,
+  "failed_bills": [
+    {
+      "bill_id": "550e8400-e29b-41d4-a716-446655440001",
+      "error": "PDF URL is empty"
+    }
+  ]
+}
+```
+
+### Error Responses
+
+**401 Unauthorized** - Missing or wrong admin API key
+
+```json
+{
+  "error": "Invalid API key"
+}
+```
+
+**500 Internal Server Error** - The organizations could not be listed
+
+```json
+{
+  "error": "Failed to update missing document URLs"
 }
 ```

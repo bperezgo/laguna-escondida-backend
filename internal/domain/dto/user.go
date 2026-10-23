@@ -3,8 +3,9 @@ package dto
 import "time"
 
 type UserDomain struct {
-	ID      string `json:"id"`
-	RoleIDs []int  `json:"role_ids,omitempty"`
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	RoleIDs        []int  `json:"role_ids,omitempty"`
 }
 
 type User struct {
@@ -31,10 +32,13 @@ type UserRole struct {
 }
 
 type CreateUserRequest struct {
-	Username string `json:"username" validate:"required,min=3,max=255"`
-	Name     string `json:"name" validate:"required,min=1,max=255"`
-	Password string `json:"password" validate:"required,min=6"`
-	RoleIDs  []int  `json:"role_ids" validate:"required,min=1,dive,min=1"`
+	// Organization is the slug, read only from an admin-key bootstrap; a signed-in creator's
+	// own organization always wins.
+	Organization string `json:"organization,omitempty"`
+	Username     string `json:"username" validate:"required,min=3,max=255"`
+	Name         string `json:"name" validate:"required,min=1,max=255"`
+	Password     string `json:"password" validate:"required,min=6"`
+	RoleIDs      []int  `json:"role_ids" validate:"required,min=1,dive,min=1"`
 }
 
 type UpdateUserRequest struct {
@@ -61,8 +65,10 @@ type RolesListResponse struct {
 }
 
 type SignInRequest struct {
-	Username string `json:"username" validate:"required"`
-	Password string `json:"password" validate:"required"`
+	// Organization is the slug; required in the cloud, optional on an edge box.
+	Organization string `json:"organization"`
+	Username     string `json:"username" validate:"required"`
+	Password     string `json:"password" validate:"required"`
 }
 
 type SignInResponse struct {

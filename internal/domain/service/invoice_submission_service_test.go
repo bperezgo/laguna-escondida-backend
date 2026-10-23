@@ -11,6 +11,7 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports/mocks"
+	"laguna-escondida/backend/internal/domain/tenant"
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -42,7 +43,6 @@ func newSubmissionService(
 		outboxRepo,
 		lagunaEInvoicing(t),
 		dto.SyncIdentity{NodeID: testNodeID},
-		submissionOrgID,
 		slog.New(slog.DiscardHandler),
 	)
 }
@@ -63,7 +63,7 @@ func duePendingInvoice(t *testing.T) *dto.PendingInvoice {
 }
 
 func TestSubmitDue_SubmitsAndMarksSubmitted(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), submissionOrgID)
 	pendingRepo := mocks.NewMockPendingInvoiceRepository(t)
 	billRepo := mocks.NewMockBillRepository(t)
 	invoiceClient := mocks.NewMockElectronicInvoiceClient(t)
@@ -91,7 +91,7 @@ func TestSubmitDue_SubmitsAndMarksSubmitted(t *testing.T) {
 // build the provider request from the hydrated bill. The regression guard is that the request
 // carries the bill's line items on Bill.Products (the bug shipped an empty items array).
 func TestSubmitDue_AssignsConsecutiveAndBuildsRequestWithLineItems(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), submissionOrgID)
 	pendingRepo := mocks.NewMockPendingInvoiceRepository(t)
 	billRepo := mocks.NewMockBillRepository(t)
 	invoiceClient := mocks.NewMockElectronicInvoiceClient(t)
@@ -115,7 +115,7 @@ func TestSubmitDue_AssignsConsecutiveAndBuildsRequestWithLineItems(t *testing.T)
 		},
 	}
 	billRepo.EXPECT().FindBillForInvoice(ctx, "bill-2").Return(hydratedBill, nil)
-	billRepo.EXPECT().GetNextConsecutive(ctx, submissionOrgID, "LAG").Return(151, nil)
+	billRepo.EXPECT().GetNextConsecutive(mock.MatchedBy(inOrg(submissionOrgID)), "LAG").Return(151, nil)
 	pendingRepo.EXPECT().AssignConsecutive(ctx, "pending-2", "LAG", 151, mock.AnythingOfType("json.RawMessage")).Return(nil)
 
 	invoiceClient.EXPECT().Create(mock.Anything, mock.MatchedBy(func(req *dto.CreateElectronicInvoiceRequest) bool {
@@ -141,7 +141,7 @@ func TestSubmitDue_AssignsConsecutiveAndBuildsRequestWithLineItems(t *testing.T)
 // haven't synced yet, the row is backed off WITHOUT claiming a consecutive — so no fiscal
 // number is wasted and no broken empty-items payload is stored.
 func TestSubmitDue_NoLineItems_DoesNotConsumeConsecutive(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), submissionOrgID)
 	pendingRepo := mocks.NewMockPendingInvoiceRepository(t)
 	billRepo := mocks.NewMockBillRepository(t)
 	invoiceClient := mocks.NewMockElectronicInvoiceClient(t)
@@ -161,7 +161,7 @@ func TestSubmitDue_NoLineItems_DoesNotConsumeConsecutive(t *testing.T) {
 	service := newSubmissionService(t, pendingRepo, billRepo, invoiceClient, outboxRepo)
 	require.NoError(t, service.SubmitDue(ctx))
 
-	billRepo.AssertNotCalled(t, "GetNextConsecutive", mock.Anything, mock.Anything, mock.Anything)
+	billRepo.AssertNotCalled(t, "GetNextConsecutive", mock.Anything, mock.Anything)
 	pendingRepo.AssertNotCalled(t, "AssignConsecutive", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	invoiceClient.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 }
@@ -171,7 +171,7 @@ func TestSubmitDue_NoLineItems_DoesNotConsumeConsecutive(t *testing.T) {
 // consecutive is already assigned must rebuild from current bill data and re-submit with the
 // SAME consecutive — no new number is claimed, so the fiscal sequence stays gap-free.
 func TestSubmitDue_RebuildsPayloadReusingConsecutive(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), submissionOrgID)
 	pendingRepo := mocks.NewMockPendingInvoiceRepository(t)
 	billRepo := mocks.NewMockBillRepository(t)
 	invoiceClient := mocks.NewMockElectronicInvoiceClient(t)
@@ -207,12 +207,12 @@ func TestSubmitDue_RebuildsPayloadReusingConsecutive(t *testing.T) {
 	require.NoError(t, service.SubmitDue(ctx))
 
 	// A rebuild must NOT claim a new fiscal number.
-	billRepo.AssertNotCalled(t, "GetNextConsecutive", mock.Anything, mock.Anything, mock.Anything)
+	billRepo.AssertNotCalled(t, "GetNextConsecutive", mock.Anything, mock.Anything)
 	pendingRepo.AssertNotCalled(t, "AssignConsecutive", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestSubmitDue_ProviderError_MarksFailedWithBackoff(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), submissionOrgID)
 	pendingRepo := mocks.NewMockPendingInvoiceRepository(t)
 	billRepo := mocks.NewMockBillRepository(t)
 	invoiceClient := mocks.NewMockElectronicInvoiceClient(t)
@@ -234,7 +234,7 @@ func TestSubmitDue_ProviderError_MarksFailedWithBackoff(t *testing.T) {
 }
 
 func TestSubmitDue_Empty_NoOp(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), submissionOrgID)
 	pendingRepo := mocks.NewMockPendingInvoiceRepository(t)
 	pendingRepo.EXPECT().ListDue(ctx, mock.AnythingOfType("int")).Return([]*dto.PendingInvoice{}, nil)
 
@@ -244,7 +244,7 @@ func TestSubmitDue_Empty_NoOp(t *testing.T) {
 }
 
 func TestSubmitDue_ListError_ReturnsError(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), submissionOrgID)
 	pendingRepo := mocks.NewMockPendingInvoiceRepository(t)
 	pendingRepo.EXPECT().ListDue(ctx, mock.AnythingOfType("int")).Return(nil, errors.New("db down"))
 
@@ -274,7 +274,7 @@ func TestInvoiceBackoff_Curve(t *testing.T) {
 
 // A row assigned under an earlier prefix keeps it on rebuild, even after the organization's prefix changes.
 func TestSubmitDue_RebuildKeepsStoredPrefix(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), submissionOrgID)
 	pendingRepo := mocks.NewMockPendingInvoiceRepository(t)
 	billRepo := mocks.NewMockBillRepository(t)
 	invoiceClient := mocks.NewMockElectronicInvoiceClient(t)
@@ -297,7 +297,7 @@ func TestSubmitDue_RebuildKeepsStoredPrefix(t *testing.T) {
 }
 
 func TestSubmitDue_ConsecutiveAlreadyAssigned_SkipsWithoutBackoff(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), submissionOrgID)
 	pendingRepo := mocks.NewMockPendingInvoiceRepository(t)
 	billRepo := mocks.NewMockBillRepository(t)
 	invoiceClient := mocks.NewMockElectronicInvoiceClient(t)
@@ -305,7 +305,7 @@ func TestSubmitDue_ConsecutiveAlreadyAssigned_SkipsWithoutBackoff(t *testing.T) 
 	pending := &dto.PendingInvoice{ID: "pending-6", BillID: "bill-6", Status: dto.PendingInvoiceStatusPending}
 	pendingRepo.EXPECT().ListDue(ctx, mock.AnythingOfType("int")).Return([]*dto.PendingInvoice{pending}, nil)
 	billRepo.EXPECT().FindBillForInvoice(ctx, "bill-6").Return(&dto.Bill{ID: "bill-6", Products: []dto.BillProduct{{ProductID: "prod-1", Quantity: 1}}}, nil)
-	billRepo.EXPECT().GetNextConsecutive(ctx, submissionOrgID, "LAG").Return(152, nil)
+	billRepo.EXPECT().GetNextConsecutive(mock.MatchedBy(inOrg(submissionOrgID)), "LAG").Return(152, nil)
 	pendingRepo.EXPECT().AssignConsecutive(ctx, "pending-6", "LAG", 152, mock.Anything).Return(domainError.ErrConsecutiveAlreadyAssigned)
 
 	service := newSubmissionService(t, pendingRepo, billRepo, invoiceClient, mocks.NewMockSyncOutboxRepository(t))
@@ -316,7 +316,7 @@ func TestSubmitDue_ConsecutiveAlreadyAssigned_SkipsWithoutBackoff(t *testing.T) 
 }
 
 func TestSubmitDue_ClaimError_MarksFailed(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), submissionOrgID)
 	pendingRepo := mocks.NewMockPendingInvoiceRepository(t)
 	billRepo := mocks.NewMockBillRepository(t)
 	invoiceClient := mocks.NewMockElectronicInvoiceClient(t)
@@ -324,7 +324,7 @@ func TestSubmitDue_ClaimError_MarksFailed(t *testing.T) {
 	pending := &dto.PendingInvoice{ID: "pending-7", BillID: "bill-7", Status: dto.PendingInvoiceStatusPending}
 	pendingRepo.EXPECT().ListDue(ctx, mock.AnythingOfType("int")).Return([]*dto.PendingInvoice{pending}, nil)
 	billRepo.EXPECT().FindBillForInvoice(ctx, "bill-7").Return(&dto.Bill{ID: "bill-7", Products: []dto.BillProduct{{ProductID: "prod-1", Quantity: 1}}}, nil)
-	billRepo.EXPECT().GetNextConsecutive(ctx, submissionOrgID, "LAG").Return(0, errors.New("db down"))
+	billRepo.EXPECT().GetNextConsecutive(mock.MatchedBy(inOrg(submissionOrgID)), "LAG").Return(0, errors.New("db down"))
 	pendingRepo.EXPECT().MarkFailed(ctx, "pending-7", mock.AnythingOfType("string"), mock.AnythingOfType("time.Time")).Return(nil)
 
 	service := newSubmissionService(t, pendingRepo, billRepo, invoiceClient, mocks.NewMockSyncOutboxRepository(t))
@@ -335,7 +335,7 @@ func TestSubmitDue_ClaimError_MarksFailed(t *testing.T) {
 }
 
 func TestSubmitDue_NotConfigured_ReturnsErrorBeforeSubmitting(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), submissionOrgID)
 	pendingRepo := mocks.NewMockPendingInvoiceRepository(t)
 	invoiceClient := mocks.NewMockElectronicInvoiceClient(t)
 	settingsRepo := mocks.NewMockEInvoicingSettingsRepository(t)
@@ -344,7 +344,7 @@ func TestSubmitDue_NotConfigured_ReturnsErrorBeforeSubmitting(t *testing.T) {
 	settingsRepo.EXPECT().Get(ctx, submissionOrgID).Return(nil, domainError.ErrEInvoicingNotConfigured)
 
 	service := NewInvoiceSubmissionService(pendingRepo, mocks.NewMockBillRepository(t), invoiceClient, createMockUnitOfWork(t),
-		mocks.NewMockSyncOutboxRepository(t), settingsRepo, dto.SyncIdentity{NodeID: testNodeID}, submissionOrgID, slog.New(slog.DiscardHandler))
+		mocks.NewMockSyncOutboxRepository(t), settingsRepo, dto.SyncIdentity{NodeID: testNodeID}, slog.New(slog.DiscardHandler))
 
 	assert.ErrorIs(t, service.SubmitDue(ctx), domainError.ErrEInvoicingNotConfigured)
 	invoiceClient.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)

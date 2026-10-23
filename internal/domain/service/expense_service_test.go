@@ -9,6 +9,7 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports/mocks"
+	"laguna-escondida/backend/internal/domain/tenant"
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -23,7 +24,7 @@ func createTestExpenseService(t *testing.T) (*ExpenseService, *mocks.MockExpense
 	mockExpenseRepo := mocks.NewMockExpenseRepository(t)
 	mockSupplierRepo := mocks.NewMockSupplierRepository(t)
 	mockStorageClient := mocks.NewMockStorageClient(t)
-	return NewExpenseService(mockCategoryRepo, mockExpenseRepo, mockSupplierRepo, mockStorageClient, "org-123"), mockCategoryRepo, mockExpenseRepo, mockSupplierRepo, mockStorageClient
+	return NewExpenseService(mockCategoryRepo, mockExpenseRepo, mockSupplierRepo, mockStorageClient), mockCategoryRepo, mockExpenseRepo, mockSupplierRepo, mockStorageClient
 }
 
 func createTestExpenseCategoryDTO(id, code, name string, isActive bool) *dto.ExpenseCategory {
@@ -56,7 +57,7 @@ func createTestExpenseWithCategoryDTO(id, categoryID, categoryCode, categoryName
 // CreateCategory Tests - Success Cases
 
 func TestCreateCategory_Success(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, mockCategoryRepo, _, _, _ := createTestExpenseService(t)
 
 	req := &dto.CreateExpenseCategoryRequest{
@@ -82,7 +83,7 @@ func TestCreateCategory_Success(t *testing.T) {
 // CreateCategory Tests - Error Cases
 
 func TestCreateCategory_CodeAlreadyExists(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, mockCategoryRepo, _, _, _ := createTestExpenseService(t)
 
 	req := &dto.CreateExpenseCategoryRequest{
@@ -102,7 +103,7 @@ func TestCreateCategory_CodeAlreadyExists(t *testing.T) {
 }
 
 func TestCreateCategory_RepositoryError(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, mockCategoryRepo, _, _, _ := createTestExpenseService(t)
 
 	req := &dto.CreateExpenseCategoryRequest{
@@ -123,7 +124,7 @@ func TestCreateCategory_RepositoryError(t *testing.T) {
 // UpdateCategory Tests - Success Cases
 
 func TestUpdateCategory_Success(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, mockCategoryRepo, _, _, _ := createTestExpenseService(t)
 
 	categoryID := "cat-1"
@@ -150,7 +151,7 @@ func TestUpdateCategory_Success(t *testing.T) {
 }
 
 func TestUpdateCategory_SameCode_Success(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, mockCategoryRepo, _, _, _ := createTestExpenseService(t)
 
 	categoryID := "cat-1"
@@ -175,7 +176,7 @@ func TestUpdateCategory_SameCode_Success(t *testing.T) {
 // UpdateCategory Tests - Error Cases
 
 func TestUpdateCategory_NotFound(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, mockCategoryRepo, _, _, _ := createTestExpenseService(t)
 
 	categoryID := "cat-1"
@@ -195,7 +196,7 @@ func TestUpdateCategory_NotFound(t *testing.T) {
 }
 
 func TestUpdateCategory_CodeConflict(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, mockCategoryRepo, _, _, _ := createTestExpenseService(t)
 
 	categoryID := "cat-1"
@@ -221,7 +222,7 @@ func TestUpdateCategory_CodeConflict(t *testing.T) {
 // GetCategoryByID Tests
 
 func TestGetCategoryByID_Success(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, mockCategoryRepo, _, _, _ := createTestExpenseService(t)
 
 	categoryID := "cat-1"
@@ -238,7 +239,7 @@ func TestGetCategoryByID_Success(t *testing.T) {
 }
 
 func TestGetCategoryByID_NotFound(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, mockCategoryRepo, _, _, _ := createTestExpenseService(t)
 
 	categoryID := "cat-1"
@@ -254,7 +255,7 @@ func TestGetCategoryByID_NotFound(t *testing.T) {
 // ListCategories Tests
 
 func TestListCategories_Success(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, mockCategoryRepo, _, _, _ := createTestExpenseService(t)
 
 	categories := []*dto.ExpenseCategory{
@@ -272,7 +273,7 @@ func TestListCategories_Success(t *testing.T) {
 }
 
 func TestListCategories_Empty(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, mockCategoryRepo, _, _, _ := createTestExpenseService(t)
 
 	mockCategoryRepo.On("FindAll", ctx).Return([]*dto.ExpenseCategory{}, nil)
@@ -289,7 +290,7 @@ func TestListCategories_Empty(t *testing.T) {
 // CreateExpense Tests - Success Cases
 
 func TestCreateExpense_Success(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, mockCategoryRepo, mockExpenseRepo, _, _ := createTestExpenseService(t)
 
 	category := createTestExpenseCategoryDTO("cat-1", "rent", "Rent", true)
@@ -313,7 +314,7 @@ func TestCreateExpense_Success(t *testing.T) {
 }
 
 func TestCreateExpense_WithSupplier_Success(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, mockCategoryRepo, mockExpenseRepo, mockSupplierRepo, _ := createTestExpenseService(t)
 
 	category := createTestExpenseCategoryDTO("cat-1", "service", "Service", true)
@@ -341,7 +342,7 @@ func TestCreateExpense_WithSupplier_Success(t *testing.T) {
 // CreateExpense Tests - Error Cases
 
 func TestCreateExpense_CategoryNotFound(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, mockCategoryRepo, _, _, _ := createTestExpenseService(t)
 
 	req := &dto.CreateExpenseRequest{
@@ -360,7 +361,7 @@ func TestCreateExpense_CategoryNotFound(t *testing.T) {
 }
 
 func TestCreateExpense_SupplierNotFound(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, mockCategoryRepo, _, mockSupplierRepo, _ := createTestExpenseService(t)
 
 	category := createTestExpenseCategoryDTO("cat-1", "service", "Service", true)
@@ -384,7 +385,7 @@ func TestCreateExpense_SupplierNotFound(t *testing.T) {
 }
 
 func TestCreateExpense_InvalidAmount(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, mockCategoryRepo, _, _, _ := createTestExpenseService(t)
 
 	category := createTestExpenseCategoryDTO("cat-1", "rent", "Rent", true)
@@ -404,7 +405,7 @@ func TestCreateExpense_InvalidAmount(t *testing.T) {
 }
 
 func TestCreateExpense_RepositoryError(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, mockCategoryRepo, mockExpenseRepo, _, _ := createTestExpenseService(t)
 
 	category := createTestExpenseCategoryDTO("cat-1", "rent", "Rent", true)
@@ -427,7 +428,7 @@ func TestCreateExpense_RepositoryError(t *testing.T) {
 // UpdateExpense Tests - Success Cases
 
 func TestUpdateExpense_Success(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, mockCategoryRepo, mockExpenseRepo, _, _ := createTestExpenseService(t)
 
 	expenseID := "exp-1"
@@ -455,7 +456,7 @@ func TestUpdateExpense_Success(t *testing.T) {
 // UpdateExpense Tests - Error Cases
 
 func TestUpdateExpense_NotFound(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, _, mockExpenseRepo, _, _ := createTestExpenseService(t)
 
 	expenseID := "exp-nonexistent"
@@ -477,7 +478,7 @@ func TestUpdateExpense_NotFound(t *testing.T) {
 // DeleteExpense Tests
 
 func TestDeleteExpense_Success(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, _, mockExpenseRepo, _, _ := createTestExpenseService(t)
 
 	expenseID := "exp-1"
@@ -492,7 +493,7 @@ func TestDeleteExpense_Success(t *testing.T) {
 }
 
 func TestDeleteExpense_NotFound(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, _, mockExpenseRepo, _, _ := createTestExpenseService(t)
 
 	expenseID := "exp-nonexistent"
@@ -506,7 +507,7 @@ func TestDeleteExpense_NotFound(t *testing.T) {
 }
 
 func TestDeleteExpense_RepositoryError(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, _, mockExpenseRepo, _, _ := createTestExpenseService(t)
 
 	expenseID := "exp-1"
@@ -524,7 +525,7 @@ func TestDeleteExpense_RepositoryError(t *testing.T) {
 // GetExpenseByID Tests
 
 func TestGetExpenseByID_Success(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, _, mockExpenseRepo, _, _ := createTestExpenseService(t)
 
 	expenseID := "exp-1"
@@ -540,7 +541,7 @@ func TestGetExpenseByID_Success(t *testing.T) {
 }
 
 func TestGetExpenseByID_NotFound(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, _, mockExpenseRepo, _, _ := createTestExpenseService(t)
 
 	expenseID := "exp-nonexistent"
@@ -556,7 +557,7 @@ func TestGetExpenseByID_NotFound(t *testing.T) {
 // ListExpenses Tests
 
 func TestListExpenses_Success(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, _, mockExpenseRepo, _, _ := createTestExpenseService(t)
 
 	expenses := []*dto.ExpenseWithCategory{
@@ -574,7 +575,7 @@ func TestListExpenses_Success(t *testing.T) {
 }
 
 func TestListExpenses_Empty(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, _, mockExpenseRepo, _, _ := createTestExpenseService(t)
 
 	mockExpenseRepo.On("FindAll", ctx).Return([]*dto.ExpenseWithCategory{}, nil)
@@ -589,7 +590,7 @@ func TestListExpenses_Empty(t *testing.T) {
 // ListExpensesByCriteria Tests
 
 func TestListExpensesByCriteria_Success(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, _, mockExpenseRepo, _, _ := createTestExpenseService(t)
 
 	categoryID := "cat-1"
@@ -613,7 +614,7 @@ func TestListExpensesByCriteria_Success(t *testing.T) {
 // UploadExpenseDocument Tests
 
 func TestUploadExpenseDocument_PDF_Success(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, _, mockExpenseRepo, _, mockStorageClient := createTestExpenseService(t)
 
 	expenseID := "exp-1"
@@ -637,7 +638,7 @@ func TestUploadExpenseDocument_PDF_Success(t *testing.T) {
 }
 
 func TestUploadExpenseDocument_XML_Success(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, _, mockExpenseRepo, _, mockStorageClient := createTestExpenseService(t)
 
 	expenseID := "exp-1"
@@ -661,7 +662,7 @@ func TestUploadExpenseDocument_XML_Success(t *testing.T) {
 }
 
 func TestUploadExpenseDocument_ExpenseNotFound(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, _, mockExpenseRepo, _, _ := createTestExpenseService(t)
 
 	expenseID := "exp-nonexistent"
@@ -675,7 +676,7 @@ func TestUploadExpenseDocument_ExpenseNotFound(t *testing.T) {
 }
 
 func TestUploadExpenseDocument_UnsupportedFileType(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, _, mockExpenseRepo, _, _ := createTestExpenseService(t)
 
 	expenseID := "exp-1"
@@ -691,7 +692,7 @@ func TestUploadExpenseDocument_UnsupportedFileType(t *testing.T) {
 }
 
 func TestUploadExpenseDocument_StorageError(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, _, mockExpenseRepo, _, mockStorageClient := createTestExpenseService(t)
 
 	expenseID := "exp-1"
@@ -711,7 +712,7 @@ func TestUploadExpenseDocument_StorageError(t *testing.T) {
 // UploadExpenseDocuments Tests (Both PDF and XML)
 
 func TestUploadExpenseDocuments_Success(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, _, mockExpenseRepo, _, mockStorageClient := createTestExpenseService(t)
 
 	expenseID := "exp-1"
@@ -740,7 +741,7 @@ func TestUploadExpenseDocuments_Success(t *testing.T) {
 }
 
 func TestUploadExpenseDocuments_ExpenseNotFound(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, _, mockExpenseRepo, _, _ := createTestExpenseService(t)
 
 	expenseID := "exp-nonexistent"
@@ -754,7 +755,7 @@ func TestUploadExpenseDocuments_ExpenseNotFound(t *testing.T) {
 }
 
 func TestUploadExpenseDocuments_PDFUploadError(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, _, mockExpenseRepo, _, mockStorageClient := createTestExpenseService(t)
 
 	expenseID := "exp-1"
@@ -773,7 +774,7 @@ func TestUploadExpenseDocuments_PDFUploadError(t *testing.T) {
 }
 
 func TestUploadExpenseDocuments_XMLUploadError(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), "org-123")
 	service, _, mockExpenseRepo, _, mockStorageClient := createTestExpenseService(t)
 
 	expenseID := "exp-1"

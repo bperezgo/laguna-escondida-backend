@@ -26,6 +26,7 @@ type OrderCreatedEventProduct struct {
 
 type OrderCreatedEvent struct {
 	event.BaseEvent
+	EventOrganization
 	OpenBillID         string `json:"open_bill_id"`
 	TemporalIdentifier string `json:"temporal_identifier"`
 	CreatedByID        string `json:"created_by_id"`
@@ -94,6 +95,7 @@ var _ event.DomainEvent = (*OrderCreatedEvent)(nil)
 
 type OrderDeletedEvent struct {
 	event.BaseEvent
+	EventOrganization
 	OpenBillID string `json:"open_bill_id"`
 	// Products are the order's line items captured before the soft-delete, so the stock
 	// handler can restore on-hand inventory without re-reading the deleted order. They are
@@ -148,6 +150,7 @@ var _ event.DomainEvent = (*OrderDeletedEvent)(nil)
 
 type OrderUpdatedEvent struct {
 	event.BaseEvent
+	EventOrganization
 	OpenBillID         string                     `json:"open_bill_id"`
 	TemporalIdentifier string                     `json:"temporal_identifier"`
 	CreatedByID        string                     `json:"created_by_id"`
@@ -224,6 +227,7 @@ var _ event.DomainEvent = (*OrderUpdatedEvent)(nil)
 // one and would deduct the order's stock a second time.
 type OrderReleasedToKitchenEvent struct {
 	event.BaseEvent
+	EventOrganization
 	OpenBillID         string                     `json:"open_bill_id"`
 	TemporalIdentifier string                     `json:"temporal_identifier"`
 	CreatedByID        string                     `json:"created_by_id"`

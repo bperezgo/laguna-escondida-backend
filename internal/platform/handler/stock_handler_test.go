@@ -24,7 +24,7 @@ func newFreshnessRouter(t *testing.T) (*gin.Engine, *mocks.MockStockReconciliati
 	gin.SetMode(gin.TestMode)
 	repo := mocks.NewMockStockReconciliationRepository(t)
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	stockHandler := NewStockHandler(nil, service.NewStockReconciliationService(repo, nil, nil, nil, logger))
+	stockHandler := NewStockHandler(nil, service.NewStockReconciliationService(repo, nil, nil, nil, logger), nil)
 
 	router := gin.New()
 	router.GET("/api/stock/sync-freshness", stockHandler.GetStockSyncFreshnessHandler)

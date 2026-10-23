@@ -14,11 +14,12 @@ import (
 )
 
 func TestSyncPushClient_Push_SendsKeyAndParsesAck(t *testing.T) {
-	var gotKey, gotPath, gotMethod string
+	var gotKey, gotNodeID, gotPath, gotMethod string
 	var gotReq dto.SyncPushRequest
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotKey = r.Header.Get("X-Node-Key")
+		gotNodeID = r.Header.Get("X-Node-ID")
 		gotPath = r.URL.Path
 		gotMethod = r.Method
 		_ = json.NewDecoder(r.Body).Decode(&gotReq)
@@ -31,7 +32,7 @@ func TestSyncPushClient_Push_SendsKeyAndParsesAck(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewSyncPushClient(&Client{Client: server.Client()}, server.URL, "secret-key")
+	client := NewSyncPushClient(&Client{Client: server.Client()}, server.URL, "secret-key", "node-a")
 
 	resp, err := client.Push(context.Background(), &dto.SyncPushRequest{
 		NodeID: "node-a",
@@ -41,6 +42,7 @@ func TestSyncPushClient_Push_SendsKeyAndParsesAck(t *testing.T) {
 
 	assert.Equal(t, http.MethodPost, gotMethod)
 	assert.Equal(t, "/api/sync/push", gotPath)
+	assert.Equal(t, "node-a", gotNodeID, "the cloud resolves the organization from the node id")
 	assert.Equal(t, "secret-key", gotKey, "client authenticates with the node key")
 	assert.Equal(t, "node-a", gotReq.NodeID, "request body carries the sender node id")
 	require.Len(t, gotReq.Ops, 1)
@@ -57,7 +59,7 @@ func TestSyncPushClient_Push_Non200_IsError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewSyncPushClient(&Client{Client: server.Client()}, server.URL, "")
+	client := NewSyncPushClient(&Client{Client: server.Client()}, server.URL, "", "node-a")
 
 	resp, err := client.Push(context.Background(), &dto.SyncPushRequest{NodeID: "node-a"})
 	require.Error(t, err)

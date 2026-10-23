@@ -31,7 +31,10 @@ func (a *PendingInvoiceSyncApplier) Apply(ctx context.Context, op *dto.SyncOutbo
 		return fmt.Errorf("unmarshal pending invoice sync payload: %w", err)
 	}
 
-	db := postgres.GetTxOrDB(ctx, a.db)
+	db, err := postgres.TenantDB(ctx, a.db)
+	if err != nil {
+		return err
+	}
 	return db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
 		DoNothing: true, // idempotent on replay

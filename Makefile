@@ -46,6 +46,8 @@ test-acceptance-ci:
 lint:
 	@echo "Running linter"
 	golangci-lint run --timeout=5m
+	@echo "Checking every tenant repository query is scoped to its organization"
+	go test ./internal/platform/postgres/repository -run '^TestTenantScopeCheck_' -count=1
 
 lint-fix:
 	@echo "Running linter with auto-fix"

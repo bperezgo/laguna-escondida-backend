@@ -35,7 +35,10 @@ func (a *OpenBillSyncApplier) Apply(ctx context.Context, op *dto.SyncOutboxEntry
 }
 
 func (a *OpenBillSyncApplier) applyDelete(ctx context.Context, op *dto.SyncOutboxEntry) error {
-	db := postgres.GetTxOrDB(ctx, a.db)
+	db, err := postgres.TenantDB(ctx, a.db)
+	if err != nil {
+		return err
+	}
 
 	var tombstone dto.SyncTombstone
 	if err := json.Unmarshal(op.Payload, &tombstone); err != nil {
@@ -61,7 +64,10 @@ func (a *OpenBillSyncApplier) applyDelete(ctx context.Context, op *dto.SyncOutbo
 }
 
 func (a *OpenBillSyncApplier) applyUpsert(ctx context.Context, op *dto.SyncOutboxEntry) error {
-	db := postgres.GetTxOrDB(ctx, a.db)
+	db, err := postgres.TenantDB(ctx, a.db)
+	if err != nil {
+		return err
+	}
 
 	var payload dto.OpenBillSyncPayload
 	if err := json.Unmarshal(op.Payload, &payload); err != nil {
@@ -86,6 +92,7 @@ func (a *OpenBillSyncApplier) applyUpsert(ctx context.Context, op *dto.SyncOutbo
 	// created_by/created_at are immutable.
 	if err := db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "id"}},
+		Where:   postgres.SameOrganization("open_bills"),
 		DoUpdates: clause.AssignmentColumns([]string{
 			"temporal_identifier", "total_amount", "status", "descriptor", "updated_at", "deleted_at", "paid_at",
 		}),
@@ -126,6 +133,7 @@ func (a *OpenBillSyncApplier) reconcileProducts(db *gorm.DB, payload *dto.OpenBi
 		}
 		if err := db.Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "id"}},
+			Where:   postgres.SameOrganization("open_bills_products"),
 			DoUpdates: clause.AssignmentColumns([]string{
 				"open_bill_id", "product_id", "quantity", "notes", "status", "area", "priority", "updated_at", "deleted_at",
 				"started_at", "completed_at",

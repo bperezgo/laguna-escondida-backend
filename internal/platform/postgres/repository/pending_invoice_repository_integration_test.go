@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -20,7 +19,7 @@ func seedPendingInvoice(t *testing.T, db *Database, billID string, consecutive i
 	t.Helper()
 	id := uuid.NewString()
 	payload := `{"Prefix":"LAG"}`
-	require.NoError(t, db.DB.Create(&pendingInvoiceModel{
+	require.NoError(t, db.DB.WithContext(lagunaCtx()).Create(&pendingInvoiceModel{
 		ID:             id,
 		BillID:         billID,
 		Prefix:         "LAG",
@@ -35,7 +34,7 @@ func seedPendingInvoice(t *testing.T, db *Database, billID string, consecutive i
 func TestPendingInvoiceRepository_ListDue_OrdersByConsecutive_Integration(t *testing.T) {
 	db := newApplierTestDB(t)
 	repo := NewPendingInvoiceRepository(db.DB)
-	ctx := context.Background()
+	ctx := lagunaCtx()
 
 	billID := uuid.NewString()
 	// Insert out of consecutive order; ListDue must return them lowest-first.
@@ -64,7 +63,7 @@ func TestPendingInvoiceRepository_ListDue_OrdersByConsecutive_Integration(t *tes
 func TestPendingInvoiceRepository_MarkFailed_BacksOff_ThenMarkSubmitted_Integration(t *testing.T) {
 	db := newApplierTestDB(t)
 	repo := NewPendingInvoiceRepository(db.DB)
-	ctx := context.Background()
+	ctx := lagunaCtx()
 
 	billID := uuid.NewString()
 	id := seedPendingInvoice(t, db, billID, 300)

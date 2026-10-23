@@ -21,6 +21,7 @@ func NewSupplierRepository(db *gorm.DB) ports.SupplierRepository {
 }
 
 type supplierModel struct {
+	postgres.TenantOwned
 	ID                   string     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	Name                 string     `gorm:"type:varchar(255);not null"`
 	IdentificationType   *string    `gorm:"type:varchar(50);column:identification_type"`
@@ -39,6 +40,10 @@ func (supplierModel) TableName() string {
 }
 
 func (r *SupplierRepository) Create(ctx context.Context, s *supplier.Aggregate) error {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 	supplierDTO := s.ToDTO()
 	model := &supplierModel{
 		ID:                   supplierDTO.ID,
@@ -53,10 +58,14 @@ func (r *SupplierRepository) Create(ctx context.Context, s *supplier.Aggregate) 
 		UpdatedAt:            supplierDTO.UpdatedAt,
 	}
 
-	return postgres.GetTxOrDB(ctx, r.db).Create(model).Error
+	return db.Create(model).Error
 }
 
 func (r *SupplierRepository) Update(ctx context.Context, id string, s *supplier.Aggregate) error {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 	supplierDTO := s.ToDTO()
 	updateData := map[string]interface{}{
 		"name":                  supplierDTO.Name,
@@ -69,15 +78,19 @@ func (r *SupplierRepository) Update(ctx context.Context, id string, s *supplier.
 		"updated_at":            supplierDTO.UpdatedAt,
 	}
 
-	return postgres.GetTxOrDB(ctx, r.db).
+	return db.
 		Model(&supplierModel{}).
 		Where("id = ? AND deleted_at IS NULL", id).
 		Updates(updateData).Error
 }
 
 func (r *SupplierRepository) Delete(ctx context.Context, id string) error {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 	now := time.Now()
-	return postgres.GetTxOrDB(ctx, r.db).
+	return db.
 		Model(&supplierModel{}).
 		Where("id = ? AND deleted_at IS NULL", id).
 		Updates(map[string]interface{}{
@@ -87,8 +100,12 @@ func (r *SupplierRepository) Delete(ctx context.Context, id string) error {
 }
 
 func (r *SupplierRepository) FindAll(ctx context.Context) ([]*dto.Supplier, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var models []supplierModel
-	if err := postgres.GetTxOrDB(ctx, r.db).Where("deleted_at IS NULL").Order("name ASC").Find(&models).Error; err != nil {
+	if err := db.Where("deleted_at IS NULL").Order("name ASC").Find(&models).Error; err != nil {
 		return nil, err
 	}
 
@@ -101,8 +118,12 @@ func (r *SupplierRepository) FindAll(ctx context.Context) ([]*dto.Supplier, erro
 }
 
 func (r *SupplierRepository) FindByID(ctx context.Context, id string) (*dto.Supplier, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var model supplierModel
-	if err := postgres.GetTxOrDB(ctx, r.db).Where("id = ? AND deleted_at IS NULL", id).First(&model).Error; err != nil {
+	if err := db.Where("id = ? AND deleted_at IS NULL", id).First(&model).Error; err != nil {
 		return nil, err
 	}
 
@@ -110,8 +131,12 @@ func (r *SupplierRepository) FindByID(ctx context.Context, id string) (*dto.Supp
 }
 
 func (r *SupplierRepository) FindByName(ctx context.Context, name string) (*dto.Supplier, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var model supplierModel
-	if err := postgres.GetTxOrDB(ctx, r.db).Where("name = ? AND deleted_at IS NULL", name).First(&model).Error; err != nil {
+	if err := db.Where("name = ? AND deleted_at IS NULL", name).First(&model).Error; err != nil {
 		return nil, err
 	}
 

@@ -39,7 +39,10 @@ func (a *BillSyncApplier) Apply(ctx context.Context, op *dto.SyncOutboxEntry) er
 }
 
 func (a *BillSyncApplier) applyCreate(ctx context.Context, op *dto.SyncOutboxEntry) error {
-	db := postgres.GetTxOrDB(ctx, a.db)
+	db, err := postgres.TenantDB(ctx, a.db)
+	if err != nil {
+		return err
+	}
 
 	var payload dto.BillSyncPayload
 	if err := json.Unmarshal(op.Payload, &payload); err != nil {
@@ -73,6 +76,7 @@ func (a *BillSyncApplier) applyCreate(ctx context.Context, op *dto.SyncOutboxEnt
 	// Upsert so a replayed create is idempotent; clear deleted_at to resurrect if needed.
 	if err := db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "id"}},
+		Where:   postgres.SameOrganization("bills"),
 		DoUpdates: clause.AssignmentColumns([]string{
 			"bill_owner_id", "total_amount", "discount_amount", "pay_amount", "payment_method",
 			"vat", "ico", "tip", "document_url", "cufe", "tascode", "updated_at", "deleted_at",
@@ -87,7 +91,10 @@ func (a *BillSyncApplier) applyCreate(ctx context.Context, op *dto.SyncOutboxEnt
 // applyUpdate writes only the invoice-result columns produced when the invoice is submitted.
 // A missing bill (update arriving before its create) is a no-op the create will reconcile.
 func (a *BillSyncApplier) applyUpdate(ctx context.Context, op *dto.SyncOutboxEntry) error {
-	db := postgres.GetTxOrDB(ctx, a.db)
+	db, err := postgres.TenantDB(ctx, a.db)
+	if err != nil {
+		return err
+	}
 
 	var payload dto.BillSyncPayload
 	if err := json.Unmarshal(op.Payload, &payload); err != nil {
@@ -114,7 +121,10 @@ func (a *BillSyncApplier) applyUpdate(ctx context.Context, op *dto.SyncOutboxEnt
 }
 
 func (a *BillSyncApplier) applyDelete(ctx context.Context, op *dto.SyncOutboxEntry) error {
-	db := postgres.GetTxOrDB(ctx, a.db)
+	db, err := postgres.TenantDB(ctx, a.db)
+	if err != nil {
+		return err
+	}
 
 	var tombstone dto.SyncTombstone
 	if err := json.Unmarshal(op.Payload, &tombstone); err != nil {
@@ -147,6 +157,7 @@ func (a *BillSyncApplier) upsertBillOwner(db *gorm.DB, customer *dto.Customer) e
 	}
 	if err := db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "organization_id"}, {Name: "id"}},
+		Where:   postgres.SameOrganization("bill_owners"),
 		DoUpdates: clause.Assignments(map[string]any{
 			"email":               owner.Email,
 			"name":                owner.Name,

@@ -19,9 +19,10 @@ push/pull loops are pure env wiring.
 | Edge DB     | `laguna-sync-edge-db` | `localhost:5434`              | Postgres (own volume)              |
 | MinIO       | `laguna-sync-minio`   | http://localhost:9101 (console)| **Cloud only** — edge has none     |
 
-Both apps share `ORGANIZATION_ID=test-org` and `NODE_SYNC_KEY=test-sync-key`, so node IDs
-derive consistently (the cloud's `NodeID` equals the edge's derived `CloudNodeID`) with no
-manual `NODE_ID`/`CLOUD_NODE_ID` wiring.
+Both apps share `NODE_SYNC_KEY=test-sync-key`. The edge is Laguna's box
+(`ORGANIZATION_ID=bb0cad3e-…`), so it derives the node id migration 71 registers in the cloud,
+and the peer id the cloud's `NODE_ID` is set to (`45598059-…`, `config.CloudNodeIDFor`). The
+cloud has no `ORGANIZATION_ID`: it learns each node's organization from its `nodes` row.
 
 **Sync cadence:** every minute (5-field cron floor). Expect up to ~60s of latency per hop.
 

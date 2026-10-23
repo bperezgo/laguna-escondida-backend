@@ -512,7 +512,7 @@ func currentUser(c *gin.Context) (dto.UserDomain, bool) {
 	}
 	roleIDs, _ := c.Get("role_ids")
 	roles, _ := roleIDs.([]int)
-	return dto.UserDomain{ID: userIDStr, RoleIDs: roles}, true
+	return dto.UserDomain{ID: userIDStr, OrganizationID: c.GetString("org_id"), RoleIDs: roles}, true
 }
 
 func respondAgentScopeError(c *gin.Context, err error) bool {

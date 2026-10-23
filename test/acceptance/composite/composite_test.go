@@ -15,6 +15,7 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
 	"laguna-escondida/backend/internal/domain/service"
+	"laguna-escondida/backend/internal/domain/tenant"
 	"laguna-escondida/backend/internal/platform/postgres"
 	"laguna-escondida/backend/internal/platform/postgres/repository"
 	"laguna-escondida/backend/internal/platform/stockmovement"
@@ -188,6 +189,9 @@ func closeGorm(db *gorm.DB) {
 	}
 }
 
+// lagunaOrgID is the organization the edge rig acts for.
+const lagunaOrgID = "bb0cad3e-be13-4bad-9a37-bba9525bfece"
+
 func truncateAll(t *testing.T, db *gorm.DB) {
 	t.Helper()
 	const stmt = `DO $$
@@ -242,7 +246,7 @@ func newEdge(t *testing.T) *edgeRig {
 
 	return &edgeRig{
 		t:              t,
-		ctx:            context.Background(),
+		ctx:            tenant.WithOrg(context.Background(), lagunaOrgID),
 		handler:        handler,
 		productRepo:    productRepo,
 		stockRepo:      stockRepo,
@@ -424,7 +428,7 @@ func TestAcceptance_OpenBillSideDishes_RoundTrip(t *testing.T) {
 
 	userID := uuid.NewString()
 	require.NoError(t, edgeGDB.Exec(
-		`INSERT INTO users (id, username, password, name) VALUES (?, ?, 'x', 'Server')`,
+		`INSERT INTO users (organization_id, id, username, password, name) VALUES ('`+lagunaOrgID+`', ?, ?, 'x', 'Server')`,
 		userID, "server-"+userID[:8],
 	).Error, "seed user")
 

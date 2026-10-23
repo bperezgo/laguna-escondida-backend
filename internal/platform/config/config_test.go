@@ -7,8 +7,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// setRequiredEnv sets every env var NewConfig needs to succeed, except APP_MODE
-// (left to each test to control). t.Setenv restores the previous values on cleanup.
+// setRequiredEnv sets every env var NewConfig needs to succeed in cloud mode, except APP_MODE
+// (left to each test to control; setEdgeEnv switches to edge). t.Setenv restores the
+// previous values on cleanup.
 func setRequiredEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("ELECTRONIC_INVOICE_URL", "https://invoice.example.com")
@@ -20,7 +21,14 @@ func setRequiredEnv(t *testing.T) {
 	t.Setenv("STORAGE_ACCESS_KEY", "storage-key")
 	t.Setenv("STORAGE_SECRET", "storage-secret")
 	t.Setenv("STORAGE_BUCKET", "storage-bucket")
-	t.Setenv("ORGANIZATION_ID", "org-123")
+	t.Setenv("ORGANIZATION_ID", "")
+	t.Setenv("NODE_ID", "cloud-node-id")
+}
+
+func setEdgeEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("APP_MODE", "edge")
+	t.Setenv("ORGANIZATION_ID", "019a0000-0000-7000-8000-000000000123")
 }
 
 func TestNewConfig_AppMode_DefaultsToCloud(t *testing.T) {
@@ -35,7 +43,7 @@ func TestNewConfig_AppMode_DefaultsToCloud(t *testing.T) {
 
 func TestNewConfig_AppMode_Edge(t *testing.T) {
 	setRequiredEnv(t)
-	t.Setenv("APP_MODE", "edge")
+	setEdgeEnv(t)
 
 	cfg, err := NewConfig()
 
@@ -66,6 +74,7 @@ func TestNewConfig_AppMode_InvalidReturnsError(t *testing.T) {
 
 func TestNewConfig_NodeID_DefaultsToStableValue(t *testing.T) {
 	setRequiredEnv(t)
+	setEdgeEnv(t)
 	t.Setenv("NODE_ID", "")
 
 	first, err := NewConfig()
@@ -141,7 +150,7 @@ func TestNewConfig_CloudNodeID_DerivedDefault_IsStable(t *testing.T) {
 	setRequiredEnv(t)
 	// Run as an edge node so this node's id (mode "edge") differs from the derived
 	// cloud peer id (mode "cloud"); let both ids derive from the org default.
-	t.Setenv("APP_MODE", "edge")
+	setEdgeEnv(t)
 	t.Setenv("NODE_ID", "")
 	t.Setenv("CLOUD_NODE_ID", "")
 
@@ -278,16 +287,18 @@ func TestNewConfig_TelemetryForward_ReadFromEnv(t *testing.T) {
 	assert.True(t, cfg.TelemetryIngestEnabled())
 }
 
-// A single-org install should not need a tenant id of its own.
-func TestNewConfig_TelemetryTenantID_DefaultsToOrganization(t *testing.T) {
+// The cloud has no organization of its own to fall back on.
+func TestNewConfig_TelemetryTenantID_RequiredWithForwardURL(t *testing.T) {
 	setRequiredEnv(t)
+	setTelemetryForwardEnv(t)
 	t.Setenv("APP_MODE", "cloud")
 	t.Setenv("TELEMETRY_TENANT_ID", "")
 
 	cfg, err := NewConfig()
 
-	require.NoError(t, err)
-	assert.Equal(t, cfg.OrganizationID, cfg.TelemetryTenantID)
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "TELEMETRY_TENANT_ID")
 }
 
 // The ingest is a cloud-only role: an edge box relays nothing, even if the forward URL
@@ -295,7 +306,7 @@ func TestNewConfig_TelemetryTenantID_DefaultsToOrganization(t *testing.T) {
 func TestNewConfig_TelemetryIngest_DisabledOnEdge(t *testing.T) {
 	setRequiredEnv(t)
 	setTelemetryForwardEnv(t)
-	t.Setenv("APP_MODE", "edge")
+	setEdgeEnv(t)
 
 	cfg, err := NewConfig()
 
@@ -317,7 +328,7 @@ func TestNewConfig_TelemetryIngest_DisabledWhenForwardURLMissing(t *testing.T) {
 
 func TestNewConfig_StockPullCron_DefaultsToDaily(t *testing.T) {
 	setRequiredEnv(t)
-	t.Setenv("APP_MODE", "edge")
+	setEdgeEnv(t)
 	t.Setenv("STOCK_PULL_CRON", "")
 
 	cfg, err := NewConfig()
@@ -328,7 +339,7 @@ func TestNewConfig_StockPullCron_DefaultsToDaily(t *testing.T) {
 
 func TestNewConfig_StockPullCron_Override(t *testing.T) {
 	setRequiredEnv(t)
-	t.Setenv("APP_MODE", "edge")
+	setEdgeEnv(t)
 	t.Setenv("STOCK_PULL_CRON", "30 4 * * *")
 
 	cfg, err := NewConfig()
@@ -339,7 +350,7 @@ func TestNewConfig_StockPullCron_Override(t *testing.T) {
 
 func TestNewConfig_StockPullCron_InvalidExpressionReturnsError(t *testing.T) {
 	setRequiredEnv(t)
-	t.Setenv("APP_MODE", "edge")
+	setEdgeEnv(t)
 	t.Setenv("STOCK_PULL_CRON", "every day at five")
 
 	cfg, err := NewConfig()
@@ -384,4 +395,63 @@ func TestNewConfig_StockReconcileCron_DefaultsAndValidatesInCloudMode(t *testing
 		assert.Nil(t, cfg)
 		assert.Contains(t, err.Error(), "STOCK_RECONCILE_CRON")
 	})
+}
+
+func TestNewConfig_OrganizationID_ByMode(t *testing.T) {
+	cases := []struct {
+		name    string
+		mode    string
+		orgID   string
+		wantErr string
+	}{
+		{name: "edge with organization", mode: "edge", orgID: "019a0000-0000-7000-8000-000000000123"},
+		{name: "edge with a malformed organization", mode: "edge", orgID: "test-org", wantErr: "is not an organization id"},
+		{name: "edge without organization", mode: "edge", wantErr: "ORGANIZATION_ID is required in edge mode"},
+		{name: "cloud with organization", mode: "cloud", orgID: "019a0000-0000-7000-8000-000000000123", wantErr: "ORGANIZATION_ID must not be set in cloud mode"},
+		{name: "cloud without organization", mode: "cloud"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setRequiredEnv(t)
+			t.Setenv("APP_MODE", tc.mode)
+			t.Setenv("ORGANIZATION_ID", tc.orgID)
+
+			cfg, err := NewConfig()
+
+			if tc.wantErr != "" {
+				require.Error(t, err)
+				assert.Nil(t, cfg)
+				assert.Contains(t, err.Error(), tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.orgID, cfg.OrganizationID)
+		})
+	}
+}
+
+func TestNewConfig_NodeID_RequiredInCloud(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("APP_MODE", "cloud")
+	t.Setenv("NODE_ID", "")
+
+	cfg, err := NewConfig()
+
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "NODE_ID is required in cloud mode")
+}
+
+// The cloud's NODE_ID in aws-infra must stay the id Laguna's box derives for its peer.
+func TestCloudNodeIDFor_Laguna_MatchesTheEdgeDefault(t *testing.T) {
+	setRequiredEnv(t)
+	setEdgeEnv(t)
+	t.Setenv("ORGANIZATION_ID", "bb0cad3e-be13-4bad-9a37-bba9525bfece")
+	t.Setenv("CLOUD_NODE_ID", "")
+
+	cfg, err := NewConfig()
+
+	require.NoError(t, err)
+	assert.Equal(t, cfg.CloudNodeID, CloudNodeIDFor("bb0cad3e-be13-4bad-9a37-bba9525bfece"))
+	assert.Equal(t, "45598059-e12e-530c-86b6-758477c4423d", CloudNodeIDFor("bb0cad3e-be13-4bad-9a37-bba9525bfece"))
 }

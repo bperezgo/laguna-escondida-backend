@@ -8,6 +8,7 @@ import (
 
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
+	"laguna-escondida/backend/internal/domain/tenant"
 	"laguna-escondida/backend/internal/platform/postgres"
 
 	"github.com/google/uuid"
@@ -161,9 +162,9 @@ func TestEInvoicingSettingsRepository_Upsert_ReplaceKeepsOldCounter_Integration(
 	orgID := seedOrganization(t, db)
 
 	require.NoError(t, settingsRepo.Upsert(ctx, &dto.EInvoicingSettings{OrganizationID: orgID, InvoicePrefix: "OLD", SupportDocumentPrefix: "DSO"}))
-	_, err := billRepo.GetNextConsecutive(ctx, orgID, "OLD")
+	_, err := billRepo.GetNextConsecutive(tenant.WithOrg(ctx, orgID), "OLD")
 	require.NoError(t, err)
-	_, err = billRepo.GetNextConsecutive(ctx, orgID, "OLD")
+	_, err = billRepo.GetNextConsecutive(tenant.WithOrg(ctx, orgID), "OLD")
 	require.NoError(t, err)
 
 	require.NoError(t, settingsRepo.Upsert(ctx, &dto.EInvoicingSettings{OrganizationID: orgID, InvoicePrefix: "NEW", SupportDocumentPrefix: "DSN"}))
@@ -172,7 +173,7 @@ func TestEInvoicingSettingsRepository_Upsert_ReplaceKeepsOldCounter_Integration(
 	require.NoError(t, err)
 	assert.Equal(t, "NEW", got.InvoicePrefix)
 	assert.Equal(t, "DSN", got.SupportDocumentPrefix)
-	first, err := billRepo.GetNextConsecutive(ctx, orgID, "NEW")
+	first, err := billRepo.GetNextConsecutive(tenant.WithOrg(ctx, orgID), "NEW")
 	require.NoError(t, err)
 	assert.Equal(t, 1, first, "a new prefix starts at 1")
 	var oldLast int
@@ -184,7 +185,7 @@ func TestEInvoicingSettingsRepository_Upsert_OnPinnedConnection_Integration(t *t
 	db := newApplierTestDB(t)
 	settingsRepo := NewEInvoicingSettingsRepository(db.DB)
 	orgID := seedOrganization(t, db)
-	ctx, release := postgres.WithSession(context.Background(), db.DB, orgID)
+	ctx, release := postgres.WithSession(tenant.WithOrg(context.Background(), orgID), db.DB)
 	defer release()
 
 	rollback := errors.New("rollback")

@@ -23,15 +23,19 @@ func NewSyncStateRepository(db *gorm.DB) ports.SyncStateRepository {
 // via GREATEST so an out-of-order or replayed ack never moves the mark backwards.
 // Joins the ambient transaction via GetTxOrDB so it commits with the synced_at stamps.
 func (r *SyncStateRepository) AdvancePushedSeq(ctx context.Context, peerNodeID string, seq int64) error {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	orgID, err := postgres.OrgID(ctx)
+	if err != nil {
+		return err
+	}
 
-	res := db.Exec(`
-		INSERT INTO sync_state (peer_node_id, last_pushed_seq, updated_at)
-		VALUES (?, ?, CURRENT_TIMESTAMP)
+	res := postgres.GetTxOrDB(ctx, r.db).Exec(`
+		INSERT INTO sync_state (organization_id, peer_node_id, last_pushed_seq, updated_at)
+		VALUES (?, ?, ?, CURRENT_TIMESTAMP)
 		ON CONFLICT (peer_node_id) DO UPDATE
 		SET last_pushed_seq = GREATEST(sync_state.last_pushed_seq, EXCLUDED.last_pushed_seq),
 		    updated_at = CURRENT_TIMESTAMP
-	`, peerNodeID, seq)
+		WHERE sync_state.organization_id = EXCLUDED.organization_id
+	`, orgID, peerNodeID, seq)
 	if res.Error != nil {
 		return fmt.Errorf("upsert sync_state pushed seq: %w", res.Error)
 	}
@@ -41,14 +45,17 @@ func (r *SyncStateRepository) AdvancePushedSeq(ctx context.Context, peerNodeID s
 // GetPulledCursor returns the peer's last_pulled_cursor, or nil when there is no row
 // yet (the edge has never pulled, so it should pull from the beginning of time).
 func (r *SyncStateRepository) GetPulledCursor(ctx context.Context, peerNodeID string) (*time.Time, error) {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	orgID, err := postgres.OrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	var row struct {
 		LastPulledCursor *time.Time
 	}
-	if err := db.Raw(
-		"SELECT last_pulled_cursor FROM sync_state WHERE peer_node_id = ?",
-		peerNodeID,
+	if err := postgres.GetTxOrDB(ctx, r.db).Raw(
+		"SELECT last_pulled_cursor FROM sync_state WHERE organization_id = ? AND peer_node_id = ?",
+		orgID, peerNodeID,
 	).Scan(&row).Error; err != nil {
 		return nil, fmt.Errorf("read sync_state pulled cursor: %w", err)
 	}
@@ -59,15 +66,19 @@ func (r *SyncStateRepository) GetPulledCursor(ctx context.Context, peerNodeID st
 // cursor via GREATEST (which ignores a NULL existing value, so the first pull sets it)
 // so a stale response never moves the cursor backwards.
 func (r *SyncStateRepository) AdvancePulledCursor(ctx context.Context, peerNodeID string, cursor time.Time) error {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	orgID, err := postgres.OrgID(ctx)
+	if err != nil {
+		return err
+	}
 
-	res := db.Exec(`
-		INSERT INTO sync_state (peer_node_id, last_pulled_cursor, updated_at)
-		VALUES (?, ?, CURRENT_TIMESTAMP)
+	res := postgres.GetTxOrDB(ctx, r.db).Exec(`
+		INSERT INTO sync_state (organization_id, peer_node_id, last_pulled_cursor, updated_at)
+		VALUES (?, ?, ?, CURRENT_TIMESTAMP)
 		ON CONFLICT (peer_node_id) DO UPDATE
 		SET last_pulled_cursor = GREATEST(sync_state.last_pulled_cursor, EXCLUDED.last_pulled_cursor),
 		    updated_at = CURRENT_TIMESTAMP
-	`, peerNodeID, cursor)
+		WHERE sync_state.organization_id = EXCLUDED.organization_id
+	`, orgID, peerNodeID, cursor)
 	if res.Error != nil {
 		return fmt.Errorf("upsert sync_state pulled cursor: %w", res.Error)
 	}
@@ -77,14 +88,17 @@ func (r *SyncStateRepository) AdvancePulledCursor(ctx context.Context, peerNodeI
 // GetStockPulledCursor returns the peer's last_stock_pulled_cursor, or nil when the edge
 // has never refreshed stock from it (so the first refresh takes the cloud's numbers whole).
 func (r *SyncStateRepository) GetStockPulledCursor(ctx context.Context, peerNodeID string) (*time.Time, error) {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	orgID, err := postgres.OrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	var row struct {
 		LastStockPulledCursor *time.Time
 	}
-	if err := db.Raw(
-		"SELECT last_stock_pulled_cursor FROM sync_state WHERE peer_node_id = ?",
-		peerNodeID,
+	if err := postgres.GetTxOrDB(ctx, r.db).Raw(
+		"SELECT last_stock_pulled_cursor FROM sync_state WHERE organization_id = ? AND peer_node_id = ?",
+		orgID, peerNodeID,
 	).Scan(&row).Error; err != nil {
 		return nil, fmt.Errorf("read sync_state stock pulled cursor: %w", err)
 	}
@@ -95,15 +109,19 @@ func (r *SyncStateRepository) GetStockPulledCursor(ctx context.Context, peerNode
 // ignores a NULL existing value so the first refresh sets it, and a stale response can
 // never move it backwards.
 func (r *SyncStateRepository) AdvanceStockPulledCursor(ctx context.Context, peerNodeID string, cursor time.Time) error {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	orgID, err := postgres.OrgID(ctx)
+	if err != nil {
+		return err
+	}
 
-	res := db.Exec(`
-		INSERT INTO sync_state (peer_node_id, last_stock_pulled_cursor, updated_at)
-		VALUES (?, ?, CURRENT_TIMESTAMP)
+	res := postgres.GetTxOrDB(ctx, r.db).Exec(`
+		INSERT INTO sync_state (organization_id, peer_node_id, last_stock_pulled_cursor, updated_at)
+		VALUES (?, ?, ?, CURRENT_TIMESTAMP)
 		ON CONFLICT (peer_node_id) DO UPDATE
 		SET last_stock_pulled_cursor = GREATEST(sync_state.last_stock_pulled_cursor, EXCLUDED.last_stock_pulled_cursor),
 		    updated_at = CURRENT_TIMESTAMP
-	`, peerNodeID, cursor)
+		WHERE sync_state.organization_id = EXCLUDED.organization_id
+	`, orgID, peerNodeID, cursor)
 	if res.Error != nil {
 		return fmt.Errorf("upsert sync_state stock pulled cursor: %w", res.Error)
 	}

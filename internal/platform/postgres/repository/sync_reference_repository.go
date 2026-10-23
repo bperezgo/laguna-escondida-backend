@@ -31,7 +31,10 @@ func changedFilter(db *gorm.DB, since time.Time) *gorm.DB {
 }
 
 func (r *SyncReferenceRepository) FindChangedProducts(ctx context.Context, since time.Time) ([]dto.ProductSyncPayload, error) {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 
 	var models []productModel
 	if err := changedFilter(db, since).Find(&models).Error; err != nil {
@@ -64,10 +67,13 @@ func (r *SyncReferenceRepository) FindChangedProducts(ctx context.Context, since
 }
 
 func (r *SyncReferenceRepository) FindChangedUsers(ctx context.Context, since time.Time) ([]dto.UserSyncPayload, error) {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 
 	var models []userModel
-	if err := changedFilter(db, since).Find(&models).Error; err != nil {
+	if err = changedFilter(db, since).Find(&models).Error; err != nil {
 		return nil, fmt.Errorf("query changed users: %w", err)
 	}
 
@@ -117,7 +123,10 @@ func (r *SyncReferenceRepository) roleIDsByUser(db *gorm.DB, userIDs []string) (
 }
 
 func (r *SyncReferenceRepository) FindChangedSuppliers(ctx context.Context, since time.Time) ([]dto.SupplierSyncPayload, error) {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 
 	var models []supplierModel
 	if err := changedFilter(db, since).Find(&models).Error; err != nil {
@@ -144,7 +153,10 @@ func (r *SyncReferenceRepository) FindChangedSuppliers(ctx context.Context, sinc
 }
 
 func (r *SyncReferenceRepository) FindChangedProductResponsibilities(ctx context.Context, since time.Time) ([]dto.ProductResponsibilitySyncPayload, error) {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 
 	var models []productResponsibilityModel
 	if err := changedFilter(db, since).Find(&models).Error; err != nil {
@@ -170,7 +182,10 @@ func (r *SyncReferenceRepository) FindChangedProductResponsibilities(ctx context
 // hard-deleted (no deleted_at column), so the filter is updated_at only and deletions do not
 // propagate via pull.
 func (r *SyncReferenceRepository) FindChangedProductIngredients(ctx context.Context, since time.Time) ([]dto.ProductIngredientSyncPayload, error) {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 
 	var models []productIngredientModel
 	if err := db.Where("updated_at > ?", since).Order("updated_at ASC").Find(&models).Error; err != nil {
@@ -198,7 +213,10 @@ func (r *SyncReferenceRepository) UpsertProductIngredients(ctx context.Context, 
 	if len(ingredients) == 0 {
 		return nil
 	}
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 
 	models := make([]productIngredientModel, len(ingredients))
 	for i, ing := range ingredients {
@@ -217,6 +235,7 @@ func (r *SyncReferenceRepository) UpsertProductIngredients(ctx context.Context, 
 
 	if err := db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "id"}},
+		Where:   postgres.SameOrganization("product_ingredients"),
 		DoUpdates: clause.AssignmentColumns([]string{
 			"composite_product_id", "ingredient_product_id", "default_quantity",
 			"is_side_dish", "min_quantity", "max_quantity", "updated_at",
@@ -231,7 +250,10 @@ func (r *SyncReferenceRepository) UpsertProducts(ctx context.Context, products [
 	if len(products) == 0 {
 		return nil
 	}
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 
 	models := make([]productModel, len(products))
 	for i, p := range products {
@@ -258,6 +280,7 @@ func (r *SyncReferenceRepository) UpsertProducts(ctx context.Context, products [
 
 	if err := db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "id"}},
+		Where:   postgres.SameOrganization("products"),
 		DoUpdates: clause.AssignmentColumns([]string{
 			"name", "category", "product_type", "unit_of_measure", "version", "unit_price",
 			"vat", "vat_amount", "ico", "ico_amount", "description", "sku",
@@ -273,7 +296,10 @@ func (r *SyncReferenceRepository) UpsertUsers(ctx context.Context, users []dto.U
 	if len(users) == 0 {
 		return nil
 	}
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 
 	models := make([]userModel, len(users))
 	for i, u := range users {
@@ -290,6 +316,7 @@ func (r *SyncReferenceRepository) UpsertUsers(ctx context.Context, users []dto.U
 
 	if err := db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "id"}},
+		Where:   postgres.SameOrganization("users"),
 		DoUpdates: clause.AssignmentColumns([]string{
 			"username", "name", "password", "updated_at", "deleted_at",
 		}),
@@ -333,7 +360,10 @@ func (r *SyncReferenceRepository) UpsertSuppliers(ctx context.Context, suppliers
 	if len(suppliers) == 0 {
 		return nil
 	}
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 
 	models := make([]supplierModel, len(suppliers))
 	for i, s := range suppliers {
@@ -354,6 +384,7 @@ func (r *SyncReferenceRepository) UpsertSuppliers(ctx context.Context, suppliers
 
 	if err := db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "id"}},
+		Where:   postgres.SameOrganization("suppliers"),
 		DoUpdates: clause.AssignmentColumns([]string{
 			"name", "identification_type", "identification_number", "contact_name",
 			"phone", "email", "notes", "updated_at", "deleted_at",
@@ -368,7 +399,10 @@ func (r *SyncReferenceRepository) UpsertProductResponsibilities(ctx context.Cont
 	if len(responsibilities) == 0 {
 		return nil
 	}
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 
 	models := make([]productResponsibilityModel, len(responsibilities))
 	for i, resp := range responsibilities {
@@ -385,6 +419,7 @@ func (r *SyncReferenceRepository) UpsertProductResponsibilities(ctx context.Cont
 
 	if err := db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "id"}},
+		Where:   postgres.SameOrganization("product_preparation_responsibilities"),
 		DoUpdates: clause.AssignmentColumns([]string{
 			"product_id", "area", "priority", "updated_at", "deleted_at",
 		}),
@@ -398,7 +433,10 @@ func (r *SyncReferenceRepository) UpsertProductResponsibilities(ctx context.Cont
 // It travels cloud → edge on the daily stock pull: what the edge receives is the cloud's own
 // on-hand, which the edge caches for display rather than treating as its own truth.
 func (r *SyncReferenceRepository) FindChangedStock(ctx context.Context, since time.Time) ([]dto.StockSyncPayload, error) {
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 
 	var models []stockModel
 	if err := changedFilter(db, since).Find(&models).Error; err != nil {
@@ -428,7 +466,10 @@ func (r *SyncReferenceRepository) ReplaceStockAmounts(ctx context.Context, stock
 	if len(stocks) == 0 {
 		return nil
 	}
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 
 	models := make([]stockModel, len(stocks))
 	for i, stock := range stocks {
@@ -445,6 +486,7 @@ func (r *SyncReferenceRepository) ReplaceStockAmounts(ctx context.Context, stock
 
 	if err := db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "product_id"}, {Name: "version"}},
+		Where:   postgres.SameOrganization("stock"),
 		DoUpdates: clause.AssignmentColumns([]string{
 			"amount", "unit_of_measure", "updated_at", "deleted_at",
 		}),

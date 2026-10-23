@@ -22,6 +22,7 @@ func NewExpenseRepository(db *gorm.DB) ports.ExpenseRepository {
 }
 
 type expenseModel struct {
+	postgres.TenantOwned
 	ID             string          `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	CategoryID     string          `gorm:"type:uuid;not null;column:category_id"`
 	SupplierID     *string         `gorm:"type:uuid;column:supplier_id"`
@@ -57,6 +58,10 @@ type expenseWithCategoryModel struct {
 }
 
 func (r *ExpenseRepository) Create(ctx context.Context, exp *expense.Aggregate) error {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 	model := &expenseModel{
 		ID:          exp.ID(),
 		CategoryID:  exp.CategoryID(),
@@ -69,11 +74,15 @@ func (r *ExpenseRepository) Create(ctx context.Context, exp *expense.Aggregate) 
 		CreatedAt:   exp.CreatedAt(),
 	}
 
-	return postgres.GetTxOrDB(ctx, r.db).Create(model).Error
+	return db.Create(model).Error
 }
 
 func (r *ExpenseRepository) Update(ctx context.Context, id string, exp *expense.Aggregate) error {
-	return postgres.GetTxOrDB(ctx, r.db).
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	return db.
 		Model(&expenseModel{}).
 		Where("id = ?", id).
 		Updates(map[string]interface{}{
@@ -88,15 +97,23 @@ func (r *ExpenseRepository) Update(ctx context.Context, id string, exp *expense.
 }
 
 func (r *ExpenseRepository) Delete(ctx context.Context, id string) error {
-	return postgres.GetTxOrDB(ctx, r.db).
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	return db.
 		Where("id = ?", id).
 		Delete(&expenseModel{}).Error
 }
 
 func (r *ExpenseRepository) FindByID(ctx context.Context, id string) (*dto.ExpenseWithCategory, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var model expenseWithCategoryModel
 
-	err := postgres.GetTxOrDB(ctx, r.db).
+	err = db.
 		Table("expenses e").
 		Select(`e.id, e.category_id, ec.code as category_code, ec.name as category_name, 
 			e.supplier_id, s.name as supplier_name, e.amount, e.description, 
@@ -114,9 +131,13 @@ func (r *ExpenseRepository) FindByID(ctx context.Context, id string) (*dto.Expen
 }
 
 func (r *ExpenseRepository) FindAll(ctx context.Context) ([]*dto.ExpenseWithCategory, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var models []expenseWithCategoryModel
 
-	err := postgres.GetTxOrDB(ctx, r.db).
+	err = db.
 		Table("expenses e").
 		Select(`e.id, e.category_id, ec.code as category_code, ec.name as category_name, 
 			e.supplier_id, s.name as supplier_name, e.amount, e.description, 
@@ -134,9 +155,13 @@ func (r *ExpenseRepository) FindAll(ctx context.Context) ([]*dto.ExpenseWithCate
 }
 
 func (r *ExpenseRepository) FindByCriteria(ctx context.Context, criteria *dto.ExpenseListCriteria) ([]*dto.ExpenseWithCategory, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var models []expenseWithCategoryModel
 
-	query := postgres.GetTxOrDB(ctx, r.db).
+	query := db.
 		Table("expenses e").
 		Select(`e.id, e.category_id, ec.code as category_code, ec.name as category_name, 
 			e.supplier_id, s.name as supplier_name, e.amount, e.description, 
@@ -160,7 +185,7 @@ func (r *ExpenseRepository) FindByCriteria(ctx context.Context, criteria *dto.Ex
 		query = query.Where("e.expense_date <= ?", *criteria.EndDate)
 	}
 
-	err := query.Order("e.expense_date DESC").Find(&models).Error
+	err = query.Order("e.expense_date DESC").Find(&models).Error
 
 	if err != nil {
 		return nil, err
@@ -170,6 +195,10 @@ func (r *ExpenseRepository) FindByCriteria(ctx context.Context, criteria *dto.Ex
 }
 
 func (r *ExpenseRepository) UpdateStoragePaths(ctx context.Context, id string, pdfPath *string, xmlPath *string) error {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 	updates := make(map[string]interface{})
 
 	if pdfPath != nil {
@@ -184,19 +213,23 @@ func (r *ExpenseRepository) UpdateStoragePaths(ctx context.Context, id string, p
 		return nil
 	}
 
-	return postgres.GetTxOrDB(ctx, r.db).
+	return db.
 		Model(&expenseModel{}).
 		Where("id = ?", id).
 		Updates(updates).Error
 }
 
 func (r *ExpenseRepository) GetExpenseSummary(ctx context.Context, startDate time.Time, endDate time.Time) (*dto.ExpenseSummary, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	var totalResult struct {
 		TotalAmount float64 `gorm:"column:total_amount"`
 		Count       int     `gorm:"column:count"`
 	}
 
-	err := postgres.GetTxOrDB(ctx, r.db).
+	err = db.
 		Table("expenses").
 		Select("COALESCE(SUM(amount), 0) as total_amount, COUNT(*) as count").
 		Where("expense_date >= ? AND expense_date <= ?", startDate, endDate).
@@ -216,7 +249,7 @@ func (r *ExpenseRepository) GetExpenseSummary(ctx context.Context, startDate tim
 
 	var categoryResults []categoryResult
 
-	err = postgres.GetTxOrDB(ctx, r.db).
+	err = db.
 		Table("expenses e").
 		Select("e.category_id, ec.name as category_name, ec.code as category_code, COALESCE(SUM(e.amount), 0) as total_amount, COUNT(*) as count").
 		Joins("JOIN expense_categories ec ON ec.id = e.category_id").

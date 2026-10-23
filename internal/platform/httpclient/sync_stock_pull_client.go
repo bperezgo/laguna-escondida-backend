@@ -21,10 +21,11 @@ type SyncStockPullClient struct {
 	client  *Client
 	baseURL string
 	nodeKey string
+	nodeID  string
 }
 
-func NewSyncStockPullClient(client *Client, baseURL, nodeKey string) ports.SyncStockPullClient {
-	return &SyncStockPullClient{client: client, baseURL: baseURL, nodeKey: nodeKey}
+func NewSyncStockPullClient(client *Client, baseURL, nodeKey, nodeID string) ports.SyncStockPullClient {
+	return &SyncStockPullClient{client: client, baseURL: baseURL, nodeKey: nodeKey, nodeID: nodeID}
 }
 
 func (c *SyncStockPullClient) PullStock(ctx context.Context, since time.Time) (res *dto.SyncStockPullResponse, err error) {
@@ -35,6 +36,7 @@ func (c *SyncStockPullClient) PullStock(ctx context.Context, since time.Time) (r
 		return nil, fmt.Errorf("build stock pull request: %w", err)
 	}
 	httpReq.Header.Set("X-Node-Key", c.nodeKey)
+	httpReq.Header.Set("X-Node-ID", c.nodeID)
 
 	resp, err := c.client.Do(httpReq)
 	if err != nil {

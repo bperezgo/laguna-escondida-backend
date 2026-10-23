@@ -163,7 +163,7 @@ Returns a CSV file with headers:
 
 **Authentication:** Admin API Key (header: `X-Admin-API-Key`)
 
-Fetches PDF/XML documents from the electronic invoicing system for support documents that are pending.
+Fetches PDF/XML documents from the electronic invoicing system for support documents that are pending. Like the hourly job it mirrors, it runs once for each active organization with e-invoicing configured, each on its own documents. `updated_count` and `failed_bills` add up every organization's run; `failed_organizations` lists the organizations whose whole run failed, and is left out when none did.
 
 ### Example Response (200 OK)
 
@@ -174,6 +174,12 @@ Fetches PDF/XML documents from the electronic invoicing system for support docum
     {
       "bill_id": "550e8400-e29b-41d4-a716-446655440001",
       "error": "PDF URL is empty"
+    }
+  ],
+  "failed_organizations": [
+    {
+      "organization_id": "019a0000-0000-7000-8000-00000000000b",
+      "error": "find support documents without URL: connection refused"
     }
   ]
 }

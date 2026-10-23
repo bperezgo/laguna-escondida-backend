@@ -130,7 +130,7 @@ func main() {
 	publisher := eventbus.NewDetachedEventBus(eventBusImpl, postgres.Detach)
 
 	// Initialize JWT service
-	jwtService := service.NewJWTService(cfg.JWTSecret)
+	jwtService := service.NewJWTService(cfg.JWTSecret, cfg.OrganizationID)
 
 	// Initialize services
 	unitOfWork := postgres.NewUnitOfWork(db.DB)
@@ -190,15 +190,16 @@ func main() {
 	stockReconciliationService := service.NewStockReconciliationService(
 		stockReconciliationRepo, stockRepo, unitOfWork, stockMovementEmitter, logger,
 	)
-	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, jwtService, unitOfWork)
+	organizationRepo := repository.NewOrganizationRepository(db.DB)
+	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, organizationRepo, jwtService, unitOfWork, cfg.OrganizationID)
 	einvoicingSettingsRepo := repository.NewEInvoicingSettingsRepository(db.DB)
-	organizationService := service.NewOrganizationService(
-		repository.NewOrganizationRepository(db.DB), einvoicingSettingsRepo, unitOfWork,
-	)
+	organizationService := service.NewOrganizationService(organizationRepo, einvoicingSettingsRepo, unitOfWork)
+	sessionOpener := postgres.NewSessionOpener(db.DB)
+	organizationRunner := service.NewOrganizationRunner(organizationRepo, sessionOpener)
 	billOwnerService := service.NewBillOwnerService(billOwnerRepo)
 	supplierService := service.NewSupplierService(supplierRepo, supplierCatalogRepo, productRepo)
-	purchaseEntryService := service.NewPurchaseEntryService(purchaseEntryRepo, supplierRepo, supplierCatalogRepo, productRepo, storageClient, publisher, unitOfWork, syncOutboxRepo, syncIdentity, logger, cfg.OrganizationID)
-	expenseService := service.NewExpenseService(expenseCategoryRepo, expenseRepo, supplierRepo, storageClient, cfg.OrganizationID)
+	purchaseEntryService := service.NewPurchaseEntryService(purchaseEntryRepo, supplierRepo, supplierCatalogRepo, productRepo, storageClient, publisher, unitOfWork, syncOutboxRepo, syncIdentity, logger)
+	expenseService := service.NewExpenseService(expenseCategoryRepo, expenseRepo, supplierRepo, storageClient)
 	productIngredientService := service.NewProductIngredientService(productIngredientRepo, productRepo)
 	financialService := service.NewFinancialService(billRepo, expenseRepo, purchaseEntryRepo)
 	deliveryZoneService := service.NewDeliveryZoneService(deliveryZoneRepo)
@@ -214,7 +215,7 @@ func main() {
 		}
 	}()
 
-	if err = subscribeKitchenFeed(eventSubscriber, orderService); err != nil {
+	if err = subscribeKitchenFeed(eventSubscriber, orderService, sessionOpener, logger); err != nil {
 		log.Fatalf("Failed to subscribe kitchen feed handlers: %v", err)
 	}
 
@@ -252,7 +253,7 @@ func main() {
 		}
 	}()
 
-	if err = subscribeStockHandlers(stockSubscriber, stockEventHandler); err != nil {
+	if err = subscribeStockHandlers(stockSubscriber, stockEventHandler, sessionOpener, logger); err != nil {
 		log.Fatalf("Failed to subscribe stock handlers: %v", err)
 	}
 
@@ -271,8 +272,8 @@ func main() {
 	orderHandler := handler.NewOrderHandler(orderService,
 		service.NewOrderIdempotencyService(orderService, repository.NewIdempotencyKeyRepository(db.DB)))
 	productHandler := handler.NewProductHandler(productService)
-	stockHandler := handler.NewStockHandler(stockService, stockReconciliationService)
-	userHandler := handler.NewUserHandler(userService, organizationService, cfg.OrganizationID, logger)
+	stockHandler := handler.NewStockHandler(stockService, stockReconciliationService, organizationRunner)
+	userHandler := handler.NewUserHandler(userService, organizationService, logger)
 	billOwnerHandler := handler.NewBillOwnerHandler(billOwnerService)
 	supplierHandler := handler.NewSupplierHandler(supplierService)
 	purchaseEntryHandler := handler.NewPurchaseEntryHandler(purchaseEntryService)
@@ -305,7 +306,7 @@ func main() {
 	// Record request counts/latencies for Prometheus (scraped by Alloy on :METRICS_PORT).
 	router.Use(handler.MetricsMiddleware())
 
-	router.Use(handler.DBSessionMiddleware(db.DB, cfg.OrganizationID))
+	router.Use(handler.DBSessionMiddleware(db.DB))
 
 	registerAPIRoutes(router, cfg, jwtService, apiHandlers{
 		order:             orderHandler,
@@ -375,12 +376,12 @@ func main() {
 			logger.Error("Edge sync push disabled: set CLOUD_SYNC_URL and NODE_SYNC_KEY to enable it")
 			os.Exit(1)
 		}
-		syncPushClient := httpclient.NewSyncPushClient(httpClient, cfg.CloudSyncURL, cfg.NodeSyncKey)
+		syncPushClient := httpclient.NewSyncPushClient(httpClient, cfg.CloudSyncURL, cfg.NodeSyncKey, cfg.NodeID)
 		syncPushService := service.NewSyncPushService(
 			unitOfWork, syncOutboxRepo, syncStateRepo, syncPushClient,
 			syncIdentity, 0, logger,
 		)
-		syncPullClient := httpclient.NewSyncPullClient(httpClient, cfg.CloudSyncURL, cfg.NodeSyncKey)
+		syncPullClient := httpclient.NewSyncPullClient(httpClient, cfg.CloudSyncURL, cfg.NodeSyncKey, cfg.NodeID)
 		syncPullService := service.NewSyncPullService(
 			unitOfWork, syncPullClient, syncReferenceRepo, syncStateRepo,
 			syncIdentity, logger,
@@ -388,13 +389,13 @@ func main() {
 		// Stock pulls on a channel and a cursor of its own: daily, because the numbers
 		// should be stable through a service day, and separate so neither job's failure
 		// hides the other's progress (design D4).
-		stockPullClient := httpclient.NewSyncStockPullClient(httpClient, cfg.CloudSyncURL, cfg.NodeSyncKey)
+		stockPullClient := httpclient.NewSyncStockPullClient(httpClient, cfg.CloudSyncURL, cfg.NodeSyncKey, cfg.NodeID)
 		stockPullService := service.NewStockPullService(
 			unitOfWork, stockPullClient, syncReferenceRepo, syncStateRepo,
 			syncIdentity, logger,
 		)
 		edgeScheduler, edgeErr := cron.NewEdgeSyncScheduler(
-			syncPushService, syncPullService, stockPullService, syncStatusTracker,
+			organizationRunner, cfg.OrganizationID, syncPushService, syncPullService, stockPullService, syncStatusTracker,
 			cfg.SyncPushCron, cfg.SyncPullCron, cfg.StockPullCron, logger,
 		)
 		if edgeErr != nil {
@@ -413,17 +414,17 @@ func main() {
 
 		electronicInvoiceClient := httpclient.NewElectronicInvoiceClient(cfg, httpClient)
 		invoiceService := service.NewInvoiceService(
-			electronicInvoiceClient, productRepo, billRepo, pendingInvoiceRepo, unitOfWork, storageClient, cfg.OrganizationID,
+			electronicInvoiceClient, productRepo, billRepo, pendingInvoiceRepo, unitOfWork, storageClient,
 		)
-		supportDocRepo := repository.NewSupportDocumentRepository(db.DB, electronicInvoiceClient, cfg.OrganizationID)
-		supportDocService := service.NewSupportDocumentService(electronicInvoiceClient, supportDocRepo, storageClient, cfg.OrganizationID)
+		supportDocRepo := repository.NewSupportDocumentRepository(db.DB, electronicInvoiceClient)
+		supportDocService := service.NewSupportDocumentService(electronicInvoiceClient, supportDocRepo, storageClient)
 		invoiceSubmissionService := service.NewInvoiceSubmissionService(
 			pendingInvoiceRepo, billRepo, electronicInvoiceClient, unitOfWork, syncOutboxRepo,
-			einvoicingSettingsRepo, syncIdentity, cfg.OrganizationID, logger,
+			einvoicingSettingsRepo, syncIdentity, logger,
 		)
 
 		cronScheduler, cronErr := cron.NewScheduler(
-			invoiceService, supportDocService, invoiceSubmissionService, stockReconciliationService,
+			organizationRunner, invoiceService, supportDocService, invoiceSubmissionService, stockReconciliationService,
 			cfg.InvoiceURLCron, cfg.SupportDocumentURLCron, cfg.InvoiceSubmitCron, cfg.StockReconcileCron,
 			logger,
 		)
@@ -439,8 +440,9 @@ func main() {
 			}
 		}()
 
-		invoiceHandler := handler.NewInvoiceHandler(invoiceService)
-		supportDocHandler := handler.NewSupportDocumentHandler(supportDocService)
+		documentURLMaintenance := service.NewDocumentURLMaintenanceService(organizationRunner, invoiceService, supportDocService)
+		invoiceHandler := handler.NewInvoiceHandler(invoiceService, documentURLMaintenance)
+		supportDocHandler := handler.NewSupportDocumentHandler(supportDocService, documentURLMaintenance)
 
 		syncHandler := handler.NewSyncHandler(syncService, syncReferenceService)
 
@@ -451,7 +453,7 @@ func main() {
 			logger.Info("Telemetry ingest disabled: set TELEMETRY_FORWARD_URL to the cloud Alloy OTLP/HTTP receiver to enable it")
 		} else {
 			telemetryForwarder := httpclient.NewTelemetryForwardClient(httpClient, cfg.TelemetryForwardURL)
-			telemetryIngestService := service.NewTelemetryIngestService(telemetryForwarder, cfg.TelemetryTenantID, cfg.OrganizationID)
+			telemetryIngestService := service.NewTelemetryIngestService(telemetryForwarder, cfg.TelemetryTenantID)
 			telemetryHandler = handler.NewTelemetryHandler(telemetryIngestService)
 			logger.Info("Telemetry ingest enabled", slog.String("collector", cfg.TelemetryForwardURL))
 		}
@@ -462,6 +464,7 @@ func main() {
 			sync:            syncHandler,
 			telemetry:       telemetryHandler,
 			organization:    organizationHandler,
+			nodes:           service.NewNodeService(repository.NewNodeRepository(db.DB)),
 		})
 	}
 

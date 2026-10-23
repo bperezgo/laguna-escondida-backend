@@ -860,7 +860,7 @@ func NewConfig() (*Config, error) {
 }
 ```
 
-**Required environment variables**: `JWT_SECRET`, `ADMIN_API_KEY`, `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_SSLMODE`, `PORT`, `STORAGE_BUCKET` (plus optional `DB_MIGRATION_USER` + `DB_MIGRATION_PASSWORD`, the schema owner migrations run as, defaulting to `DB_USER`/`DB_PASSWORD`; `STORAGE_REGION`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET`, `STORAGE_ENDPOINT`, `CDN_URL`; for signed CloudFront links `CDN_KEY_PAIR_ID` + `CDN_PRIVATE_KEY` or `CDN_PRIVATE_KEY_PATH`, and optional `CDN_URL_TTL`), `ELECTRONIC_INVOICE_URL`/`_USER`/`_PASSWORD` (the prefixes are per organization, in `organization_einvoicing`), `ORGANIZATION_ID`.
+**Required environment variables**: `JWT_SECRET`, `ADMIN_API_KEY`, `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_SSLMODE`, `PORT`, `STORAGE_BUCKET` (plus optional `DB_MIGRATION_USER` + `DB_MIGRATION_PASSWORD`, the schema owner migrations run as, defaulting to `DB_USER`/`DB_PASSWORD`; `STORAGE_REGION`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET`, `STORAGE_ENDPOINT`, `CDN_URL`; for signed CloudFront links `CDN_KEY_PAIR_ID` + `CDN_PRIVATE_KEY` or `CDN_PRIVATE_KEY_PATH`, and optional `CDN_URL_TTL`), `ELECTRONIC_INVOICE_URL`/`_USER`/`_PASSWORD` (the prefixes are per organization, in `organization_einvoicing`). By `APP_MODE`: an edge box requires `ORGANIZATION_ID` (its organization's UUID); the cloud refuses it, since each request's organization comes from its token or calling node, and requires `NODE_ID` (`config.CloudNodeIDFor(<Laguna>)` = `45598059-e12e-530c-86b6-758477c4423d` for the cloud Laguna's box syncs against).
 
 ---
 

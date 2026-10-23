@@ -14,6 +14,7 @@ import (
 )
 
 type billOwnerModel struct {
+	postgres.TenantOwned
 	ID                 string     `gorm:"column:id;primaryKey"`
 	Cellphone          *string    `gorm:"column:celphone"`
 	Email              string     `gorm:"column:email"`
@@ -38,7 +39,10 @@ func NewBillOwnerRepository(db *gorm.DB) ports.BillOwnerRepository {
 
 func (r *BillOwnerRepository) FindByID(ctx context.Context, id string) (*customer.Aggregate, error) {
 	var model billOwnerModel
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 
 	if err := db.Where("id = ? AND deleted_at IS NULL", id).First(&model).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -52,14 +56,20 @@ func (r *BillOwnerRepository) FindByID(ctx context.Context, id string) (*custome
 
 func (r *BillOwnerRepository) Create(ctx context.Context, customerAggregate *customer.Aggregate) error {
 	model := r.toModel(customerAggregate)
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 
 	return db.Create(model).Error
 }
 
 func (r *BillOwnerRepository) Update(ctx context.Context, customerAggregate *customer.Aggregate) error {
 	model := r.toModel(customerAggregate)
-	db := postgres.GetTxOrDB(ctx, r.db)
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
 
 	return db.Model(&billOwnerModel{}).
 		Where("id = ? AND deleted_at IS NULL", model.ID).

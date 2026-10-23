@@ -19,10 +19,11 @@ type SyncPullClient struct {
 	client  *Client
 	baseURL string
 	nodeKey string
+	nodeID  string
 }
 
-func NewSyncPullClient(client *Client, baseURL, nodeKey string) ports.SyncPullClient {
-	return &SyncPullClient{client: client, baseURL: baseURL, nodeKey: nodeKey}
+func NewSyncPullClient(client *Client, baseURL, nodeKey, nodeID string) ports.SyncPullClient {
+	return &SyncPullClient{client: client, baseURL: baseURL, nodeKey: nodeKey, nodeID: nodeID}
 }
 
 func (c *SyncPullClient) Pull(ctx context.Context, since time.Time) (res *dto.SyncPullResponse, err error) {
@@ -33,6 +34,7 @@ func (c *SyncPullClient) Pull(ctx context.Context, since time.Time) (res *dto.Sy
 		return nil, fmt.Errorf("build sync pull request: %w", err)
 	}
 	httpReq.Header.Set("X-Node-Key", c.nodeKey)
+	httpReq.Header.Set("X-Node-ID", c.nodeID)
 
 	resp, err := c.client.Do(httpReq)
 	if err != nil {

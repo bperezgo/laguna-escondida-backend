@@ -105,8 +105,9 @@ violated) · **Verify** (tier + how) · **Maps to** (playbook checklist → plan
 ### Identity & authentication
 
 #### SYNC-INV-01 — Node identities derive deterministically
-- **Guarantees:** Both nodes share `ORGANIZATION_ID` + `NODE_SYNC_KEY`, so the cloud's
-  `NodeID` equals the edge's derived `CloudNodeID` with no manual `NODE_ID` wiring.
+- **Guarantees:** The edge derives its `NodeID` and `CloudNodeID` from its `ORGANIZATION_ID`;
+  the cloud's `NODE_ID` is set to that `CloudNodeID` (`config.CloudNodeIDFor`), and the edge's
+  `NodeID` is registered in the cloud's `nodes` table with its organization.
 - **Why:** A misderived peer ID means the edge tracks high-water marks against a peer that
   never answers — sync silently no-ops and looks healthy. This is the hardest failure to
   notice in production.

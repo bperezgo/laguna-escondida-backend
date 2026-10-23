@@ -86,10 +86,13 @@ var pathParams = strings.NewReplacer(
 	":area", "kitchen",
 )
 
+// testOrgID is the organization every test token belongs to.
+const testOrgID = "bb0cad3e-be13-4bad-9a37-bba9525bfece"
+
 func TestAgentRole_ReachesOnlyItsRoutes(t *testing.T) {
-	jwtService := service.NewJWTService("test-secret")
+	jwtService := service.NewJWTService("test-secret", "")
 	token, err := jwtService.GenerateToken(
-		"019a0000-0000-7000-8000-0000000000aa", "whatsapp-agent", []int{permissions.RoleAgent})
+		"019a0000-0000-7000-8000-0000000000aa", testOrgID, "whatsapp-agent", []int{permissions.RoleAgent})
 	require.NoError(t, err)
 
 	for _, mode := range []config.Mode{config.ModeCloud, config.ModeEdge} {
@@ -122,7 +125,7 @@ func TestAgentRole_ReachesOnlyItsRoutes(t *testing.T) {
 func TestAgentRole_ReachableRoutesExist(t *testing.T) {
 	registered := map[string]bool{}
 	for _, mode := range []config.Mode{config.ModeCloud, config.ModeEdge} {
-		for _, route := range fullRouter(mode, service.NewJWTService("test-secret")).Routes() {
+		for _, route := range fullRouter(mode, service.NewJWTService("test-secret", "")).Routes() {
 			registered[route.Method+" "+route.Path] = true
 		}
 	}

@@ -38,7 +38,7 @@ func newStockRefreshScheduler(t *testing.T, stockCron string) (*EdgeSyncSchedule
 	)
 
 	scheduler, err := NewEdgeSyncScheduler(
-		nil, nil, stockPull,
+		cronOrganizations(t), cronOrgA, nil, nil, stockPull,
 		syncstatus.NewTracker(0),
 		"* * * * *", "* * * * *", stockCron,
 		logger,
@@ -80,4 +80,12 @@ func TestEdgeSyncScheduler_StockPullJob_ContainsFailure(t *testing.T) {
 	assert.NotPanics(t, scheduler.stockPullJob)
 
 	assert.Contains(t, logs.String(), "Edge stock refresh job failed")
+}
+
+// The box's background work acts for the box's organization; there is no request to name one.
+func TestEdgeSyncScheduler_StockPullJob_RunsAsTheBoxOrganization(t *testing.T) {
+	scheduler, pullClient, _ := newStockRefreshScheduler(t, "0 5 * * *")
+	pullClient.EXPECT().PullStock(mock.MatchedBy(inCronOrg(cronOrgA)), mock.Anything).Return(nil, assert.AnError).Once()
+
+	scheduler.stockPullJob()
 }

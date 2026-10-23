@@ -11,6 +11,7 @@ import (
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/permissions"
 	"laguna-escondida/backend/internal/domain/ports/mocks"
+	"laguna-escondida/backend/internal/domain/tenant"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -26,11 +27,38 @@ func (passthroughUnitOfWork) Do(ctx context.Context, fn func(ctx context.Context
 }
 
 func createTestUserService(t *testing.T) (*UserService, *mocks.MockUserRepository, *mocks.MockRoleRepository, *mocks.MockUserRoleRepository) {
-	mockUserRepo := mocks.NewMockUserRepository(t)
-	mockRoleRepo := mocks.NewMockRoleRepository(t)
-	mockUserRoleRepo := mocks.NewMockUserRoleRepository(t)
-	jwtService := NewJWTService("test-secret-key-for-testing")
-	return NewUserService(mockUserRepo, mockRoleRepo, mockUserRoleRepo, jwtService, passthroughUnitOfWork{}), mockUserRepo, mockRoleRepo, mockUserRoleRepo
+	f := newUserServiceFixture(t, "")
+	return f.service, f.userRepo, f.roleRepo, f.userRoleRepo
+}
+
+type userServiceFixture struct {
+	service      *UserService
+	userRepo     *mocks.MockUserRepository
+	roleRepo     *mocks.MockRoleRepository
+	userRoleRepo *mocks.MockUserRoleRepository
+	orgRepo      *mocks.MockOrganizationRepository
+	jwt          *JWTService
+}
+
+// newUserServiceFixture builds a cloud service with boxOrgID "", an edge box's otherwise.
+func newUserServiceFixture(t *testing.T, boxOrgID string) userServiceFixture {
+	f := userServiceFixture{
+		userRepo:     mocks.NewMockUserRepository(t),
+		roleRepo:     mocks.NewMockRoleRepository(t),
+		userRoleRepo: mocks.NewMockUserRoleRepository(t),
+		orgRepo:      mocks.NewMockOrganizationRepository(t),
+		jwt:          NewJWTService("test-secret-key-for-testing", boxOrgID),
+	}
+	f.service = NewUserService(f.userRepo, f.roleRepo, f.userRoleRepo, f.orgRepo, f.jwt, passthroughUnitOfWork{}, boxOrgID)
+	return f
+}
+
+// inOrg reports whether a context acts for orgID; use it with mock.MatchedBy.
+func inOrg(orgID string) func(ctx context.Context) bool {
+	return func(ctx context.Context) bool {
+		got, ok := tenant.OrgFrom(ctx)
+		return ok && got == orgID
+	}
 }
 
 func createTestRole(id int, name string) *dto.Role {
@@ -43,7 +71,7 @@ func createTestRole(id int, name string) *dto.Role {
 
 // Success Cases
 func TestCreateUser_Success(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), testOrgA)
 	service, userRepo, roleRepo, userRoleRepo := createTestUserService(t)
 
 	req := &dto.CreateUserRequest{
@@ -85,7 +113,7 @@ func TestCreateUser_Success(t *testing.T) {
 
 // Error Cases
 func TestCreateUser_UserAlreadyExists(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), testOrgA)
 	service, userRepo, roleRepo, userRoleRepo := createTestUserService(t)
 
 	req := &dto.CreateUserRequest{
@@ -113,7 +141,7 @@ func TestCreateUser_UserAlreadyExists(t *testing.T) {
 }
 
 func TestCreateUser_FindByUsernameError(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), testOrgA)
 	service, userRepo, roleRepo, userRoleRepo := createTestUserService(t)
 
 	req := &dto.CreateUserRequest{
@@ -138,7 +166,7 @@ func TestCreateUser_FindByUsernameError(t *testing.T) {
 }
 
 func TestCreateUser_MissingName(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), testOrgA)
 	service, userRepo, roleRepo, userRoleRepo := createTestUserService(t)
 
 	req := &dto.CreateUserRequest{
@@ -166,7 +194,7 @@ func TestCreateUser_MissingName(t *testing.T) {
 }
 
 func TestCreateUser_RoleNotFound(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), testOrgA)
 	service, userRepo, roleRepo, userRoleRepo := createTestUserService(t)
 
 	req := &dto.CreateUserRequest{
@@ -190,7 +218,7 @@ func TestCreateUser_RoleNotFound(t *testing.T) {
 }
 
 func TestCreateUser_InvalidRoleIDs(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), testOrgA)
 	service, userRepo, roleRepo, userRoleRepo := createTestUserService(t)
 
 	req := &dto.CreateUserRequest{
@@ -218,7 +246,7 @@ func TestCreateUser_InvalidRoleIDs(t *testing.T) {
 }
 
 func TestCreateUser_UserCreationFailed(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), testOrgA)
 	service, userRepo, roleRepo, userRoleRepo := createTestUserService(t)
 
 	req := &dto.CreateUserRequest{
@@ -247,7 +275,7 @@ func TestCreateUser_UserCreationFailed(t *testing.T) {
 }
 
 func TestCreateUser_UserRoleAssignmentFailed(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithOrg(context.Background(), testOrgA)
 	service, userRepo, roleRepo, userRoleRepo := createTestUserService(t)
 
 	req := &dto.CreateUserRequest{
@@ -355,75 +383,226 @@ func TestUpdateUser_CannotDeactivateSelf(t *testing.T) {
 	userRepo.AssertNotCalled(t, "Update")
 }
 
-// A missing user is surfaced as an opaque ErrInvalidCredentials (so callers can't
-// enumerate usernames) while still wrapping ErrUserNotFound for server-side logging.
-func TestSignIn_UserNotFound(t *testing.T) {
-	ctx := context.Background()
-	service, userRepo, _, _ := createTestUserService(t)
+// Sign-in: every rejection is an opaque ErrInvalidCredentials (the handler answers one 401 for
+// all of them) while still wrapping the specific reason for the server-side log.
 
-	userRepo.On("FindByUsername", ctx, "ghost").Return(nil, domainError.ErrUserNotFound)
-
-	result, err := service.SignIn(ctx, &dto.SignInRequest{Username: "ghost", Password: "password123"})
-
-	assert.Nil(t, result)
-	assert.True(t, errors.Is(err, domainError.ErrInvalidCredentials))
-	assert.True(t, errors.Is(err, domainError.ErrUserNotFound))
+func lagunaOrg(status string) *dto.Organization {
+	return &dto.Organization{ID: testOrgA, Slug: "laguna-escondida", Status: status}
 }
 
-// A wrong password is surfaced as ErrInvalidCredentials.
-func TestSignIn_WrongPassword(t *testing.T) {
-	ctx := context.Background()
-	service, userRepo, _, _ := createTestUserService(t)
-
-	hashed, err := useragg.HashPassword("correct-password")
+func activeUser(t *testing.T, password string, active bool) *dto.User {
+	t.Helper()
+	hashed, err := useragg.HashPassword(password)
 	require.NoError(t, err)
-
-	userRepo.On("FindByUsername", ctx, "bob").Return(&dto.User{
-		ID:       "bob-id",
-		Username: "bob",
-		Password: hashed,
-		Active:   true,
-	}, nil)
-
-	result, err := service.SignIn(ctx, &dto.SignInRequest{Username: "bob", Password: "wrong-password"})
-
-	assert.Nil(t, result)
-	assert.True(t, errors.Is(err, domainError.ErrInvalidCredentials))
+	return &dto.User{ID: "bob-id", Username: "bob", Password: hashed, Active: active}
 }
 
-// An infrastructure error from the repository must NOT be masked as invalid
-// credentials; it propagates so the handler reports a 500 instead of a silent 401.
-func TestSignIn_RepositoryError(t *testing.T) {
-	ctx := context.Background()
-	service, userRepo, _, _ := createTestUserService(t)
+func TestUserService_SignIn_CloudSuccess(t *testing.T) {
+	f := newUserServiceFixture(t, "")
+	f.orgRepo.On("GetBySlug", mock.Anything, "laguna-escondida").Return(lagunaOrg(dto.OrganizationStatusActive), nil)
+	f.userRepo.On("FindByUsername", mock.MatchedBy(inOrg(testOrgA)), "bob").Return(activeUser(t, "password123", true), nil)
+	f.userRoleRepo.On("FindRolesByUserID", mock.MatchedBy(inOrg(testOrgA)), "bob-id").Return([]*dto.Role{createTestRole(permissions.RoleServer, "server")}, nil)
 
+	result, err := f.service.SignIn(context.Background(), &dto.SignInRequest{Organization: "laguna-escondida", Username: "bob", Password: "password123"})
+
+	require.NoError(t, err)
+	assert.Equal(t, "bob", result.Username)
+	claims, err := f.jwt.ValidateToken(result.Token)
+	require.NoError(t, err)
+	assert.Equal(t, testOrgA, claims.OrgID)
+	assert.Equal(t, "bob-id", claims.UserID)
+}
+
+func TestUserService_SignIn_CloudWithoutOrganization(t *testing.T) {
+	f := newUserServiceFixture(t, "")
+
+	result, err := f.service.SignIn(context.Background(), &dto.SignInRequest{Username: "bob", Password: "password123"})
+
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, domainError.ErrOrganizationRequired)
+}
+
+func TestUserService_SignIn_RejectedOpaquely(t *testing.T) {
+	cases := []struct {
+		name   string
+		setup  func(t *testing.T, f userServiceFixture)
+		reason error
+	}{
+		{
+			name: "unknown organization",
+			setup: func(t *testing.T, f userServiceFixture) {
+				f.orgRepo.On("GetBySlug", mock.Anything, "laguna-escondida").Return(nil, domainError.ErrOrganizationNotFound)
+			},
+			reason: domainError.ErrOrganizationNotFound,
+		},
+		{
+			name: "suspended organization",
+			setup: func(t *testing.T, f userServiceFixture) {
+				f.orgRepo.On("GetBySlug", mock.Anything, "laguna-escondida").Return(lagunaOrg(dto.OrganizationStatusSuspended), nil)
+			},
+		},
+		{
+			name: "username of another organization",
+			setup: func(t *testing.T, f userServiceFixture) {
+				f.orgRepo.On("GetBySlug", mock.Anything, "laguna-escondida").Return(lagunaOrg(dto.OrganizationStatusActive), nil)
+				f.userRepo.On("FindByUsername", mock.MatchedBy(inOrg(testOrgA)), "bob").Return(nil, domainError.ErrUserNotFound)
+			},
+			reason: domainError.ErrUserNotFound,
+		},
+		{
+			name: "wrong password",
+			setup: func(t *testing.T, f userServiceFixture) {
+				f.orgRepo.On("GetBySlug", mock.Anything, "laguna-escondida").Return(lagunaOrg(dto.OrganizationStatusActive), nil)
+				f.userRepo.On("FindByUsername", mock.MatchedBy(inOrg(testOrgA)), "bob").Return(activeUser(t, "other-password", true), nil)
+			},
+		},
+		{
+			name: "inactive user",
+			setup: func(t *testing.T, f userServiceFixture) {
+				f.orgRepo.On("GetBySlug", mock.Anything, "laguna-escondida").Return(lagunaOrg(dto.OrganizationStatusActive), nil)
+				f.userRepo.On("FindByUsername", mock.MatchedBy(inOrg(testOrgA)), "bob").Return(activeUser(t, "password123", false), nil)
+			},
+			reason: domainError.ErrUserInactive,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newUserServiceFixture(t, "")
+			tc.setup(t, f)
+
+			result, err := f.service.SignIn(context.Background(), &dto.SignInRequest{Organization: "laguna-escondida", Username: "bob", Password: "password123"})
+
+			assert.Nil(t, result)
+			assert.ErrorIs(t, err, domainError.ErrInvalidCredentials)
+			if tc.reason != nil {
+				assert.ErrorIs(t, err, tc.reason, "the reason is kept for the log")
+			}
+		})
+	}
+}
+
+// An infrastructure error must not be masked as invalid credentials, so it surfaces as a 500.
+func TestUserService_SignIn_RepositoryError(t *testing.T) {
+	f := newUserServiceFixture(t, "")
 	repoErr := errors.New("connection refused")
-	userRepo.On("FindByUsername", ctx, "bob").Return(nil, repoErr)
+	f.orgRepo.On("GetBySlug", mock.Anything, "laguna-escondida").Return(lagunaOrg(dto.OrganizationStatusActive), nil)
+	f.userRepo.On("FindByUsername", mock.Anything, "bob").Return(nil, repoErr)
 
-	result, err := service.SignIn(ctx, &dto.SignInRequest{Username: "bob", Password: "password123"})
+	result, err := f.service.SignIn(context.Background(), &dto.SignInRequest{Organization: "laguna-escondida", Username: "bob", Password: "password123"})
 
 	assert.Nil(t, result)
-	assert.False(t, errors.Is(err, domainError.ErrInvalidCredentials))
-	assert.True(t, errors.Is(err, repoErr))
+	assert.NotErrorIs(t, err, domainError.ErrInvalidCredentials)
+	assert.ErrorIs(t, err, repoErr)
 }
 
-// An inactive user cannot sign in even with the correct password.
-func TestSignIn_InactiveUser(t *testing.T) {
-	ctx := context.Background()
-	service, userRepo, _, _ := createTestUserService(t)
+func TestUserService_SignIn_EdgeWithoutOrganization(t *testing.T) {
+	f := newUserServiceFixture(t, testOrgA)
+	f.orgRepo.On("Get", mock.Anything, testOrgA).Return(lagunaOrg(dto.OrganizationStatusActive), nil)
+	f.userRepo.On("FindByUsername", mock.MatchedBy(inOrg(testOrgA)), "bob").Return(activeUser(t, "password123", true), nil)
+	f.userRoleRepo.On("FindRolesByUserID", mock.MatchedBy(inOrg(testOrgA)), "bob-id").Return([]*dto.Role{createTestRole(permissions.RoleServer, "server")}, nil)
 
-	hashed, err := useragg.HashPassword("password123")
+	result, err := f.service.SignIn(context.Background(), &dto.SignInRequest{Username: "bob", Password: "password123"})
+
 	require.NoError(t, err)
+	claims, err := f.jwt.ValidateToken(result.Token)
+	require.NoError(t, err)
+	assert.Equal(t, testOrgA, claims.OrgID)
+}
 
-	userRepo.On("FindByUsername", ctx, "bob").Return(&dto.User{
-		ID:       "bob-id",
-		Username: "bob",
-		Password: hashed,
-		Active:   false,
-	}, nil)
+func TestUserService_SignIn_EdgeNamingAnotherOrganization(t *testing.T) {
+	f := newUserServiceFixture(t, testOrgA)
+	f.orgRepo.On("GetBySlug", mock.Anything, "other-org").Return(&dto.Organization{ID: testOrgB, Slug: "other-org", Status: dto.OrganizationStatusActive}, nil)
 
-	result, err := service.SignIn(ctx, &dto.SignInRequest{Username: "bob", Password: "password123"})
+	result, err := f.service.SignIn(context.Background(), &dto.SignInRequest{Organization: "other-org", Username: "bob", Password: "password123"})
 
 	assert.Nil(t, result)
-	assert.True(t, errors.Is(err, domainError.ErrUserInactive))
+	assert.ErrorIs(t, err, domainError.ErrInvalidCredentials)
+	f.userRepo.AssertNotCalled(t, "FindByUsername", mock.Anything, mock.Anything)
+}
+
+// User creation: a signed-in creator's organization always wins; only the admin-key
+// bootstrap (no organization in the context) names one.
+
+func TestUserService_CreateUser_IgnoresOrganizationInBodyWhenSignedIn(t *testing.T) {
+	f := newUserServiceFixture(t, "")
+	ctx := tenant.WithOrg(context.Background(), testOrgA)
+	req := &dto.CreateUserRequest{Organization: "other-org", Username: "cajero1", Name: "C", Password: "password123", RoleIDs: []int{permissions.RoleServer}}
+	f.userRepo.On("FindByUsername", mock.MatchedBy(inOrg(testOrgA)), "cajero1").Return(nil, domainError.ErrUserNotFound)
+	f.roleRepo.On("FindByIDs", mock.Anything, req.RoleIDs).Return([]*dto.Role{createTestRole(permissions.RoleServer, "server")}, nil)
+	f.userRepo.On("Create", mock.MatchedBy(inOrg(testOrgA)), mock.AnythingOfType("*dto.User")).Return(nil)
+	f.userRoleRepo.On("Create", mock.MatchedBy(inOrg(testOrgA)), mock.AnythingOfType("*dto.UserRole")).Return(nil)
+
+	_, err := f.service.CreateUser(ctx, req)
+
+	require.NoError(t, err)
+	f.orgRepo.AssertNotCalled(t, "GetBySlug", mock.Anything, mock.Anything)
+}
+
+func TestUserService_CreateUser_BootstrapNamesOrganization(t *testing.T) {
+	f := newUserServiceFixture(t, "")
+	req := &dto.CreateUserRequest{Organization: "laguna-escondida", Username: "admin", Name: "A", Password: "password123", RoleIDs: []int{permissions.RoleAdmin}}
+	f.orgRepo.On("GetBySlug", mock.Anything, "laguna-escondida").Return(lagunaOrg(dto.OrganizationStatusActive), nil)
+	f.userRepo.On("FindByUsername", mock.MatchedBy(inOrg(testOrgA)), "admin").Return(nil, domainError.ErrUserNotFound)
+	f.roleRepo.On("FindByIDs", mock.Anything, req.RoleIDs).Return([]*dto.Role{createTestRole(permissions.RoleAdmin, "admin")}, nil)
+	f.userRepo.On("Create", mock.MatchedBy(inOrg(testOrgA)), mock.AnythingOfType("*dto.User")).Return(nil)
+	f.userRoleRepo.On("Create", mock.MatchedBy(inOrg(testOrgA)), mock.AnythingOfType("*dto.UserRole")).Return(nil)
+
+	_, err := f.service.CreateUser(context.Background(), req)
+
+	require.NoError(t, err)
+}
+
+func TestUserService_CreateUser_BootstrapRejected(t *testing.T) {
+	cases := []struct {
+		name     string
+		boxOrgID string
+		slug     string
+		setup    func(f userServiceFixture)
+		want     error
+	}{
+		{name: "cloud without organization", want: domainError.ErrOrganizationRequired},
+		{
+			name: "cloud with unknown organization", slug: "nope",
+			setup: func(f userServiceFixture) {
+				f.orgRepo.On("GetBySlug", mock.Anything, "nope").Return(nil, domainError.ErrOrganizationNotFound)
+			},
+			want: domainError.ErrOrganizationNotFound,
+		},
+		{
+			name: "edge naming another organization", boxOrgID: testOrgA, slug: "other-org",
+			setup: func(f userServiceFixture) {
+				f.orgRepo.On("GetBySlug", mock.Anything, "other-org").Return(&dto.Organization{ID: testOrgB, Slug: "other-org"}, nil)
+			},
+			want: domainError.ErrOrganizationMismatch,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newUserServiceFixture(t, tc.boxOrgID)
+			if tc.setup != nil {
+				tc.setup(f)
+			}
+
+			result, err := f.service.CreateUser(context.Background(), &dto.CreateUserRequest{
+				Organization: tc.slug, Username: "admin", Name: "A", Password: "password123", RoleIDs: []int{permissions.RoleAdmin},
+			})
+
+			assert.Nil(t, result)
+			assert.ErrorIs(t, err, tc.want)
+			f.userRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+		})
+	}
+}
+
+func TestUserService_CreateUser_EdgeBootstrapUsesTheBoxOrganization(t *testing.T) {
+	f := newUserServiceFixture(t, testOrgA)
+	req := &dto.CreateUserRequest{Username: "admin", Name: "A", Password: "password123", RoleIDs: []int{permissions.RoleAdmin}}
+	f.userRepo.On("FindByUsername", mock.MatchedBy(inOrg(testOrgA)), "admin").Return(nil, domainError.ErrUserNotFound)
+	f.roleRepo.On("FindByIDs", mock.Anything, req.RoleIDs).Return([]*dto.Role{createTestRole(permissions.RoleAdmin, "admin")}, nil)
+	f.userRepo.On("Create", mock.MatchedBy(inOrg(testOrgA)), mock.AnythingOfType("*dto.User")).Return(nil)
+	f.userRoleRepo.On("Create", mock.MatchedBy(inOrg(testOrgA)), mock.AnythingOfType("*dto.UserRole")).Return(nil)
+
+	_, err := f.service.CreateUser(context.Background(), req)
+
+	require.NoError(t, err)
 }

@@ -128,6 +128,65 @@ func (_c *MockOrganizationRepository_Get_Call) RunAndReturn(run func(context.Con
 	return _c
 }
 
+// GetBySlug provides a mock function with given fields: ctx, slug
+func (_m *MockOrganizationRepository) GetBySlug(ctx context.Context, slug string) (*dto.Organization, error) {
+	ret := _m.Called(ctx, slug)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetBySlug")
+	}
+
+	var r0 *dto.Organization
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*dto.Organization, error)); ok {
+		return rf(ctx, slug)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *dto.Organization); ok {
+		r0 = rf(ctx, slug)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*dto.Organization)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, slug)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrganizationRepository_GetBySlug_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetBySlug'
+type MockOrganizationRepository_GetBySlug_Call struct {
+	*mock.Call
+}
+
+// GetBySlug is a helper method to define mock.On call
+//   - ctx context.Context
+//   - slug string
+func (_e *MockOrganizationRepository_Expecter) GetBySlug(ctx interface{}, slug interface{}) *MockOrganizationRepository_GetBySlug_Call {
+	return &MockOrganizationRepository_GetBySlug_Call{Call: _e.mock.On("GetBySlug", ctx, slug)}
+}
+
+func (_c *MockOrganizationRepository_GetBySlug_Call) Run(run func(ctx context.Context, slug string)) *MockOrganizationRepository_GetBySlug_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockOrganizationRepository_GetBySlug_Call) Return(_a0 *dto.Organization, _a1 error) *MockOrganizationRepository_GetBySlug_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrganizationRepository_GetBySlug_Call) RunAndReturn(run func(context.Context, string) (*dto.Organization, error)) *MockOrganizationRepository_GetBySlug_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // List provides a mock function with given fields: ctx
 func (_m *MockOrganizationRepository) List(ctx context.Context) ([]*dto.Organization, error) {
 	ret := _m.Called(ctx)

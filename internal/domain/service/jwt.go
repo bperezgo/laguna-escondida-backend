@@ -17,6 +17,7 @@ var (
 
 type JWTClaims struct {
 	UserID      string   `json:"user_id"`
+	OrgID       string   `json:"org_id"`
 	Username    string   `json:"username"`
 	RoleIDs     []int    `json:"role_ids"`
 	Permissions []string `json:"permissions"`
@@ -24,16 +25,20 @@ type JWTClaims struct {
 }
 
 type JWTService struct {
-	secret []byte
+	secret   []byte
+	boxOrgID string
 }
 
-func NewJWTService(secret string) *JWTService {
+// NewJWTService issues and validates tokens. boxOrgID is the edge box's organization, which
+// every token must belong to; the cloud passes "" and accepts any organization.
+func NewJWTService(secret, boxOrgID string) *JWTService {
 	return &JWTService{
-		secret: []byte(secret),
+		secret:   []byte(secret),
+		boxOrgID: boxOrgID,
 	}
 }
 
-func (s *JWTService) GenerateToken(userID string, username string, roleIDs []int) (string, error) {
+func (s *JWTService) GenerateToken(userID, orgID, username string, roleIDs []int) (string, error) {
 	perms := permissions.GetPermissionsForRoles(roleIDs)
 	permStrings := permissions.PermissionStrings(perms)
 
@@ -44,6 +49,7 @@ func (s *JWTService) GenerateToken(userID string, username string, roleIDs []int
 
 	claims := JWTClaims{
 		UserID:      userID,
+		OrgID:       orgID,
 		Username:    username,
 		RoleIDs:     roleIDs,
 		Permissions: permStrings,
@@ -72,9 +78,16 @@ func (s *JWTService) ValidateToken(tokenString string) (*JWTClaims, error) {
 		return nil, ErrInvalidToken
 	}
 
-	if claims, ok := token.Claims.(*JWTClaims); ok && token.Valid {
-		return claims, nil
+	claims, ok := token.Claims.(*JWTClaims)
+	if !ok || !token.Valid {
+		return nil, ErrInvalidToken
 	}
-
-	return nil, ErrInvalidToken
+	// Tokens issued before tenancy carry no org; their holders sign in again.
+	if claims.OrgID == "" {
+		return nil, ErrInvalidToken
+	}
+	if s.boxOrgID != "" && claims.OrgID != s.boxOrgID {
+		return nil, ErrInvalidToken
+	}
+	return claims, nil
 }

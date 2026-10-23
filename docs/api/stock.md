@@ -311,6 +311,12 @@ POST /api/stock/opening-balances
 Requires the **admin API key** (`X-API-Key`), not a JWT — this is an operational step run
 once when the cloud adopts on-hand, not something a stock manager does. **Cloud only.**
 
+The admin key belongs to no organization, so the body names the one to write balances for:
+
+```json
+{ "organization": "laguna-escondida" }
+```
+
 ### Why it is needed
 
 Movement history from before replication was never sent to the cloud, so amounts are real but
@@ -329,6 +335,7 @@ Safe to re-run: a second call finds no gap and reports `"written_balances": 0`.
 
 | Status | Condition                                    |
 | ------ | -------------------------------------------- |
+| `400`  | No `organization` in the body (`{"error": "organization is required"}`) |
 | `401`  | Missing or wrong admin API key               |
-| `404`  | Called on a node running in edge mode        |
+| `404`  | No organization has that slug (`{"error": "Organization not found"}`), or called on a node running in edge mode |
 | `500`  | Write failed                                 |
