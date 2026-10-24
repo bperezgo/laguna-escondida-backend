@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"laguna-escondida/backend/internal/domain/service"
+	"laguna-escondida/backend/internal/domain/tenant"
 	"laguna-escondida/backend/internal/platform/config"
 
 	"github.com/gin-gonic/gin"
@@ -13,7 +14,7 @@ import (
 )
 
 func deliveryZoneRoutesFor(mode config.Mode) *gin.Engine {
-	return fullRouter(mode, service.NewJWTService("test-secret", ""))
+	return fullRouter(mode, service.NewJWTService("test-secret", tenant.AnyOrganization()))
 }
 
 func deliveryZoneRoutes() []struct{ method, path string } {

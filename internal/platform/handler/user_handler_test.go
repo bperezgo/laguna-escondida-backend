@@ -11,6 +11,7 @@ import (
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports/mocks"
 	"laguna-escondida/backend/internal/domain/service"
+	"laguna-escondida/backend/internal/domain/tenant"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -29,7 +30,7 @@ func serveCurrentUser(t *testing.T, orgRepo *mocks.MockOrganizationRepository, o
 	userRepo.EXPECT().FindByID(mock.Anything, testCurrentUserID).Return(&dto.User{ID: testCurrentUserID, Username: "cajero", Name: "Cajero"}, nil)
 	userRoleRepo.EXPECT().FindRolesByUserID(mock.Anything, testCurrentUserID).Return([]*dto.Role{{ID: 1, Name: "server"}}, nil)
 
-	userService := service.NewUserService(userRepo, mocks.NewMockRoleRepository(t), userRoleRepo, orgRepo, service.NewJWTService("test-secret", ""), immediateUnitOfWork{}, "")
+	userService := service.NewUserService(userRepo, mocks.NewMockRoleRepository(t), userRoleRepo, orgRepo, service.NewJWTService("test-secret", tenant.AnyOrganization()), immediateUnitOfWork{}, tenant.AnyOrganization())
 	organizationService := service.NewOrganizationService(orgRepo, mocks.NewMockEInvoicingSettingsRepository(t), immediateUnitOfWork{})
 	h := NewUserHandler(userService, organizationService, slog.Default())
 

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"laguna-escondida/backend/internal/domain/service"
+	"laguna-escondida/backend/internal/domain/tenant"
 	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/handler"
 
@@ -20,7 +21,7 @@ import (
 func stockRoutesFor(mode config.Mode) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	registerStockRoutes(router, handler.NewStockHandler(nil, nil, nil), service.NewJWTService("test-secret", ""),
+	registerStockRoutes(router, handler.NewStockHandler(nil, nil, nil), service.NewJWTService("test-secret", tenant.AnyOrganization()),
 		handler.AdminAPIKeyMiddleware("admin-key"), mode == config.ModeCloud)
 	return router
 }

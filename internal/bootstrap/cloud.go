@@ -7,12 +7,14 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
 	"laguna-escondida/backend/internal/domain/service"
+	"laguna-escondida/backend/internal/domain/tenant"
 	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/cron"
 	"laguna-escondida/backend/internal/platform/handler"
 	"laguna-escondida/backend/internal/platform/httpclient"
 	"laguna-escondida/backend/internal/platform/postgres/repository"
 	"laguna-escondida/backend/internal/platform/stockmovement"
+	"laguna-escondida/backend/internal/platform/syncstatus"
 )
 
 // cloudOriginNodeID is the origin_node_id on the cloud's outbox rows. It is the value the cloud
@@ -32,8 +34,11 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 	// The cloud owns on-hand and the restaurant learns it back through the daily pull, so a
 	// cloud-origin stock op would never be delivered to anyone.
 	c, err := buildCore(&cfg.Shared, infra, ModeOptions{
-		Mode:                        config.ModeCloud,
-		SyncIdentity:                dto.SyncIdentity{NodeID: cloudOriginNodeID},
+		Tenancy:      tenant.AnyOrganization(),
+		SyncIdentity: dto.SyncIdentity{NodeID: cloudOriginNodeID},
+		StatusHandler: func(*service.EdgeStatusService, *syncstatus.Tracker) *handler.EdgeHandler {
+			return handler.NewCloudStatusHandler()
+		},
 		PendingInvoiceInitialStatus: dto.PendingInvoiceStatusPending,
 		StockMovementEmitter:        stockmovement.NewNoopEmitter(),
 		StockAuthoring:              true,

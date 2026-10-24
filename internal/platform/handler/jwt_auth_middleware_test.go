@@ -38,27 +38,27 @@ func serveWithAuth(t *testing.T, jwtService *service.JWTService, token string) (
 
 func issue(t *testing.T, orgID string) string {
 	t.Helper()
-	token, err := service.NewJWTService("test-secret", "").GenerateToken("user-1", orgID, "cajero1", []int{permissions.RoleServer})
+	token, err := service.NewJWTService("test-secret", tenant.AnyOrganization()).GenerateToken("user-1", orgID, "cajero1", []int{permissions.RoleServer})
 	require.NoError(t, err)
 	return token
 }
 
 func TestJWTAuthMiddleware_PutsTheTokensOrganizationInTheContext(t *testing.T) {
-	rec, seen := serveWithAuth(t, service.NewJWTService("test-secret", ""), issue(t, authOrgB))
+	rec, seen := serveWithAuth(t, service.NewJWTService("test-secret", tenant.AnyOrganization()), issue(t, authOrgB))
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, authOrgB, seen)
 }
 
 func TestJWTAuthMiddleware_TokenWithoutOrganization_Returns401(t *testing.T) {
-	rec, seen := serveWithAuth(t, service.NewJWTService("test-secret", ""), issue(t, ""))
+	rec, seen := serveWithAuth(t, service.NewJWTService("test-secret", tenant.AnyOrganization()), issue(t, ""))
 
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 	assert.Empty(t, seen)
 }
 
 func TestJWTAuthMiddleware_EdgeBox_TokenOfAnotherOrganization_Returns401(t *testing.T) {
-	box := service.NewJWTService("test-secret", authOrgA)
+	box := service.NewJWTService("test-secret", tenant.PinnedTo(authOrgA))
 
 	rec, _ := serveWithAuth(t, box, issue(t, authOrgB))
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)

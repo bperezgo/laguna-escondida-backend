@@ -147,7 +147,7 @@ func main() {
 
 Rules:
 
-- **Only `cloud.go` and `edge.go` know the mode.** Shared code takes mode-dependent values through `ModeOptions` (mode, organization, sync identity, pending-invoice initial status, stock movement emitter, stock authoring) and only ever sees `*config.Shared`.
+- **Only `cloud.go` and `edge.go` know the mode.** Shared code takes mode-dependent values through `ModeOptions` (tenancy scope, sync identity, status handler, pending-invoice initial status, stock movement emitter, stock authoring) and only ever sees `*config.Shared`.
 - **Building an app starts nothing.** Schedulers and subscribers start in `App.Run`, so a test can build the real router with `NewCloud(cfg, infra)` and an injected `Infra` (test database, stub clients) and drive `App.Router` with `httptest`.
 - **Route tables are pinned.** `internal/bootstrap/testdata/routes_{cloud,edge}.golden` lists every route each binary serves; `TestRoutes_MatchGolden` fails on any difference, so adding or moving a route means updating the golden file on purpose.
 

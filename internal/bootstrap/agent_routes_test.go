@@ -9,6 +9,7 @@ import (
 
 	"laguna-escondida/backend/internal/domain/permissions"
 	"laguna-escondida/backend/internal/domain/service"
+	"laguna-escondida/backend/internal/domain/tenant"
 	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/handler"
 
@@ -93,7 +94,7 @@ var pathParams = strings.NewReplacer(
 const testOrgID = "bb0cad3e-be13-4bad-9a37-bba9525bfece"
 
 func TestAgentRole_ReachesOnlyItsRoutes(t *testing.T) {
-	jwtService := service.NewJWTService("test-secret", "")
+	jwtService := service.NewJWTService("test-secret", tenant.AnyOrganization())
 	token, err := jwtService.GenerateToken(
 		"019a0000-0000-7000-8000-0000000000aa", testOrgID, "whatsapp-agent", []int{permissions.RoleAgent})
 	require.NoError(t, err)
@@ -128,7 +129,7 @@ func TestAgentRole_ReachesOnlyItsRoutes(t *testing.T) {
 func TestAgentRole_ReachableRoutesExist(t *testing.T) {
 	registered := map[string]bool{}
 	for _, mode := range []config.Mode{config.ModeCloud, config.ModeEdge} {
-		for _, route := range fullRouter(mode, service.NewJWTService("test-secret", "")).Routes() {
+		for _, route := range fullRouter(mode, service.NewJWTService("test-secret", tenant.AnyOrganization())).Routes() {
 			registered[route.Method+" "+route.Path] = true
 		}
 	}

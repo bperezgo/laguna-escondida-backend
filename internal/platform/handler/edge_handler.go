@@ -32,11 +32,15 @@ type EdgeHandler struct {
 	tracker        *syncstatus.Tracker
 }
 
-// NewEdgeHandler wires the edge status endpoint. statusService and tracker are only
-// consulted in edge mode; in cloud mode the cloud reports a trivial always-online status
-// and never touches them.
-func NewEdgeHandler(mode config.Mode, organizationID string, statusService *service.EdgeStatusService, tracker *syncstatus.Tracker) *EdgeHandler {
-	return &EdgeHandler{mode: mode, organizationID: organizationID, statusService: statusService, tracker: tracker}
+// NewCloudStatusHandler reports the cloud as always online with nothing pending: it is the
+// source of truth.
+func NewCloudStatusHandler() *EdgeHandler {
+	return &EdgeHandler{mode: config.ModeCloud}
+}
+
+// NewEdgeStatusHandler reports the box's connectivity and the backlog of its organization's outbox.
+func NewEdgeStatusHandler(organizationID string, statusService *service.EdgeStatusService, tracker *syncstatus.Tracker) *EdgeHandler {
+	return &EdgeHandler{mode: config.ModeEdge, organizationID: organizationID, statusService: statusService, tracker: tracker}
 }
 
 // GetStatusHandler reports the node's run mode, connectivity and sync backlog. In cloud

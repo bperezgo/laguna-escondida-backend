@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"laguna-escondida/backend/internal/domain/service"
+	"laguna-escondida/backend/internal/domain/tenant"
 	"laguna-escondida/backend/internal/platform/config"
 
 	"github.com/stretchr/testify/assert"
@@ -32,7 +33,7 @@ func setBootSharedEnv(t *testing.T) {
 
 func serveMe(t *testing.T, app *App, orgID string) int {
 	t.Helper()
-	token, err := service.NewJWTService("test-secret", "").GenerateToken("019a0000-0000-7000-8000-0000000000aa", orgID, "b-user", nil)
+	token, err := service.NewJWTService("test-secret", tenant.AnyOrganization()).GenerateToken("019a0000-0000-7000-8000-0000000000aa", orgID, "b-user", nil)
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
 	req.Header.Set("Authorization", "Bearer "+token)

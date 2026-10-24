@@ -2,12 +2,14 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
 	"laguna-escondida/backend/internal/domain/service"
+	"laguna-escondida/backend/internal/domain/tenant"
 	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/handler"
 	"laguna-escondida/backend/internal/platform/postgres"
@@ -24,10 +26,9 @@ import (
 
 // ModeOptions are the choices that differ between modes; only cloud.go and edge.go fill them in.
 type ModeOptions struct {
-	Mode config.Mode
-	// OrganizationID is the box's organization; empty in the cloud, which takes it from each caller.
-	OrganizationID              string
+	Tenancy                     tenant.Scope
 	SyncIdentity                dto.SyncIdentity
+	StatusHandler               func(*service.EdgeStatusService, *syncstatus.Tracker) *handler.EdgeHandler
 	PendingInvoiceInitialStatus dto.PendingInvoiceStatus
 	StockMovementEmitter        ports.StockMovementEmitter
 	StockAuthoring              bool
@@ -73,6 +74,9 @@ type core struct {
 }
 
 func buildCore(cfg *config.Shared, infra Infra, opts ModeOptions) (*core, error) {
+	if opts.Tenancy == nil || opts.StatusHandler == nil {
+		return nil, errors.New("buildCore needs a tenancy scope and a status handler")
+	}
 	db := infra.DB
 	logger := infra.Logger
 
@@ -97,7 +101,7 @@ func buildCore(cfg *config.Shared, infra Infra, opts ModeOptions) (*core, error)
 	watermillLogger := watermill.NewSlogLogger(logger)
 	publisher := eventbus.NewDetachedEventBus(infra.EventBus, postgres.Detach)
 
-	jwtService := service.NewJWTService(cfg.JWTSecret, opts.OrganizationID)
+	jwtService := service.NewJWTService(cfg.JWTSecret, opts.Tenancy)
 
 	unitOfWork := postgres.NewUnitOfWork(db)
 	syncOutboxRepo := repository.NewSyncOutboxRepository(db)
@@ -142,7 +146,7 @@ func buildCore(cfg *config.Shared, infra Infra, opts ModeOptions) (*core, error)
 	if opts.EInvoicingEnabled {
 		organizationRepo = repository.NewOrganizationRepository(db)
 	}
-	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, organizationRepo, jwtService, unitOfWork, opts.OrganizationID)
+	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, organizationRepo, jwtService, unitOfWork, opts.Tenancy)
 	einvoicingSettingsRepo := repository.NewEInvoicingSettingsRepository(db)
 	organizationService := service.NewOrganizationService(organizationRepo, einvoicingSettingsRepo, unitOfWork)
 	sessionOpener := postgres.NewSessionOpener(db)
@@ -200,7 +204,7 @@ func buildCore(cfg *config.Shared, infra Infra, opts ModeOptions) (*core, error)
 		billOwner:         handler.NewBillOwnerHandler(billOwnerService),
 		productIngredient: handler.NewProductIngredientHandler(productIngredientService),
 		sse:               handler.NewSSEHandler(sseHub, openBillProductHub, orderService, logger),
-		edge:              handler.NewEdgeHandler(opts.Mode, opts.OrganizationID, edgeStatusService, syncStatusTracker),
+		edge:              opts.StatusHandler(edgeStatusService, syncStatusTracker),
 	}
 	registerAPIRoutes(router, cfg.AdminAPIKey, jwtService, handlers, opts.StockAuthoring)
 

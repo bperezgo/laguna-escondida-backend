@@ -6,6 +6,7 @@ import (
 
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/service"
+	"laguna-escondida/backend/internal/domain/tenant"
 	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/cron"
 	"laguna-escondida/backend/internal/platform/device"
@@ -14,6 +15,7 @@ import (
 	"laguna-escondida/backend/internal/platform/httpclient"
 	"laguna-escondida/backend/internal/platform/postgres/repository"
 	"laguna-escondida/backend/internal/platform/stockmovement"
+	"laguna-escondida/backend/internal/platform/syncstatus"
 )
 
 // NewEdge assembles the restaurant's box: the shared core plus appliance updates, ticket
@@ -26,9 +28,11 @@ func NewEdge(cfg *config.Edge, infra Infra) (*App, error) {
 	logger.Info("Running in EDGE mode")
 
 	c, err := buildCore(&cfg.Shared, infra, ModeOptions{
-		Mode:                        config.ModeEdge,
-		OrganizationID:              cfg.OrganizationID,
-		SyncIdentity:                dto.SyncIdentity{NodeID: cfg.NodeID, CloudNodeID: cfg.CloudNodeID},
+		Tenancy:      tenant.PinnedTo(cfg.OrganizationID),
+		SyncIdentity: dto.SyncIdentity{NodeID: cfg.NodeID, CloudNodeID: cfg.CloudNodeID},
+		StatusHandler: func(statusService *service.EdgeStatusService, tracker *syncstatus.Tracker) *handler.EdgeHandler {
+			return handler.NewEdgeStatusHandler(cfg.OrganizationID, statusService, tracker)
+		},
 		PendingInvoiceInitialStatus: dto.PendingInvoiceStatusPendingCloud,
 		// Only the restaurant queues stock movements; the cloud owns on-hand.
 		StockMovementEmitter: stockmovement.NewOutboxEmitter(repository.NewSyncOutboxRepository(infra.DB), cfg.NodeID),
