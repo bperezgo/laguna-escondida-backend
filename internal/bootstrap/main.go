@@ -45,7 +45,7 @@ func Main(mode config.Mode, assemble func(cfg *config.Config, infra Infra) (*App
 
 	// Migrations run as the schema owner; the app may connect as a pos_app member, which can't run DDL.
 	log.Println("Running database migrations...")
-	if err = runMigrations(getMigrationDSN()); err != nil {
+	if err = runMigrations(context.Background(), getMigrationDSN(), mode, logger); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 	db, err := repository.NewDatabase(getDSN(getEnv("DB_USER", "postgres"), getEnv("DB_PASSWORD", "postgres")))

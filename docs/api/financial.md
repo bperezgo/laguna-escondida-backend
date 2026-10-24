@@ -2,6 +2,8 @@
 
 Financial summary endpoint that aggregates revenue (bills), expenses, and purchase entries for a given date range, providing a centralized view of the company's financial status.
 
+**Cloud only.** `GET /api/financial/summary` and the daily close (`GET /api/reports/daily-close`) exist only in the cloud binary; on the restaurant's box (edge) they return `404`. Accounting is done in the cloud, and data recorded on the box would never reach it.
+
 ## Endpoints
 
 | Method | Endpoint                  | Description                          |

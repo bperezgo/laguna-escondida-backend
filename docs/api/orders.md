@@ -53,6 +53,7 @@ Every order has an `order_type`:
 - **Phones are stored in E.164** (`+573005551234`). Spaces, dashes, dots and parentheses are ignored. A number starting with `+` is read as international; anything else as a number of the configured home region (`PHONE_HOME_REGION`, default Colombia), which also accepts that region's numbers written with the country code but no `+` (`573005551234`). Invalid numbers are rejected with `400 INVALID_PHONE`.
 - **The delivery location is the pin, not the address.** `delivery_lat`/`delivery_lng` are decimal degrees (strings, up to 6 decimals). The address is free text for the rider (building, apartment, door) and is never geocoded. The order records the oldest active zone containing the pin; if none contains it, or no zone is active, the order is refused with `422`.
 - `delivery_lat`/`delivery_lng` sent with a `dine_in` or `takeaway` order are ignored.
+- **Deliveries are cloud only.** The box refuses a `delivery` order with `422 DELIVERY_CLOUD_ONLY` before any zone check, and creates nothing.
 - The contact is **not** a fiscal customer: no bill owner is created. Choosing who the invoice is for still happens at `pay-order`.
 - Orders replicated from the restaurant (edge) are always `dine_in`.
 
@@ -230,6 +231,15 @@ A request that dies mid-flight holds its key for 2 minutes, after which a retry 
 | `ORDER_MISSING_FIELD`             | `customer_phone` (takeaway/delivery), `delivery_address` or `delivery_lat`/`delivery_lng` (delivery) missing |
 | `INVALID_PHONE`                   | `customer_phone` is not a valid number for its country         |
 | `ORDER_INVALID_DELIVERY_LOCATION` | `delivery_lat`/`delivery_lng` not numeric or out of range      |
+
+**422 Unprocessable Entity** — a `delivery` order sent to the restaurant's box (edge). Deliveries are taken in the cloud only; `dine_in` and `takeaway` work on both.
+
+```json
+{
+  "error": "Deliveries are taken in the cloud",
+  "code": "DELIVERY_CLOUD_ONLY"
+}
+```
 
 **422 Unprocessable Entity** — the delivery pin is outside every active delivery zone (or no zone is active)
 

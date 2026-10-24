@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Script to run database migrations up
-# Usage: ./scripts/migrate-up.sh
+# Usage: SET=cloud|edge ./scripts/migrate-up.sh   (default: cloud)
 
 set -e
 
@@ -12,7 +12,21 @@ if ! command -v migrate &> /dev/null; then
     exit 1
 fi
 
-MIGRATIONS_DIR="internal/platform/postgres/migrations"
+SET="${SET:-cloud}"
+SOURCE_ROOT="internal/platform/postgres/migrations"
+if [ "$SET" != "cloud" ] && [ "$SET" != "edge" ]; then
+    echo "Error: SET must be cloud or edge, got: $SET"
+    exit 1
+fi
+if [ ! -d "$SOURCE_ROOT/shared" ] || [ ! -d "$SOURCE_ROOT/$SET" ]; then
+    echo "Error: Migrations directory not found: $SOURCE_ROOT/{shared,$SET}"
+    exit 1
+fi
+# The migrate CLI reads one directory; each binary runs shared/ plus its own set.
+MIGRATIONS_DIR="$(mktemp -d)"
+trap 'rm -rf "$MIGRATIONS_DIR"' EXIT
+cp "$SOURCE_ROOT"/shared/*.sql "$MIGRATIONS_DIR"/
+cp "$SOURCE_ROOT/$SET"/*.sql "$MIGRATIONS_DIR"/ 2>/dev/null || true
 
 # Honour the DB_* environment (the dev container points them at its own postgres
 # service); the defaults are the host docker-compose stack, so nothing changes for
@@ -25,12 +39,6 @@ DB_NAME="${DB_NAME:-laguna_escondida}"
 DB_SSLMODE="${DB_SSLMODE:-disable}"
 DATABASE_URL="${DATABASE_URL:-postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=${DB_SSLMODE}}"
 
-# Check if migrations directory exists
-if [ ! -d "$MIGRATIONS_DIR" ]; then
-    echo "Error: Migrations directory not found: $MIGRATIONS_DIR"
-    exit 1
-fi
-
 # Check if postgres is running (optional check; only meaningful for the host stack)
 if [ "$DB_HOST" = "localhost" ] && ! docker ps | grep -q laguna-escondida-postgres; then
     echo "Warning: PostgreSQL container 'laguna-escondida-postgres' doesn't seem to be running"
@@ -42,7 +50,11 @@ if [ "$DB_HOST" = "localhost" ] && ! docker ps | grep -q laguna-escondida-postgr
     fi
 fi
 
-echo "Running migrations up..."
+if [ "$SET" = "edge" ]; then
+    # The edge binary checks for box-only data before its trim migration; the CLI does not.
+    echo "Warning: this runs the edge trim without the edge binary's pre-check."
+fi
+echo "Running $SET migrations up..."
 migrate -path "$MIGRATIONS_DIR" -database "$DATABASE_URL" up
 
 echo "Migrations completed successfully!"

@@ -78,8 +78,8 @@ func routeTable(router *gin.Engine) string {
 	return b.String()
 }
 
-// The golden files are the single binary's route tables from before the split: a diff here is
-// a change to what a binary serves, and must be intended.
+// The golden files are each binary's reviewed route table: a diff here is a change to what a
+// binary serves, and must be intended.
 func TestRoutes_MatchGolden(t *testing.T) {
 	cases := []struct {
 		mode     config.Mode

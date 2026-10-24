@@ -47,7 +47,7 @@ type deliveryOrderFixture struct {
 }
 
 // newDeliveryOrderFixture wires CreateOrder for orders without lines and captures the persisted aggregate.
-func newDeliveryOrderFixture(t *testing.T) *deliveryOrderFixture {
+func newDeliveryOrderFixture(t *testing.T, opts ...OrderServiceOption) *deliveryOrderFixture {
 	f := &deliveryOrderFixture{
 		openBills:  mocks.NewMockOpenBillRepository(t),
 		zones:      mocks.NewMockDeliveryZoneFinder(t),
@@ -62,7 +62,7 @@ func newDeliveryOrderFixture(t *testing.T) *deliveryOrderFixture {
 	f.service = NewOrderService(
 		f.openBills, mocks.NewMockProductRepository(t), nil, nil, dto.PendingInvoiceStatusPending, f.billOwners,
 		createMockUnitOfWork(t), createMockEventBus(t), createMockSyncOutboxRepository(t),
-		dto.SyncIdentity{NodeID: testNodeID}, nil, f.zones, "CO",
+		dto.SyncIdentity{NodeID: testNodeID}, nil, f.zones, "CO", opts...,
 	)
 	return f
 }
@@ -662,4 +662,50 @@ func TestOrderService_HandleOrderDeletedSSE_CancelsVoidedLinesOnBoard(t *testing
 	})).Return(nil).Once()
 
 	require.NoError(t, service.HandleOrderDeletedSSE(ctx, dto.OrderDeletedEvent{OpenBillID: openBillID1, OrderType: dto.OrderTypeDineIn}))
+}
+
+func deliveryInCentro() dto.OrderContactRequest {
+	return dto.OrderContactRequest{
+		OrderType:       dto.OrderTypeDelivery,
+		CustomerPhone:   strPtr("+573005551234"),
+		DeliveryAddress: strPtr("Cra 7 # 12-34, apto 501"),
+		DeliveryLat:     strPtr(insideCentroLat),
+		DeliveryLng:     strPtr(insideCentroLng),
+	}
+}
+
+func TestOrderService_CreateOrder_DeliveryRefusedWhenDisabled(t *testing.T) {
+	f := newDeliveryOrderFixture(t, WithDeliveryEnabled(false))
+
+	result, err := f.service.CreateOrder(createTestContext(), contactRequest(deliveryInCentro()), createTestUser())
+
+	require.ErrorIs(t, err, orderError.ErrDeliveryCloudOnly)
+	assert.Nil(t, result)
+	assert.Nil(t, f.created, "no order is persisted")
+	f.zones.AssertNotCalled(t, "ListActive", mock.Anything)
+}
+
+func TestOrderService_CreateOrder_TakeawayUnaffectedWhenDeliveryDisabled(t *testing.T) {
+	f := newDeliveryOrderFixture(t, WithDeliveryEnabled(false))
+
+	result, err := f.service.CreateOrder(createTestContext(), contactRequest(dto.OrderContactRequest{
+		OrderType:     dto.OrderTypeTakeaway,
+		CustomerName:  strPtr("Ana"),
+		CustomerPhone: strPtr("300 555 1234"),
+	}), createTestUser())
+
+	require.NoError(t, err)
+	assert.Equal(t, dto.OrderTypeTakeaway, result.OrderType)
+	assert.NotNil(t, f.created)
+}
+
+func TestOrderService_CreateOrder_DeliveryInZoneAcceptedWhenEnabled(t *testing.T) {
+	f := newDeliveryOrderFixture(t, WithDeliveryEnabled(true))
+	f.zones.EXPECT().ListActive(mock.Anything).Return([]*dto.DeliveryZone{centroZone()}, nil).Once()
+
+	result, err := f.service.CreateOrder(createTestContext(), contactRequest(deliveryInCentro()), createTestUser())
+
+	require.NoError(t, err)
+	require.NotNil(t, result.DeliveryZoneID)
+	assert.Equal(t, centroZoneID, *result.DeliveryZoneID)
 }

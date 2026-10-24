@@ -71,6 +71,10 @@ func (h *OrderHandler) CreateOrderHandler(c *gin.Context) {
 			c.JSON(http.StatusConflict, gin.H{"error": "An active order with this temporal identifier already exists"})
 			return
 		}
+		if errors.Is(err, orderError.ErrDeliveryCloudOnly) {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Deliveries are taken in the cloud", "code": "DELIVERY_CLOUD_ONLY"})
+			return
+		}
 		if errors.Is(err, orderError.ErrOutsideDeliveryZone) {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "The delivery location is outside every delivery zone", "code": "OUTSIDE_DELIVERY_ZONE"})
 			return

@@ -8,15 +8,15 @@ GOTESTSUM := $(shell command -v gotestsum 2>/dev/null || echo "go run gotest.too
 
 new-migration:
 	@echo "Creating a new migration"
-	scripts/new-migration.sh $(name)
+	scripts/new-migration.sh $(name) $(set)
 
 migrate-up:
 	@echo "Migrating up"
-	scripts/migrate-up.sh
+	SET=$(or $(set),cloud) scripts/migrate-up.sh
 
 migrate-down:
 	@echo "Migrating down"
-	scripts/migrate-down.sh
+	SET=$(or $(set),cloud) scripts/migrate-down.sh
 
 run: run-cloud
 

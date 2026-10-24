@@ -1,20 +1,30 @@
 package bootstrap
 
 import (
+	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 
+	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/postgres/migrations"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-func runMigrations(dsn string) (err error) {
+func runMigrations(ctx context.Context, dsn string, mode config.Mode, logger *slog.Logger) (err error) {
 	migrationURL := convertDSNToURL(dsn)
 
-	source, err := iofs.New(migrations.FS, ".")
+	set := migrations.Cloud
+	if mode == config.ModeEdge {
+		set = migrations.Edge
+	}
+	source, err := iofs.New(set, ".")
 	if err != nil {
 		return fmt.Errorf("failed to open embedded migrations: %w", err)
 	}
@@ -25,10 +35,22 @@ func runMigrations(dsn string) (err error) {
 	}
 	defer func() {
 		if sourceErr, databaseErr := m.Close(); sourceErr != nil || databaseErr != nil {
-			err = fmt.Errorf("failed to close migrate instance: %w", sourceErr)
-			err = fmt.Errorf("failed to close migrate instance: %w", databaseErr)
+			err = fmt.Errorf("failed to close migrate instance: %w", errors.Join(sourceErr, databaseErr))
 		}
 	}()
+
+	if mode == config.ModeEdge {
+		db, openErr := sql.Open("pgx", migrationURL)
+		if openErr != nil {
+			return fmt.Errorf("failed to open the edge trim pre-check connection: %w", openErr)
+		}
+		defer func() { _ = db.Close() }()
+		if err = migrations.UpEdge(ctx, m, db, logger); err != nil {
+			return fmt.Errorf("failed to run migrations: %w", err)
+		}
+		log.Println("Migrations completed")
+		return nil
+	}
 
 	if err = m.Up(); err != nil && err != migrate.ErrNoChange {
 		return fmt.Errorf("failed to run migrations: %w", err)

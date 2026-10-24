@@ -15,8 +15,9 @@ import (
 	"laguna-escondida/backend/internal/platform/stockmovement"
 )
 
-// NewCloud assembles the cloud: the shared core plus e-invoicing, crons, the sync API,
-// telemetry ingest, organization admin, delivery zones and stock authoring.
+// NewCloud assembles the cloud: the shared core plus the back office (accounting and catalog and
+// user writes), e-invoicing, crons, the sync API, telemetry ingest, organization admin,
+// delivery zones and stock authoring.
 func NewCloud(cfg *config.Config, infra Infra) (*App, error) {
 	if cfg.AppMode != config.ModeCloud {
 		return nil, errors.New("NewCloud needs a cloud config")
@@ -33,6 +34,8 @@ func NewCloud(cfg *config.Config, infra Infra) (*App, error) {
 		PendingInvoiceInitialStatus: dto.PendingInvoiceStatusPending,
 		StockMovementEmitter:        stockmovement.NewNoopEmitter(),
 		StockAuthoring:              true,
+		DeliveryEnabled:             true,
+		EInvoicingEnabled:           true,
 	})
 	if err != nil {
 		return nil, err
@@ -90,6 +93,23 @@ func NewCloud(cfg *config.Config, infra Infra) (*App, error) {
 		telemetryHandler = handler.NewTelemetryHandler(telemetryIngestService)
 		logger.Info("Telemetry ingest enabled", slog.String("collector", cfg.TelemetryForwardURL))
 	}
+
+	purchaseEntryRepo := repository.NewPurchaseEntryRepository(db)
+	expenseRepo := repository.NewExpenseRepository(db)
+	purchaseEntryService := service.NewPurchaseEntryService(
+		purchaseEntryRepo, c.supplierRepo, c.supplierCatalogRepo, c.productRepo, infra.Storage, c.publisher,
+		c.unitOfWork, c.syncOutboxRepo, c.syncIdentity, logger,
+	)
+	expenseService := service.NewExpenseService(repository.NewExpenseCategoryRepository(db), expenseRepo, c.supplierRepo, infra.Storage)
+	registerCloudBackOfficeRoutes(c.router, cfg, c.jwtService, backOfficeHandlers{
+		product:           c.handlers.product,
+		productIngredient: c.handlers.productIngredient,
+		user:              c.handlers.user,
+		supplier:          handler.NewSupplierHandler(service.NewSupplierService(c.supplierRepo, c.supplierCatalogRepo, c.productRepo)),
+		purchaseEntry:     handler.NewPurchaseEntryHandler(purchaseEntryService),
+		expense:           handler.NewExpenseHandler(expenseService),
+		financial:         handler.NewFinancialHandler(service.NewFinancialService(c.billRepo, expenseRepo, purchaseEntryRepo)),
+	})
 
 	registerCloudRoutes(c.router, cfg, c.jwtService, cloudHandlers{
 		invoice:         handler.NewInvoiceHandler(invoiceService, documentURLMaintenance),

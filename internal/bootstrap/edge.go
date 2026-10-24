@@ -33,6 +33,8 @@ func NewEdge(cfg *config.Config, infra Infra) (*App, error) {
 		// Only the restaurant queues stock movements; the cloud owns on-hand.
 		StockMovementEmitter: stockmovement.NewOutboxEmitter(repository.NewSyncOutboxRepository(infra.DB), cfg.NodeID),
 		StockAuthoring:       false,
+		DeliveryEnabled:      false,
+		EInvoicingEnabled:    false,
 	})
 	if err != nil {
 		return nil, err

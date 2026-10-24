@@ -14,8 +14,9 @@ import (
 )
 
 type LoginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Organization string `json:"organization"`
+	Username     string `json:"username"`
+	Password     string `json:"password"`
 }
 
 type LoginResponse struct {
@@ -243,9 +244,15 @@ func login(apiURL, username, password string) (token string, err error) {
 	var resp *http.Response
 	endpoint := fmt.Sprintf("%s/api/auth/signin", apiURL)
 
+	organization := os.Getenv("ORGANIZATION")
+	if organization == "" {
+		organization = "laguna-escondida"
+	}
+
 	loginReq := LoginRequest{
-		Username: username,
-		Password: password,
+		Organization: organization,
+		Username:     username,
+		Password:     password,
 	}
 
 	log.Println("Username: ", username)

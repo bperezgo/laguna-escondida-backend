@@ -59,13 +59,17 @@ func fullRouter(mode config.Mode, jwtService *service.JWTService) *gin.Engine {
 
 	registerAPIRoutes(router, cfg, jwtService, apiHandlers{
 		order: &handler.OrderHandler{}, product: &handler.ProductHandler{}, stock: &handler.StockHandler{},
-		user: &handler.UserHandler{}, billOwner: &handler.BillOwnerHandler{}, supplier: &handler.SupplierHandler{},
-		purchaseEntry: &handler.PurchaseEntryHandler{}, expense: &handler.ExpenseHandler{},
-		productIngredient: &handler.ProductIngredientHandler{}, financial: &handler.FinancialHandler{},
-		sse: &handler.SSEHandler{}, edge: &handler.EdgeHandler{},
+		user: &handler.UserHandler{}, billOwner: &handler.BillOwnerHandler{},
+		productIngredient: &handler.ProductIngredientHandler{}, sse: &handler.SSEHandler{}, edge: &handler.EdgeHandler{},
 	}, mode == config.ModeCloud)
 	switch mode {
 	case config.ModeCloud:
+		registerCloudBackOfficeRoutes(router, cfg, jwtService, backOfficeHandlers{
+			product: &handler.ProductHandler{}, productIngredient: &handler.ProductIngredientHandler{},
+			user: &handler.UserHandler{}, supplier: &handler.SupplierHandler{},
+			purchaseEntry: &handler.PurchaseEntryHandler{}, expense: &handler.ExpenseHandler{},
+			financial: &handler.FinancialHandler{},
+		})
 		registerCloudRoutes(router, cfg, jwtService, cloudHandlers{
 			invoice: &handler.InvoiceHandler{}, supportDocument: &handler.SupportDocumentHandler{},
 			sync: &handler.SyncHandler{}, telemetry: &handler.TelemetryHandler{},

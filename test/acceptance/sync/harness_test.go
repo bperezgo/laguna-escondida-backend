@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -22,6 +23,7 @@ import (
 	"laguna-escondida/backend/internal/platform/handler"
 	"laguna-escondida/backend/internal/platform/httpclient"
 	"laguna-escondida/backend/internal/platform/postgres"
+	"laguna-escondida/backend/internal/platform/postgres/migrations"
 	"laguna-escondida/backend/internal/platform/postgres/repository"
 	"laguna-escondida/backend/internal/platform/stockmovement"
 	"laguna-escondida/backend/pkg/eventbus"
@@ -30,7 +32,6 @@ import (
 	"github.com/gin-gonic/gin"
 	migrate "github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"github.com/shopspring/decimal"
@@ -51,10 +52,9 @@ const (
 )
 
 var (
-	cloudGDB      *gorm.DB
-	edgeGDB       *gorm.DB
-	migrationsDir string
-	pgContainer   *testsupport.PostgresContainer
+	cloudGDB    *gorm.DB
+	edgeGDB     *gorm.DB
+	pgContainer *testsupport.PostgresContainer
 )
 
 // gateEnabled reports whether the acceptance suite should run. Like the repository
@@ -129,23 +129,25 @@ func (p connParams) migrateURL(dbName string) string {
 		p.user, p.password, p.host, p.port, dbName, p.sslmode)
 }
 
+// edgeUntrimmed runs the suite against a box whose trim was blocked, stuck at the shared
+// version: ACCEPTANCE_EDGE_UNTRIMMED=true. The same edge build must serve both.
+func edgeUntrimmed() bool { return os.Getenv("ACCEPTANCE_EDGE_UNTRIMMED") == "true" }
+
 func provision() error {
 	loadDotEnv()
-	dir, err := findMigrationsDir()
-	if err != nil {
-		return err
-	}
-	migrationsDir = dir
-
 	base, err := resolveBaseConnParams()
 	if err != nil {
 		return err
 	}
-	for _, name := range []string{cloudDBName, edgeDBName} {
+	for name, set := range map[string]fs.FS{cloudDBName: migrations.Cloud, edgeDBName: migrations.Edge} {
 		if err = recreateDatabase(base, name); err != nil {
 			return fmt.Errorf("recreate %s: %w", name, err)
 		}
-		if err = runMigrations(base, name); err != nil {
+		target := uint(0)
+		if name == edgeDBName && edgeUntrimmed() {
+			target = migrations.SharedVersion
+		}
+		if err = runMigrations(base, name, set, target); err != nil {
 			return fmt.Errorf("migrate %s: %w", name, err)
 		}
 	}
@@ -178,12 +180,16 @@ func recreateDatabase(base connParams, name string) error {
 	return nil
 }
 
-func runMigrations(base connParams, name string) error {
-	m, err := migrate.New("file://"+migrationsDir, base.migrateURL(name))
+// runMigrations migrates to target, or all the way up when target is 0.
+func runMigrations(base connParams, name string, set fs.FS, target uint) error {
+	m, err := testsupport.NewMigrator(set, base.migrateURL(name))
 	if err != nil {
 		return err
 	}
 	defer func() { _, _ = m.Close() }()
+	if target > 0 {
+		return m.Migrate(target)
+	}
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
 		return err
 	}
@@ -764,18 +770,6 @@ func findRepoRoot() (string, error) {
 		}
 		dir = parent
 	}
-}
-
-func findMigrationsDir() (string, error) {
-	root, err := findRepoRoot()
-	if err != nil {
-		return "", err
-	}
-	dir := filepath.Join(root, "internal", "platform", "postgres", "migrations")
-	if _, err := os.Stat(dir); err != nil {
-		return "", fmt.Errorf("migrations dir not found at %s: %w", dir, err)
-	}
-	return dir, nil
 }
 
 // ---------------------------------------------------------------------------
