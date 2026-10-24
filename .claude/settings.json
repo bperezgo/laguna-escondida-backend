@@ -15,8 +15,7 @@
       "Bash(RUN_ACCEPTANCE_TESTS=true go test *)"
     ],
     "ask": [
-      "Edit(**/*_test.go)",
-      "Write(**/*_test.go)"
+      "Edit(**/*_test.go)"
     ],
     "deny": [
       "Read(./.env)",
