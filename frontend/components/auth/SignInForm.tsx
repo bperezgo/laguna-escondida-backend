@@ -1,11 +1,17 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useEffect, useRef, useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { usePermissions } from "@/lib/permissions";
 import { Card, CardBody, Input, Button } from "@/components/ui";
+import {
+  normalizeOrganizationSlug,
+  readRememberedOrganization,
+  rememberOrganization,
+} from "@/lib/signinOrganization";
 
 export default function SignInForm() {
+  const organizationRef = useRef<HTMLInputElement>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -13,8 +19,14 @@ export default function SignInForm() {
   const router = useRouter();
   const { fetchPermissions } = usePermissions();
 
+  // Read after mount: localStorage doesn't exist during the server render.
+  useEffect(() => {
+    if (organizationRef.current) organizationRef.current.value = readRememberedOrganization();
+  }, []);
+
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const organization = organizationRef.current?.value ?? "";
     setError("");
     setIsLoading(true);
 
@@ -24,7 +36,7 @@ export default function SignInForm() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ organization, username, password }),
       });
 
       const data = await response.json();
@@ -32,6 +44,8 @@ export default function SignInForm() {
       if (!response.ok) {
         throw new Error(data.error || "Failed to sign in");
       }
+
+      rememberOrganization(normalizeOrganizationSlug(organization));
 
       // Fetch user permissions with the new cookie before navigating
       await fetchPermissions();
@@ -92,6 +106,21 @@ export default function SignInForm() {
               onSubmit={handleSubmit}
               style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}
             >
+              <Input
+                label="Restaurante"
+                id="organization"
+                name="organization"
+                type="text"
+                placeholder="ej. laguna-escondida"
+                helper="El código de tu restaurante. En la caja del local puedes dejarlo vacío."
+                ref={organizationRef}
+                disabled={isLoading}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                autoComplete="organization"
+              />
+
               <Input
                 label="Usuario"
                 id="username"

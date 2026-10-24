@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { config } from "@/lib/config/config";
+import { signInBody } from "@/lib/signinOrganization";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { username, password } = body;
+    const { organization, username, password } = body;
 
     if (!username || !password) {
       return NextResponse.json(
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest) {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify(signInBody(organization ?? "", username, password)),
     });
 
     if (!response.ok) {
@@ -27,7 +28,7 @@ export async function POST(request: NextRequest) {
         message: "Invalid credentials",
       }));
       return NextResponse.json(
-        { error: error.message || "Authentication failed" },
+        { error: error.error || error.message || "Authentication failed" },
         { status: response.status }
       );
     }
