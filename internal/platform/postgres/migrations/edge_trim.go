@@ -53,6 +53,12 @@ func UpEdge(ctx context.Context, m *migrate.Migrate, db *sql.DB, logger *slog.Lo
 		return fmt.Errorf("schema version %d is dirty", version)
 	}
 
+	if version < PosAppRoleVersion {
+		if err = checkPosAppRole(ctx, db); err != nil {
+			return err
+		}
+	}
+
 	if version < SharedVersion {
 		if err = m.Migrate(SharedVersion); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 			return fmt.Errorf("migrate to the shared version: %w", err)
