@@ -28,10 +28,10 @@
 - `DBSessionMiddleware(db)` drops its `orgID` parameter. It stays registered globally, but the session reads `tenant.OrgFrom` from the context of the **first statement** that uses it, which runs after authentication filled the org; a statement with no org pins nothing, and a second org on the same session is an error. SSE routes still skip it. (Decided 2026-10-23: the routes attach `JWTAuthMiddleware` per route, not in groups, so registering the session "inside the groups" would mean editing ~80 registrations.)
 - Rejected: keeping the global middleware with a fixed org and overwriting `app.org_id` later in the request. Any statement issued between the two would run as the wrong org. The lazy read has no such window.
 
-**2. Mode comes from `APP_MODE`, never from whether `ORGANIZATION_ID` is set.**
+**2. Mode comes from the binary, never from whether `ORGANIZATION_ID` is set.** (Amended by `split-cloud-edge-config`: originally `APP_MODE`.)
 - Edge: `ORGANIZATION_ID` required. Auth additionally rejects a token whose `org_id` differs from it.
-- Cloud: boot fails if `ORGANIZATION_ID` is set, so a leftover setting can't silently pin every request to one org. Boot also fails if `NODE_ID` is unset, since it can no longer be derived.
-- The cloud's `NODE_ID` is set to the value derived today, `SHA1("laguna-escondida/node/bb0cad3e-…/cloud")`, which is also the edge's default `CLOUD_NODE_ID`, so the box's `sync_state` stays valid. The edge keeps deriving its ids from its org.
+- Cloud: reads neither `ORGANIZATION_ID` nor `NODE_ID`. With no field to read it into, a leftover `ORGANIZATION_ID` can't pin every request to one org.
+- The cloud's outbox origin is a constant equal to `SHA1("laguna-escondida/node/bb0cad3e-…/cloud")`, which is also the edge's cloud peer key (`CloudNodeIDFor`), so the box's `sync_state` stays valid. The edge requires an explicit `NODE_ID`.
 - Rejected: inferring the mode from the env var's presence. A misconfigured cloud would become a leak instead of a boot failure.
 
 **3. One organization per user; sign-in resolves the slug first.**
@@ -84,6 +84,6 @@
 ## Migration Plan
 
 1. **Release 1, schema:** migration A. The backfill makes every row Laguna's and the default keeps new rows Laguna's; nothing reads the column. Rehearsed on a production snapshot first.
-2. **Release 2, auth, context and scopes, together with the frontend:** the new sign-in body; the JWT with `org_id`; `DBSessionMiddleware` after auth; boot checks; the cloud task definition drops `ORGANIZATION_ID` and sets `NODE_ID`; repositories, services and background work take the org from the context; a migration drops the Laguna defaults; the leak suite gates the release. Everyone signs in again.
+2. **Release 2, auth, context and scopes, together with the frontend:** the new sign-in body; the JWT with `org_id`; `DBSessionMiddleware` after auth; boot checks; the cloud task definition drops `ORGANIZATION_ID` and `APP_MODE` and does not add `NODE_ID`; repositories, services and background work take the org from the context; a migration drops the Laguna defaults; the leak suite gates the release. Everyone signs in again.
 3. **Release 3, RLS:** ops creates the `pos_app` login user and points `DB_USER` at it (`DB_MIGRATION_USER` at the owner); migration B enables RLS. Staging first, with the suite also run with a scope removed on purpose.
 4. **Rollback:** release 3 is undone by migration B's down (disable RLS) without touching data. Release 2 is undone by redeploying release 1 with `ORGANIZATION_ID` restored; tokens issued in between are rejected by the old code, so everyone signs in again. Migration A's down drops the columns; it is safe only while one org exists.

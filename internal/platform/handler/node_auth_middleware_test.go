@@ -11,7 +11,6 @@ import (
 	"laguna-escondida/backend/internal/domain/ports/mocks"
 	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/domain/tenant"
-	"laguna-escondida/backend/internal/platform/config"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -33,10 +32,10 @@ func registeredNodes(t *testing.T) *service.NodeService {
 }
 
 // nodeAuthRouter serves POST /api/sync/push behind the middleware and reports the org the handler saw.
-func nodeAuthRouter(t *testing.T, cfg *config.Config, seen *string) *gin.Engine {
+func nodeAuthRouter(t *testing.T, nodeSyncKey string, seen *string) *gin.Engine {
 	t.Helper()
 	router := gin.New()
-	router.POST("/api/sync/push", PushNodeIDFromBody(), NodeAuthMiddleware(cfg, registeredNodes(t)), func(c *gin.Context) {
+	router.POST("/api/sync/push", PushNodeIDFromBody(), NodeAuthMiddleware(nodeSyncKey, registeredNodes(t)), func(c *gin.Context) {
 		*seen, _ = tenant.OrgFrom(c.Request.Context())
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	})
@@ -44,7 +43,7 @@ func nodeAuthRouter(t *testing.T, cfg *config.Config, seen *string) *gin.Engine 
 }
 
 func TestNodeAuthMiddleware(t *testing.T) {
-	cfg := &config.Config{NodeSyncKey: "secret-key"}
+	nodeSyncKey := "secret-key"
 
 	tests := []struct {
 		name       string
@@ -65,7 +64,7 @@ func TestNodeAuthMiddleware(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var seen string
-			router := nodeAuthRouter(t, cfg, &seen)
+			router := nodeAuthRouter(t, nodeSyncKey, &seen)
 
 			req := httptest.NewRequest(http.MethodPost, "/api/sync/push", strings.NewReader(tt.body))
 			if tt.key != "" {
@@ -87,7 +86,7 @@ func TestNodeAuthMiddleware(t *testing.T) {
 // key configured rejects everything rather than allowing unauthenticated access.
 func TestNodeAuthMiddleware_FailsClosedWhenUnconfigured(t *testing.T) {
 	var seen string
-	router := nodeAuthRouter(t, &config.Config{NodeSyncKey: ""}, &seen)
+	router := nodeAuthRouter(t, "", &seen)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/sync/push", nil)
 	req.Header.Set("X-Node-Key", "anything")

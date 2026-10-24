@@ -5,8 +5,8 @@ backend renders the bill/receipt (the "cuenta") from the authoritative open bill
 and sends ESC/POS bytes to the printer, so printing works fully offline and does
 not depend on the browser or the electronic-invoice provider.
 
-> **Edge mode only.** This route is registered only when the backend runs with
-> `APP_MODE=edge`. In `cloud` mode it does not exist (404). If the printer
+> **Edge mode only.** This route is registered only by the edge binary. In the
+> cloud binary it does not exist (404). If the printer
 > transport fails to initialize at startup, the route is skipped and the frontend
 > should fall back to browser printing.
 

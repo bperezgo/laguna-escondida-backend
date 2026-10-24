@@ -24,6 +24,10 @@ import (
 
 // ModeOptions are the choices that differ between modes; only cloud.go and edge.go fill them in.
 type ModeOptions struct {
+	Mode config.Mode
+	// OrganizationID is the box's organization; empty in the cloud, which takes it from each caller.
+	OrganizationID              string
+	SyncIdentity                dto.SyncIdentity
 	PendingInvoiceInitialStatus dto.PendingInvoiceStatus
 	StockMovementEmitter        ports.StockMovementEmitter
 	StockAuthoring              bool
@@ -68,7 +72,7 @@ type core struct {
 	app *App
 }
 
-func buildCore(cfg *config.Config, infra Infra, opts ModeOptions) (*core, error) {
+func buildCore(cfg *config.Shared, infra Infra, opts ModeOptions) (*core, error) {
 	db := infra.DB
 	logger := infra.Logger
 
@@ -93,7 +97,7 @@ func buildCore(cfg *config.Config, infra Infra, opts ModeOptions) (*core, error)
 	watermillLogger := watermill.NewSlogLogger(logger)
 	publisher := eventbus.NewDetachedEventBus(infra.EventBus, postgres.Detach)
 
-	jwtService := service.NewJWTService(cfg.JWTSecret, cfg.OrganizationID)
+	jwtService := service.NewJWTService(cfg.JWTSecret, opts.OrganizationID)
 
 	unitOfWork := postgres.NewUnitOfWork(db)
 	syncOutboxRepo := repository.NewSyncOutboxRepository(db)
@@ -101,9 +105,7 @@ func buildCore(cfg *config.Config, infra Infra, opts ModeOptions) (*core, error)
 	syncStateRepo := repository.NewSyncStateRepository(db)
 	// Reference repo is both sides of pull: the cloud reads changed rows, the edge upserts.
 	syncReferenceRepo := repository.NewSyncReferenceRepository(db)
-	// This install's sync identity, built once and injected as a unit into every
-	// sync-participating component (order/purchase outbox writers + push/pull loops).
-	syncIdentity := dto.SyncIdentity{NodeID: cfg.NodeID, CloudNodeID: cfg.CloudNodeID}
+	syncIdentity := opts.SyncIdentity
 	// Edge status: pending-ops/lag come from this node's unsynced outbox (a domain use
 	// case); connectivity comes from the sync scheduler via the in-memory tracker below.
 	edgeStatusService := service.NewEdgeStatusService(syncOutboxRepo, syncIdentity)
@@ -140,7 +142,7 @@ func buildCore(cfg *config.Config, infra Infra, opts ModeOptions) (*core, error)
 	if opts.EInvoicingEnabled {
 		organizationRepo = repository.NewOrganizationRepository(db)
 	}
-	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, organizationRepo, jwtService, unitOfWork, cfg.OrganizationID)
+	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, organizationRepo, jwtService, unitOfWork, opts.OrganizationID)
 	einvoicingSettingsRepo := repository.NewEInvoicingSettingsRepository(db)
 	organizationService := service.NewOrganizationService(organizationRepo, einvoicingSettingsRepo, unitOfWork)
 	sessionOpener := postgres.NewSessionOpener(db)
@@ -183,7 +185,7 @@ func buildCore(cfg *config.Config, infra Infra, opts ModeOptions) (*core, error)
 
 	router := gin.Default()
 	// Server spans + trace-context propagation; a no-op tracer when observability is disabled.
-	router.Use(otelgin.Middleware(cfg.ServiceName))
+	router.Use(otelgin.Middleware(cfg.Observability.ServiceName))
 	router.Use(handler.CORSMiddleware())
 	router.Use(handler.LoggerMiddleware(logger))
 	// Request counts/latencies for Prometheus (scraped by Alloy on :METRICS_PORT).
@@ -198,9 +200,9 @@ func buildCore(cfg *config.Config, infra Infra, opts ModeOptions) (*core, error)
 		billOwner:         handler.NewBillOwnerHandler(billOwnerService),
 		productIngredient: handler.NewProductIngredientHandler(productIngredientService),
 		sse:               handler.NewSSEHandler(sseHub, openBillProductHub, orderService, logger),
-		edge:              handler.NewEdgeHandler(cfg, edgeStatusService, syncStatusTracker),
+		edge:              handler.NewEdgeHandler(opts.Mode, opts.OrganizationID, edgeStatusService, syncStatusTracker),
 	}
-	registerAPIRoutes(router, cfg, jwtService, handlers, opts.StockAuthoring)
+	registerAPIRoutes(router, cfg.AdminAPIKey, jwtService, handlers, opts.StockAuthoring)
 
 	return &core{
 		router:                     router,
@@ -228,7 +230,7 @@ func buildCore(cfg *config.Config, infra Infra, opts ModeOptions) (*core, error)
 		app: &App{
 			Router:      router,
 			logger:      logger,
-			metricsPort: cfg.MetricsPort,
+			metricsPort: cfg.Observability.MetricsPort,
 			subscribers: []namedSubscriber{
 				{name: "SSE event subscriber", sub: eventSubscriber},
 				{name: "stock event subscriber", sub: stockSubscriber},

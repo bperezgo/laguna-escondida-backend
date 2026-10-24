@@ -2,7 +2,7 @@
 
 Define the areas where the restaurant delivers. A `delivery` order is accepted only when its pin falls inside an **active** zone (see [Orders → Order types](./orders.md#order-types-dine-in-takeaway-and-delivery)). No active zone means no delivery is accepted.
 
-**Cloud only.** These routes exist only when the backend runs with `APP_MODE=cloud`; on the edge they return `404`.
+**Cloud only.** These routes exist only in the cloud binary; on the edge binary they return `404`.
 
 ## Endpoints
 

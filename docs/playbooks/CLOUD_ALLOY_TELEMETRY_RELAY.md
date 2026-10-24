@@ -25,7 +25,7 @@ and to own the retry and queueing.
 | --- | --- |
 | `TELEMETRY_FORWARD_URL` | Base URL of the Alloy receiver for relayed edge telemetry, e.g. `http://127.0.0.1:4319` |
 
-Without that variable set (or outside `APP_MODE=cloud`) the ingest routes are simply not
+Without that variable set (or on the edge binary) the ingest routes are simply not
 registered and the backend logs `Telemetry ingest disabled` at startup. It still boots.
 
 ---

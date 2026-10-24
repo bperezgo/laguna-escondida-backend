@@ -16,8 +16,8 @@ the one this backend's own telemetry uses, so edge data gets its own pipeline (f
 tail sampling, routing) instead of inheriting the cloud service's labels. What that sidecar
 needs on the ECS side is written up in `docs/playbooks/CLOUD_ALLOY_TELEMETRY_RELAY.md`.
 
-> **Cloud mode only.** These routes are registered only when the backend runs with
-> `APP_MODE=cloud` **and** `TELEMETRY_FORWARD_URL` is set. Otherwise they do not exist (404)
+> **Cloud mode only.** These routes are registered only by the cloud binary, and only
+> when `TELEMETRY_FORWARD_URL` is set. Otherwise they do not exist (404)
 > and the backend logs `Telemetry ingest disabled` at startup.
 
 > **Not a browser/frontend API.** The only client is the edge Alloy sidecar. Nothing in the
@@ -138,7 +138,7 @@ that a 200 means the cloud sidecar accepted the batch, not that Grafana Cloud ha
 | Variable                | Required | Description                                                                       |
 | ----------------------- | -------- | --------------------------------------------------------------------------------- |
 | `TELEMETRY_FORWARD_URL` | Yes      | Cloud Alloy OTLP/HTTP receiver for relayed edge telemetry, e.g. `http://127.0.0.1:4319` |
-| `TELEMETRY_TENANT_ID`   | No       | `tenant.id` stamped on relayed telemetry; defaults to `ORGANIZATION_ID`           |
+| `TELEMETRY_TENANT_ID`   | Yes      | `tenant.id` stamped on relayed telemetry; required with `TELEMETRY_FORWARD_URL`   |
 | `NODE_SYNC_KEY`         | Yes      | Shared with edge nodes; already required by the sync endpoints                    |
 
 The Grafana Cloud URL, instance ID, and token live in the **cloud Alloy sidecar's** config,
@@ -152,4 +152,5 @@ not here — one place to rotate them, shared with the sidecar's existing egress
 | `LAGUNA_NODE_ID`              | Sent as `X-Node-ID` by the Alloy sidecar; must equal `NODE_ID`       |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | The **local** Alloy sidecar, e.g. `http://127.0.0.1:4317`            |
 | `OBSERVABILITY_ENABLED`       | `true` to start the app's OTLP exporters                             |
-| `NODE_ID`, `ORGANIZATION_ID`  | Stamped onto the app's OTel resource as per-box identity             |
+| `NODE_ID`                     | Required (a UUID). The box's identity; stamped onto the app's OTel resource |
+| `ORGANIZATION_ID`             | Required (a UUID). Stamped onto the app's OTel resource              |

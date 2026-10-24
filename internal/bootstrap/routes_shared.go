@@ -3,7 +3,6 @@ package bootstrap
 import (
 	"laguna-escondida/backend/internal/domain/permissions"
 	"laguna-escondida/backend/internal/domain/service"
-	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/handler"
 
 	"github.com/gin-gonic/gin"
@@ -25,7 +24,7 @@ type apiHandlers struct {
 
 // registerAPIRoutes wires the routes served in both modes: the restaurant floor plus reads of
 // the data the cloud owns. stockAuthoring adds the cloud's stock writes.
-func registerAPIRoutes(router *gin.Engine, cfg *config.Config, jwtService *service.JWTService, h apiHandlers, stockAuthoring bool) {
+func registerAPIRoutes(router *gin.Engine, adminAPIKey string, jwtService *service.JWTService, h apiHandlers, stockAuthoring bool) {
 	// Health check
 	router.GET("/api/health", handler.HealthCheckHandler)
 
@@ -56,7 +55,7 @@ func registerAPIRoutes(router *gin.Engine, cfg *config.Config, jwtService *servi
 	router.GET("/api/products/:id/side-dishes", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsRead), h.productIngredient.GetSideDishOptionsHandler)
 
 	// Stock routes — reads in both modes, authoring cloud-only (see registerStockRoutes).
-	registerStockRoutes(router, h.stock, jwtService, handler.AdminAPIKeyMiddleware(cfg), stockAuthoring)
+	registerStockRoutes(router, h.stock, jwtService, handler.AdminAPIKeyMiddleware(adminAPIKey), stockAuthoring)
 
 	// Bill Owner routes
 	router.GET("/api/bill-owners/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.BillOwnersRead), h.billOwner.GetByIDHandler)

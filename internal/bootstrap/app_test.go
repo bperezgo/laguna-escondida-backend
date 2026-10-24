@@ -27,20 +27,33 @@ import (
 
 const testOrganizationID = "019a0000-0000-7000-8000-000000000123"
 
-func testCloudConfig() *config.Config {
-	return &config.Config{
-		AppMode: config.ModeCloud, NodeID: "cloud-node", NodeSyncKey: "node-key", AdminAPIKey: "admin-key",
-		JWTSecret: "test-secret", ServiceName: "laguna-backend", MetricsPort: "0", PhoneHomeRegion: "CO",
+func testSharedConfig() config.Shared {
+	return config.Shared{
+		NodeSyncKey: "node-key", AdminAPIKey: "admin-key", JWTSecret: "test-secret", PhoneHomeRegion: "CO",
+		Observability: config.Observability{ServiceName: "laguna-backend", MetricsPort: "0"},
+	}
+}
+
+func testCloudConfig() *config.Cloud {
+	return &config.Cloud{
+		Shared:              testSharedConfig(),
 		TelemetryForwardURL: "http://127.0.0.1:4319", TelemetryTenantID: "tenant",
 	}
 }
 
-func testEdgeConfig() *config.Config {
-	return &config.Config{
-		AppMode: config.ModeEdge, NodeID: "edge-node", NodeSyncKey: "node-key", AdminAPIKey: "admin-key",
-		JWTSecret: "test-secret", ServiceName: "laguna-backend", MetricsPort: "0", PhoneHomeRegion: "CO",
+func testEdgeConfig() *config.Edge {
+	return &config.Edge{
+		Shared: testSharedConfig(), NodeID: "edge-node",
 		OrganizationID: testOrganizationID, CloudSyncURL: "http://127.0.0.1:1", CloudNodeID: "cloud-node",
 	}
+}
+
+func cloudAssembly(cfg *config.Cloud) func(Infra) (*App, error) {
+	return func(infra Infra) (*App, error) { return NewCloud(cfg, infra) }
+}
+
+func edgeAssembly(cfg *config.Edge) func(Infra) (*App, error) {
+	return func(infra Infra) (*App, error) { return NewEdge(cfg, infra) }
 }
 
 // testInfra points at a database nobody listens on: assembling an app must not query it.
@@ -83,15 +96,14 @@ func routeTable(router *gin.Engine) string {
 func TestRoutes_MatchGolden(t *testing.T) {
 	cases := []struct {
 		mode     config.Mode
-		assemble func(*config.Config, Infra) (*App, error)
-		cfg      *config.Config
+		assemble func(Infra) (*App, error)
 	}{
-		{config.ModeCloud, NewCloud, testCloudConfig()},
-		{config.ModeEdge, NewEdge, testEdgeConfig()},
+		{config.ModeCloud, cloudAssembly(testCloudConfig())},
+		{config.ModeEdge, edgeAssembly(testEdgeConfig())},
 	}
 	for _, tc := range cases {
 		t.Run(string(tc.mode), func(t *testing.T) {
-			app, err := tc.assemble(tc.cfg, testInfra(t))
+			app, err := tc.assemble(testInfra(t))
 			require.NoError(t, err)
 			want, err := os.ReadFile(filepath.Join("testdata", "routes_"+string(tc.mode)+".golden"))
 			require.NoError(t, err)
@@ -104,18 +116,17 @@ func TestRoutes_MatchGolden(t *testing.T) {
 func TestNewCloudAndNewEdge_StartNothingBeforeRun(t *testing.T) {
 	cases := []struct {
 		name     string
-		assemble func(*config.Config, Infra) (*App, error)
-		cfg      *config.Config
+		assemble func(Infra) (*App, error)
 	}{
-		{"cloud", NewCloud, testCloudConfig()},
-		{"edge", NewEdge, testEdgeConfig()},
+		{"cloud", cloudAssembly(testCloudConfig())},
+		{"edge", edgeAssembly(testEdgeConfig())},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			infra := testInfra(t)
 			before := runtime.NumGoroutine()
 
-			app, err := tc.assemble(tc.cfg, infra)
+			app, err := tc.assemble(infra)
 			require.NoError(t, err)
 
 			time.Sleep(50 * time.Millisecond)
@@ -124,14 +135,6 @@ func TestNewCloudAndNewEdge_StartNothingBeforeRun(t *testing.T) {
 			assert.Len(t, app.schedulers, 1)
 		})
 	}
-}
-
-func TestNewCloudAndNewEdge_RefuseTheOtherModesConfig(t *testing.T) {
-	_, err := NewCloud(testEdgeConfig(), testInfra(t))
-	require.Error(t, err)
-
-	_, err = NewEdge(testCloudConfig(), testInfra(t))
-	require.Error(t, err)
 }
 
 func TestNewEdge_RequiresTheCloudSyncSettings(t *testing.T) {

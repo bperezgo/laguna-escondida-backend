@@ -18,17 +18,17 @@ import (
 
 // NewEdge assembles the restaurant's box: the shared core plus appliance updates, ticket
 // printing (when the printer is reachable) and the push/pull sync loops.
-func NewEdge(cfg *config.Config, infra Infra) (*App, error) {
-	if cfg.AppMode != config.ModeEdge {
-		return nil, errors.New("NewEdge needs an edge config")
-	}
+func NewEdge(cfg *config.Edge, infra Infra) (*App, error) {
 	if cfg.CloudSyncURL == "" || cfg.NodeSyncKey == "" {
 		return nil, errors.New("edge sync push disabled: set CLOUD_SYNC_URL and NODE_SYNC_KEY to enable it")
 	}
 	logger := infra.Logger
-	logger.Info("Running in EDGE mode", slog.String("app_mode", string(cfg.AppMode)))
+	logger.Info("Running in EDGE mode")
 
-	c, err := buildCore(cfg, infra, ModeOptions{
+	c, err := buildCore(&cfg.Shared, infra, ModeOptions{
+		Mode:                        config.ModeEdge,
+		OrganizationID:              cfg.OrganizationID,
+		SyncIdentity:                dto.SyncIdentity{NodeID: cfg.NodeID, CloudNodeID: cfg.CloudNodeID},
 		PendingInvoiceInitialStatus: dto.PendingInvoiceStatusPendingCloud,
 		// Only the restaurant queues stock movements; the cloud owns on-hand.
 		StockMovementEmitter: stockmovement.NewOutboxEmitter(repository.NewSyncOutboxRepository(infra.DB), cfg.NodeID),
@@ -51,21 +51,21 @@ func NewEdge(cfg *config.Config, infra Infra) (*App, error) {
 	// A printer that fails to init (windows transport off windows, unreachable target) skips
 	// the route, so the box still boots and the frontend falls back to browser printing.
 	deviceCfg := device.Config{
-		Transport: cfg.PrinterTransport,
-		Target:    cfg.PrinterTarget,
-		WidthMM:   cfg.PrinterWidthMM,
-		Codepage:  cfg.PrinterCodepage,
-		Cut:       cfg.PrinterCut,
+		Transport: cfg.Printer.Transport,
+		Target:    cfg.Printer.Target,
+		WidthMM:   cfg.Printer.WidthMM,
+		Codepage:  cfg.Printer.Codepage,
+		Cut:       cfg.Printer.Cut,
 	}
 	if receiptPrinter, printerErr := device.NewReceiptPrinterFromConfig(deviceCfg); printerErr != nil {
 		logger.Error("Ticket printing disabled: failed to init printer transport", slog.Any("error", printerErr))
 	} else {
 		printService := service.NewPrintService(c.openBillRepo, receiptPrinter, dto.TicketBusinessInfo{
-			Name:        cfg.BusinessName,
-			NIT:         cfg.BusinessNIT,
-			Address:     cfg.BusinessAddress,
-			Footer:      cfg.TicketFooter,
-			LegalNotice: cfg.TicketLegalNotice,
+			Name:        cfg.Ticket.BusinessName,
+			NIT:         cfg.Ticket.BusinessNIT,
+			Address:     cfg.Ticket.BusinessAddress,
+			Footer:      cfg.Ticket.Footer,
+			LegalNotice: cfg.Ticket.LegalNotice,
 		})
 		registerEdgeRoutes(c.router, c.jwtService, handler.NewDeviceHandler(printService))
 		logger.Info("Ticket printing enabled", slog.String("transport", deviceCfg.Transport))

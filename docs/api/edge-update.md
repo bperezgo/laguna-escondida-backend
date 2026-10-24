@@ -5,8 +5,8 @@ applied. The backend only reads the updater's state files and drops a request fi
 appliance updater (`laguna-escondida-edge`, `docs/UPDATE_PROTOCOL.md`) verifies and applies the
 release on its own.
 
-> **Edge mode only.** These routes are registered only when the backend runs with
-> `APP_MODE=edge`. In `cloud` mode they do not exist (404).
+> **Edge mode only.** These routes are registered only by the edge binary. In the
+> cloud binary they do not exist (404).
 
 **Auth:** JWT; requires the `edge:update` permission (admin and manager roles).
 

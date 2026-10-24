@@ -55,22 +55,21 @@ func fullRouter(mode config.Mode, jwtService *service.JWTService) *gin.Engine {
 	// Recovery turns the nil services behind a reachable route into a 500: past the guards.
 	router := gin.New()
 	router.Use(gin.Recovery())
-	cfg := &config.Config{AppMode: mode, AdminAPIKey: "admin-key", NodeSyncKey: "node-key"}
 
-	registerAPIRoutes(router, cfg, jwtService, apiHandlers{
+	registerAPIRoutes(router, "admin-key", jwtService, apiHandlers{
 		order: &handler.OrderHandler{}, product: &handler.ProductHandler{}, stock: &handler.StockHandler{},
 		user: &handler.UserHandler{}, billOwner: &handler.BillOwnerHandler{},
 		productIngredient: &handler.ProductIngredientHandler{}, sse: &handler.SSEHandler{}, edge: &handler.EdgeHandler{},
 	}, mode == config.ModeCloud)
 	switch mode {
 	case config.ModeCloud:
-		registerCloudBackOfficeRoutes(router, cfg, jwtService, backOfficeHandlers{
+		registerCloudBackOfficeRoutes(router, "admin-key", jwtService, backOfficeHandlers{
 			product: &handler.ProductHandler{}, productIngredient: &handler.ProductIngredientHandler{},
 			user: &handler.UserHandler{}, supplier: &handler.SupplierHandler{},
 			purchaseEntry: &handler.PurchaseEntryHandler{}, expense: &handler.ExpenseHandler{},
 			financial: &handler.FinancialHandler{},
 		})
-		registerCloudRoutes(router, cfg, jwtService, cloudHandlers{
+		registerCloudRoutes(router, "admin-key", "node-key", jwtService, cloudHandlers{
 			invoice: &handler.InvoiceHandler{}, supportDocument: &handler.SupportDocumentHandler{},
 			sync: &handler.SyncHandler{}, telemetry: &handler.TelemetryHandler{},
 			organization: &handler.OrganizationHandler{}, deliveryZone: &handler.DeliveryZoneHandler{},

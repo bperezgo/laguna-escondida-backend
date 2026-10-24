@@ -15,33 +15,34 @@ import (
 )
 
 // Main boots a binary of the given mode and serves it until SIGINT or SIGTERM.
-func Main(mode config.Mode, assemble func(cfg *config.Config, infra Infra) (*App, error)) {
+func Main(mode config.Mode, load func() (Boot, error)) {
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, using system environment variables")
 	}
 
 	// Before anything touches the database, so a box running the wrong binary changes nothing.
-	cfg, err := config.NewConfig(mode)
+	boot, err := load()
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
 	// Installed before the logger so the slog OTLP bridge picks up the global logger provider.
+	obs := boot.Shared.Observability
 	providers, err := observability.Init(context.Background(), observability.InitConfig{
-		Enabled:          cfg.ObservabilityEnabled,
-		ServiceName:      cfg.ServiceName,
-		ServiceVersion:   cfg.ServiceVersion,
-		Environment:      cfg.Environment,
-		OTLPEndpoint:     cfg.OTLPEndpoint,
-		TraceSampleRatio: cfg.TraceSampleRatio,
-		NodeID:           cfg.NodeID,
-		OrganizationID:   cfg.OrganizationID,
+		Enabled:          obs.Enabled,
+		ServiceName:      obs.ServiceName,
+		ServiceVersion:   obs.ServiceVersion,
+		Environment:      obs.Environment,
+		OTLPEndpoint:     obs.OTLPEndpoint,
+		TraceSampleRatio: obs.TraceSampleRatio,
+		NodeID:           boot.NodeID,
+		OrganizationID:   boot.OrganizationID,
 		Mode:             string(mode),
 	})
 	if err != nil {
 		log.Fatalf("Failed to initialize observability: %v", err)
 	}
-	logger := observability.NewSlogLogger(cfg.ObservabilityEnabled)
+	logger := observability.NewSlogLogger(obs.Enabled)
 
 	// Migrations run as the schema owner; the app may connect as a pos_app member, which can't run DDL.
 	log.Println("Running database migrations...")
@@ -53,11 +54,11 @@ func Main(mode config.Mode, assemble func(cfg *config.Config, infra Infra) (*App
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 
-	infra, err := NewInfra(cfg, db.DB, logger)
+	infra, err := NewInfra(boot.Shared, db.DB, logger)
 	if err != nil {
 		log.Fatalf("Failed to build infrastructure: %v", err)
 	}
-	app, err := assemble(cfg, infra)
+	app, err := boot.Assemble(infra)
 	if err != nil {
 		log.Fatalf("Failed to assemble the %s app: %v", mode, err)
 	}

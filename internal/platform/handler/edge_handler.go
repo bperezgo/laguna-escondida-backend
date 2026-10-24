@@ -26,16 +26,17 @@ type EdgeStatusResponse struct {
 }
 
 type EdgeHandler struct {
-	cfg           *config.Config
-	statusService *service.EdgeStatusService
-	tracker       *syncstatus.Tracker
+	mode           config.Mode
+	organizationID string
+	statusService  *service.EdgeStatusService
+	tracker        *syncstatus.Tracker
 }
 
 // NewEdgeHandler wires the edge status endpoint. statusService and tracker are only
 // consulted in edge mode; in cloud mode the cloud reports a trivial always-online status
 // and never touches them.
-func NewEdgeHandler(cfg *config.Config, statusService *service.EdgeStatusService, tracker *syncstatus.Tracker) *EdgeHandler {
-	return &EdgeHandler{cfg: cfg, statusService: statusService, tracker: tracker}
+func NewEdgeHandler(mode config.Mode, organizationID string, statusService *service.EdgeStatusService, tracker *syncstatus.Tracker) *EdgeHandler {
+	return &EdgeHandler{mode: mode, organizationID: organizationID, statusService: statusService, tracker: tracker}
 }
 
 // GetStatusHandler reports the node's run mode, connectivity and sync backlog. In cloud
@@ -43,16 +44,16 @@ func NewEdgeHandler(cfg *config.Config, statusService *service.EdgeStatusService
 // scheduler's connectivity tracker and this node's unsynced outbox.
 func (h *EdgeHandler) GetStatusHandler(c *gin.Context) {
 	resp := EdgeStatusResponse{
-		Mode:    h.cfg.AppMode,
+		Mode:    h.mode,
 		Version: buildinfo.Version,
 		Online:  true,
 	}
 
-	if h.cfg.AppMode == config.ModeEdge {
+	if h.mode == config.ModeEdge {
 		resp.Online = h.tracker.Online()
 
 		// Unauthenticated, but it reads only the box's own outbox, so it acts for the box's org.
-		health, err := h.statusService.GetSyncHealth(tenant.WithOrg(c.Request.Context(), h.cfg.OrganizationID))
+		health, err := h.statusService.GetSyncHealth(tenant.WithOrg(c.Request.Context(), h.organizationID))
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error":   "edge_status_error",

@@ -15,7 +15,6 @@ import (
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/domain/tenant"
-	"laguna-escondida/backend/internal/platform/config"
 
 	"github.com/gin-gonic/gin"
 )
@@ -45,7 +44,7 @@ func CORSMiddleware() gin.HandlerFunc {
 }
 
 // AdminAPIKeyMiddleware validates the admin API key from the request header
-func AdminAPIKeyMiddleware(cfg *config.Config) gin.HandlerFunc {
+func AdminAPIKeyMiddleware(adminAPIKey string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		apiKey := c.GetHeader("X-API-Key")
 		if apiKey == "" {
@@ -54,7 +53,7 @@ func AdminAPIKeyMiddleware(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		if apiKey != cfg.AdminAPIKey {
+		if apiKey != adminAPIKey {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid API key"})
 			c.Abort()
 			return
@@ -70,12 +69,12 @@ const NodeIDHeader = "X-Node-ID"
 // NodeAuthMiddleware authenticates an edge node calling the cloud sync endpoints via the
 // X-Node-Key header, then acts for the organization its X-Node-ID is registered to. It fails
 // closed: no node key configured, or a node the cloud doesn't know, rejects the request.
-func NodeAuthMiddleware(cfg *config.Config, nodes *service.NodeService) gin.HandlerFunc {
+func NodeAuthMiddleware(nodeSyncKey string, nodes *service.NodeService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		nodeKey := c.GetHeader("X-Node-Key")
 		// Constant-time compare so a wrong key can't be recovered byte-by-byte via a timing
 		// side-channel. ConstantTimeCompare also returns 0 on a length mismatch (empty header).
-		if cfg.NodeSyncKey == "" || subtle.ConstantTimeCompare([]byte(nodeKey), []byte(cfg.NodeSyncKey)) != 1 {
+		if nodeSyncKey == "" || subtle.ConstantTimeCompare([]byte(nodeKey), []byte(nodeSyncKey)) != 1 {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid node key"})
 			c.Abort()
 			return

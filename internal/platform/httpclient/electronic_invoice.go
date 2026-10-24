@@ -28,12 +28,12 @@ type ElectronicInvoiceClient struct {
 	password string
 }
 
-func NewElectronicInvoiceClient(cfg *config.Config, client *Client) *ElectronicInvoiceClient {
+func NewElectronicInvoiceClient(cfg config.ElectronicInvoice, client *Client) *ElectronicInvoiceClient {
 	return &ElectronicInvoiceClient{
 		client:   client,
-		url:      cfg.ElectronicInvoiceURL,
-		user:     cfg.ElectronicInvoiceUser,
-		password: cfg.ElectronicInvoicePassword,
+		url:      cfg.URL,
+		user:     cfg.User,
+		password: cfg.Password,
 	}
 }
 

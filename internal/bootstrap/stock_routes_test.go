@@ -21,7 +21,7 @@ func stockRoutesFor(mode config.Mode) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	registerStockRoutes(router, handler.NewStockHandler(nil, nil, nil), service.NewJWTService("test-secret", ""),
-		handler.AdminAPIKeyMiddleware(&config.Config{AdminAPIKey: "admin-key"}), mode == config.ModeCloud)
+		handler.AdminAPIKeyMiddleware("admin-key"), mode == config.ModeCloud)
 	return router
 }
 
