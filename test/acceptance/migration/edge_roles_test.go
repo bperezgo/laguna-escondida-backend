@@ -32,12 +32,14 @@ func TestEdgeMigrations_PosAppRole(t *testing.T) {
 
 	ctx := context.Background()
 	base, container := resolveConn(t, ctx)
+	// t.Cleanup, not defer: the role and database cleanup below runs after the test returns and
+	// still needs the container and the admin connection; cleanups run last-registered first.
 	if container != nil {
-		defer func() { _ = container.Terminate(ctx) }()
+		t.Cleanup(func() { _ = container.Terminate(ctx) })
 	}
 
 	admin := openGorm(t, base.gormDSN("postgres"))
-	defer closeGorm(admin)
+	t.Cleanup(func() { closeGorm(admin) })
 	exec := func(query string) { require.NoError(t, admin.Exec(query).Error, query) }
 
 	// Roles are cluster-wide: hide an existing pos_app (other test databases hold grants to it).
