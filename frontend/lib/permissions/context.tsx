@@ -9,6 +9,7 @@ import {
   ReactNode,
 } from "react";
 import { AuthUser, Organization, PermissionsContextValue } from "./types";
+import { effectivePermissions } from "./edge";
 
 const PermissionsContext = createContext<PermissionsContextValue | undefined>(
   undefined,
@@ -46,10 +47,11 @@ export function PermissionsProvider({ children }: PermissionsProviderProps) {
       }
 
       const data: AuthUser = await response.json();
+      const isEdgeNode = data.deployment_mode === "edge";
       setUser(data);
-      setPermissions(data.permissions || []);
+      setPermissions(effectivePermissions(data.permissions || [], isEdgeNode));
       setIsAdmin(data.roles?.some((r) => r.name === "admin") ?? false);
-      setIsEdge(data.deployment_mode === "edge");
+      setIsEdge(isEdgeNode);
     } catch (err) {
       console.error("Error fetching permissions:", err);
       setError(err instanceof Error ? err.message : "Unknown error");

@@ -37,6 +37,7 @@ const navItems = [
     description: "Ver facturas",
     permission: PERMISSIONS.INVOICES_READ,
     accent: "var(--color-primary)",
+    cloudOnly: true,
   },
   {
     href: "/support-documents",
@@ -44,6 +45,7 @@ const navItems = [
     description: "Crear y administrar documentos soporte",
     permission: PERMISSIONS.SUPPORT_DOCUMENTS_READ,
     accent: "var(--color-primary)",
+    cloudOnly: true,
   },
   {
     href: "/kitchen",
@@ -59,6 +61,7 @@ const navItems = [
     description: "Administrar proveedores y catálogos",
     permission: PERMISSIONS.SUPPLIERS_READ,
     accent: "var(--color-primary)",
+    cloudOnly: true,
   },
   {
     href: "/purchase-entries",
@@ -66,6 +69,7 @@ const navItems = [
     description: "Registrar recepción de productos",
     permission: PERMISSIONS.PURCHASE_ENTRIES_READ,
     accent: "var(--color-primary)",
+    cloudOnly: true,
   },
   {
     href: "/expenses",
@@ -73,6 +77,7 @@ const navItems = [
     description: "Registrar gastos, inversiones y servicios",
     permission: PERMISSIONS.EXPENSES_READ,
     accent: "var(--color-warning)",
+    cloudOnly: true,
   },
   {
     href: "/financial",
@@ -80,6 +85,7 @@ const navItems = [
     description: "Resumen financiero — ingresos, gastos y utilidad",
     permission: PERMISSIONS.FINANCIAL_SUMMARY_READ,
     accent: "var(--color-success)",
+    cloudOnly: true,
   },
   {
     href: "/close",
@@ -88,6 +94,7 @@ const navItems = [
     permission: PERMISSIONS.FINANCIAL_SUMMARY_READ,
     accent: "var(--color-success)",
     cloudAdminOnly: true,
+    cloudOnly: true,
   },
   {
     href: "/delivery-zones",
