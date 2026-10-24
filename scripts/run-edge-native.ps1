@@ -37,8 +37,8 @@ $ErrorActionPreference = "Stop"
 
 # --- App identity / secrets (match docker-compose.sync.yml x-app-env so this edge
 #     lines up with the existing edge-db data) ---------------------------------
-$env:APP_MODE        = "edge"
-$env:ORGANIZATION_ID = "test-org"
+$env:ORGANIZATION_ID = "bb0cad3e-be13-4bad-9a37-bba9525bfece"   # Laguna, as in docker-compose.sync.yml
+$env:NODE_ID         = "ce6ebef8-37cf-576b-b7a8-15aaaaae44a1"   # Laguna's box (migration 71)
 $env:JWT_SECRET      = "test-jwt-secret"
 $env:ADMIN_API_KEY   = "test-admin-key"
 $env:NODE_SYNC_KEY   = "test-sync-key"
@@ -48,10 +48,10 @@ $env:CLOUD_SYNC_URL  = "http://localhost:8080"   # docker cloud; lets the edge b
 $env:ELECTRONIC_INVOICE_URL      = "http://invoice.invalid"
 $env:ELECTRONIC_INVOICE_USER     = "test"
 $env:ELECTRONIC_INVOICE_PASSWORD = "test"
-$env:SPACES_REGION = "us-east-1"
-$env:SPACES_KEY    = "offline-unused"
-$env:SPACES_SECRET = "offline-unused"
-$env:SPACES_BUCKET = "offline-unused"
+$env:STORAGE_REGION     = "us-east-1"
+$env:STORAGE_ACCESS_KEY = "offline-unused"
+$env:STORAGE_SECRET     = "offline-unused"
+$env:STORAGE_BUCKET     = "offline-unused"
 
 # --- Database: the docker edge-db (already migrated + seeded) -------------------
 $env:DB_HOST     = "localhost"

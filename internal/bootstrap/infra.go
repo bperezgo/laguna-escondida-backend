@@ -27,8 +27,8 @@ type Infra struct {
 }
 
 // NewInfra builds the clients shared by both modes.
-func NewInfra(cfg *config.Config, db *gorm.DB, logger *slog.Logger) (Infra, error) {
-	storageClient, err := storage.NewS3Client(cfg)
+func NewInfra(cfg *config.Shared, db *gorm.DB, logger *slog.Logger) (Infra, error) {
+	storageClient, err := storage.NewS3Client(cfg.Storage)
 	if err != nil {
 		return Infra{}, fmt.Errorf("create storage client: %w", err)
 	}

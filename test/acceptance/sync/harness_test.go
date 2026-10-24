@@ -49,6 +49,8 @@ const (
 	edgeDBName  = "laguna_accept_edge"
 	testOrg     = "accept-test-org"
 	testNodeKey = "accept-node-key"
+	// The edge's NODE_ID is configured, never derived; the rig registers it in the cloud's nodes table.
+	testEdgeNodeID = "019a0000-0000-7000-8000-0000000000ed"
 )
 
 var (
@@ -277,8 +279,8 @@ func newRig(t *testing.T) *rig {
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	identity := dto.SyncIdentity{
-		NodeID:      deriveNodeID(testOrg, "edge"),
-		CloudNodeID: deriveNodeID(testOrg, "cloud"),
+		NodeID:      testEdgeNodeID,
+		CloudNodeID: config.CloudNodeIDFor(testOrg),
 	}
 	// The cloud acts for the organization a calling node is registered to.
 	require.NoError(t, cloudGDB.Exec(
@@ -332,7 +334,7 @@ func newRig(t *testing.T) *rig {
 		c.Next()
 	})
 	router.Use(handler.DBSessionMiddleware(cloudGDB))
-	nodeAuth := handler.NodeAuthMiddleware(&config.Config{NodeSyncKey: testNodeKey},
+	nodeAuth := handler.NodeAuthMiddleware(testNodeKey,
 		service.NewNodeService(repository.NewNodeRepository(cloudGDB)))
 	router.POST("/api/sync/push", nodeAuth, syncHandler.PushHandler)
 	router.GET("/api/sync/pull", nodeAuth, syncHandler.PullHandler)
@@ -389,12 +391,6 @@ func newRig(t *testing.T) *rig {
 		server:           server,
 		cloudDown:        cloudDown,
 	}
-}
-
-// deriveNodeID mirrors config.NewConfig: a stable per-organization/per-mode UUID, so the
-// values the rig uses are exactly the ones a real deployment would derive (SYNC-INV-01).
-func deriveNodeID(org, mode string) string {
-	return uuid.NewSHA1(uuid.NameSpaceURL, []byte("laguna-escondida/node/"+org+"/"+mode)).String()
 }
 
 // ---------------------------------------------------------------------------

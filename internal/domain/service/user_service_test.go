@@ -27,7 +27,7 @@ func (passthroughUnitOfWork) Do(ctx context.Context, fn func(ctx context.Context
 }
 
 func createTestUserService(t *testing.T) (*UserService, *mocks.MockUserRepository, *mocks.MockRoleRepository, *mocks.MockUserRoleRepository) {
-	f := newUserServiceFixture(t, "")
+	f := newUserServiceFixture(t, tenant.AnyOrganization())
 	return f.service, f.userRepo, f.roleRepo, f.userRoleRepo
 }
 
@@ -40,16 +40,15 @@ type userServiceFixture struct {
 	jwt          *JWTService
 }
 
-// newUserServiceFixture builds a cloud service with boxOrgID "", an edge box's otherwise.
-func newUserServiceFixture(t *testing.T, boxOrgID string) userServiceFixture {
+func newUserServiceFixture(t *testing.T, scope tenant.Scope) userServiceFixture {
 	f := userServiceFixture{
 		userRepo:     mocks.NewMockUserRepository(t),
 		roleRepo:     mocks.NewMockRoleRepository(t),
 		userRoleRepo: mocks.NewMockUserRoleRepository(t),
 		orgRepo:      mocks.NewMockOrganizationRepository(t),
-		jwt:          NewJWTService("test-secret-key-for-testing", boxOrgID),
+		jwt:          NewJWTService("test-secret-key-for-testing", scope),
 	}
-	f.service = NewUserService(f.userRepo, f.roleRepo, f.userRoleRepo, f.orgRepo, f.jwt, passthroughUnitOfWork{}, boxOrgID)
+	f.service = NewUserService(f.userRepo, f.roleRepo, f.userRoleRepo, f.orgRepo, f.jwt, passthroughUnitOfWork{}, scope)
 	return f
 }
 
@@ -398,7 +397,7 @@ func activeUser(t *testing.T, password string, active bool) *dto.User {
 }
 
 func TestUserService_SignIn_CloudSuccess(t *testing.T) {
-	f := newUserServiceFixture(t, "")
+	f := newUserServiceFixture(t, tenant.AnyOrganization())
 	f.orgRepo.On("GetBySlug", mock.Anything, "laguna-escondida").Return(lagunaOrg(dto.OrganizationStatusActive), nil)
 	f.userRepo.On("FindByUsername", mock.MatchedBy(inOrg(testOrgA)), "bob").Return(activeUser(t, "password123", true), nil)
 	f.userRoleRepo.On("FindRolesByUserID", mock.MatchedBy(inOrg(testOrgA)), "bob-id").Return([]*dto.Role{createTestRole(permissions.RoleServer, "server")}, nil)
@@ -414,7 +413,7 @@ func TestUserService_SignIn_CloudSuccess(t *testing.T) {
 }
 
 func TestUserService_SignIn_CloudWithoutOrganization(t *testing.T) {
-	f := newUserServiceFixture(t, "")
+	f := newUserServiceFixture(t, tenant.AnyOrganization())
 
 	result, err := f.service.SignIn(context.Background(), &dto.SignInRequest{Username: "bob", Password: "password123"})
 
@@ -467,7 +466,7 @@ func TestUserService_SignIn_RejectedOpaquely(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			f := newUserServiceFixture(t, "")
+			f := newUserServiceFixture(t, tenant.AnyOrganization())
 			tc.setup(t, f)
 
 			result, err := f.service.SignIn(context.Background(), &dto.SignInRequest{Organization: "laguna-escondida", Username: "bob", Password: "password123"})
@@ -483,7 +482,7 @@ func TestUserService_SignIn_RejectedOpaquely(t *testing.T) {
 
 // An infrastructure error must not be masked as invalid credentials, so it surfaces as a 500.
 func TestUserService_SignIn_RepositoryError(t *testing.T) {
-	f := newUserServiceFixture(t, "")
+	f := newUserServiceFixture(t, tenant.AnyOrganization())
 	repoErr := errors.New("connection refused")
 	f.orgRepo.On("GetBySlug", mock.Anything, "laguna-escondida").Return(lagunaOrg(dto.OrganizationStatusActive), nil)
 	f.userRepo.On("FindByUsername", mock.Anything, "bob").Return(nil, repoErr)
@@ -496,7 +495,7 @@ func TestUserService_SignIn_RepositoryError(t *testing.T) {
 }
 
 func TestUserService_SignIn_EdgeWithoutOrganization(t *testing.T) {
-	f := newUserServiceFixture(t, testOrgA)
+	f := newUserServiceFixture(t, tenant.PinnedTo(testOrgA))
 	f.orgRepo.On("Get", mock.Anything, testOrgA).Return(lagunaOrg(dto.OrganizationStatusActive), nil)
 	f.userRepo.On("FindByUsername", mock.MatchedBy(inOrg(testOrgA)), "bob").Return(activeUser(t, "password123", true), nil)
 	f.userRoleRepo.On("FindRolesByUserID", mock.MatchedBy(inOrg(testOrgA)), "bob-id").Return([]*dto.Role{createTestRole(permissions.RoleServer, "server")}, nil)
@@ -510,7 +509,7 @@ func TestUserService_SignIn_EdgeWithoutOrganization(t *testing.T) {
 }
 
 func TestUserService_SignIn_EdgeNamingAnotherOrganization(t *testing.T) {
-	f := newUserServiceFixture(t, testOrgA)
+	f := newUserServiceFixture(t, tenant.PinnedTo(testOrgA))
 	f.orgRepo.On("GetBySlug", mock.Anything, "other-org").Return(&dto.Organization{ID: testOrgB, Slug: "other-org", Status: dto.OrganizationStatusActive}, nil)
 
 	result, err := f.service.SignIn(context.Background(), &dto.SignInRequest{Organization: "other-org", Username: "bob", Password: "password123"})
@@ -524,7 +523,7 @@ func TestUserService_SignIn_EdgeNamingAnotherOrganization(t *testing.T) {
 // bootstrap (no organization in the context) names one.
 
 func TestUserService_CreateUser_IgnoresOrganizationInBodyWhenSignedIn(t *testing.T) {
-	f := newUserServiceFixture(t, "")
+	f := newUserServiceFixture(t, tenant.AnyOrganization())
 	ctx := tenant.WithOrg(context.Background(), testOrgA)
 	req := &dto.CreateUserRequest{Organization: "other-org", Username: "cajero1", Name: "C", Password: "password123", RoleIDs: []int{permissions.RoleServer}}
 	f.userRepo.On("FindByUsername", mock.MatchedBy(inOrg(testOrgA)), "cajero1").Return(nil, domainError.ErrUserNotFound)
@@ -539,7 +538,7 @@ func TestUserService_CreateUser_IgnoresOrganizationInBodyWhenSignedIn(t *testing
 }
 
 func TestUserService_CreateUser_BootstrapNamesOrganization(t *testing.T) {
-	f := newUserServiceFixture(t, "")
+	f := newUserServiceFixture(t, tenant.AnyOrganization())
 	req := &dto.CreateUserRequest{Organization: "laguna-escondida", Username: "admin", Name: "A", Password: "password123", RoleIDs: []int{permissions.RoleAdmin}}
 	f.orgRepo.On("GetBySlug", mock.Anything, "laguna-escondida").Return(lagunaOrg(dto.OrganizationStatusActive), nil)
 	f.userRepo.On("FindByUsername", mock.MatchedBy(inOrg(testOrgA)), "admin").Return(nil, domainError.ErrUserNotFound)
@@ -554,22 +553,22 @@ func TestUserService_CreateUser_BootstrapNamesOrganization(t *testing.T) {
 
 func TestUserService_CreateUser_BootstrapRejected(t *testing.T) {
 	cases := []struct {
-		name     string
-		boxOrgID string
-		slug     string
-		setup    func(f userServiceFixture)
-		want     error
+		name  string
+		scope tenant.Scope
+		slug  string
+		setup func(f userServiceFixture)
+		want  error
 	}{
-		{name: "cloud without organization", want: domainError.ErrOrganizationRequired},
+		{name: "cloud without organization", scope: tenant.AnyOrganization(), want: domainError.ErrOrganizationRequired},
 		{
-			name: "cloud with unknown organization", slug: "nope",
+			name: "cloud with unknown organization", scope: tenant.AnyOrganization(), slug: "nope",
 			setup: func(f userServiceFixture) {
 				f.orgRepo.On("GetBySlug", mock.Anything, "nope").Return(nil, domainError.ErrOrganizationNotFound)
 			},
 			want: domainError.ErrOrganizationNotFound,
 		},
 		{
-			name: "edge naming another organization", boxOrgID: testOrgA, slug: "other-org",
+			name: "edge naming another organization", scope: tenant.PinnedTo(testOrgA), slug: "other-org",
 			setup: func(f userServiceFixture) {
 				f.orgRepo.On("GetBySlug", mock.Anything, "other-org").Return(&dto.Organization{ID: testOrgB, Slug: "other-org"}, nil)
 			},
@@ -578,7 +577,7 @@ func TestUserService_CreateUser_BootstrapRejected(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			f := newUserServiceFixture(t, tc.boxOrgID)
+			f := newUserServiceFixture(t, tc.scope)
 			if tc.setup != nil {
 				tc.setup(f)
 			}
@@ -595,7 +594,7 @@ func TestUserService_CreateUser_BootstrapRejected(t *testing.T) {
 }
 
 func TestUserService_CreateUser_EdgeBootstrapUsesTheBoxOrganization(t *testing.T) {
-	f := newUserServiceFixture(t, testOrgA)
+	f := newUserServiceFixture(t, tenant.PinnedTo(testOrgA))
 	req := &dto.CreateUserRequest{Username: "admin", Name: "A", Password: "password123", RoleIDs: []int{permissions.RoleAdmin}}
 	f.userRepo.On("FindByUsername", mock.MatchedBy(inOrg(testOrgA)), "admin").Return(nil, domainError.ErrUserNotFound)
 	f.roleRepo.On("FindByIDs", mock.Anything, req.RoleIDs).Return([]*dto.Role{createTestRole(permissions.RoleAdmin, "admin")}, nil)

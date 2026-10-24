@@ -21,11 +21,10 @@ type UserService struct {
 	orgRepo      ports.OrganizationRepository
 	jwtService   *JWTService
 	unitOfWork   ports.UnitOfWork
-	boxOrgID     string
+	scope        tenant.Scope
 }
 
-// NewUserService takes boxOrgID, the edge box's organization, or "" in the cloud.
-func NewUserService(userRepo ports.UserRepository, roleRepo ports.RoleRepository, userRoleRepo ports.UserRoleRepository, orgRepo ports.OrganizationRepository, jwtService *JWTService, unitOfWork ports.UnitOfWork, boxOrgID string) *UserService {
+func NewUserService(userRepo ports.UserRepository, roleRepo ports.RoleRepository, userRoleRepo ports.UserRoleRepository, orgRepo ports.OrganizationRepository, jwtService *JWTService, unitOfWork ports.UnitOfWork, scope tenant.Scope) *UserService {
 	return &UserService{
 		userRepo:     userRepo,
 		roleRepo:     roleRepo,
@@ -33,7 +32,7 @@ func NewUserService(userRepo ports.UserRepository, roleRepo ports.RoleRepository
 		orgRepo:      orgRepo,
 		jwtService:   jwtService,
 		unitOfWork:   unitOfWork,
-		boxOrgID:     boxOrgID,
+		scope:        scope,
 	}
 }
 
@@ -102,8 +101,8 @@ func (s *UserService) CreateUser(ctx context.Context, req *dto.CreateUserRequest
 
 func (s *UserService) bootstrapOrganization(ctx context.Context, slug string) (string, error) {
 	if slug == "" {
-		if s.boxOrgID != "" {
-			return s.boxOrgID, nil
+		if boxOrgID, pinned := s.scope.Pinned(); pinned {
+			return boxOrgID, nil
 		}
 		return "", domainError.ErrOrganizationRequired
 	}
@@ -111,7 +110,7 @@ func (s *UserService) bootstrapOrganization(ctx context.Context, slug string) (s
 	if err != nil {
 		return "", err
 	}
-	if s.boxOrgID != "" && org.ID != s.boxOrgID {
+	if !s.scope.Admits(org.ID) {
 		return "", domainError.ErrOrganizationMismatch
 	}
 	return org.ID, nil
@@ -332,10 +331,11 @@ func (s *UserService) SignIn(ctx context.Context, req *dto.SignInRequest) (*dto.
 
 func (s *UserService) signInOrganization(ctx context.Context, slug string) (string, error) {
 	if slug == "" {
-		if s.boxOrgID == "" {
+		boxOrgID, pinned := s.scope.Pinned()
+		if !pinned {
 			return "", domainError.ErrOrganizationRequired
 		}
-		org, err := s.orgRepo.Get(ctx, s.boxOrgID)
+		org, err := s.orgRepo.Get(ctx, boxOrgID)
 		if err != nil {
 			return "", fmt.Errorf("sign-in: failed to load the box's organization: %w", err)
 		}
@@ -349,7 +349,7 @@ func (s *UserService) signInOrganization(ctx context.Context, slug string) (stri
 	if err != nil {
 		return "", fmt.Errorf("sign-in: failed to look up organization: %w", err)
 	}
-	if s.boxOrgID != "" && org.ID != s.boxOrgID {
+	if !s.scope.Admits(org.ID) {
 		return "", fmt.Errorf("%w: %w", domainError.ErrInvalidCredentials, domainError.ErrOrganizationMismatch)
 	}
 	return org.ID, checkActive(org)

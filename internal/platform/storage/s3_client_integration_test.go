@@ -56,11 +56,11 @@ func TestS3Client_Upload_Integration(t *testing.T) {
 	skipIfIntegrationTestsDisabled(t)
 
 	// Load config
-	cfg, err := config.NewConfig(config.ModeCloud)
+	cfg, err := config.LoadCloud()
 	require.NoError(t, err, "Failed to load config")
 
 	// Create client
-	client, err := storage.NewS3Client(cfg)
+	client, err := storage.NewS3Client(cfg.Storage)
 	require.NoError(t, err, "Failed to create S3Client")
 
 	ctx := context.Background()
@@ -108,17 +108,17 @@ func TestS3Client_UploadPDF_Integration(t *testing.T) {
 
 	skipIfIntegrationTestsDisabled(t)
 
-	cfg, err := config.NewConfig(config.ModeCloud)
+	cfg, err := config.LoadCloud()
 	require.NoError(t, err)
 
-	client, err := storage.NewS3Client(cfg)
+	client, err := storage.NewS3Client(cfg.Storage)
 	require.NoError(t, err)
 
 	ctx := context.Background()
 
 	// Simulate PDF content (minimal PDF header for testing)
 	pdfContent := []byte("%PDF-1.4\ntest content\n%%EOF")
-	testKey := fmt.Sprintf("%s/sales_invoices/test-invoice-%d.pdf", cfg.OrganizationID, time.Now().UnixNano())
+	testKey := fmt.Sprintf("test/sales_invoices/test-invoice-%d.pdf", time.Now().UnixNano())
 
 	// Upload
 	err = client.Upload(ctx, testKey, pdfContent, "application/pdf")

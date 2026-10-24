@@ -7,30 +7,38 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
 	"laguna-escondida/backend/internal/domain/service"
+	"laguna-escondida/backend/internal/domain/tenant"
 	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/cron"
 	"laguna-escondida/backend/internal/platform/handler"
 	"laguna-escondida/backend/internal/platform/httpclient"
 	"laguna-escondida/backend/internal/platform/postgres/repository"
 	"laguna-escondida/backend/internal/platform/stockmovement"
+	"laguna-escondida/backend/internal/platform/syncstatus"
 )
+
+// cloudOriginNodeID is the origin_node_id on the cloud's outbox rows. It is the value the cloud
+// already wrote under its old NODE_ID, so existing and new rows share one origin.
+const cloudOriginNodeID = "45598059-e12e-530c-86b6-758477c4423d"
 
 // NewCloud assembles the cloud: the shared core plus the back office (accounting and catalog and
 // user writes), e-invoicing, crons, the sync API, telemetry ingest, organization admin,
 // delivery zones and stock authoring.
-func NewCloud(cfg *config.Config, infra Infra) (*App, error) {
-	if cfg.AppMode != config.ModeCloud {
-		return nil, errors.New("NewCloud needs a cloud config")
-	}
+func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 	if infra.ElectronicInvoice == nil {
 		return nil, errors.New("the cloud needs an electronic invoice client")
 	}
 	logger := infra.Logger
-	logger.Info("Running in CLOUD mode", slog.String("app_mode", string(cfg.AppMode)))
+	logger.Info("Running in CLOUD mode")
 
 	// The cloud owns on-hand and the restaurant learns it back through the daily pull, so a
 	// cloud-origin stock op would never be delivered to anyone.
-	c, err := buildCore(cfg, infra, ModeOptions{
+	c, err := buildCore(&cfg.Shared, infra, ModeOptions{
+		Tenancy:      tenant.AnyOrganization(),
+		SyncIdentity: dto.SyncIdentity{NodeID: cloudOriginNodeID},
+		StatusHandler: func(*service.EdgeStatusService, *syncstatus.Tracker) *handler.EdgeHandler {
+			return handler.NewCloudStatusHandler()
+		},
 		PendingInvoiceInitialStatus: dto.PendingInvoiceStatusPending,
 		StockMovementEmitter:        stockmovement.NewNoopEmitter(),
 		StockAuthoring:              true,
@@ -101,7 +109,7 @@ func NewCloud(cfg *config.Config, infra Infra) (*App, error) {
 		c.unitOfWork, c.syncOutboxRepo, c.syncIdentity, logger,
 	)
 	expenseService := service.NewExpenseService(repository.NewExpenseCategoryRepository(db), expenseRepo, c.supplierRepo, infra.Storage)
-	registerCloudBackOfficeRoutes(c.router, cfg, c.jwtService, backOfficeHandlers{
+	registerCloudBackOfficeRoutes(c.router, cfg.AdminAPIKey, c.jwtService, backOfficeHandlers{
 		product:           c.handlers.product,
 		productIngredient: c.handlers.productIngredient,
 		user:              c.handlers.user,
@@ -111,7 +119,7 @@ func NewCloud(cfg *config.Config, infra Infra) (*App, error) {
 		financial:         handler.NewFinancialHandler(service.NewFinancialService(c.billRepo, expenseRepo, purchaseEntryRepo)),
 	})
 
-	registerCloudRoutes(c.router, cfg, c.jwtService, cloudHandlers{
+	registerCloudRoutes(c.router, cfg.AdminAPIKey, cfg.NodeSyncKey, c.jwtService, cloudHandlers{
 		invoice:         handler.NewInvoiceHandler(invoiceService, documentURLMaintenance),
 		supportDocument: handler.NewSupportDocumentHandler(supportDocService, documentURLMaintenance),
 		sync:            handler.NewSyncHandler(syncService, syncReferenceService),

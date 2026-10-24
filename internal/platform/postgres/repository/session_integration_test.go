@@ -108,7 +108,7 @@ func TestSession_RefusesASecondOrg_Integration(t *testing.T) {
 func TestDBSessionMiddleware_OrgComesFromTheToken_Integration(t *testing.T) {
 	db := newSyncTestDB(t)
 	gin.SetMode(gin.TestMode)
-	jwtService := service.NewJWTService("test-secret", "")
+	jwtService := service.NewJWTService("test-secret", tenant.AnyOrganization())
 
 	router := gin.New()
 	router.Use(handler.DBSessionMiddleware(db.DB))

@@ -6,5 +6,5 @@ import (
 )
 
 func main() {
-	bootstrap.Main(config.ModeEdge, bootstrap.NewEdge)
+	bootstrap.Main(config.ModeEdge, bootstrap.EdgeBoot)
 }

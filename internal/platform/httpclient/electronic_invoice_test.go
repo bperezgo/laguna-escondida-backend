@@ -16,10 +16,10 @@ import (
 )
 
 func createTestClient(server *httptest.Server) *ElectronicInvoiceClient {
-	cfg := &config.Config{
-		ElectronicInvoiceURL:      server.URL,
-		ElectronicInvoiceUser:     "testuser",
-		ElectronicInvoicePassword: "testpass",
+	cfg := config.ElectronicInvoice{
+		URL:      server.URL,
+		User:     "testuser",
+		Password: "testpass",
 	}
 
 	httpClient := &Client{

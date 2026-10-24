@@ -79,7 +79,7 @@ Tier‑1 test that needs a timer is a bug in the test.
 
 **Tier 2 — black-box smoke over the real docker rig (a handful only).**
 Reserved for what is *only* true of the real topology and cannot be shown in-process:
-boot/migration per `APP_MODE`, cron actually firing on cadence, and offline via real
+boot/migration per binary, cron actually firing on cadence, and offline via real
 `docker compose stop cloud` / crash via `kill edge`. Uses deadline-bounded `require.Eventually`,
 never bare sleeps. Kept few and clearly labeled slow.
 
@@ -104,10 +104,10 @@ violated) · **Verify** (tier + how) · **Maps to** (playbook checklist → plan
 
 ### Identity & authentication
 
-#### SYNC-INV-01 — Node identities derive deterministically
-- **Guarantees:** The edge derives its `NodeID` and `CloudNodeID` from its `ORGANIZATION_ID`;
-  the cloud's `NODE_ID` is set to that `CloudNodeID` (`config.CloudNodeIDFor`), and the edge's
-  `NodeID` is registered in the cloud's `nodes` table with its organization.
+#### SYNC-INV-01 — Node identities are stable
+- **Guarantees:** The edge's `NodeID` is its configured `NODE_ID` (never derived) and is
+  registered in the cloud's `nodes` table with its organization. Its `CloudNodeID` is always
+  `config.CloudNodeIDFor(ORGANIZATION_ID)`, so existing `sync_state` cursors stay valid.
 - **Why:** A misderived peer ID means the edge tracks high-water marks against a peer that
   never answers — sync silently no-ops and looks healthy. This is the hardest failure to
   notice in production.
@@ -292,7 +292,7 @@ violated) · **Verify** (tier + how) · **Maps to** (playbook checklist → plan
 
 #### SYNC-INV-20 — Both nodes self-migrate and own the sync tables *(Tier 2)*
 - **Guarantees:** On boot each node runs migrations and ends with `sync_outbox`,
-  `sync_inbox`, `sync_state` present, regardless of `APP_MODE`.
+  `sync_inbox`, `sync_state` present, whichever binary it runs.
 - **Why:** A node that boots without its sync tables fails opaquely on first sync. Catching
   it at boot is cheaper than at first outage.
 - **Verify:** Tier 2 smoke against the docker rig (boot both, assert tables + health 200).

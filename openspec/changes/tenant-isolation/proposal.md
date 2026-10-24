@@ -12,7 +12,7 @@ It covers tenancy steps 2–4 of the plan as one change, because the column, the
 - **BREAKING: sign-in takes the organization.** `POST /api/auth/signin` requires `organization` (the immutable slug) in the cloud. On the edge it is optional and must match the box's org. An unknown or suspended org returns the same opaque `401` as bad credentials. The frontend adds a "Restaurante" field to its single sign-in page.
 - **BREAKING: the JWT carries `org_id`.** A token without it is rejected, so everyone signs in once more after the release.
 - **The org comes from the caller.** Authentication puts the org in the context (`domain/tenant`); `DBSessionMiddleware` runs after authentication and takes the org from the context instead of `cfg.OrganizationID`. A request with no org gets no tenant session.
-- **Mode from `APP_MODE`, checked at boot.** Edge requires `ORGANIZATION_ID` and rejects a token from another org; cloud refuses to boot when `ORGANIZATION_ID` is set. The cloud sets `NODE_ID` explicitly to the id it derives for Laguna today, so the edge box's sync state stays valid.
+- **Mode from the binary, checked at boot.** Edge requires `ORGANIZATION_ID` and rejects a token from another org. The cloud reads neither `ORGANIZATION_ID` nor `NODE_ID`, so a leftover org can't pin its requests (amended by `split-cloud-edge-config`, which also removed `APP_MODE`).
 - **Services take the org from the context**, not from a constructor argument (S3 keys, e-invoicing settings and consecutives, support documents).
 - **Repository scopes.** Every tenant query is filtered by the context's org, and every create stamps it from the context, never from a DTO. A missing org is an error.
 - **Row-level security** on every tenant table, keyed on `app.org_id`, failing closed. The app connects as `pos_app`.
@@ -41,5 +41,5 @@ Out of scope, each its own change before a second organization goes live:
 - **Domain:** new `domain/tenant` package; `UserDomain` / claims gain the org; services drop `organizationID` constructor arguments; user and sign-in services change. Existing tests of changed services need sign-off before they are edited.
 - **Platform:** auth middleware, `DBSessionMiddleware` placement and signature, `session.go`, every repository (scope + create stamping), config boot checks, `cmd/main.go` wiring.
 - **API:** `POST /api/auth/signin` request body; JWT structure. `docs/api/auth.md` and `docs/examples/curl-examples.md` change.
-- **Other repos:** `laguna-escondida-frontend` sign-in page and route handler (ship together); `aws-infra` task definition (drop `ORGANIZATION_ID` from cloud, set `NODE_ID`, `DB_USER`/`DB_MIGRATION_USER`).
+- **Other repos:** `laguna-escondida-frontend` sign-in page and route handler (ship together); `aws-infra` task definition (drop `ORGANIZATION_ID` and `APP_MODE` from cloud, no `NODE_ID`, `DB_USER`/`DB_MIGRATION_USER`).
 - **Release:** backend and frontend ship together; all sessions are invalidated.

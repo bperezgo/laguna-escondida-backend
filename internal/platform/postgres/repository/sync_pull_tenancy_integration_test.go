@@ -10,7 +10,6 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/domain/tenant"
-	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/handler"
 
 	"github.com/gin-gonic/gin"
@@ -44,7 +43,7 @@ func TestSyncPull_ReturnsOnlyTheCallingNodesOrganization_Integration(t *testing.
 	router := gin.New()
 	router.Use(handler.DBSessionMiddleware(db.DB))
 	syncHandler := handler.NewSyncHandler(nil, service.NewSyncReferenceService(NewSyncReferenceRepository(db.DB), slog.Default()))
-	router.GET("/api/sync/pull", handler.NodeAuthMiddleware(&config.Config{NodeSyncKey: "key"},
+	router.GET("/api/sync/pull", handler.NodeAuthMiddleware("key",
 		service.NewNodeService(NewNodeRepository(db.DB))), syncHandler.PullHandler)
 
 	pull := func(nodeID string) *httptest.ResponseRecorder {

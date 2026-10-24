@@ -81,12 +81,12 @@ Isolation SHALL be enforced by the database in addition to the application: a da
 
 ### Requirement: Run mode and organization configuration are consistent
 
-The run mode SHALL come from `APP_MODE`. An edge box SHALL require `ORGANIZATION_ID` and SHALL refuse to start without it. The cloud SHALL refuse to start when `ORGANIZATION_ID` is set, and SHALL refuse to start when `NODE_ID` is not set. The cloud's sync identity SHALL remain the one Laguna's edge box already syncs against.
+The run mode SHALL come from the binary (`cmd/cloud` or `cmd/edge`), not from `APP_MODE`. An edge box SHALL require `ORGANIZATION_ID` and SHALL refuse to start without it. The cloud SHALL NOT read `ORGANIZATION_ID` or `NODE_ID`: a leftover `ORGANIZATION_ID` SHALL NOT pin its requests to one organization. The cloud peer key Laguna's edge box keeps its sync state under SHALL NOT change.
 
 #### Scenario: Cloud with a leftover organization
 
 - **WHEN** the cloud starts with `ORGANIZATION_ID` set
-- **THEN** it refuses to start and logs why
+- **THEN** it starts, and a signed-in user of a different organization still sees only their own organization's data
 
 #### Scenario: Edge without an organization
 

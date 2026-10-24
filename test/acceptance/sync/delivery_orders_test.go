@@ -19,6 +19,7 @@ import (
 	"laguna-escondida/backend/internal/domain/permissions"
 	"laguna-escondida/backend/internal/domain/ports"
 	"laguna-escondida/backend/internal/domain/service"
+	"laguna-escondida/backend/internal/domain/tenant"
 	"laguna-escondida/backend/internal/platform/handler"
 	"laguna-escondida/backend/internal/platform/postgres"
 	"laguna-escondida/backend/internal/platform/postgres/repository"
@@ -321,7 +322,7 @@ func newDeliveryAPI(t *testing.T) *deliveryAPI {
 	d := newDeliveryRig(t)
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	jwt := service.NewJWTService(jwtSecret, "")
+	jwt := service.NewJWTService(jwtSecret, tenant.AnyOrganization())
 	orderHandler := handler.NewOrderHandler(d.orders,
 		service.NewOrderIdempotencyService(d.orders, repository.NewIdempotencyKeyRepository(d.cloudDB)))
 	handler.RegisterOrderRoutes(router, orderHandler, jwt)

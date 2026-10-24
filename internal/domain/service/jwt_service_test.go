@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"laguna-escondida/backend/internal/domain/permissions"
+	"laguna-escondida/backend/internal/domain/tenant"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,7 +17,7 @@ const (
 )
 
 func createTestJWTService() *JWTService {
-	return NewJWTService("test-secret-key", "")
+	return NewJWTService("test-secret-key", tenant.AnyOrganization())
 }
 
 // Token expiration: admin gets 24 h, every other role gets 7 days.
@@ -109,7 +110,7 @@ func TestValidateToken_WithoutOrganization_IsRejected(t *testing.T) {
 
 func TestValidateToken_EdgeBox_OnlyItsOwnOrganization(t *testing.T) {
 	cloud := createTestJWTService()
-	box := NewJWTService("test-secret-key", testOrgA)
+	box := NewJWTService("test-secret-key", tenant.PinnedTo(testOrgA))
 
 	own, err := cloud.GenerateToken("uid-1", testOrgA, "cajero1", []int{permissions.RoleServer})
 	require.NoError(t, err)

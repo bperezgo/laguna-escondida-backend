@@ -12,7 +12,6 @@ import (
 	domainerror "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports/mocks"
 	"laguna-escondida/backend/internal/domain/service"
-	"laguna-escondida/backend/internal/platform/config"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -26,9 +25,9 @@ const telemetryNodeKey = "node-secret"
 // (resource_logs/resource_spans/resource_metrics) holding one empty message.
 var telemetryPayload = []byte{0x0a, 0x00}
 
-func telemetryRouter(t *testing.T, cfg *config.Config, forwarder *mocks.MockTelemetryForwarder) *gin.Engine {
+func telemetryRouter(t *testing.T, nodeSyncKey string, forwarder *mocks.MockTelemetryForwarder) *gin.Engine {
 	t.Helper()
-	nodeAuth := NodeAuthMiddleware(cfg, registeredNodes(t))
+	nodeAuth := NodeAuthMiddleware(nodeSyncKey, registeredNodes(t))
 	ingestService := service.NewTelemetryIngestService(forwarder, "tenant-abc")
 	h := NewTelemetryHandler(ingestService)
 
@@ -62,7 +61,7 @@ func TestTelemetryHandler_ValidNodeKeyIsAccepted(t *testing.T) {
 			})).Return(nil).Once()
 
 			w := httptest.NewRecorder()
-			telemetryRouter(t, &config.Config{NodeSyncKey: telemetryNodeKey}, forwarder).
+			telemetryRouter(t, telemetryNodeKey, forwarder).
 				ServeHTTP(w, telemetryRequest(path, telemetryNodeKey, telemetryPayload))
 
 			assert.Equal(t, http.StatusOK, w.Code)
@@ -87,7 +86,7 @@ func TestTelemetryHandler_InvalidOrMissingNodeKeyForwardsNothing(t *testing.T) {
 			forwarder := mocks.NewMockTelemetryForwarder(t)
 
 			w := httptest.NewRecorder()
-			telemetryRouter(t, &config.Config{NodeSyncKey: telemetryNodeKey}, forwarder).
+			telemetryRouter(t, telemetryNodeKey, forwarder).
 				ServeHTTP(w, telemetryRequest("/api/telemetry/v1/logs", tt.nodeKey, telemetryPayload))
 
 			assert.Equal(t, http.StatusUnauthorized, w.Code)
@@ -114,7 +113,7 @@ func TestTelemetryHandler_GzippedBodyIsDecompressed(t *testing.T) {
 	req.Header.Set("Content-Encoding", "gzip")
 
 	w := httptest.NewRecorder()
-	telemetryRouter(t, &config.Config{NodeSyncKey: telemetryNodeKey}, forwarder).ServeHTTP(w, req)
+	telemetryRouter(t, telemetryNodeKey, forwarder).ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 }
@@ -126,7 +125,7 @@ func TestTelemetryHandler_NonProtobufContentTypeIsRejected(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
-	telemetryRouter(t, &config.Config{NodeSyncKey: telemetryNodeKey}, forwarder).ServeHTTP(w, req)
+	telemetryRouter(t, telemetryNodeKey, forwarder).ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusUnsupportedMediaType, w.Code)
 	forwarder.AssertNotCalled(t, "Forward", mock.Anything, mock.Anything)
@@ -138,7 +137,7 @@ func TestTelemetryHandler_MalformedPayloadIsClientError(t *testing.T) {
 		Return(domainerror.ErrTelemetryMalformedPayload).Once()
 
 	w := httptest.NewRecorder()
-	telemetryRouter(t, &config.Config{NodeSyncKey: telemetryNodeKey}, forwarder).
+	telemetryRouter(t, telemetryNodeKey, forwarder).
 		ServeHTTP(w, telemetryRequest("/api/telemetry/v1/metrics", telemetryNodeKey, []byte{0xff}))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -151,7 +150,7 @@ func TestTelemetryHandler_UpstreamFailureIsRetryable(t *testing.T) {
 	forwarder.On("Forward", mock.Anything, mock.Anything).Return(errors.New("gateway down")).Once()
 
 	w := httptest.NewRecorder()
-	telemetryRouter(t, &config.Config{NodeSyncKey: telemetryNodeKey}, forwarder).
+	telemetryRouter(t, telemetryNodeKey, forwarder).
 		ServeHTTP(w, telemetryRequest("/api/telemetry/v1/logs", telemetryNodeKey, telemetryPayload))
 
 	assert.Equal(t, http.StatusBadGateway, w.Code)

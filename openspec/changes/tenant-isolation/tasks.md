@@ -41,7 +41,7 @@
 
 - [ ] 6.1 Add `test/acceptance/tenancy`: seed orgs A and B with mirrored data and, acting as A, assert no endpoint, MCP-exposed endpoint, sync push or pull, cron run or event handler reads or changes B's data. Verify `make test-acceptance` passes and fails when one repository's scope is removed on purpose. _Unblocked by `split-cloud-edge-binaries`: boot the real cloud router with `bootstrap.NewCloud(cfg, infra)`, injecting an `Infra` with the testcontainers `*gorm.DB`, a stub `ports.ElectronicInvoiceClient` and a fake `ports.StorageClient`, and drive `App.Router` with `httptest`. Building the app starts no cron or subscriber, so cron runs are exercised through `internal/platform/cron` directly._
 - [ ] 6.2 Frontend (`laguna-escondida-frontend`): "Restaurante" field on `app/signin/page.tsx`, remembered in the browser, passed through `app/api/auth/signin`; hidden or optional on the edge. Verify signing in to Laguna end-to-end against a local backend.
-- [ ] 6.3 Update `aws-infra` task definition: drop `ORGANIZATION_ID` from the cloud, set `NODE_ID` (task 2.3). Verify the cloud boots in staging with the new config.
+- [ ] 6.3 Update `aws-infra` task definition: drop `ORGANIZATION_ID` and `APP_MODE` from the cloud; do not set `NODE_ID` (an existing one stays until the `split-cloud-edge-config` release is stable). Verify the cloud boots in staging with the new config.
 - [ ] 6.4 Release 2 to staging with a production snapshot: Laguna signs in with the slug, sync with Laguna's box continues (no resend or gap), the crons run for Laguna. Verify on staging before production.
 
 ## 7. Release 3: row-level security
@@ -54,5 +54,5 @@
 
 ## 8. Wrap-up
 
-- [ ] 8.1 Update `docs/multi-tenancy-plan.md`: decisions log (one org per user, usernames per org, sign-in by slug, `APP_MODE` boot rules, background work per org), mark steps 2–4 done, and note that memberships are dropped. Verify the plan no longer mentions memberships as planned work.
+- [ ] 8.1 Update `docs/multi-tenancy-plan.md`: decisions log (one org per user, usernames per org, sign-in by slug, binary-determined mode and boot rules, background work per org), mark steps 2–4 done, and note that memberships are dropped. Verify the plan no longer mentions memberships as planned work.
 - [ ] 8.2 Run `make lint`, `go build ./...`, `go test ./...` and `make test-acceptance`. Verify all pass.

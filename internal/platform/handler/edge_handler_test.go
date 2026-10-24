@@ -39,7 +39,7 @@ func serveEdgeStatus(t *testing.T, h *EdgeHandler) EdgeStatusResponse {
 // Cloud mode is the source of truth: always online, nothing pending. It never consults
 // the status service or tracker, so they may be nil.
 func TestEdgeHandler_GetStatus_CloudModeIsTriviallyOnline(t *testing.T) {
-	h := NewEdgeHandler(&config.Config{AppMode: config.ModeCloud}, nil, nil)
+	h := NewCloudStatusHandler()
 
 	resp := serveEdgeStatus(t, h)
 
@@ -61,7 +61,7 @@ func TestEdgeHandler_GetStatus_EdgeModeOfflineWithBacklog(t *testing.T) {
 	statusService := service.NewEdgeStatusService(outbox, dto.SyncIdentity{NodeID: edgeHandlerNodeID})
 	tracker := syncstatus.NewTracker(time.Minute) // no success recorded -> offline
 
-	h := NewEdgeHandler(&config.Config{AppMode: config.ModeEdge}, statusService, tracker)
+	h := NewEdgeStatusHandler("", statusService, tracker)
 
 	resp := serveEdgeStatus(t, h)
 
@@ -82,7 +82,7 @@ func TestEdgeHandler_GetStatus_EdgeModeOnlineCaughtUp(t *testing.T) {
 	tracker := syncstatus.NewTracker(time.Minute)
 	tracker.RecordSuccess()
 
-	h := NewEdgeHandler(&config.Config{AppMode: config.ModeEdge}, statusService, tracker)
+	h := NewEdgeStatusHandler("", statusService, tracker)
 
 	resp := serveEdgeStatus(t, h)
 

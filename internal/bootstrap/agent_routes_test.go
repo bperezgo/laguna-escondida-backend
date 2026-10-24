@@ -9,6 +9,7 @@ import (
 
 	"laguna-escondida/backend/internal/domain/permissions"
 	"laguna-escondida/backend/internal/domain/service"
+	"laguna-escondida/backend/internal/domain/tenant"
 	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/handler"
 
@@ -55,22 +56,21 @@ func fullRouter(mode config.Mode, jwtService *service.JWTService) *gin.Engine {
 	// Recovery turns the nil services behind a reachable route into a 500: past the guards.
 	router := gin.New()
 	router.Use(gin.Recovery())
-	cfg := &config.Config{AppMode: mode, AdminAPIKey: "admin-key", NodeSyncKey: "node-key"}
 
-	registerAPIRoutes(router, cfg, jwtService, apiHandlers{
+	registerAPIRoutes(router, "admin-key", jwtService, apiHandlers{
 		order: &handler.OrderHandler{}, product: &handler.ProductHandler{}, stock: &handler.StockHandler{},
 		user: &handler.UserHandler{}, billOwner: &handler.BillOwnerHandler{},
 		productIngredient: &handler.ProductIngredientHandler{}, sse: &handler.SSEHandler{}, edge: &handler.EdgeHandler{},
 	}, mode == config.ModeCloud)
 	switch mode {
 	case config.ModeCloud:
-		registerCloudBackOfficeRoutes(router, cfg, jwtService, backOfficeHandlers{
+		registerCloudBackOfficeRoutes(router, "admin-key", jwtService, backOfficeHandlers{
 			product: &handler.ProductHandler{}, productIngredient: &handler.ProductIngredientHandler{},
 			user: &handler.UserHandler{}, supplier: &handler.SupplierHandler{},
 			purchaseEntry: &handler.PurchaseEntryHandler{}, expense: &handler.ExpenseHandler{},
 			financial: &handler.FinancialHandler{},
 		})
-		registerCloudRoutes(router, cfg, jwtService, cloudHandlers{
+		registerCloudRoutes(router, "admin-key", "node-key", jwtService, cloudHandlers{
 			invoice: &handler.InvoiceHandler{}, supportDocument: &handler.SupportDocumentHandler{},
 			sync: &handler.SyncHandler{}, telemetry: &handler.TelemetryHandler{},
 			organization: &handler.OrganizationHandler{}, deliveryZone: &handler.DeliveryZoneHandler{},
@@ -94,7 +94,7 @@ var pathParams = strings.NewReplacer(
 const testOrgID = "bb0cad3e-be13-4bad-9a37-bba9525bfece"
 
 func TestAgentRole_ReachesOnlyItsRoutes(t *testing.T) {
-	jwtService := service.NewJWTService("test-secret", "")
+	jwtService := service.NewJWTService("test-secret", tenant.AnyOrganization())
 	token, err := jwtService.GenerateToken(
 		"019a0000-0000-7000-8000-0000000000aa", testOrgID, "whatsapp-agent", []int{permissions.RoleAgent})
 	require.NoError(t, err)
@@ -129,7 +129,7 @@ func TestAgentRole_ReachesOnlyItsRoutes(t *testing.T) {
 func TestAgentRole_ReachableRoutesExist(t *testing.T) {
 	registered := map[string]bool{}
 	for _, mode := range []config.Mode{config.ModeCloud, config.ModeEdge} {
-		for _, route := range fullRouter(mode, service.NewJWTService("test-secret", "")).Routes() {
+		for _, route := range fullRouter(mode, service.NewJWTService("test-secret", tenant.AnyOrganization())).Routes() {
 			registered[route.Method+" "+route.Path] = true
 		}
 	}

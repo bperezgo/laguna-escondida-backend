@@ -951,7 +951,7 @@ curl -s -o /dev/null -w "%{http_code}" -X GET "$BASE_URL/suppliers" \
 
 ## Device (Ticket Printing)
 
-> Edge mode only (`APP_MODE=edge`). See `docs/api/device.md`.
+> Edge binary only. See `docs/api/device.md`.
 
 ### Print a ticket for an open bill
 
@@ -978,7 +978,7 @@ curl -X POST "$BASE_URL/device/print" \
 
 ## Telemetry Ingest
 
-> Cloud mode only (`APP_MODE=cloud`), and only when `TELEMETRY_FORWARD_URL` points at the
+> Cloud binary only, and only when `TELEMETRY_FORWARD_URL` points at the
 > cloud Alloy sidecar. See `docs/api/telemetry.md`. The real client is the edge Alloy
 > sidecar — these examples are for smoke-testing the route.
 

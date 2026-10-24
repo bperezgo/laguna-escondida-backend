@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"laguna-escondida/backend/internal/domain/permissions"
+	"laguna-escondida/backend/internal/domain/tenant"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -25,16 +26,15 @@ type JWTClaims struct {
 }
 
 type JWTService struct {
-	secret   []byte
-	boxOrgID string
+	secret []byte
+	scope  tenant.Scope
 }
 
-// NewJWTService issues and validates tokens. boxOrgID is the edge box's organization, which
-// every token must belong to; the cloud passes "" and accepts any organization.
-func NewJWTService(secret, boxOrgID string) *JWTService {
+// NewJWTService issues and validates tokens; a token whose organization is outside scope is invalid.
+func NewJWTService(secret string, scope tenant.Scope) *JWTService {
 	return &JWTService{
-		secret:   []byte(secret),
-		boxOrgID: boxOrgID,
+		secret: []byte(secret),
+		scope:  scope,
 	}
 }
 
@@ -86,7 +86,7 @@ func (s *JWTService) ValidateToken(tokenString string) (*JWTClaims, error) {
 	if claims.OrgID == "" {
 		return nil, ErrInvalidToken
 	}
-	if s.boxOrgID != "" && claims.OrgID != s.boxOrgID {
+	if !s.scope.Admits(claims.OrgID) {
 		return nil, ErrInvalidToken
 	}
 	return claims, nil

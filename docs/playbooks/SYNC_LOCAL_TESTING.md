@@ -4,8 +4,8 @@ How to bring up a **cloud** instance and an **edge** instance locally and verify
 offline-first sync engine end to end, including the **edge-completely-offline** scenario.
 
 Backed by `docker-compose.sync.yml` at the repo root. No application code changes are
-required — the binary branches on `APP_MODE`, auto-runs migrations on boot, and the edge
-push/pull loops are pure env wiring.
+required — the cloud and edge services run their own binaries, each auto-runs migrations on
+boot, and the edge push/pull loops are pure env wiring.
 
 ---
 
@@ -13,16 +13,17 @@ push/pull loops are pure env wiring.
 
 | Component   | Container             | Host address                  | Notes                              |
 | ----------- | --------------------- | ----------------------------- | ---------------------------------- |
-| Cloud app   | `laguna-sync-cloud`   | http://localhost:8080         | `APP_MODE=cloud`, serves sync API  |
+| Cloud app   | `laguna-sync-cloud`   | http://localhost:8080         | cloud binary, serves sync API      |
 | Cloud DB    | `laguna-sync-cloud-db`| `localhost:5433`              | Postgres (own volume)              |
-| Edge app    | `laguna-sync-edge`    | http://localhost:8082         | `APP_MODE=edge`, push+pull loops   |
+| Edge app    | `laguna-sync-edge`    | http://localhost:8082         | edge binary, push+pull loops       |
 | Edge DB     | `laguna-sync-edge-db` | `localhost:5434`              | Postgres (own volume)              |
 | MinIO       | `laguna-sync-minio`   | http://localhost:9101 (console)| **Cloud only** — edge has none     |
 
 Both apps share `NODE_SYNC_KEY=test-sync-key`. The edge is Laguna's box
-(`ORGANIZATION_ID=bb0cad3e-…`), so it derives the node id migration 71 registers in the cloud,
-and the peer id the cloud's `NODE_ID` is set to (`45598059-…`, `config.CloudNodeIDFor`). The
-cloud has no `ORGANIZATION_ID`: it learns each node's organization from its `nodes` row.
+(`ORGANIZATION_ID=bb0cad3e-…`, `NODE_ID=ce6ebef8-…`, the id migration 71 registers in the
+cloud). Its sync cursors are kept under `config.CloudNodeIDFor(ORGANIZATION_ID)` (`45598059-…`).
+The cloud has no `ORGANIZATION_ID` or `NODE_ID`: it learns each node's organization from its
+`nodes` row.
 
 **Sync cadence:** every minute (5-field cron floor). Expect up to ~60s of latency per hop.
 

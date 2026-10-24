@@ -3,7 +3,6 @@ package bootstrap
 import (
 	"laguna-escondida/backend/internal/domain/permissions"
 	"laguna-escondida/backend/internal/domain/service"
-	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/handler"
 
 	"github.com/gin-gonic/gin"
@@ -20,14 +19,14 @@ type cloudHandlers struct {
 	nodes           *service.NodeService
 }
 
-func registerCloudRoutes(router *gin.Engine, cfg *config.Config, jwtService *service.JWTService, h cloudHandlers) {
+func registerCloudRoutes(router *gin.Engine, adminAPIKey, nodeSyncKey string, jwtService *service.JWTService, h cloudHandlers) {
 	// Admin routes (protected with admin API key)
-	router.POST("/api/invoices/update-missing-document-urls", handler.AdminAPIKeyMiddleware(cfg), h.invoice.UpdateMissingDocumentURLsHandler)
-	router.POST("/api/support-documents/update-missing-document-urls", handler.AdminAPIKeyMiddleware(cfg), h.supportDocument.UpdateMissingSupportDocumentURLsHandler)
+	router.POST("/api/invoices/update-missing-document-urls", handler.AdminAPIKeyMiddleware(adminAPIKey), h.invoice.UpdateMissingDocumentURLsHandler)
+	router.POST("/api/support-documents/update-missing-document-urls", handler.AdminAPIKeyMiddleware(adminAPIKey), h.supportDocument.UpdateMissingSupportDocumentURLsHandler)
 
 	// Platform organization management: cross-org, so the admin API key until platform_admin exists.
 	// No DELETE on purpose: an organization's invoices are legal records; retire it with status=suspended.
-	organizations := router.Group("/api/platform/organizations", handler.AdminAPIKeyMiddleware(cfg))
+	organizations := router.Group("/api/platform/organizations", handler.AdminAPIKeyMiddleware(adminAPIKey))
 	organizations.POST("", h.organization.CreateHandler)
 	organizations.GET("", h.organization.ListHandler)
 	organizations.GET("/:id", h.organization.GetHandler)
@@ -46,7 +45,7 @@ func registerCloudRoutes(router *gin.Engine, cfg *config.Config, jwtService *ser
 
 	// Cloud sync aggregate: accept pushes from edge nodes and serve reference changes.
 	// Each acts for the organization the calling node is registered to.
-	nodeAuth := handler.NodeAuthMiddleware(cfg, h.nodes)
+	nodeAuth := handler.NodeAuthMiddleware(nodeSyncKey, h.nodes)
 	router.POST("/api/sync/push", handler.PushNodeIDFromBody(), nodeAuth, h.sync.PushHandler)
 	router.GET("/api/sync/pull", nodeAuth, h.sync.PullHandler)
 	router.GET("/api/sync/pull/stock", nodeAuth, h.sync.PullStockHandler)
@@ -84,9 +83,9 @@ type backOfficeHandlers struct {
 
 // registerCloudBackOfficeRoutes is cloud-only: a write on the box would be overwritten by its
 // next pull, and expenses or purchases recorded there would never reach the cloud.
-func registerCloudBackOfficeRoutes(router *gin.Engine, cfg *config.Config, jwtService *service.JWTService, h backOfficeHandlers) {
+func registerCloudBackOfficeRoutes(router *gin.Engine, adminAPIKey string, jwtService *service.JWTService, h backOfficeHandlers) {
 	// User routes (protected with admin API key) — kept for first-admin bootstrap via curl.
-	router.POST("/api/users", handler.AdminAPIKeyMiddleware(cfg), h.user.CreateUserHandler)
+	router.POST("/api/users", handler.AdminAPIKeyMiddleware(adminAPIKey), h.user.CreateUserHandler)
 
 	adminUsers := router.Group("/api/admin", handler.JWTAuthMiddleware(jwtService))
 	adminUsers.POST("/users", handler.RequirePermission(permissions.UsersCreate), h.user.CreateUserHandler)

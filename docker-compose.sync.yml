@@ -3,8 +3,8 @@
 #
 # This is throwaway test infrastructure (hardcoded test secrets, named volumes you can
 # wipe). It is intentionally separate from docker-compose.yml so the dev stack stays clean.
-# Reuses the existing Dockerfile unchanged — the binary branches on APP_MODE and
-# auto-runs migrations on boot, so each DB self-migrates.
+# Reuses the existing Dockerfile unchanged — the image holds both binaries (cloud is the
+# default command, the edge service runs ./edge), and each auto-runs its migrations on boot.
 #
 # Storage note: the edge is OFFLINE-FIRST and never uses object storage (uploads,
 # invoices and support documents are online-only features). Its STORAGE_* values below are
@@ -22,9 +22,8 @@
 name: laguna-sync
 
 # Shared env for both app instances. Per-service blocks below override the few
-# mode-specific values (APP_MODE, DB_HOST, storage, sync target). The edge is Laguna's box
-# (ORGANIZATION_ID), so it derives the node id migrations register in the cloud and the
-# cloud id the cloud's NODE_ID below is set to; the cloud itself has no organization.
+# mode-specific values (DB_HOST, storage, sync target). The edge is Laguna's box
+# (ORGANIZATION_ID, NODE_ID); the cloud has no organization or node id of its own.
 #
 # App-level values use ${VAR:-default}: Compose auto-loads .env from the repo root
 # (or use `--env-file`, or a shell var, which wins over .env) and falls back to the
@@ -79,10 +78,7 @@ services:
     container_name: laguna-sync-cloud
     environment:
       <<: *app-env
-      APP_MODE: cloud
       DB_HOST: cloud-db
-      # config.CloudNodeIDFor(Laguna): the peer id Laguna's box syncs against.
-      NODE_ID: "45598059-e12e-530c-86b6-758477c4423d"
       # Production re-sums the stock ledger once a day; here it runs every minute so a
       # manual test can watch the invariant check report instead of waiting until 03:15.
       STOCK_RECONCILE_CRON: "* * * * *"
@@ -131,9 +127,10 @@ services:
     command: ["./edge"]
     environment:
       <<: *app-env
-      APP_MODE: edge
       DB_HOST: edge-db
       ORGANIZATION_ID: "bb0cad3e-be13-4bad-9a37-bba9525bfece" # Laguna, seeded by migrations
+      # Laguna's box, registered in the cloud's nodes table by migration 71.
+      NODE_ID: "ce6ebef8-37cf-576b-b7a8-15aaaaae44a1"
       CLOUD_SYNC_URL: http://cloud:8080
       SYNC_PUSH_CRON: "* * * * *" # every minute (5-field cron floor)
       SYNC_PULL_CRON: "* * * * *"

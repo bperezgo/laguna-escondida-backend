@@ -29,17 +29,17 @@ type S3Client struct {
 	urlTTL        time.Duration
 }
 
-func NewS3Client(cfg *config.Config) (*S3Client, error) {
+func NewS3Client(cfg config.Storage) (*S3Client, error) {
 	loadOpts := []func(*awsconfig.LoadOptions) error{
-		awsconfig.WithRegion(cfg.StorageRegion),
+		awsconfig.WithRegion(cfg.Region),
 	}
 
 	// Static credentials are optional: when both are set we use them, otherwise the
 	// AWS SDK default credential chain (env, shared config, or the ECS/EC2 IAM role)
 	// resolves credentials at request time.
-	if cfg.StorageAccessKey != "" && cfg.StorageSecret != "" {
+	if cfg.AccessKey != "" && cfg.Secret != "" {
 		loadOpts = append(loadOpts, awsconfig.WithCredentialsProvider(
-			credentials.NewStaticCredentialsProvider(cfg.StorageAccessKey, cfg.StorageSecret, ""),
+			credentials.NewStaticCredentialsProvider(cfg.AccessKey, cfg.Secret, ""),
 		))
 	}
 
@@ -57,8 +57,8 @@ func NewS3Client(cfg *config.Config) (*S3Client, error) {
 		// STORAGE_ENDPOINT overrides the default AWS S3 endpoint (e.g.
 		// http://localhost:9000 for a local MinIO). S3-compatible services need
 		// path-style addressing; real AWS S3 uses the default virtual-hosted style.
-		if cfg.StorageEndpoint != "" {
-			o.BaseEndpoint = aws.String(cfg.StorageEndpoint)
+		if cfg.Endpoint != "" {
+			o.BaseEndpoint = aws.String(cfg.Endpoint)
 			o.UsePathStyle = true
 		}
 		// Only compute/validate checksums when the operation requires it, keeping
@@ -71,9 +71,9 @@ func NewS3Client(cfg *config.Config) (*S3Client, error) {
 	return &S3Client{
 		client:        client,
 		presignClient: s3.NewPresignClient(client),
-		bucket:        cfg.StorageBucket,
-		region:        cfg.StorageRegion,
-		endpoint:      cfg.StorageEndpoint,
+		bucket:        cfg.Bucket,
+		region:        cfg.Region,
+		endpoint:      cfg.Endpoint,
 		cdnURL:        cfg.CDNURL,
 		urlSigner:     urlSigner,
 		urlTTL:        cfg.CDNURLTTL,
@@ -83,7 +83,7 @@ func NewS3Client(cfg *config.Config) (*S3Client, error) {
 // newCloudFrontSigner builds a CloudFront URL signer when a CDN URL, key pair ID, and
 // private key are all configured; otherwise it returns nil so URLs stay unsigned. The
 // private key comes from CDN_PRIVATE_KEY (inline PEM) or CDN_PRIVATE_KEY_PATH (a file).
-func newCloudFrontSigner(cfg *config.Config) (*sign.URLSigner, error) {
+func newCloudFrontSigner(cfg config.Storage) (*sign.URLSigner, error) {
 	if cfg.CDNURL == "" || cfg.CDNKeyPairID == "" {
 		return nil, nil
 	}
@@ -103,7 +103,7 @@ func newCloudFrontSigner(cfg *config.Config) (*sign.URLSigner, error) {
 	return sign.NewURLSigner(cfg.CDNKeyPairID, privKey), nil
 }
 
-func loadCDNPrivateKey(cfg *config.Config) ([]byte, error) {
+func loadCDNPrivateKey(cfg config.Storage) ([]byte, error) {
 	if cfg.CDNPrivateKey != "" {
 		// Support single-line env values where PEM newlines were escaped as "\n".
 		return []byte(strings.ReplaceAll(cfg.CDNPrivateKey, "\\n", "\n")), nil

@@ -121,13 +121,14 @@ All wiring is done manually in `internal/bootstrap`. No DI framework is used. Th
 | Edge (the restaurant's box) | `cmd/edge` | `edge-node.exe` (release workflow); `/app/edge` for the local sync rig |
 | MCP server | `cmd/mcp-server` | `/app/mcp-server` |
 
-The binary sets the mode. `APP_MODE` is optional; a value naming the other mode stops the boot.
+The binary sets the mode; no environment variable selects it (`APP_MODE` is not read). Each binary has its own config type and loader (`config.LoadCloud`, `config.LoadEdge`) that reads and validates only its own variables. A binary started on the other host fails at boot: the cloud needs `ELECTRONIC_INVOICE_*`, which a box doesn't have, and the edge needs `ORGANIZATION_ID` and `NODE_ID`, which the cloud doesn't.
 
 ```
 internal/bootstrap/
-  main.go           Main(mode, assemble): .env, config, observability, migrations, DB, signals
+  main.go           Main(mode, boot): .env, config, observability, migrations, DB, signals
+  boot.go           CloudBoot / EdgeBoot: load the binary's config and close over it for assembly
   infra.go          Infra: db, logger, HTTP client, storage, e-invoicing client, event bus
-  core.go           buildCore(cfg, infra, ModeOptions): shared repos, services, handlers,
+  core.go           buildCore(shared, infra, ModeOptions): shared repos, services, handlers,
                     subscribers and the shared routes
   cloud.go          NewCloud: core + e-invoicing, crons, sync API, telemetry ingest,
                     organization admin, delivery zones, stock authoring
@@ -140,13 +141,13 @@ internal/bootstrap/
 ```go
 // cmd/edge/main.go
 func main() {
-    bootstrap.Main(config.ModeEdge, bootstrap.NewEdge)
+    bootstrap.Main(config.ModeEdge, bootstrap.EdgeBoot)
 }
 ```
 
 Rules:
 
-- **Only `cloud.go` and `edge.go` know the mode.** Shared code takes mode-dependent values through `ModeOptions` (pending-invoice initial status, stock movement emitter, stock authoring) and never reads `cfg.AppMode`.
+- **Only `cloud.go` and `edge.go` know the mode.** Shared code takes mode-dependent values through `ModeOptions` (tenancy scope, sync identity, status handler, pending-invoice initial status, stock movement emitter, stock authoring) and only ever sees `*config.Shared`.
 - **Building an app starts nothing.** Schedulers and subscribers start in `App.Run`, so a test can build the real router with `NewCloud(cfg, infra)` and an injected `Infra` (test database, stub clients) and drive `App.Router` with `httptest`.
 - **Route tables are pinned.** `internal/bootstrap/testdata/routes_{cloud,edge}.golden` lists every route each binary serves; `TestRoutes_MatchGolden` fails on any difference, so adding or moving a route means updating the golden file on purpose.
 
@@ -866,7 +867,7 @@ func NewConfig() (*Config, error) {
 }
 ```
 
-**Required environment variables**: `JWT_SECRET`, `ADMIN_API_KEY`, `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_SSLMODE`, `PORT`, `STORAGE_BUCKET` (plus optional `DB_MIGRATION_USER` + `DB_MIGRATION_PASSWORD`, the schema owner migrations run as, defaulting to `DB_USER`/`DB_PASSWORD`; `STORAGE_REGION`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET`, `STORAGE_ENDPOINT`, `CDN_URL`; for signed CloudFront links `CDN_KEY_PAIR_ID` + `CDN_PRIVATE_KEY` or `CDN_PRIVATE_KEY_PATH`, and optional `CDN_URL_TTL`), `ELECTRONIC_INVOICE_URL`/`_USER`/`_PASSWORD` (the prefixes are per organization, in `organization_einvoicing`). By `APP_MODE`: an edge box requires `ORGANIZATION_ID` (its organization's UUID); the cloud refuses it, since each request's organization comes from its token or calling node, and requires `NODE_ID` (`config.CloudNodeIDFor(<Laguna>)` = `45598059-e12e-530c-86b6-758477c4423d` for the cloud Laguna's box syncs against).
+**Required environment variables**: `JWT_SECRET`, `ADMIN_API_KEY`, `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_SSLMODE`, `PORT`, `STORAGE_BUCKET` (plus optional `DB_MIGRATION_USER` + `DB_MIGRATION_PASSWORD`, the schema owner migrations run as, defaulting to `DB_USER`/`DB_PASSWORD`; `STORAGE_REGION`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET`, `STORAGE_ENDPOINT`, `CDN_URL`; for signed CloudFront links `CDN_KEY_PAIR_ID` + `CDN_PRIVATE_KEY` or `CDN_PRIVATE_KEY_PATH`, and optional `CDN_URL_TTL`). Both binaries read `JWT_SECRET`, `ADMIN_API_KEY`, `NODE_SYNC_KEY`, `PHONE_HOME_REGION`, the storage/CDN variables and the observability variables (`config.Shared`). The **cloud binary** also reads `ELECTRONIC_INVOICE_URL`/`_USER`/`_PASSWORD` (required; the prefixes are per organization, in `organization_einvoicing`), `INVOICE_URL_CRON`, `SUPPORT_DOCUMENT_URL_CRON`, `INVOICE_SUBMIT_CRON`, `STOCK_RECONCILE_CRON`, `TELEMETRY_FORWARD_URL` and `TELEMETRY_TENANT_ID`. It reads neither `ORGANIZATION_ID` nor `NODE_ID`: each request's organization comes from its token or calling node. The **edge binary** also reads `ORGANIZATION_ID` and `NODE_ID` (both required UUIDs; `NODE_ID` is the box's identity and must match its row in the cloud's `nodes` table), `CLOUD_SYNC_URL`, `SYNC_PUSH_CRON`, `SYNC_PULL_CRON`, `STOCK_PULL_CRON`, `PRINTER_*`, `BUSINESS_*`, `TICKET_*` and `LAGUNA_STATE_DIR`. The edge's cloud peer key is always `config.CloudNodeIDFor(ORGANIZATION_ID)`; `CLOUD_NODE_ID` is not read.
 
 ---
 
