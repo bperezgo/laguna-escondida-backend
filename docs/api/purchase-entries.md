@@ -2,6 +2,8 @@
 
 Record goods received from suppliers. Also known as "Ingress" or inventory intake.
 
+**Cloud only.** These routes exist only in the cloud binary; on the restaurant's box (edge) they return `404`. Accounting is done in the cloud, and data recorded on the box would never reach it.
+
 Creating a purchase entry **raises on-hand stock** for every line, and does so on whichever
 node records it. Recorded in the cloud it moves the cloud's own number; recorded at the
 restaurant it moves the local number and replicates upward as a signed movement the cloud

@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"laguna-escondida/backend/internal/platform/postgres/repository"
 	"laguna-escondida/backend/internal/platform/sse"
 	"laguna-escondida/backend/internal/platform/syncstatus"
+	pkgports "laguna-escondida/backend/pkg/domain/ports"
 	"laguna-escondida/backend/pkg/eventbus"
 
 	"github.com/ThreeDotsLabs/watermill"
@@ -25,15 +27,28 @@ type ModeOptions struct {
 	PendingInvoiceInitialStatus dto.PendingInvoiceStatus
 	StockMovementEmitter        ports.StockMovementEmitter
 	StockAuthoring              bool
+	// DeliveryEnabled is false on the box: deliveries are taken in the cloud.
+	DeliveryEnabled bool
+	// EInvoicingEnabled is false on the box, which drops organization_einvoicing.
+	EInvoicingEnabled bool
 }
+
+// noDeliveryZones is the box's zone finder: it never reads delivery_zones, which the box drops.
+type noDeliveryZones struct{}
+
+func (noDeliveryZones) ListActive(context.Context) ([]*dto.DeliveryZone, error) { return nil, nil }
 
 // core is what both modes share: the shared routes are already registered on router.
 type core struct {
 	router     *gin.Engine
+	handlers   apiHandlers
+	publisher  pkgports.EventBus
 	jwtService *service.JWTService
 	unitOfWork ports.UnitOfWork
 
 	productRepo            ports.ProductRepository
+	supplierRepo           ports.SupplierRepository
+	supplierCatalogRepo    ports.SupplierCatalogRepository
 	openBillRepo           ports.OpenBillRepository
 	billRepo               ports.BillRepository
 	pendingInvoiceRepo     ports.PendingInvoiceRepository
@@ -68,9 +83,6 @@ func buildCore(cfg *config.Config, infra Infra, opts ModeOptions) (*core, error)
 	billOwnerRepo := repository.NewBillOwnerRepository(db)
 	supplierRepo := repository.NewSupplierRepository(db)
 	supplierCatalogRepo := repository.NewSupplierCatalogRepository(db)
-	purchaseEntryRepo := repository.NewPurchaseEntryRepository(db)
-	expenseCategoryRepo := repository.NewExpenseCategoryRepository(db)
-	expenseRepo := repository.NewExpenseRepository(db)
 	productIngredientRepo := repository.NewProductIngredientRepository(db)
 	billRepo := repository.NewBillRepository(db)
 	pendingInvoiceRepo := repository.NewPendingInvoiceRepository(db)
@@ -95,6 +107,10 @@ func buildCore(cfg *config.Config, infra Infra, opts ModeOptions) (*core, error)
 	// Edge status: pending-ops/lag come from this node's unsynced outbox (a domain use
 	// case); connectivity comes from the sync scheduler via the in-memory tracker below.
 	edgeStatusService := service.NewEdgeStatusService(syncOutboxRepo, syncIdentity)
+	var deliveryZoneFinder ports.DeliveryZoneFinder = noDeliveryZones{}
+	if opts.DeliveryEnabled {
+		deliveryZoneFinder = deliveryZoneRepo
+	}
 	orderService := service.NewOrderServiceWithSSE(
 		logger,
 		openBillRepo,
@@ -110,26 +126,27 @@ func buildCore(cfg *config.Config, infra Infra, opts ModeOptions) (*core, error)
 		syncOutboxRepo,
 		syncIdentity,
 		productIngredientRepo,
-		deliveryZoneRepo,
+		deliveryZoneFinder,
 		cfg.PhoneHomeRegion,
+		service.WithDeliveryEnabled(opts.DeliveryEnabled),
 	)
+	// The edge only reads products; the supplier repos back the cloud's bulk create.
 	productService := service.NewProductService(productRepo, supplierRepo, supplierCatalogRepo, unitOfWork)
 	stockService := service.NewStockService(stockRepo, productRepo, unitOfWork, opts.StockMovementEmitter)
 	stockReconciliationService := service.NewStockReconciliationService(
 		stockReconciliationRepo, stockRepo, unitOfWork, opts.StockMovementEmitter, logger,
 	)
-	organizationRepo := repository.NewOrganizationRepository(db)
+	organizationRepo := repository.NewEdgeOrganizationRepository(db)
+	if opts.EInvoicingEnabled {
+		organizationRepo = repository.NewOrganizationRepository(db)
+	}
 	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, organizationRepo, jwtService, unitOfWork, cfg.OrganizationID)
 	einvoicingSettingsRepo := repository.NewEInvoicingSettingsRepository(db)
 	organizationService := service.NewOrganizationService(organizationRepo, einvoicingSettingsRepo, unitOfWork)
 	sessionOpener := postgres.NewSessionOpener(db)
 	organizationRunner := service.NewOrganizationRunner(organizationRepo, sessionOpener)
 	billOwnerService := service.NewBillOwnerService(billOwnerRepo)
-	supplierService := service.NewSupplierService(supplierRepo, supplierCatalogRepo, productRepo)
-	purchaseEntryService := service.NewPurchaseEntryService(purchaseEntryRepo, supplierRepo, supplierCatalogRepo, productRepo, infra.Storage, publisher, unitOfWork, syncOutboxRepo, syncIdentity, logger)
-	expenseService := service.NewExpenseService(expenseCategoryRepo, expenseRepo, supplierRepo, infra.Storage)
 	productIngredientService := service.NewProductIngredientService(productIngredientRepo, productRepo)
-	financialService := service.NewFinancialService(billRepo, expenseRepo, purchaseEntryRepo)
 
 	eventSubscriber, err := eventbus.NewGoChannelEventSubscriber(infra.EventBus.PubSub(), watermillLogger)
 	if err != nil {
@@ -173,23 +190,24 @@ func buildCore(cfg *config.Config, infra Infra, opts ModeOptions) (*core, error)
 	router.Use(handler.MetricsMiddleware())
 	router.Use(handler.DBSessionMiddleware(db))
 
-	registerAPIRoutes(router, cfg, jwtService, apiHandlers{
+	handlers := apiHandlers{
 		order:             orderHandler,
 		product:           handler.NewProductHandler(productService),
 		stock:             handler.NewStockHandler(stockService, stockReconciliationService, organizationRunner),
 		user:              handler.NewUserHandler(userService, organizationService, logger),
 		billOwner:         handler.NewBillOwnerHandler(billOwnerService),
-		supplier:          handler.NewSupplierHandler(supplierService),
-		purchaseEntry:     handler.NewPurchaseEntryHandler(purchaseEntryService),
-		expense:           handler.NewExpenseHandler(expenseService),
 		productIngredient: handler.NewProductIngredientHandler(productIngredientService),
-		financial:         handler.NewFinancialHandler(financialService),
 		sse:               handler.NewSSEHandler(sseHub, openBillProductHub, orderService, logger),
 		edge:              handler.NewEdgeHandler(cfg, edgeStatusService, syncStatusTracker),
-	}, opts.StockAuthoring)
+	}
+	registerAPIRoutes(router, cfg, jwtService, handlers, opts.StockAuthoring)
 
 	return &core{
 		router:                     router,
+		handlers:                   handlers,
+		publisher:                  publisher,
+		supplierRepo:               supplierRepo,
+		supplierCatalogRepo:        supplierCatalogRepo,
 		jwtService:                 jwtService,
 		unitOfWork:                 unitOfWork,
 		productRepo:                productRepo,

@@ -48,7 +48,24 @@ type OrderService struct {
 	taxConfig                   dto.TaxConfig
 	productIngredientRepo       ports.ProductIngredientRepository
 	deliveryZoneFinder          ports.DeliveryZoneFinder
+	deliveryEnabled             bool
 	phoneHomeRegion             string
+}
+
+// OrderServiceOption adjusts an OrderService to the binary it runs in.
+type OrderServiceOption func(*OrderService)
+
+// WithDeliveryEnabled false refuses every delivery: the box has no zones, and a delivery
+// taken there would never be dispatched.
+func WithDeliveryEnabled(enabled bool) OrderServiceOption {
+	return func(s *OrderService) { s.deliveryEnabled = enabled }
+}
+
+func (s *OrderService) apply(opts []OrderServiceOption) *OrderService {
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 func NewOrderService(
@@ -65,8 +82,9 @@ func NewOrderService(
 	productIngredientRepo ports.ProductIngredientRepository,
 	deliveryZoneFinder ports.DeliveryZoneFinder,
 	phoneHomeRegion string,
+	opts ...OrderServiceOption,
 ) *OrderService {
-	return &OrderService{
+	return (&OrderService{
 		openBillRepo:                openBillRepo,
 		productRepo:                 productRepo,
 		taxConfig:                   dto.GetDefaultTaxConfig(),
@@ -80,8 +98,9 @@ func NewOrderService(
 		syncIdentity:                syncIdentity,
 		productIngredientRepo:       productIngredientRepo,
 		deliveryZoneFinder:          deliveryZoneFinder,
+		deliveryEnabled:             true,
 		phoneHomeRegion:             phoneHomeRegion,
-	}
+	}).apply(opts)
 }
 
 func NewOrderServiceWithSSE(
@@ -101,8 +120,9 @@ func NewOrderServiceWithSSE(
 	productIngredientRepo ports.ProductIngredientRepository,
 	deliveryZoneFinder ports.DeliveryZoneFinder,
 	phoneHomeRegion string,
+	opts ...OrderServiceOption,
 ) *OrderService {
-	return &OrderService{
+	return (&OrderService{
 		logger:                      logger,
 		openBillRepo:                openBillRepo,
 		productRepo:                 productRepo,
@@ -119,8 +139,9 @@ func NewOrderServiceWithSSE(
 		syncIdentity:                syncIdentity,
 		productIngredientRepo:       productIngredientRepo,
 		deliveryZoneFinder:          deliveryZoneFinder,
+		deliveryEnabled:             true,
 		phoneHomeRegion:             phoneHomeRegion,
-	}
+	}).apply(opts)
 }
 
 // CreateOrder creates a new open order with the specified products
@@ -295,6 +316,9 @@ func (s *OrderService) resolveFulfillment(ctx context.Context, req dto.OrderCont
 	}
 	if !fulfillment.IsDelivery() {
 		return fulfillment, nil
+	}
+	if !s.deliveryEnabled {
+		return openBill.Fulfillment{}, orderError.ErrDeliveryCloudOnly
 	}
 
 	zones, err := s.deliveryZoneFinder.ListActive(ctx)

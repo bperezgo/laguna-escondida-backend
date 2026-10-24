@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"laguna-escondida/backend/internal/domain/dto"
@@ -18,6 +19,10 @@ import (
 // see soft-deleted rows and the explicit deleted_at filter controls visibility.
 type SyncReferenceRepository struct {
 	db *gorm.DB
+
+	suppliersMu    sync.Mutex
+	suppliersKnown bool
+	hasSuppliers   bool
 }
 
 func NewSyncReferenceRepository(db *gorm.DB) *SyncReferenceRepository {
@@ -356,6 +361,8 @@ func (r *SyncReferenceRepository) replaceUserRoles(db *gorm.DB, users []dto.User
 	return nil
 }
 
+// UpsertSuppliers is a no-op on a trimmed box, which has no suppliers table: the cloud keeps
+// sending them for boxes that haven't updated, and the rest of the pull must still apply.
 func (r *SyncReferenceRepository) UpsertSuppliers(ctx context.Context, suppliers []dto.SupplierSyncPayload) error {
 	if len(suppliers) == 0 {
 		return nil
@@ -363,6 +370,13 @@ func (r *SyncReferenceRepository) UpsertSuppliers(ctx context.Context, suppliers
 	db, err := postgres.TenantDB(ctx, r.db)
 	if err != nil {
 		return err
+	}
+	present, err := r.suppliersTablePresent(db)
+	if err != nil {
+		return err
+	}
+	if !present {
+		return nil
 	}
 
 	models := make([]supplierModel, len(suppliers))
@@ -393,6 +407,20 @@ func (r *SyncReferenceRepository) UpsertSuppliers(ctx context.Context, suppliers
 		return fmt.Errorf("upsert suppliers: %w", err)
 	}
 	return nil
+}
+
+// suppliersTablePresent is checked once per process: the schema only changes at boot, before
+// the edge trim or after it, never while the box is serving.
+func (r *SyncReferenceRepository) suppliersTablePresent(db *gorm.DB) (bool, error) {
+	r.suppliersMu.Lock()
+	defer r.suppliersMu.Unlock()
+	if !r.suppliersKnown {
+		if err := db.Raw("SELECT to_regclass('public.suppliers') IS NOT NULL").Scan(&r.hasSuppliers).Error; err != nil {
+			return false, fmt.Errorf("check suppliers table: %w", err)
+		}
+		r.suppliersKnown = true
+	}
+	return r.hasSuppliers, nil
 }
 
 func (r *SyncReferenceRepository) UpsertProductResponsibilities(ctx context.Context, responsibilities []dto.ProductResponsibilitySyncPayload) error {

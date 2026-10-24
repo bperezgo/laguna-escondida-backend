@@ -4,7 +4,9 @@ import (
 	"context"
 	"testing"
 
-	migrate "github.com/golang-migrate/migrate/v4"
+	"laguna-escondida/backend/internal/platform/postgres/migrations"
+	"laguna-escondida/backend/test/acceptance/testsupport"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -34,7 +36,7 @@ func TestMigration_DeliveryOrders_UpDown(t *testing.T) {
 	}
 
 	recreateDatabase(t, base, deliveryDBName)
-	m, err := migrate.New("file://"+findMigrationsDir(t), base.migrateURL(deliveryDBName))
+	m, err := testsupport.NewMigrator(migrations.Cloud, base.migrateURL(deliveryDBName))
 	require.NoError(t, err, "open migrator")
 	defer func() { _, _ = m.Close() }()
 

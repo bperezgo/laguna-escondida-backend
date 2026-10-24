@@ -2,6 +2,14 @@
 
 Manage products, including sellable items and ingredients.
 
+**Cloud only: catalog writes.** The box (edge) serves every read here (`GET /api/products`, `/api/products/categories`, `/api/products/:id`, `/api/products/:id/ingredients`, `/api/products/:id/side-dishes`, `/api/product-responsibilities/:id`) from what it last pulled from the cloud. These routes exist only in the cloud; on the box they return `404`, because the next pull would overwrite the edit:
+
+- `POST /api/products`, `POST /api/products/bulk`, `PUT /api/products/:id`, `DELETE /api/products/:id`
+- `POST /api/product-responsibilities`, `PUT /api/product-responsibilities/:id`, `DELETE /api/product-responsibilities/:id`
+- `POST /api/products/:id/ingredients`, `PUT /api/products/:id/ingredients/:ingredient_id`, `DELETE /api/products/:id/ingredients/:ingredient_id`
+- `PUT /api/products/:id/ingredients/:ingredient_id/side-dish`, `DELETE /api/products/:id/ingredients/:ingredient_id/side-dish`
+- `GET /api/products/:id/suppliers` (the box keeps no suppliers)
+
 ## Product Types
 
 | Type         | Description                                                    | Has Selling Price |

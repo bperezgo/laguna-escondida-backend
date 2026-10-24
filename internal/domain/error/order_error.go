@@ -31,6 +31,7 @@ var (
 
 var (
 	ErrOutsideDeliveryZone   = errors.New("the delivery location is outside every active delivery zone")
+	ErrDeliveryCloudOnly     = errors.New("deliveries are taken in the cloud")
 	ErrDeliveryZoneNotFound  = errors.New("delivery zone not found")
 	ErrDeliveryZoneOperation = errors.New("delivery zone operation failed")
 )

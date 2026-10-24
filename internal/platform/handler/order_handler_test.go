@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -51,4 +52,27 @@ func TestOrderHandler_CancelOpenBillProduct_PaidOrder_Returns409(t *testing.T) {
 	var body map[string]string
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 	assert.Equal(t, "A line of a paid order cannot be cancelled", body["error"])
+}
+
+func TestOrderHandler_CreateOrder_DeliveryOnTheBox_Returns422(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	const userID = "550e8400-e29b-41d4-a716-446655440020"
+	// No repository is reached: the refusal comes before any zone lookup or write.
+	orderService := service.NewOrderService(nil, nil, nil, nil, dto.PendingInvoiceStatusPendingCloud, nil, nil, nil, nil,
+		dto.SyncIdentity{}, nil, nil, "CO", service.WithDeliveryEnabled(false))
+
+	router := gin.New()
+	router.POST("/api/orders", func(c *gin.Context) { c.Set("user_id", userID) }, NewOrderHandler(orderService, nil).CreateOrderHandler)
+
+	body := `{"open_bill_id":"550e8400-e29b-41d4-a716-446655440010","temporal_identifier":"550e8400-e29b-41d4-a716-446655440011",
+		"products":[],"order_type":"delivery","customer_phone":"+573005551234","delivery_address":"Cra 7 # 12-34",
+		"delivery_lat":"4.590000","delivery_lng":"-74.095000"}`
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/orders", bytes.NewBufferString(body)))
+
+	assert.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+	var resp map[string]string
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.Equal(t, "DELIVERY_CLOUD_ONLY", resp["code"])
+	assert.Equal(t, "Deliveries are taken in the cloud", resp["error"])
 }

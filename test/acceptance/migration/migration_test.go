@@ -4,14 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"testing"
 
+	"laguna-escondida/backend/internal/platform/postgres/migrations"
 	"laguna-escondida/backend/test/acceptance/testsupport"
 
-	migrate "github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
@@ -60,9 +58,7 @@ func TestMigration_SideDishRename_PreservesAmounts(t *testing.T) {
 	}
 
 	recreateDatabase(t, base, dbName)
-	migrationsDir := findMigrationsDir(t)
-
-	m, err := migrate.New("file://"+migrationsDir, base.migrateURL(dbName))
+	m, err := testsupport.NewMigrator(migrations.Cloud, base.migrateURL(dbName))
 	require.NoError(t, err, "open migrator")
 	defer func() { _, _ = m.Close() }()
 
@@ -165,18 +161,4 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
-}
-
-func findMigrationsDir(t *testing.T) string {
-	t.Helper()
-	dir, err := os.Getwd()
-	require.NoError(t, err)
-	for {
-		if _, statErr := os.Stat(filepath.Join(dir, "go.mod")); statErr == nil {
-			return filepath.Join(dir, "internal", "platform", "postgres", "migrations")
-		}
-		parent := filepath.Dir(dir)
-		require.NotEqual(t, parent, dir, "go.mod not found")
-		dir = parent
-	}
 }

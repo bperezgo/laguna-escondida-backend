@@ -211,6 +211,36 @@ docker compose -f docker-compose.sync.yml down -v     # stop and wipe both DBs +
 
 ---
 
+## 9. Runbook: the edge trim is blocked
+
+The edge binary drops the accounting tables from the box (edge migration `000072_trim_edge_schema`), but only once nothing in them exists only on the box. Otherwise it boots on the untrimmed v71 schema, keeps taking orders, and logs one line per blocking table at error level on every start:
+
+```
+level=ERROR msg="Edge schema trim blocked: rows exist only on this box" table=expenses rows=1
+```
+
+| `table` | What blocks | Fix |
+| --- | --- | --- |
+| `expenses` | Any expense (expenses never sync) | Re-enter it in the cloud, then delete it on the box |
+| `expense_categories` | A category beyond the five seeded codes | Re-create it in the cloud, then delete it on the box |
+| `purchase_entries` | A purchase-entry outbox op the cloud hasn't confirmed | Usually nothing: restore connectivity, and the push clears it |
+
+1. Read the counts on the box (as the schema owner):
+   ```sql
+   SELECT COUNT(*) FROM expenses;
+   SELECT COUNT(*) FROM expense_categories
+    WHERE code NOT IN ('indirect_cost', 'expense', 'investment', 'rent', 'service');
+   SELECT COUNT(*) FROM sync_outbox WHERE entity_type = 'purchase_entry' AND synced_at IS NULL;
+   ```
+2. Export the rows: `\copy (SELECT * FROM expenses) TO 'expenses.csv' CSV HEADER` (same for the extra categories).
+3. Re-enter them in the cloud through its API (`docs/api/expenses.md`), and check that they are there.
+4. Delete them on the box: `DELETE FROM expenses;`, then `DELETE FROM expense_categories WHERE code NOT IN (...);`.
+5. Restart the edge service. The next start runs the trim, and the error lines stop. `SELECT version FROM schema_migrations` reads `72`.
+
+Rollback: an older edge build on a trimmed box fails on the dropped tables. Roll back only while `schema_migrations` is still `71`; otherwise roll forward or restore the pre-update backup.
+
+---
+
 ## Known limitations (by design, for now)
 
 - **Latency:** ~60s per hop (1-minute cron floor). Fine for correctness testing.

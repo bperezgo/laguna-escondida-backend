@@ -2,6 +2,11 @@
 
 User management endpoints. Creating users is an **admin-only** operation guarded by an API key rather than a JWT.
 
+**Cloud only: user writes.** The box (edge) serves sign-in, `/api/auth/me`, `GET /api/admin/users`, `GET /api/admin/users/:id` and `GET /api/admin/roles`, and gets its users from the cloud's pull. These routes exist only in the cloud; on the box they return `404`:
+
+- `POST /api/users` (admin-key bootstrap)
+- `POST /api/admin/users`, `PUT /api/admin/users/:id`, `POST /api/admin/users/:id/reset-password`, `DELETE /api/admin/users/:id`
+
 For authentication (sign in) and reading the current user, see [Authentication](auth.md).
 
 ## Endpoints

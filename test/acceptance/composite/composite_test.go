@@ -17,6 +17,7 @@ import (
 	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/domain/tenant"
 	"laguna-escondida/backend/internal/platform/postgres"
+	"laguna-escondida/backend/internal/platform/postgres/migrations"
 	"laguna-escondida/backend/internal/platform/postgres/repository"
 	"laguna-escondida/backend/internal/platform/stockmovement"
 	"laguna-escondida/backend/pkg/eventbus"
@@ -24,7 +25,6 @@ import (
 
 	migrate "github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"github.com/shopspring/decimal"
@@ -50,9 +50,8 @@ const (
 )
 
 var (
-	edgeGDB       *gorm.DB
-	migrationsDir string
-	pgContainer   *testsupport.PostgresContainer
+	edgeGDB     *gorm.DB
+	pgContainer *testsupport.PostgresContainer
 )
 
 func gateEnabled() bool { return os.Getenv("RUN_ACCEPTANCE_TESTS") == "true" }
@@ -125,12 +124,6 @@ func (p connParams) migrateURL(dbName string) string {
 
 func provision() error {
 	loadDotEnv()
-	dir, err := findMigrationsDir()
-	if err != nil {
-		return err
-	}
-	migrationsDir = dir
-
 	base, err := resolveBaseConnParams()
 	if err != nil {
 		return err
@@ -166,7 +159,7 @@ func recreateDatabase(base connParams, name string) error {
 }
 
 func runMigrations(base connParams, name string) error {
-	m, err := migrate.New("file://"+migrationsDir, base.migrateURL(name))
+	m, err := testsupport.NewMigrator(migrations.Edge, base.migrateURL(name))
 	if err != nil {
 		return err
 	}
@@ -498,16 +491,4 @@ func findRepoRoot() (string, error) {
 		}
 		dir = parent
 	}
-}
-
-func findMigrationsDir() (string, error) {
-	root, err := findRepoRoot()
-	if err != nil {
-		return "", err
-	}
-	dir := filepath.Join(root, "internal", "platform", "postgres", "migrations")
-	if _, err := os.Stat(dir); err != nil {
-		return "", fmt.Errorf("migrations dir not found at %s: %w", dir, err)
-	}
-	return dir, nil
 }

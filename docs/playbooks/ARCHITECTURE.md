@@ -19,6 +19,7 @@
 - [Ports (Interfaces)](#ports-interfaces)
 - [Infrastructure Layer (Adapters)](#infrastructure-layer-adapters)
   - [Repositories (PostgreSQL + GORM)](#repositories-postgresql--gorm)
+  - [Migrations: which set does my migration go in?](#migrations-which-set-does-my-migration-go-in)
   - [Unit of Work (Transactions)](#unit-of-work-transactions)
   - [External Services](#external-services)
   - [Event Bus](#event-bus)
@@ -67,7 +68,7 @@ project-root/
 │       ├── handler/                   # HTTP handlers + middleware (Gin)
 │       ├── postgres/
 │       │   ├── repository/            # GORM repository implementations
-│       │   ├── migrations/            # SQL migration files
+│       │   ├── migrations/            # SQL migrations: shared/ (v1–v71, frozen) + cloud/ + edge/
 │       │   └── unit_of_work.go        # Transaction wrapper
 │       ├── sse/                       # Server-Sent Events hub
 │       ├── storage/                   # External storage (S3-compatible)
@@ -508,6 +509,21 @@ func (r *ProductRepository) getDB(ctx context.Context) *gorm.DB {
 - PostgreSQL `gen_random_uuid()` for UUID generation.
 - Transaction-aware via context (checks for `txKey{}`).
 - Return `ports.XxxRepository` from constructor (not concrete type).
+
+### Migrations: which set does my migration go in?
+
+`internal/platform/postgres/migrations/` has three directories. Each binary embeds `shared/` plus its own set (`migrations.Cloud`, `migrations.Edge`) and runs them through golang-migrate on one `schema_migrations` version.
+
+| Directory | Holds | Rule |
+| --- | --- | --- |
+| `shared/` | v1–v71, the history both binaries ran | Frozen. Never add or edit a file here. |
+| `cloud/` | v72+ for the cloud | Embedded only by `cmd/cloud`. |
+| `edge/` | v72+ for the box; `000072` trims it | Embedded only by `cmd/edge`. |
+
+- **A change to a table both sides keep goes in both `cloud/` and `edge/`**, with the same SQL. The version numbers may differ, since no database runs both sets. `TestEdgeCloudSharedSchemaParity` (`test/acceptance/migration`) fails CI and names the table when one twin is missing.
+- A table only the cloud has (accounting, e-invoicing, delivery zones, `nodes`, `sync_inbox`) changes in `cloud/` only. A new table on the box is a deliberate change: add it to `edgeTables` in the parity test.
+- Create a file with `make new-migration name=<name> set=cloud|edge`. Run a set locally with `make migrate-up set=edge` (default `cloud`). The CLI skips the edge binary's trim pre-check.
+- The edge binary runs `migrations.UpEdge`: at v71 it checks for data that exists only on the box (`EdgeTrimBlockers`), and stays at v71 when there is any. See the blocker runbook in `SYNC_LOCAL_TESTING.md`.
 
 ### Unit of Work (Transactions)
 

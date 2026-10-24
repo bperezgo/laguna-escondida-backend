@@ -591,7 +591,18 @@ curl -X PATCH "$BASE_URL/orders/550e8400-e29b-41d4-a716-446655440000/products/77
 
 ### Create a Delivery Order (held until paid)
 
-Requires at least one active delivery zone containing the pin (cloud only, see Delivery Zones below). The phone is normalized to `+573005551234`; an outside pin returns `422`.
+Requires at least one active delivery zone containing the pin (cloud only, see Delivery Zones below). The phone is normalized to `+573005551234`; an outside pin returns `422 OUTSIDE_DELIVERY_ZONE`. Sent to the box instead of the cloud, it returns `422 DELIVERY_CLOUD_ONLY`:
+
+```bash
+export EDGE_URL="http://localhost:8082/api"
+curl -X POST "$EDGE_URL/orders" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"open_bill_id":"019a1f3c-5b2e-7c41-9a8d-3e6f1b2c4d55","temporal_identifier":"019a1f3c-5b2e-7c41-9a8d-3e6f1b2c4d56","order_type":"delivery","customer_phone":"300 555 1234","delivery_address":"Cra 7 # 12-34","delivery_lat":"4.598100","delivery_lng":"-74.076000","products":[]}'
+# 422 {"error":"Deliveries are taken in the cloud","code":"DELIVERY_CLOUD_ONLY"}
+```
+
+Against the cloud:
 
 ```bash
 curl -X POST "$BASE_URL/orders" \

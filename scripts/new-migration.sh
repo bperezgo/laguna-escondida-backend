@@ -1,51 +1,49 @@
 #!/bin/bash
 
 # Script to create a new migration file
-# Usage: ./scripts/new-migration.sh migration_name
+# Usage: ./scripts/new-migration.sh migration_name cloud|edge
+#
+# shared/ (v1..v71) is frozen. A change to a table both binaries keep goes in both sets,
+# with the same SQL; TestEdgeCloudSharedSchemaParity fails when one twin is missing.
 
 set -e
 
-if [ -z "$1" ]; then
-    echo "Error: Migration name is required"
-    echo "Usage: ./scripts/new-migration.sh migration_name"
+if [ -z "$1" ] || { [ "$2" != "cloud" ] && [ "$2" != "edge" ]; }; then
+    echo "Error: Migration name and set are required"
+    echo "Usage: ./scripts/new-migration.sh migration_name cloud|edge"
     exit 1
 fi
 
 MIGRATION_NAME="$1"
-MIGRATIONS_DIR="internal/platform/postgres/migrations"
+SET="$2"
+SOURCE_ROOT="internal/platform/postgres/migrations"
+MIGRATIONS_DIR="${SOURCE_ROOT}/${SET}"
 
-# Find the highest migration version number
-LAST_MIGRATION=$(ls -1 "$MIGRATIONS_DIR"/*.up.sql 2>/dev/null | sort -r | head -n 1)
+# Versions continue across shared/ and the chosen set; cloud/ and edge/ may reuse a number.
+LAST_MIGRATION=$(ls -1 "$SOURCE_ROOT"/shared/*.up.sql "$MIGRATIONS_DIR"/*.up.sql 2>/dev/null | xargs -n1 basename | sort -r | head -n 1)
 
 if [ -z "$LAST_MIGRATION" ]; then
-    # No migrations exist, start with 000001
     NEXT_VERSION="000001"
 else
-    # Extract the version number from the last migration
-    LAST_VERSION=$(basename "$LAST_MIGRATION" | cut -d'_' -f1)
-    # Increment the version number
+    LAST_VERSION=$(echo "$LAST_MIGRATION" | cut -d'_' -f1)
     NEXT_VERSION=$(printf "%06d" $((10#$LAST_VERSION + 1)))
 fi
 
-# Create migration file names
 UP_FILE="${MIGRATIONS_DIR}/${NEXT_VERSION}_${MIGRATION_NAME}.up.sql"
 DOWN_FILE="${MIGRATIONS_DIR}/${NEXT_VERSION}_${MIGRATION_NAME}.down.sql"
 
-# Create the up migration file
-cat > "$UP_FILE" << EOF
+cat > "$UP_FILE" << EOT
 -- Migration: ${MIGRATION_NAME}
 -- Version: ${NEXT_VERSION}
 
-EOF
+EOT
 
-# Create the down migration file
-cat > "$DOWN_FILE" << EOF
+cat > "$DOWN_FILE" << EOT
 -- Migration: ${MIGRATION_NAME}
 -- Version: ${NEXT_VERSION}
 
-EOF
+EOT
 
 echo "Created migration files:"
 echo "  Up:   $UP_FILE"
 echo "  Down: $DOWN_FILE"
-

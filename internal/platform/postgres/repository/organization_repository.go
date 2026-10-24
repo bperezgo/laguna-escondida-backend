@@ -49,10 +49,16 @@ func (organizationModel) TableName() string {
 }
 
 type OrganizationRepository struct {
-	db *gorm.DB
+	db         *gorm.DB
+	einvoicing bool
 }
 
 func NewOrganizationRepository(db *gorm.DB) ports.OrganizationRepository {
+	return &OrganizationRepository{db: db, einvoicing: true}
+}
+
+// NewEdgeOrganizationRepository never reads organization_einvoicing, which the box drops.
+func NewEdgeOrganizationRepository(db *gorm.DB) ports.OrganizationRepository {
 	return &OrganizationRepository{db: db}
 }
 
@@ -91,6 +97,9 @@ func (r *OrganizationRepository) getWhere(ctx context.Context, query, value stri
 		return nil, fmt.Errorf("get organization: %w", err)
 	}
 	org := organizationToDTO(&model)
+	if !r.einvoicing {
+		return org, nil
+	}
 	settings, err := findEInvoicingSettings(db, model.ID)
 	switch {
 	case errors.Is(err, domainError.ErrEInvoicingNotConfigured):
@@ -110,6 +119,13 @@ func (r *OrganizationRepository) List(ctx context.Context) ([]*dto.Organization,
 	}
 	if len(models) == 0 {
 		return []*dto.Organization{}, nil
+	}
+	if !r.einvoicing {
+		orgs := make([]*dto.Organization, len(models))
+		for i := range models {
+			orgs[i] = organizationToDTO(&models[i])
+		}
+		return orgs, nil
 	}
 	ids := make([]string, len(models))
 	for i := range models {
