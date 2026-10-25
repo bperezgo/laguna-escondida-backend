@@ -17,7 +17,7 @@ server. Build the server and register it plus the official filesystem server in
       "args": ["--stdio"],
       "env": {
         "LAGUNA_API_URL": "https://<backend-that-can-reach-the-bucket>",
-        "LAGUNA_USERNAME": "mcp-service",
+        "LAGUNA_EMAIL": "mcp-service@example.com",
         "LAGUNA_PASSWORD": "…"
       }
     },

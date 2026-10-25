@@ -9,6 +9,8 @@ import (
 type UserRepository interface {
 	Create(ctx context.Context, user *dto.User) error
 	FindByUsername(ctx context.Context, username string) (*dto.User, error)
+	// FindByEmail deliberately ignores the org scope: cloud sign-in learns the organization from it.
+	FindByEmail(ctx context.Context, email string) (*dto.UserInOrganization, error)
 	FindByID(ctx context.Context, id string) (*dto.User, error)
 	FindAll(ctx context.Context) ([]*dto.User, error)
 	Update(ctx context.Context, user *dto.User) error

@@ -43,6 +43,14 @@ func (h *UserHandler) CreateUserHandler(c *gin.Context) {
 			c.JSON(http.StatusConflict, gin.H{"error": "User already exists"})
 			return
 		}
+		if errors.Is(err, domainError.ErrUserEmailTaken) {
+			c.JSON(http.StatusConflict, gin.H{"error": "Email is already in use"})
+			return
+		}
+		if errors.Is(err, domainError.ErrEmailRequired) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "email is required for a user with a cloud role"})
+			return
+		}
 		if errors.Is(err, domainError.ErrOrganizationRequired) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "organization is required"})
 			return
@@ -88,19 +96,20 @@ func (h *UserHandler) SignInHandler(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, domainError.ErrInvalidCredentials) {
 			h.logger.WarnContext(ctx, "sign-in rejected",
-				slog.String("organization", req.Organization),
+				slog.String("email", req.Email),
 				slog.String("username", req.Username),
 				slog.String("reason", err.Error()),
 			)
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid username or password"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": invalidCredentialsMessage(h.userService.SignInMode())})
 			return
 		}
-		if errors.Is(err, domainError.ErrOrganizationRequired) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "organization is required"})
+		if errors.Is(err, domainError.ErrSignInEmailRequired) || errors.Is(err, domainError.ErrSignInUsernameRequired) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
 		h.logger.ErrorContext(ctx, "sign-in failed",
+			slog.String("email", req.Email),
 			slog.String("username", req.Username),
 			slog.String("error", err.Error()),
 		)
@@ -109,6 +118,26 @@ func (h *UserHandler) SignInHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, signInResponse)
+}
+
+// Opaque per mode, so the response can't tell which emails, usernames or organizations exist.
+func invalidCredentialsMessage(mode dto.SignInMode) string {
+	if mode == dto.SignInModeCloud {
+		return "Invalid email or password"
+	}
+	return "Invalid username or password"
+}
+
+func (h *UserHandler) SignInContextHandler(c *gin.Context) {
+	ctx := c.Request.Context()
+	signInContext, err := h.userService.SignInContext(ctx)
+	if err != nil {
+		h.logger.ErrorContext(ctx, "sign-in context failed", slog.String("error", err.Error()))
+		RespondError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, signInContext)
 }
 
 func (h *UserHandler) ListUsersHandler(c *gin.Context) {
@@ -209,6 +238,10 @@ func (h *UserHandler) respondUserError(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 	case errors.Is(err, domainError.ErrUserAlreadyExists):
 		c.JSON(http.StatusConflict, gin.H{"error": "User already exists"})
+	case errors.Is(err, domainError.ErrUserEmailTaken):
+		c.JSON(http.StatusConflict, gin.H{"error": "Email is already in use"})
+	case errors.Is(err, domainError.ErrEmailRequired):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "email is required for a user with a cloud role"})
 	case errors.Is(err, domainError.ErrRoleNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "One or more roles not found"})
 	case errors.Is(err, domainError.ErrInvalidRoleIDs):

@@ -33,6 +33,7 @@ func registerAPIRoutes(router *gin.Engine, adminAPIKey string, jwtService *servi
 
 	// Auth routes (no authentication required)
 	router.POST("/api/auth/signin", h.user.SignInHandler)
+	router.GET("/api/auth/context", h.user.SignInContextHandler)
 
 	// Auth routes (protected with JWT)
 	router.GET("/api/auth/me", handler.JWTAuthMiddleware(jwtService), h.user.GetCurrentUserHandler)

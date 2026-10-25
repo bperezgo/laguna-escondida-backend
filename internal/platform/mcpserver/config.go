@@ -24,7 +24,9 @@ type Config struct {
 	Addr string
 	// APIBaseURL is the base URL of the backend API (e.g. "http://localhost:8080").
 	APIBaseURL string
-	// Username and Password authenticate the service account used to obtain a JWT.
+	// Email (cloud) or Username (edge), with Password, authenticate the service account used to
+	// obtain a JWT. Exactly one of Email and Username is set.
+	Email    string
 	Username string
 	Password string
 	// AuthToken is the shared secret clients must present as a bearer token on
@@ -51,9 +53,10 @@ func NewConfig() (*Config, error) {
 	if base == "" {
 		return nil, errors.New("LAGUNA_API_URL is not set (e.g. http://localhost:8080)")
 	}
+	email := os.Getenv("LAGUNA_EMAIL")
 	username := os.Getenv("LAGUNA_USERNAME")
-	if username == "" {
-		return nil, errors.New("LAGUNA_USERNAME is not set")
+	if (email == "") == (username == "") {
+		return nil, errors.New("set exactly one of LAGUNA_EMAIL (cloud) or LAGUNA_USERNAME (edge)")
 	}
 	password := os.Getenv("LAGUNA_PASSWORD")
 	if password == "" {
@@ -80,6 +83,7 @@ func NewConfig() (*Config, error) {
 	return &Config{
 		Addr:        addr,
 		APIBaseURL:  base,
+		Email:       email,
 		Username:    username,
 		Password:    password,
 		AuthToken:   authToken,

@@ -36,7 +36,8 @@ the assistant cannot mutate anything, regardless of which tools exist.
 | Env var                | Required | Default | Description                                                         |
 | ---------------------- | -------- | ------- | ------------------------------------------------------------------- |
 | `LAGUNA_API_URL`       | yes      | —       | Backend base URL, e.g. `http://localhost:8080`                      |
-| `LAGUNA_USERNAME`      | yes      | —       | Service-account username used to obtain a JWT                       |
+| `LAGUNA_EMAIL`         | one of   | —       | Service-account email, when `LAGUNA_API_URL` is the cloud (the cloud signs in by email, and only cloud roles such as manager or agent) |
+| `LAGUNA_USERNAME`      | one of   | —       | Service-account username, when `LAGUNA_API_URL` is an edge box. Set exactly one of `LAGUNA_EMAIL` and `LAGUNA_USERNAME` |
 | `LAGUNA_PASSWORD`      | yes      | —       | Service-account password                                            |
 | `MCP_AUTH_TOKEN`       | HTTP only | —      | Shared secret clients send as `Authorization: Bearer <token>` to `/mcp`. Not needed with `--stdio` (the transport is local). |
 | `MCP_ADDR`             | no       | `:8090` | Listen address for the MCP HTTP endpoint                            |
@@ -49,7 +50,7 @@ Put these in your shell environment or a `.env` file next to the binary.
 
 ```bash
 export LAGUNA_API_URL=http://localhost:8080
-export LAGUNA_USERNAME=mcp-service
+export LAGUNA_USERNAME=mcp-service    # an edge box; use LAGUNA_EMAIL=… for the cloud
 export LAGUNA_PASSWORD=…
 export MCP_AUTH_TOKEN="$(openssl rand -hex 24)"   # any strong shared secret
 
@@ -188,7 +189,7 @@ Run a **separate** MCP deployment for the agent; never point the WhatsApp agent 
    ```bash
    MCP_TOOLSET=customer
    LAGUNA_API_URL=https://<cloud backend>
-   LAGUNA_USERNAME=<agent user>
+   LAGUNA_EMAIL=<agent user's email>
    LAGUNA_PASSWORD=…
    MCP_AUTH_TOKEN="$(openssl rand -hex 24)"   # its own secret, not the staff one
    ```

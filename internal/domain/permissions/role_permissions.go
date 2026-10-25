@@ -11,6 +11,21 @@ const (
 	RoleAgent = 6
 )
 
+// CloudRoles are the roles that may sign in to the cloud; floor roles sign in only on an edge
+// box. Agent is here only for the integration stopgap (service users on email + password).
+var CloudRoles = []int{RoleAdmin, RoleManager, RoleAccountant, RoleAgent}
+
+func HasCloudRole(roleIDs []int) bool {
+	for _, roleID := range roleIDs {
+		for _, cloudRole := range CloudRoles {
+			if roleID == cloudRole {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // RolePermissions maps role IDs to their permissions
 var RolePermissions = map[int][]Permission{
 	RoleServer: {

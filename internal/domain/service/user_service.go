@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"laguna-escondida/backend/internal/domain/aggregate/user"
@@ -62,6 +63,10 @@ func (s *UserService) CreateUser(ctx context.Context, req *dto.CreateUserRequest
 
 	if len(roles) != len(req.RoleIDs) {
 		return nil, domainError.ErrInvalidRoleIDs
+	}
+
+	if permissions.HasCloudRole(req.RoleIDs) && strings.TrimSpace(req.Email) == "" {
+		return nil, domainError.ErrEmailRequired
 	}
 
 	userAggregate, err := user.NewAggregateFromCreateUserRequest(req)
@@ -196,9 +201,21 @@ func (s *UserService) UpdateUser(ctx context.Context, actingUserID, id string, r
 		}
 	}
 
+	newEmail := current.Email
+	if req.Email != nil {
+		newEmail, err = user.NormalizeEmail(*req.Email)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if permissions.HasCloudRole(newRoleIDs) && newEmail == nil {
+		return nil, domainError.ErrEmailRequired
+	}
+
 	if req.Name != nil {
 		current.Name = *req.Name
 	}
+	current.Email = newEmail
 	current.Active = newActive
 	current.UpdatedAt = time.Now()
 
@@ -277,22 +294,24 @@ func (s *UserService) ListRoles(ctx context.Context) (*dto.RolesListResponse, er
 	return &dto.RolesListResponse{Roles: roles}, nil
 }
 
-// SignIn resolves the organization before reading the user, so the lookup runs in that
-// organization alone. Every rejection wraps ErrInvalidCredentials so the response stays opaque.
+// SignIn: an edge box signs its own organization's users in by username; the cloud signs in by
+// email, which names the organization. Every rejection wraps ErrInvalidCredentials so the
+// response stays opaque.
 func (s *UserService) SignIn(ctx context.Context, req *dto.SignInRequest) (*dto.SignInResponse, error) {
-	orgID, err := s.signInOrganization(ctx, req.Organization)
+	boxOrgID, pinned := s.scope.Pinned()
+
+	var userDTO *dto.User
+	orgID := boxOrgID
+	var err error
+	if pinned {
+		userDTO, err = s.edgeSignInUser(ctx, boxOrgID, req.Username)
+	} else {
+		userDTO, orgID, err = s.cloudSignInUser(ctx, req.Email)
+	}
 	if err != nil {
 		return nil, err
 	}
 	ctx = tenant.WithOrg(ctx, orgID)
-
-	userDTO, err := s.userRepo.FindByUsername(ctx, req.Username)
-	if err != nil {
-		if errors.Is(err, domainError.ErrUserNotFound) {
-			return nil, fmt.Errorf("%w: %w", domainError.ErrInvalidCredentials, err)
-		}
-		return nil, fmt.Errorf("sign-in: failed to look up user: %w", err)
-	}
 
 	userAggregate := user.NewAggregateFromDTO(userDTO)
 	if err = userAggregate.ComparePassword(req.Password); err != nil {
@@ -307,10 +326,10 @@ func (s *UserService) SignIn(ctx context.Context, req *dto.SignInRequest) (*dto.
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user roles: %w", err)
 	}
+	roleIDs := roleIDsOf(roles)
 
-	roleIDs := make([]int, len(roles))
-	for i, role := range roles {
-		roleIDs[i] = role.ID
+	if !pinned && !permissions.HasCloudRole(roleIDs) {
+		return nil, fmt.Errorf("%w: %w", domainError.ErrInvalidCredentials, domainError.ErrCloudAccessDenied)
 	}
 
 	token, err := s.jwtService.GenerateToken(userDTO.ID, orgID, userDTO.Username, roleIDs)
@@ -329,30 +348,55 @@ func (s *UserService) SignIn(ctx context.Context, req *dto.SignInRequest) (*dto.
 	}, nil
 }
 
-func (s *UserService) signInOrganization(ctx context.Context, slug string) (string, error) {
-	if slug == "" {
-		boxOrgID, pinned := s.scope.Pinned()
-		if !pinned {
-			return "", domainError.ErrOrganizationRequired
-		}
-		org, err := s.orgRepo.Get(ctx, boxOrgID)
-		if err != nil {
-			return "", fmt.Errorf("sign-in: failed to load the box's organization: %w", err)
-		}
-		return org.ID, checkActive(org)
+func (s *UserService) edgeSignInUser(ctx context.Context, boxOrgID, username string) (*dto.User, error) {
+	if username == "" {
+		return nil, domainError.ErrSignInUsernameRequired
+	}
+	org, err := s.orgRepo.Get(ctx, boxOrgID)
+	if err != nil {
+		return nil, fmt.Errorf("sign-in: failed to load the box's organization: %w", err)
+	}
+	if err = checkActive(org); err != nil {
+		return nil, err
 	}
 
-	org, err := s.orgRepo.GetBySlug(ctx, slug)
-	if errors.Is(err, domainError.ErrOrganizationNotFound) {
-		return "", fmt.Errorf("%w: %w", domainError.ErrInvalidCredentials, err)
-	}
+	userDTO, err := s.userRepo.FindByUsername(tenant.WithOrg(ctx, boxOrgID), username)
 	if err != nil {
-		return "", fmt.Errorf("sign-in: failed to look up organization: %w", err)
+		return nil, signInLookupError(err)
 	}
-	if !s.scope.Admits(org.ID) {
-		return "", fmt.Errorf("%w: %w", domainError.ErrInvalidCredentials, domainError.ErrOrganizationMismatch)
+	return userDTO, nil
+}
+
+func (s *UserService) cloudSignInUser(ctx context.Context, rawEmail string) (*dto.User, string, error) {
+	if strings.TrimSpace(rawEmail) == "" {
+		return nil, "", domainError.ErrSignInEmailRequired
 	}
-	return org.ID, checkActive(org)
+	email, err := user.NormalizeEmail(rawEmail)
+	if err != nil {
+		return nil, "", fmt.Errorf("%w: %w", domainError.ErrInvalidCredentials, err)
+	}
+
+	found, err := s.userRepo.FindByEmail(ctx, *email)
+	if err != nil {
+		return nil, "", signInLookupError(err)
+	}
+
+	org, err := s.orgRepo.Get(ctx, found.OrganizationID)
+	if err != nil {
+		return nil, "", fmt.Errorf("sign-in: failed to load the user's organization: %w", err)
+	}
+	if err = checkActive(org); err != nil {
+		return nil, "", err
+	}
+	return found.User, org.ID, nil
+}
+
+// An infrastructure error must not be masked as invalid credentials, so it surfaces as a 500.
+func signInLookupError(err error) error {
+	if errors.Is(err, domainError.ErrUserNotFound) {
+		return fmt.Errorf("%w: %w", domainError.ErrInvalidCredentials, err)
+	}
+	return fmt.Errorf("sign-in: failed to look up user: %w", err)
 }
 
 func checkActive(org *dto.Organization) error {
@@ -360,6 +404,34 @@ func checkActive(org *dto.Organization) error {
 		return fmt.Errorf("%w: organization %s is suspended", domainError.ErrInvalidCredentials, org.ID)
 	}
 	return nil
+}
+
+func (s *UserService) SignInMode() dto.SignInMode {
+	if _, pinned := s.scope.Pinned(); pinned {
+		return dto.SignInModeEdge
+	}
+	return dto.SignInModeCloud
+}
+
+// SignInContext tells an unauthenticated client which sign-in form to show. It names only the
+// box's own organization, never any other.
+func (s *UserService) SignInContext(ctx context.Context) (*dto.SignInContextResponse, error) {
+	boxOrgID, pinned := s.scope.Pinned()
+	if !pinned {
+		return &dto.SignInContextResponse{Mode: dto.SignInModeCloud}, nil
+	}
+	org, err := s.orgRepo.Get(ctx, boxOrgID)
+	if err != nil {
+		return nil, fmt.Errorf("sign-in context: failed to load the box's organization: %w", err)
+	}
+	name := org.Name
+	if org.DisplayName != nil && *org.DisplayName != "" {
+		name = *org.DisplayName
+	}
+	return &dto.SignInContextResponse{
+		Mode:         dto.SignInModeEdge,
+		Organization: &dto.SignInContextOrganization{Name: name},
+	}, nil
 }
 
 func (s *UserService) GetCurrentUser(ctx context.Context, userID string) (*dto.CurrentUserResponse, error) {

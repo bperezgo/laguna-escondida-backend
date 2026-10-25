@@ -26,6 +26,7 @@ var agentReachableRoutes = map[string]bool{
 	"GET /api/health":       true,
 	"GET /api/edge/status":  true,
 	"POST /api/auth/signin": true,
+	"GET /api/auth/context": true,
 	// Any signed-in user.
 	"GET /api/auth/me": true,
 	// products:read

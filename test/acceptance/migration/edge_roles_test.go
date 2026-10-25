@@ -88,7 +88,7 @@ func TestEdgeMigrations_PosAppRole(t *testing.T) {
 
 		version, dirty, err := m.Version()
 		require.NoError(t, err)
-		assert.Equal(t, uint(trimVersion), version)
+		assert.GreaterOrEqual(t, version, uint(trimVersion))
 		assert.False(t, dirty)
 	})
 }

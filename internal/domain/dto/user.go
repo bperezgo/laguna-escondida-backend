@@ -12,10 +12,16 @@ type User struct {
 	ID        string    `json:"id"`
 	Username  string    `json:"username"`
 	Name      string    `json:"name"`
+	Email     *string   `json:"email"`
 	Password  string    `json:"-"` // Never serialize password
 	Active    bool      `json:"active"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type UserInOrganization struct {
+	User           *User
+	OrganizationID string
 }
 
 type Role struct {
@@ -37,12 +43,14 @@ type CreateUserRequest struct {
 	Organization string `json:"organization,omitempty"`
 	Username     string `json:"username" validate:"required,min=3,max=255"`
 	Name         string `json:"name" validate:"required,min=1,max=255"`
+	Email        string `json:"email,omitempty" validate:"omitempty,email,max=255"`
 	Password     string `json:"password" validate:"required,min=6"`
 	RoleIDs      []int  `json:"role_ids" validate:"required,min=1,dive,min=1"`
 }
 
 type UpdateUserRequest struct {
 	Name    *string `json:"name" validate:"omitempty,min=1,max=255"`
+	Email   *string `json:"email" validate:"omitempty,email,max=255"`
 	RoleIDs []int   `json:"role_ids" validate:"omitempty,min=1,dive,min=1"`
 	Active  *bool   `json:"active"`
 }
@@ -64,11 +72,27 @@ type RolesListResponse struct {
 	Roles []*Role `json:"roles"`
 }
 
+// SignInRequest: the cloud requires Email, an edge box requires Username.
 type SignInRequest struct {
-	// Organization is the slug; required in the cloud, optional on an edge box.
-	Organization string `json:"organization"`
-	Username     string `json:"username" validate:"required"`
-	Password     string `json:"password" validate:"required"`
+	Email    string `json:"email,omitempty"`
+	Username string `json:"username,omitempty"`
+	Password string `json:"password" validate:"required"`
+}
+
+type SignInMode string
+
+const (
+	SignInModeCloud SignInMode = "cloud"
+	SignInModeEdge  SignInMode = "edge"
+)
+
+type SignInContextOrganization struct {
+	Name string `json:"name"`
+}
+
+type SignInContextResponse struct {
+	Mode         SignInMode                 `json:"mode"`
+	Organization *SignInContextOrganization `json:"organization,omitempty"`
 }
 
 type SignInResponse struct {

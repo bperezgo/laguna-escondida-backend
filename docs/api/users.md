@@ -39,6 +39,7 @@ This is the bootstrap path, authenticated by the admin API key alone, so it name
 | organization | string   | Cloud: Yes; Edge: No | Slug of the organization the user belongs to. On an edge box it may be omitted (the box's organization is used); when sent it must be the box's. |
 | username     | string   | Yes                  | Username, unique within the organization (3–255 chars)            |
 | name         | string   | Yes                  | Display name of the user (1–255 chars)                             |
+| email        | string   | With a cloud role    | Up to 255 chars. Required when `role_ids` holds a cloud role (admin, manager, accountant, agent); optional for floor staff. Stored trimmed and lowercased, and unique across **all** organizations, case-insensitively. Cloud users sign in with it |
 | password     | string   | Yes                  | Plain-text password (min 6 chars). Hashed before storage           |
 | role_ids     | number[] | Yes                  | At least one valid role ID. Every ID must exist (see Roles below)  |
 
@@ -52,6 +53,10 @@ This is the bootstrap path, authenticated by the admin API key alone, so it name
 | 2  | admin     |
 | 3  | manager   |
 | 4  | cooker    |
+| 5  | accountant |
+| 6  | agent     |
+
+Cloud roles: admin, manager, accountant, agent. Floor roles: server, cooker.
 
 ### Example Request
 
@@ -60,6 +65,7 @@ This is the bootstrap path, authenticated by the admin API key alone, so it name
   "organization": "laguna-escondida",
   "username": "john_doe",
   "name": "John Doe",
+  "email": "John.Doe@Example.com",
   "password": "securepassword123",
   "role_ids": [2, 3]
 }
@@ -75,6 +81,8 @@ The created user (without the password) together with its assigned roles.
     "id": "550e8400-e29b-41d4-a716-446655440000",
     "username": "john_doe",
     "name": "John Doe",
+    "email": "john.doe@example.com",
+    "active": true,
     "created_at": "2026-06-23T15:30:00Z",
     "updated_at": "2026-06-23T15:30:00Z"
   },
@@ -93,7 +101,9 @@ The created user (without the password) together with its assigned roles.
 }
 ```
 
-> The `password` field is never returned in any response.
+> The `password` field is never returned in any response. `email` is `null` for a user without one.
+>
+> Emails stay in the cloud: an edge box's copy of a user (from the pull) never carries it.
 
 ### Error Responses
 
@@ -118,6 +128,23 @@ The created user (without the password) together with its assigned roles.
 ```json
 {
   "error": "organization does not match this box's"
+}
+```
+
+**400 Bad Request** — A cloud role without an `email`
+
+```json
+{
+  "error": "email is required for a user with a cloud role"
+}
+```
+
+**400 Bad Request** — `email` is not a valid address (a bare address only, no display name) or longer than 255 chars
+
+```json
+{
+  "error": "email is not a valid address",
+  "code": "USER_INVALID_EMAIL"
 }
 ```
 
@@ -169,6 +196,14 @@ The created user (without the password) together with its assigned roles.
 }
 ```
 
+**409 Conflict** — Email already used by another user, in any organization (compared case-insensitively)
+
+```json
+{
+  "error": "Email is already in use"
+}
+```
+
 **500 Internal Server Error** — User could not be created
 
 ```json
@@ -178,3 +213,20 @@ The created user (without the password) together with its assigned roles.
 ```
 
 > Note: empty required fields (`username`, `name`, or `password`) are rejected during creation but currently surface as a generic `500 Internal Server Error` (`{"error": "Internal server error"}`), because no request-body validator is wired into this endpoint. Always send all required fields.
+
+---
+
+## Email on Update
+
+`PUT /api/admin/users/:id` (JWT with `users:update`, cloud only) accepts an optional `email`, alongside `name`, `role_ids` and `active`:
+
+```json
+{
+  "role_ids": [3],
+  "email": "cajero1@lagunaescondida.co"
+}
+```
+
+- Omitted: the email is unchanged. `""`: the email is removed.
+- The rule is checked on the resulting user: if, after the update, the user holds a cloud role and has no email, the request is rejected with `400` `{"error": "email is required for a user with a cloud role"}` and nothing is stored. Promoting floor staff to manager therefore needs an email in the same request.
+- A taken email returns `409` `{"error": "Email is already in use"}`; an invalid one returns `400` with `"code": "USER_INVALID_EMAIL"`, as on create.

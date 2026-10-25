@@ -4,10 +4,45 @@ Handles user authentication and current user information.
 
 ## Endpoints
 
-| Method | Endpoint          | Description                        |
-| ------ | ----------------- | ---------------------------------- |
-| POST   | `/api/auth/signin` | Authenticate user and get token   |
-| GET    | `/api/auth/me`     | Get current authenticated user    |
+| Method | Endpoint            | Description                                      |
+| ------ | ------------------- | ------------------------------------------------ |
+| GET    | `/api/auth/context` | Which sign-in form to show (public)              |
+| POST   | `/api/auth/signin`  | Authenticate user and get token                  |
+| GET    | `/api/auth/me`      | Get current authenticated user                   |
+
+---
+
+## Sign-In Context
+
+`GET /api/auth/context`
+
+Public, no token. Tells the sign-in page whether it is talking to the cloud or an edge box, so it shows the right fields and never asks for the restaurant. On an edge box it also returns the box's restaurant name (its `display_name`, falling back to `name`); it never returns any other organization or user data.
+
+### Example Response (200 OK) — cloud
+
+```json
+{
+  "mode": "cloud"
+}
+```
+
+### Example Response (200 OK) — edge box
+
+```json
+{
+  "mode": "edge",
+  "organization": {
+    "name": "Laguna Escondida"
+  }
+}
+```
+
+| Field               | Type   | Description                                            |
+| ------------------- | ------ | ------------------------------------------------------ |
+| `mode`              | string | `cloud`: sign in with email. `edge`: sign in with username |
+| `organization.name` | string | Edge only. The box's restaurant name                   |
+
+An edge box running a release older than this endpoint answers `404`; treat that as `edge` with no name.
 
 ---
 
@@ -15,38 +50,48 @@ Handles user authentication and current user information.
 
 `POST /api/auth/signin`
 
-Authenticates a user of an organization and returns a JWT token with user information and permissions. Usernames are unique per organization, so the organization is named alongside them.
+Authenticates a user and returns a JWT token with user information and permissions. The credential depends on where it is called:
+
+- **Cloud:** `email` + `password`. Emails are unique across all organizations, so the email alone identifies the user's organization. Only users holding a cloud role (admin, manager, accountant, agent) can sign in; floor roles (server, cooker) sign in only on an edge box.
+- **Edge box:** `username` + `password`. The user signs in to the box's own organization. Any role may sign in.
+
+Unknown fields are ignored, so an old client that still sends `organization` keeps working on an edge box.
 
 ### Request Body
 
-| Field        | Type   | Required             | Description                                                                                         |
-| ------------ | ------ | -------------------- | --------------------------------------------------------------------------------------------------- |
-| organization | string | Cloud: Yes; Edge: No | The organization's slug, e.g. `laguna-escondida`. On an edge box it may be omitted; when sent it must be the box's own slug. |
-| username     | string | Yes                  | User's username within that organization                                                            |
-| password     | string | Yes                  | User's password                                                                                     |
+| Field    | Type   | Required             | Description                                                     |
+| -------- | ------ | -------------------- | --------------------------------------------------------------- |
+| email    | string | Cloud: Yes; Edge: No | The user's email. Compared case-insensitively, spaces trimmed   |
+| username | string | Edge: Yes; Cloud: No | The user's username within the box's organization               |
+| password | string | Yes                  | User's password                                                 |
 
-### Example Request
+### Example Request — cloud
 
 ```json
 {
-  "organization": "laguna-escondida",
-  "username": "john_doe",
+  "email": "ana@lagunaescondida.co",
+  "password": "securepassword123"
+}
+```
+
+### Example Request — edge box
+
+```json
+{
+  "username": "cajero1",
   "password": "securepassword123"
 }
 ```
 
 ### Example Response (200 OK)
 
+Same body in both modes.
+
 ```json
 {
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "username": "john_doe",
+  "username": "ana",
   "roles": [
-    {
-      "id": 1,
-      "name": "server",
-      "created_at": "2024-01-01T00:00:00Z"
-    },
     {
       "id": 3,
       "name": "manager",
@@ -69,21 +114,39 @@ Authenticates a user of an organization and returns a JWT token with user inform
 
 ### Error Responses
 
-**400 Bad Request** - No `organization` in the cloud
+**400 Bad Request** — Cloud: no `email`
 
 ```json
 {
-  "error": "organization is required"
+  "error": "email is required"
 }
 ```
 
-**401 Unauthorized** - Unknown or suspended organization, a username that doesn't exist in that organization, an inactive user, a wrong password, or (on an edge box) an organization other than the box's. All return the same body, so the response can't reveal which organizations or usernames exist.
+**400 Bad Request** — Edge box: no `username`
+
+```json
+{
+  "error": "username is required"
+}
+```
+
+**401 Unauthorized** — Cloud: an unknown email, a suspended organization, an inactive user, a user without a cloud role, or a wrong password. All return the same body.
+
+```json
+{
+  "error": "Invalid email or password"
+}
+```
+
+**401 Unauthorized** — Edge box: a username that doesn't exist in the box's organization, an inactive user, or a wrong password. All return the same body.
 
 ```json
 {
   "error": "Invalid username or password"
 }
 ```
+
+The responses never reveal which emails, usernames or organizations exist; the specific reason is logged server-side.
 
 ---
 
@@ -285,6 +348,9 @@ Permissions follow the `resource:action` format. Available permissions include:
 | server     | Order and product operations, real-time updates    |
 | cooker     | Read-only order/product access, command updates    |
 | accountant | Financial operations (expenses, invoices, entries) |
+| agent      | The customer-facing WhatsApp agent's service user  |
+
+admin, manager, accountant and agent are **cloud roles**: only users holding one can sign in to the cloud, and they must have an email. server and cooker are floor roles and sign in only on an edge box.
 
 ---
 

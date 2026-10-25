@@ -125,7 +125,7 @@ func TestEdgeTrim_Guard(t *testing.T) {
 
 		box.boot()
 
-		assert.Equal(t, uint(trimVersion), box.version())
+		assert.GreaterOrEqual(t, box.version(), uint(trimVersion))
 		for _, table := range []string{"expenses", "expense_categories", "suppliers", "purchase_entries", "delivery_zones", "sync_inbox"} {
 			assert.False(t, box.hasTable(table), "%s is dropped", table)
 		}
@@ -162,7 +162,7 @@ func TestEdgeTrim_Guard(t *testing.T) {
 		box.must(box.db.Exec(`UPDATE sync_outbox SET synced_at = now() WHERE op_id = ?`, opID))
 		box.boot()
 
-		assert.Equal(t, uint(trimVersion), box.version(), "the next start trims")
+		assert.GreaterOrEqual(t, box.version(), uint(trimVersion), "the next start trims")
 		assert.False(t, box.hasTable("purchase_entries"))
 	})
 
@@ -179,6 +179,6 @@ func TestEdgeTrim_Guard(t *testing.T) {
 
 		version, _, err := m.Version()
 		require.NoError(t, err)
-		assert.Equal(t, uint(trimVersion), version)
+		assert.GreaterOrEqual(t, version, uint(trimVersion))
 	})
 }

@@ -20,21 +20,41 @@ export ADMIN_API_KEY="your_admin_api_key"
 
 ## Authentication
 
+### Sign-In Context
+
+Which form to show (public, no token): `{"mode":"cloud"}`, or on an edge box
+`{"mode":"edge","organization":{"name":"Laguna Escondida"}}`.
+
+```bash
+curl -s "$BASE_URL/auth/context"
+```
+
 ### Sign In
+
+In the cloud, with an email (only admin, manager, accountant and agent users):
 
 ```bash
 curl -X POST "$BASE_URL/auth/signin" \
   -H "Content-Type: application/json" \
   -d '{
-    "organization": "laguna-escondida",
+    "email": "you@example.com",
+    "password": "your_password"
+  }'
+```
+
+On an edge box, with a username (any role; the box's organization is used):
+
+```bash
+curl -X POST "$BASE_URL/auth/signin" \
+  -H "Content-Type: application/json" \
+  -d '{
     "username": "your_username",
     "password": "your_password"
   }'
 ```
 
-`organization` is the organization's slug. It is required in the cloud; on an edge box it can be
-left out, and when sent it must be the box's own. Tokens issued before organizations were added
-are rejected: sign in again to get one that carries `org_id`.
+Tokens issued before organizations were added are rejected: sign in again to get one that carries
+`org_id`.
 
 Save the token from the response:
 
@@ -54,6 +74,43 @@ Only the organization (its branding, formatting and receipt settings):
 ```bash
 curl -s "$BASE_URL/auth/me" \
   -H "Authorization: Bearer $TOKEN" | jq '.organization'
+```
+
+---
+
+## Users (cloud only)
+
+### Create a User (admin-key bootstrap)
+
+A cloud role (admin, manager, accountant, agent) needs an `email`; it is stored lowercased and must
+be unique across all organizations (`409` otherwise). Floor staff (server, cooker) may omit it.
+
+```bash
+curl -X POST "$BASE_URL/users" \
+  -H "X-API-Key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "organization": "laguna-escondida",
+    "username": "ana",
+    "name": "Ana",
+    "email": "Ana@Example.com",
+    "password": "securepassword123",
+    "role_ids": [3]
+  }'
+```
+
+### Set a User's Email
+
+Promoting floor staff to a cloud role needs the email in the same request (`400` otherwise).
+
+```bash
+curl -X PUT "$BASE_URL/admin/users/$USER_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "role_ids": [3],
+    "email": "cajero1@example.com"
+  }'
 ```
 
 ---

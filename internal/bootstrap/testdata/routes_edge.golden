@@ -1,6 +1,7 @@
 GET /api/admin/roles laguna-escondida/backend/internal/platform/handler.(*UserHandler).ListRolesHandler-fm
 GET /api/admin/users laguna-escondida/backend/internal/platform/handler.(*UserHandler).ListUsersHandler-fm
 GET /api/admin/users/:id laguna-escondida/backend/internal/platform/handler.(*UserHandler).GetUserHandler-fm
+GET /api/auth/context laguna-escondida/backend/internal/platform/handler.(*UserHandler).SignInContextHandler-fm
 GET /api/auth/me laguna-escondida/backend/internal/platform/handler.(*UserHandler).GetCurrentUserHandler-fm
 POST /api/auth/signin laguna-escondida/backend/internal/platform/handler.(*UserHandler).SignInHandler-fm
 GET /api/bill-owners/:id laguna-escondida/backend/internal/platform/handler.(*BillOwnerHandler).GetByIDHandler-fm

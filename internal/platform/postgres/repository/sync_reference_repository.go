@@ -319,7 +319,8 @@ func (r *SyncReferenceRepository) UpsertUsers(ctx context.Context, users []dto.U
 		}
 	}
 
-	if err := db.Clauses(clause.OnConflict{
+	// Emails never sync, and a box whose trim is blocked stays below the migration that adds the column.
+	if err := db.Omit("email").Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "id"}},
 		Where:   postgres.SameOrganization("users"),
 		DoUpdates: clause.AssignmentColumns([]string{

@@ -242,3 +242,27 @@ func TestIsAgentOnly(t *testing.T) {
 	assert.False(t, IsAgentOnly([]int{RoleManager}))
 	assert.False(t, IsAgentOnly(nil), "no roles is not the agent")
 }
+
+func TestHasCloudRole(t *testing.T) {
+	tests := []struct {
+		name    string
+		roleIDs []int
+		want    bool
+	}{
+		{name: "admin", roleIDs: []int{RoleAdmin}, want: true},
+		{name: "manager", roleIDs: []int{RoleManager}, want: true},
+		{name: "accountant", roleIDs: []int{RoleAccountant}, want: true},
+		{name: "agent", roleIDs: []int{RoleAgent}, want: true},
+		{name: "server", roleIDs: []int{RoleServer}, want: false},
+		{name: "cooker", roleIDs: []int{RoleCooker}, want: false},
+		{name: "floor roles only", roleIDs: []int{RoleServer, RoleCooker}, want: false},
+		{name: "floor and cloud role", roleIDs: []int{RoleServer, RoleManager}, want: true},
+		{name: "no roles", roleIDs: nil, want: false},
+		{name: "unknown role", roleIDs: []int{99}, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, HasCloudRole(tt.roleIDs))
+		})
+	}
+}

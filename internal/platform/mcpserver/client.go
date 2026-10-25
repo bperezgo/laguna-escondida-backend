@@ -24,6 +24,7 @@ import (
 type Client struct {
 	baseURL     string
 	httpClient  *http.Client
+	email       string
 	username    string
 	password    string
 	adminAPIKey string
@@ -37,6 +38,7 @@ func NewClient(cfg *Config) *Client {
 	return &Client{
 		baseURL:     strings.TrimRight(cfg.APIBaseURL, "/"),
 		httpClient:  &http.Client{Timeout: 30 * time.Second},
+		email:       cfg.Email,
 		username:    cfg.Username,
 		password:    cfg.Password,
 		adminAPIKey: cfg.AdminAPIKey,
@@ -242,7 +244,7 @@ func (c *Client) clearToken() {
 }
 
 func (c *Client) signIn(ctx context.Context) (string, error) {
-	payload, err := json.Marshal(dto.SignInRequest{Username: c.username, Password: c.password})
+	payload, err := json.Marshal(dto.SignInRequest{Email: c.email, Username: c.username, Password: c.password})
 	if err != nil {
 		return "", fmt.Errorf("marshal signin request: %w", err)
 	}

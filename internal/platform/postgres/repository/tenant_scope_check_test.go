@@ -26,6 +26,12 @@ var globalTableFiles = map[string]bool{
 	"role_repository.go":                true,
 }
 
+// unscopedByDesign are single functions in tenant files that must cross organizations: cloud
+// sign-in learns the organization from the email.
+var unscopedByDesign = map[string]bool{
+	"user_repository.go FindByEmail": true,
+}
+
 // unscopedTenantAccess reports the functions in src that reach the database without the
 // organization: GetTxOrDB or InTx without binding postgres.OrgID for raw SQL, or calling a
 // method on the receiver's db directly. Everything else must go through TenantDB or TenantTx.
@@ -83,7 +89,11 @@ func TestTenantScopeCheck_RepositoriesAreScoped(t *testing.T) {
 		require.NoError(t, err)
 		found, err := unscopedTenantAccess(path, string(src))
 		require.NoError(t, err)
-		findings = append(findings, found...)
+		for _, finding := range found {
+			if !unscopedByDesign[path+" "+finding[strings.LastIndex(finding, " ")+1:]] {
+				findings = append(findings, finding)
+			}
+		}
 	}
 	sort.Strings(findings)
 	assert.Empty(t, findings, "use postgres.TenantDB / TenantTx, or bind postgres.OrgID in raw SQL")

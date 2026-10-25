@@ -1,6 +1,8 @@
 package user
 
 import (
+	"net/mail"
+	"strings"
 	"time"
 
 	userError "laguna-escondida/backend/internal/domain/aggregate/user/error"
@@ -14,6 +16,7 @@ type Aggregate struct {
 	id        string
 	username  string
 	name      string
+	email     *string
 	password  string
 	active    bool
 	createdAt time.Time
@@ -39,6 +42,24 @@ func HashPassword(plainPassword string) (string, error) {
 	return string(hashedPassword), nil
 }
 
+const maxEmailLength = 255
+
+// NormalizeEmail trims and lowercases, since emails are unique case-insensitively across all
+// organizations. An empty input yields nil: floor staff need no email.
+func NormalizeEmail(raw string) (*string, error) {
+	email := strings.ToLower(strings.TrimSpace(raw))
+	if email == "" {
+		return nil, nil
+	}
+	if len(email) > maxEmailLength {
+		return nil, userError.NewInvalidEmailError("email must be at most 255 characters")
+	}
+	if parsed, err := mail.ParseAddress(email); err != nil || parsed.Address != email {
+		return nil, userError.NewInvalidEmailError("email is not a valid address")
+	}
+	return &email, nil
+}
+
 func NewAggregateFromCreateUserRequest(req *dto.CreateUserRequest) (*Aggregate, error) {
 	if req == nil {
 		return nil, userError.NewInvalidRequestError("request cannot be nil")
@@ -52,6 +73,11 @@ func NewAggregateFromCreateUserRequest(req *dto.CreateUserRequest) (*Aggregate, 
 		return nil, userError.NewMissingNameError()
 	}
 
+	email, err := NormalizeEmail(req.Email)
+	if err != nil {
+		return nil, err
+	}
+
 	hashedPassword, err := HashPassword(req.Password)
 	if err != nil {
 		return nil, err
@@ -62,6 +88,7 @@ func NewAggregateFromCreateUserRequest(req *dto.CreateUserRequest) (*Aggregate, 
 		id:        uuid.Must(uuid.NewV7()).String(),
 		username:  req.Username,
 		name:      req.Name,
+		email:     email,
 		password:  hashedPassword,
 		active:    true,
 		createdAt: now,
@@ -74,6 +101,7 @@ func (a *Aggregate) ToDTO() *dto.User {
 		ID:        a.id,
 		Username:  a.username,
 		Name:      a.name,
+		Email:     a.email,
 		Password:  a.password,
 		Active:    a.active,
 		CreatedAt: a.createdAt,
@@ -93,6 +121,7 @@ func NewAggregateFromDTO(user *dto.User) *Aggregate {
 		id:        user.ID,
 		username:  user.Username,
 		name:      user.Name,
+		email:     user.Email,
 		password:  user.Password,
 		active:    user.Active,
 		createdAt: user.CreatedAt,

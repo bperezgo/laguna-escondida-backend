@@ -129,7 +129,7 @@ sync-reset:
 
 # --- MCP server -----------------------------------------------------------
 # Exposes the backend API as MCP tools over Streamable HTTP for Claude Code.
-# Requires LAGUNA_API_URL, LAGUNA_USERNAME, LAGUNA_PASSWORD in the environment
+# Requires LAGUNA_API_URL, LAGUNA_EMAIL (cloud) or LAGUNA_USERNAME (edge), LAGUNA_PASSWORD in the environment
 # (or a .env file). Optional: MCP_ADDR (default :8090), LAGUNA_ADMIN_API_KEY.
 run-mcp:
 	@echo "Running the MCP server"
