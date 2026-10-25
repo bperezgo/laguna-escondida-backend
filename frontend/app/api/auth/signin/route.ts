@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { config } from "@/lib/config/config";
-import { signInBody } from "@/lib/signinOrganization";
+import { signInBody } from "@/lib/signIn";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { organization, username, password } = body;
+    const backendBody = signInBody(await request.json());
 
-    if (!username || !password) {
+    if (!backendBody) {
       return NextResponse.json(
-        { error: "Username and password are required" },
+        { error: "Email or username, and password, are required" },
         { status: 400 }
       );
     }
@@ -20,7 +19,7 @@ export async function POST(request: NextRequest) {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(signInBody(organization ?? "", username, password)),
+      body: JSON.stringify(backendBody),
     });
 
     if (!response.ok) {

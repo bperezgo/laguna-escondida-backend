@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Modal, Input, Button } from "@/components/ui";
-import { roleLabel } from "@/types/user";
+import { hasCloudRole, roleLabel } from "@/types/user";
 import type {
   Role,
   UserWithRoles,
@@ -20,7 +20,11 @@ interface UserFormProps {
   onUpdate: (data: UpdateUserRequest) => Promise<void>;
   onCancel: () => void;
   isLoading?: boolean;
+  /** The server's rejection of the last submit, shown inside the form. */
+  error?: string;
 }
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function generatePassword(): string {
   const chars = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -41,11 +45,13 @@ export default function UserForm({
   onUpdate,
   onCancel,
   isLoading = false,
+  error,
 }: UserFormProps) {
   const isEdit = !!user;
 
   const [username, setUsername] = useState(user?.user.username ?? "");
   const [name, setName] = useState(user?.user.name ?? "");
+  const [email, setEmail] = useState(user?.user.email ?? "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [active, setActive] = useState<boolean>(user?.user.active ?? true);
@@ -54,6 +60,10 @@ export default function UserForm({
   );
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const needsEmail = hasCloudRole(
+    roles.filter((r) => selectedRoleIds.includes(r.id)).map((r) => r.name)
+  );
 
   const toggleRole = (id: number) => {
     setSelectedRoleIds((prev) =>
@@ -106,6 +116,13 @@ export default function UserForm({
       next.roles = "Selecciona al menos un rol";
     }
 
+    if (needsEmail && !email.trim()) {
+      next.email =
+        "El correo es obligatorio para Administrador, Gerente, Contador y Agente";
+    } else if (email.trim() && !EMAIL_PATTERN.test(email.trim())) {
+      next.email = "Ingresa un correo válido";
+    }
+
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -117,6 +134,7 @@ export default function UserForm({
     if (isEdit) {
       await onUpdate({
         name: name.trim(),
+        email: email.trim(),
         role_ids: selectedRoleIds,
         active,
       });
@@ -124,6 +142,7 @@ export default function UserForm({
       await onCreate({
         username: username.trim(),
         name: name.trim(),
+        email: email.trim() || undefined,
         password,
         role_ids: selectedRoleIds,
       });
@@ -177,6 +196,18 @@ export default function UserForm({
           error={errors.name}
           placeholder="Nombre completo"
           maxLength={255}
+        />
+
+        <Input
+          label={needsEmail ? "Correo *" : "Correo"}
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          error={errors.email}
+          placeholder="correo@ejemplo.com"
+          maxLength={255}
+          autoComplete="off"
+          helper="Obligatorio para Administrador, Gerente, Contador y Agente: con él inician sesión en la nube."
         />
 
         {!isEdit && (
@@ -333,6 +364,14 @@ export default function UserForm({
               </span>
             )}
           </label>
+        )}
+        {error && (
+          <p
+            role="alert"
+            style={{ margin: 0, color: "var(--color-danger)", fontSize: "0.875rem" }}
+          >
+            {error}
+          </p>
         )}
       </form>
     </Modal>

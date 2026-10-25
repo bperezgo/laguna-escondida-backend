@@ -8,6 +8,7 @@ import type {
   CreateUserRequest,
   UpdateUserRequest,
 } from "@/types/user";
+import { userErrorMessage } from "@/types/user";
 import { usePermissions, PERMISSIONS } from "@/lib/permissions";
 import { PermissionGate } from "@/components/permissions";
 import UserList from "./UserList";
@@ -104,7 +105,7 @@ export default function UsersPageClient({
       setShowForm(false);
       flashSuccess("Usuario creado correctamente");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al crear usuario");
+      setError(err instanceof Error ? userErrorMessage(err.message) : "Error al crear usuario");
     } finally {
       setFormLoading(false);
     }
@@ -121,7 +122,7 @@ export default function UsersPageClient({
       setEditingUser(null);
       flashSuccess("Usuario actualizado correctamente");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al actualizar usuario");
+      setError(err instanceof Error ? userErrorMessage(err.message) : "Error al actualizar usuario");
     } finally {
       setFormLoading(false);
     }
@@ -133,7 +134,7 @@ export default function UsersPageClient({
       await usersApi.update(user.user.id, { active: !user.user.active });
       await loadUsers();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al actualizar usuario");
+      setError(err instanceof Error ? userErrorMessage(err.message) : "Error al actualizar usuario");
     }
   };
 
@@ -279,6 +280,7 @@ export default function UsersPageClient({
           onUpdate={handleUpdateSubmit}
           onCancel={handleCancelForm}
           isLoading={formLoading}
+          error={error}
         />
       )}
 

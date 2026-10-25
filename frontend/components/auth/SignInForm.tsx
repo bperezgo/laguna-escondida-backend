@@ -1,32 +1,40 @@
 "use client";
 
-import { useEffect, useRef, useState, FormEvent } from "react";
+import { useEffect, useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { usePermissions } from "@/lib/permissions";
 import { Card, CardBody, Input, Button } from "@/components/ui";
 import {
-  normalizeOrganizationSlug,
-  readRememberedOrganization,
-  rememberOrganization,
-} from "@/lib/signinOrganization";
+  LEGACY_EDGE_CONTEXT,
+  parseSignInContext,
+  signInErrorMessage,
+  type SignInContext,
+} from "@/lib/signIn";
 
 export default function SignInForm() {
-  const organizationRef = useRef<HTMLInputElement>(null);
-  const [username, setUsername] = useState("");
+  const [context, setContext] = useState<SignInContext | null>(null);
+  const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { fetchPermissions } = usePermissions();
 
-  // Read after mount: localStorage doesn't exist during the server render.
   useEffect(() => {
-    if (organizationRef.current) organizationRef.current.value = readRememberedOrganization();
+    let cancelled = false;
+    fetch("/api/auth/context")
+      .then((response) => (response.ok ? response.json() : LEGACY_EDGE_CONTEXT))
+      .then((body) => !cancelled && setContext(parseSignInContext(body)))
+      .catch(() => !cancelled && setContext(LEGACY_EDGE_CONTEXT));
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  const isCloud = context?.mode === "cloud";
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const organization = organizationRef.current?.value ?? "";
     setError("");
     setIsLoading(true);
 
@@ -36,16 +44,16 @@ export default function SignInForm() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ organization, username, password }),
+        body: JSON.stringify(
+          isCloud ? { email: login, password } : { username: login, password }
+        ),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to sign in");
+        throw new Error(signInErrorMessage(data.error || "Failed to sign in"));
       }
-
-      rememberOrganization(normalizeOrganizationSlug(organization));
 
       // Fetch user permissions with the new cookie before navigating
       await fetchPermissions();
@@ -96,7 +104,9 @@ export default function SignInForm() {
               marginTop: "0.5rem",
             }}
           >
-            Inicia sesión para continuar
+            {context?.organization
+              ? `Inicia sesión en ${context.organization.name}`
+              : "Inicia sesión para continuar"}
           </p>
         </div>
 
@@ -106,36 +116,41 @@ export default function SignInForm() {
               onSubmit={handleSubmit}
               style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}
             >
-              <Input
-                label="Restaurante"
-                id="organization"
-                name="organization"
-                type="text"
-                placeholder="ej. laguna-escondida"
-                helper="El código de tu restaurante. En la caja del local puedes dejarlo vacío."
-                ref={organizationRef}
-                disabled={isLoading}
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                autoComplete="organization"
-              />
-
-              <Input
-                label="Usuario"
-                id="username"
-                name="username"
-                type="text"
-                required
-                placeholder="Ingresa tu usuario"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                disabled={isLoading}
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                autoComplete="username"
-              />
+              {isCloud ? (
+                <Input
+                  key="email"
+                  label="Correo"
+                  id="email"
+                  name="email"
+                  type="email"
+                  required
+                  placeholder="Ingresa tu correo"
+                  value={login}
+                  onChange={(e) => setLogin(e.target.value)}
+                  disabled={isLoading}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  autoComplete="email"
+                />
+              ) : (
+                <Input
+                  key="username"
+                  label="Usuario"
+                  id="username"
+                  name="username"
+                  type="text"
+                  required
+                  placeholder="Ingresa tu usuario"
+                  value={login}
+                  onChange={(e) => setLogin(e.target.value)}
+                  disabled={isLoading || !context}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  autoComplete="username"
+                />
+              )}
 
               <Input
                 label="Contraseña"
@@ -169,7 +184,7 @@ export default function SignInForm() {
                 type="submit"
                 variant="primary"
                 fullWidth
-                disabled={isLoading}
+                disabled={isLoading || !context}
               >
                 {isLoading ? "Iniciando sesión..." : "Iniciar sesión"}
               </Button>
