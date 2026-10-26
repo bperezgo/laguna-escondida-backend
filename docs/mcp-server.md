@@ -19,9 +19,12 @@ the system conversationally.
 ## Architecture
 
 The MCP server is a **primary adapter that is an HTTP client of the backend
-API** — it does not touch the database. It signs in with a service account,
-caches the JWT, and forwards each tool call to the corresponding endpoint. Point
-it at any environment with a single env var (`LAGUNA_API_URL`).
+API** — it does not touch the database. With the full toolset it signs in with a
+service account, caches the JWT, and forwards each tool call to the corresponding
+endpoint. With the customer toolset it holds no identity of its own and forwards
+each caller's organization API key instead (see
+[One deployment, a key per organization](#one-deployment-a-key-per-organization)).
+Point it at any environment with a single env var (`LAGUNA_API_URL`).
 
 ```
 Claude Code ──(MCP, Streamable HTTP)──▶ mcp-server ──(HTTP + JWT)──▶ backend API
@@ -36,10 +39,10 @@ the assistant cannot mutate anything, regardless of which tools exist.
 | Env var                | Required | Default | Description                                                         |
 | ---------------------- | -------- | ------- | ------------------------------------------------------------------- |
 | `LAGUNA_API_URL`       | yes      | —       | Backend base URL, e.g. `http://localhost:8080`                      |
-| `LAGUNA_EMAIL`         | one of   | —       | Service-account email, when `LAGUNA_API_URL` is the cloud (the cloud signs in by email, and only cloud roles such as manager or agent) |
-| `LAGUNA_USERNAME`      | one of   | —       | Service-account username, when `LAGUNA_API_URL` is an edge box. Set exactly one of `LAGUNA_EMAIL` and `LAGUNA_USERNAME` |
-| `LAGUNA_PASSWORD`      | yes      | —       | Service-account password                                            |
-| `MCP_AUTH_TOKEN`       | HTTP only | —      | Shared secret clients send as `Authorization: Bearer <token>` to `/mcp`. Not needed with `--stdio` (the transport is local). |
+| `LAGUNA_EMAIL`         | full: one of | —   | Service-account email, when `LAGUNA_API_URL` is the cloud (the cloud signs in by email, and only cloud roles such as manager or agent). Ignored by the customer toolset |
+| `LAGUNA_USERNAME`      | full: one of | —   | Service-account username, when `LAGUNA_API_URL` is an edge box. Set exactly one of `LAGUNA_EMAIL` and `LAGUNA_USERNAME`. Ignored by the customer toolset |
+| `LAGUNA_PASSWORD`      | full     | —       | Service-account password. Ignored by the customer toolset          |
+| `MCP_AUTH_TOKEN`       | full, HTTP only | — | Shared secret clients send as `Authorization: Bearer <token>` to `/mcp`. Not needed with `--stdio` (the transport is local). Ignored by the customer toolset |
 | `MCP_ADDR`             | no       | `:8090` | Listen address for the MCP HTTP endpoint                            |
 | `LAGUNA_ADMIN_API_KEY` | no       | —       | Only needed by the two `update_*_document_urls` admin tools         |
 | `MCP_TOOLSET`          | no       | `full`  | `full` (staff tools) or `customer` (only the customer tools; HTTP only — startup fails with `--stdio`). Any other value stops startup. |
@@ -123,10 +126,11 @@ files from paths on your own machine.
 
 ## Authentication
 
-- **Client → MCP endpoint:** shared-secret bearer token (`MCP_AUTH_TOKEN`),
+- **Client → MCP endpoint (full toolset):** shared-secret bearer token (`MCP_AUTH_TOKEN`),
   compared in constant time. `/health` is unauthenticated.
-- **MCP server → backend:** JWT obtained via `POST /api/auth/signin`, cached and
+- **MCP server → backend (full toolset):** JWT obtained via `POST /api/auth/signin`, cached and
   automatically refreshed on a `401`.
+- **Customer toolset:** see [One deployment, a key per organization](#one-deployment-a-key-per-organization).
 - **Admin tools:** `update_invoice_document_urls` and
   `update_support_document_urls` send the `X-API-Key` header
   (`LAGUNA_ADMIN_API_KEY`) instead of a JWT.
@@ -167,10 +171,11 @@ files from paths on your own machine.
 
 ### Identity and location come from headers, never from the model
 
-The agent runtime sets two headers on **every** MCP request, from the WhatsApp channel itself:
+The agent runtime sets these headers on **every** MCP request:
 
 | Header | Format | Source |
 | ------ | ------ | ------ |
+| `Authorization` | `Bearer lgk_…`, the restaurant's organization API key | Stored per organization in the agent runtime (marketing-app's tool-server `token`) |
 | `X-Customer-Phone` | The sender's international number, digits only, e.g. `573005551234` (a leading `+` is accepted). Always read as international, so `34612345678` is Spain's `+34612345678` | WhatsApp verified sender (`wa_id`) |
 | `X-Customer-Location` | `<latitude>,<longitude>` in decimal degrees, e.g. `4.5981,-74.076` | The location pin the customer shared in the chat; omit until one is shared |
 
@@ -178,26 +183,46 @@ No customer tool takes a phone or coordinates as an argument, so the model canno
 
 `update_my_order` and `cancel_my_order` take an order id, but first check it against `GET /api/orders?customer_phone=<header>` (the **active** list). Another customer's order, a paid order and a voided one all get the same `order not found` error, and nothing is changed.
 
-### The `agent` user and the second deployment
+### One deployment, a key per organization
 
-Run a **separate** MCP deployment for the agent; never point the WhatsApp agent at the staff server.
+One customer MCP deployment serves every restaurant. It has no identity of its own: it never signs in, and nothing in its configuration names an organization. Each request to `/mcp` carries the calling restaurant's **organization API key** (`Authorization: Bearer lgk_…`, see [Organization API Keys](./api/api-keys.md)), and every backend call a tool makes carries that same key and no other credential. The backend, not the MCP server, decides whether the key is valid and which organization it acts for. Never point the WhatsApp agent at the staff server.
 
-1. In the **cloud**, create a user with **only** the `agent` role (role id 6). It can read products and create/read/update/delete orders; it gets `403` on pay, kitchen states, products, stock, zones, users, suppliers, expenses and invoices. This is the second barrier behind the toolset. The backend also keeps it to takeaway and delivery orders it created (`403 AGENT_ORDER_TYPE_NOT_ALLOWED` / `ORDER_NOT_OWNED`, see [orders](./api/orders.md#the-agent-role)), so even a leaked agent credential cannot touch a dine-in table or a staff-taken order. Telling one customer from another still rests on the toolset's phone check, since every customer shares the one agent user.
+- A request without a bearer, or with anything other than an `lgk_` key (including a staff JWT), is refused with `401` before any tool runs.
+- An MCP session is bound to the key that opened it: the same session continued with another key is refused.
+- A key the backend refuses (revoked, its user deactivated, its organization suspended) makes the tool fail with `credential refused`. Nothing is retried under another credential.
+
+Each key belongs to an agent user: a cloud user with **only** the `agent` role (role id 6). It can read products and create/read/update/delete orders; it gets `403` on pay, kitchen states, products, stock, zones, users, suppliers, expenses and invoices. This is the second barrier behind the toolset. The backend also keeps it to takeaway and delivery orders it created (`403 AGENT_ORDER_TYPE_NOT_ALLOWED` / `ORDER_NOT_OWNED`, see [orders](./api/orders.md#the-agent-role)), so even a leaked key cannot touch a dine-in table, a staff-taken order or another organization. Telling one customer from another still rests on the toolset's phone check, since every customer of a restaurant shares its one agent user.
+
+#### Configuration (customer toolset)
+
+| Env var                | Required | Default | Description                                                     |
+| ---------------------- | -------- | ------- | --------------------------------------------------------------- |
+| `MCP_TOOLSET`          | yes      | —       | `customer`                                                      |
+| `LAGUNA_API_URL`       | yes      | —       | The **cloud** backend base URL. Edge boxes refuse every API key |
+| `MCP_ADDR`             | no       | `:8090` | Listen address for `/mcp`                                       |
+
+Over HTTP only (`--stdio` is refused: stdio has no bearer and no headers).
+
+#### Adding a restaurant
+
+1. In the cloud, create the restaurant's agent user with only the `agent` role.
 2. Upload at least one delivery zone (full toolset or `POST /api/delivery-zones`) and check it with the restaurant's own pin. No active zone means every delivery is refused.
-3. Deploy the MCP server with:
+3. Issue its key: `POST /api/platform/organizations/:id/api-keys` with the admin API key, `{"user_id": "<agent user>", "name": "whatsapp-agent"}`. The plaintext is shown once.
+4. In the marketing-app console, point the restaurant's orders tool server at the one MCP URL (`https://<mcp host>/mcp`) and set its token to the key. The agent runtime sends it as the bearer with `X-Customer-Phone` and, once shared, `X-Customer-Location`. Give the prompt the payment instructions (transfer details); staff record the payment with `pay_order` from the staff tools or the cloud page, which releases the order to the kitchen.
 
-   ```bash
-   MCP_TOOLSET=customer
-   LAGUNA_API_URL=https://<cloud backend>
-   LAGUNA_EMAIL=<agent user's email>
-   LAGUNA_PASSWORD=…
-   MCP_AUTH_TOKEN="$(openssl rand -hex 24)"   # its own secret, not the staff one
-   ```
+Revoke a leaked key with `DELETE /api/platform/organizations/:id/api-keys/:keyId` and issue a new one; deactivating every zone stops new deliveries without a deploy.
 
-   Over HTTP only (`--stdio` is refused: stdio has no bearer token and no headers).
-4. Configure the agent runtime to call `/mcp` with `Authorization: Bearer <MCP_AUTH_TOKEN>`, `X-Customer-Phone` and, once shared, `X-Customer-Location`, and give its prompt the payment instructions (transfer details). Staff record the payment with `pay_order` from the staff tools or the cloud page; that releases the order to the kitchen.
+#### Rollout from the shared-secret setup
 
-Rotate a leaked token by changing `MCP_AUTH_TOKEN`; deactivating every zone stops new deliveries without a deploy.
+The previous customer deployment signed in as one agent account and checked one shared secret. This is a hard cutover: there is no compatibility setting.
+
+1. Deploy the backend with the `api_keys` migration. The routes and the `lgk_` bearer path are additive; existing JWT clients are unaffected.
+2. Issue Laguna's key for its `agent` user (`POST /api/platform/organizations/:id/api-keys`).
+3. Deploy the MCP server with `MCP_TOOLSET=customer` and `LAGUNA_API_URL` only.
+4. In the marketing-app console, point Laguna's orders tool server at the MCP URL and set its token to the key. The console's server status should show `connected`.
+5. Remove the old agent account's password and shared secret from the MCP deployment's secrets.
+
+**Rollback:** redeploy the previous MCP image with its old environment. The backend change can stay, since it is additive.
 
 ## Playbooks
 

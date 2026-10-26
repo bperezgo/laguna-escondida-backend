@@ -119,12 +119,20 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		financial:         handler.NewFinancialHandler(service.NewFinancialService(c.billRepo, expenseRepo, purchaseEntryRepo)),
 	})
 
+	// API keys are a cloud credential: the edge's JWT service never accepts them.
+	apiKeyService := service.NewAPIKeyService(
+		repository.NewAPIKeyRepository(db), repository.NewOrganizationRepository(db),
+		repository.NewUserRepository(db), repository.NewUserRoleRepository(db), logger,
+	)
+	c.jwtService.AcceptAPIKeys(apiKeyService)
+
 	registerCloudRoutes(c.router, cfg.AdminAPIKey, cfg.NodeSyncKey, c.jwtService, cloudHandlers{
 		invoice:         handler.NewInvoiceHandler(invoiceService, documentURLMaintenance),
 		supportDocument: handler.NewSupportDocumentHandler(supportDocService, documentURLMaintenance),
 		sync:            handler.NewSyncHandler(syncService, syncReferenceService),
 		telemetry:       telemetryHandler,
 		organization:    handler.NewOrganizationHandler(c.organizationService),
+		apiKey:          handler.NewAPIKeyHandler(apiKeyService),
 		deliveryZone:    handler.NewDeliveryZoneHandler(service.NewDeliveryZoneService(c.deliveryZoneRepo)),
 		nodes:           service.NewNodeService(repository.NewNodeRepository(db)),
 	})

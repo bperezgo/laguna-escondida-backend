@@ -850,6 +850,45 @@ curl -X PUT "$BASE_URL/platform/organizations/ORG_ID/einvoicing" \
 
 ---
 
+## Organization API Keys (cloud only, admin API key)
+
+See `docs/api/api-keys.md`. A key can be issued only for a user whose only role is `agent`; the plaintext is returned once.
+
+### Issue a Key for the Agent User
+
+```bash
+curl -X POST "$BASE_URL/platform/organizations/ORG_ID/api-keys" \
+  -H "X-API-Key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "user_id": "AGENT_USER_ID", "name": "whatsapp-agent" }'
+
+# Keep the "key" field of the response, e.g.:
+export ORG_API_KEY="lgk_..."
+```
+
+### List the Organization's Keys
+
+```bash
+curl -X GET "$BASE_URL/platform/organizations/ORG_ID/api-keys" \
+  -H "X-API-Key: $ADMIN_API_KEY"
+```
+
+### Use a Key (acts as the agent user in its organization)
+
+```bash
+curl -X GET "$BASE_URL/products?product_type=SELLABLE,COMPOSITE,BOTH" \
+  -H "Authorization: Bearer $ORG_API_KEY"
+```
+
+### Revoke a Key (permanent; the next request with it gets 401)
+
+```bash
+curl -i -X DELETE "$BASE_URL/platform/organizations/ORG_ID/api-keys/KEY_ID" \
+  -H "X-API-Key: $ADMIN_API_KEY"
+```
+
+---
+
 ## Financial Summary
 
 ### Get Financial Summary for a Date Range

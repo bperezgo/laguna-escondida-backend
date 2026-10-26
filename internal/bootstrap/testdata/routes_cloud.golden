@@ -50,6 +50,9 @@ GET /api/platform/organizations laguna-escondida/backend/internal/platform/handl
 POST /api/platform/organizations laguna-escondida/backend/internal/platform/handler.(*OrganizationHandler).CreateHandler-fm
 GET /api/platform/organizations/:id laguna-escondida/backend/internal/platform/handler.(*OrganizationHandler).GetHandler-fm
 PATCH /api/platform/organizations/:id laguna-escondida/backend/internal/platform/handler.(*OrganizationHandler).UpdateHandler-fm
+GET /api/platform/organizations/:id/api-keys laguna-escondida/backend/internal/platform/handler.(*APIKeyHandler).ListHandler-fm
+POST /api/platform/organizations/:id/api-keys laguna-escondida/backend/internal/platform/handler.(*APIKeyHandler).IssueHandler-fm
+DELETE /api/platform/organizations/:id/api-keys/:keyId laguna-escondida/backend/internal/platform/handler.(*APIKeyHandler).RevokeHandler-fm
 PUT /api/platform/organizations/:id/einvoicing laguna-escondida/backend/internal/platform/handler.(*OrganizationHandler).SetEInvoicingHandler-fm
 POST /api/product-responsibilities laguna-escondida/backend/internal/platform/handler.(*ProductHandler).CreateProductResponsibilityHandler-fm
 DELETE /api/product-responsibilities/:id laguna-escondida/backend/internal/platform/handler.(*ProductHandler).DeleteProductResponsibilityHandler-fm

@@ -72,3 +72,66 @@ func TestClient_SignsInWithTheConfiguredCredential(t *testing.T) {
 		})
 	}
 }
+
+func TestNewConfig_CustomerToolsetNeedsNoIdentityOfItsOwn(t *testing.T) {
+	t.Setenv("LAGUNA_API_URL", "http://localhost:8080")
+	t.Setenv("MCP_TOOLSET", "customer")
+	for _, name := range []string{"MCP_AUTH_TOKEN", "LAGUNA_EMAIL", "LAGUNA_USERNAME", "LAGUNA_PASSWORD"} {
+		t.Setenv(name, "")
+	}
+
+	cfg, err := NewConfig()
+
+	require.NoError(t, err)
+	assert.Equal(t, ToolsetCustomer, cfg.Toolset)
+}
+
+func TestNewConfig_CustomerToolsetIgnoresTheOldSettings(t *testing.T) {
+	t.Setenv("LAGUNA_API_URL", "http://localhost:8080")
+	t.Setenv("MCP_TOOLSET", "customer")
+	t.Setenv("MCP_AUTH_TOKEN", "shared-secret")
+	t.Setenv("LAGUNA_EMAIL", "agent@example.com")
+	t.Setenv("LAGUNA_USERNAME", "svc")
+	t.Setenv("LAGUNA_PASSWORD", "secret")
+
+	cfg, err := NewConfig()
+
+	require.NoError(t, err)
+	assert.Empty(t, cfg.AuthToken)
+	assert.Empty(t, cfg.Email)
+	assert.Empty(t, cfg.Username)
+	assert.Empty(t, cfg.Password)
+}
+
+func TestNewConfig_FullToolsetStillRequiresItsServiceAccount(t *testing.T) {
+	cases := []struct {
+		name    string
+		env     map[string]string
+		wantErr string
+	}{
+		{name: "no credential", env: map[string]string{"LAGUNA_PASSWORD": "secret"}, wantErr: "exactly one of"},
+		{name: "no password", env: map[string]string{"LAGUNA_EMAIL": "agent@example.com"}, wantErr: "LAGUNA_PASSWORD"},
+	}
+	t.Setenv("LAGUNA_API_URL", "http://localhost:8080")
+	t.Setenv("MCP_TOOLSET", "full")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, name := range []string{"LAGUNA_EMAIL", "LAGUNA_USERNAME", "LAGUNA_PASSWORD"} {
+				t.Setenv(name, tc.env[name])
+			}
+
+			_, err := NewConfig()
+
+			assert.ErrorContains(t, err, tc.wantErr)
+		})
+	}
+
+	t.Setenv("LAGUNA_EMAIL", "agent@example.com")
+	t.Setenv("LAGUNA_USERNAME", "")
+	t.Setenv("LAGUNA_PASSWORD", "secret")
+	t.Setenv("MCP_AUTH_TOKEN", "shared-secret")
+	cfg, err := NewConfig()
+	require.NoError(t, err)
+	assert.Equal(t, "shared-secret", cfg.AuthToken)
+	assert.Equal(t, "secret", cfg.Password)
+}

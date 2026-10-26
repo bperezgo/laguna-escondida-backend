@@ -26,8 +26,9 @@ type JWTClaims struct {
 }
 
 type JWTService struct {
-	secret []byte
-	scope  tenant.Scope
+	secret  []byte
+	scope   tenant.Scope
+	apiKeys *APIKeyService
 }
 
 // NewJWTService issues and validates tokens; a token whose organization is outside scope is invalid.
@@ -90,4 +91,15 @@ func (s *JWTService) ValidateToken(tokenString string) (*JWTClaims, error) {
 		return nil, ErrInvalidToken
 	}
 	return claims, nil
+}
+
+// AcceptAPIKeys lets the bearer check also take organization API keys. Only the cloud calls
+// it, so an edge box refuses every key.
+func (s *JWTService) AcceptAPIKeys(keys *APIKeyService) {
+	s.apiKeys = keys
+}
+
+// APIKeys is nil where keys are not accepted.
+func (s *JWTService) APIKeys() *APIKeyService {
+	return s.apiKeys
 }

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/domain/tenant"
@@ -125,7 +126,19 @@ func PushNodeIDFromBody() gin.HandlerFunc {
 	}
 }
 
-// JWTAuthMiddleware validates the JWT token and optionally checks for required roles
+// invalidTokenBody is the one 401 for a bad JWT and for every refused API key, so the
+// response can't tell which keys, users or organizations exist.
+var invalidTokenBody = gin.H{"error": "Invalid or expired token"}
+
+type bearerPrincipal struct {
+	userID   string
+	orgID    string
+	username string
+	roleIDs  []int
+}
+
+// JWTAuthMiddleware validates the bearer, a JWT or (where accepted) an organization API key,
+// and optionally checks for required roles.
 func JWTAuthMiddleware(jwtService *service.JWTService, requiredRoles ...int) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
@@ -143,17 +156,27 @@ func JWTAuthMiddleware(jwtService *service.JWTService, requiredRoles ...int) gin
 		}
 
 		token := tokenParts[1]
-		claims, err := jwtService.ValidateToken(token)
-		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
-			c.Abort()
-			return
+		var principal bearerPrincipal
+		if strings.HasPrefix(token, dto.APIKeyPrefix) {
+			p, ok := authenticateAPIKey(c, jwtService.APIKeys(), token)
+			if !ok {
+				return
+			}
+			principal = p
+		} else {
+			claims, err := jwtService.ValidateToken(token)
+			if err != nil {
+				c.JSON(http.StatusUnauthorized, invalidTokenBody)
+				c.Abort()
+				return
+			}
+			principal = bearerPrincipal{userID: claims.UserID, orgID: claims.OrgID, username: claims.Username, roleIDs: claims.RoleIDs}
 		}
 
 		if len(requiredRoles) > 0 {
 			hasRequiredRole := false
 			for _, requiredRole := range requiredRoles {
-				if slices.Contains(claims.RoleIDs, requiredRole) {
+				if slices.Contains(principal.roleIDs, requiredRole) {
 					hasRequiredRole = true
 					break
 				}
@@ -166,13 +189,41 @@ func JWTAuthMiddleware(jwtService *service.JWTService, requiredRoles ...int) gin
 			}
 		}
 
-		c.Set("user_id", claims.UserID)
-		c.Set("org_id", claims.OrgID)
-		c.Set("username", claims.Username)
-		c.Set("role_ids", claims.RoleIDs)
-		c.Request = c.Request.WithContext(tenant.WithOrg(c.Request.Context(), claims.OrgID))
+		c.Set("user_id", principal.userID)
+		c.Set("org_id", principal.orgID)
+		c.Set("username", principal.username)
+		c.Set("role_ids", principal.roleIDs)
+		c.Request = c.Request.WithContext(tenant.WithOrg(c.Request.Context(), principal.orgID))
 		c.Next()
 	}
+}
+
+// authenticateAPIKey writes the response itself on failure. The reason goes to the access log
+// through c.Error, never the key.
+func authenticateAPIKey(c *gin.Context, keys *service.APIKeyService, key string) (bearerPrincipal, bool) {
+	if keys == nil {
+		_ = c.Error(&domainError.APIKeyRefusedError{Reason: "api keys are not accepted here"})
+		c.JSON(http.StatusUnauthorized, invalidTokenBody)
+		c.Abort()
+		return bearerPrincipal{}, false
+	}
+	principal, err := keys.Authenticate(c.Request.Context(), key)
+	if err != nil {
+		_ = c.Error(err)
+		if errors.Is(err, domainError.ErrCredentialRefused) {
+			c.JSON(http.StatusUnauthorized, invalidTokenBody)
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to authenticate"})
+		}
+		c.Abort()
+		return bearerPrincipal{}, false
+	}
+	return bearerPrincipal{
+		userID:   principal.UserID,
+		orgID:    principal.OrganizationID,
+		username: principal.Username,
+		roleIDs:  principal.RoleIDs,
+	}, true
 }
 
 // LoggerMiddleware logs HTTP requests using the slog logger in JSON format

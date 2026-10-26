@@ -18,9 +18,9 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 )
 
-// Client is an authenticated HTTP client for the backend API. It signs in once
-// with the configured service account, caches the JWT, and re-authenticates
-// transparently on a 401.
+// Client is an authenticated HTTP client for the backend API. A request whose context carries
+// the caller's API key is sent with that key and nothing else. Otherwise the client signs in
+// once with the configured service account, caches the JWT, and re-authenticates on a 401.
 type Client struct {
 	baseURL     string
 	httpClient  *http.Client
@@ -28,6 +28,8 @@ type Client struct {
 	username    string
 	password    string
 	adminAPIKey string
+	// forwardOnly is the customer toolset: no identity of its own, only the caller's key.
+	forwardOnly bool
 
 	mu    sync.Mutex
 	token string
@@ -42,7 +44,13 @@ func NewClient(cfg *Config) *Client {
 		username:    cfg.Username,
 		password:    cfg.Password,
 		adminAPIKey: cfg.AdminAPIKey,
+		forwardOnly: cfg.Toolset == ToolsetCustomer,
 	}
+}
+
+func (c *Client) forwardsCaller(ctx context.Context) bool {
+	_, ok := callerKeyFrom(ctx)
+	return ok || c.forwardOnly
 }
 
 type requestOptions struct {
@@ -113,6 +121,9 @@ func (c *Client) UploadFile(ctx context.Context, path string, query url.Values, 
 		return nil, err
 	}
 	if status == http.StatusUnauthorized {
+		if c.forwardsCaller(ctx) {
+			return nil, ErrCredentialRefused
+		}
 		c.clearToken()
 		respBody, status, err = c.doOnce(ctx, http.MethodPost, path, query, bodyBytes, contentType, requestOptions{})
 		if err != nil {
@@ -125,8 +136,8 @@ func (c *Client) UploadFile(ctx context.Context, path string, query url.Values, 
 	return respBody, nil
 }
 
-// do sends a request, transparently retrying once after re-authentication on a
-// 401, and returns the body for any 2xx response.
+// do sends a request and returns the body for any 2xx response. On a 401 it re-authenticates
+// and retries once, except for the caller's own key, which has nothing to fall back to.
 func (c *Client) do(ctx context.Context, method, path string, query url.Values, body any, opts requestOptions) ([]byte, error) {
 	var bodyBytes []byte
 	if body != nil {
@@ -142,6 +153,9 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 		return nil, err
 	}
 	if status == http.StatusUnauthorized && !opts.useAdminKey {
+		if c.forwardsCaller(ctx) {
+			return nil, ErrCredentialRefused
+		}
 		c.clearToken()
 		respBody, status, err = c.doOnce(ctx, method, path, query, bodyBytes, "application/json", opts)
 		if err != nil {
@@ -195,9 +209,15 @@ func (c *Client) doOnce(ctx context.Context, method, path string, query url.Valu
 		req.Header.Set("Content-Type", contentType)
 	}
 
-	if opts.useAdminKey {
+	key, forwarded := callerKeyFrom(ctx)
+	switch {
+	case opts.useAdminKey:
 		req.Header.Set("X-API-Key", c.adminAPIKey)
-	} else {
+	case forwarded:
+		req.Header.Set("Authorization", "Bearer "+key)
+	case c.forwardOnly:
+		return nil, 0, errNoCallerKey
+	default:
 		token, tokenErr := c.ensureToken(ctx)
 		if tokenErr != nil {
 			return nil, 0, tokenErr

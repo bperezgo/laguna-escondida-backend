@@ -27,9 +27,10 @@ var globalTableFiles = map[string]bool{
 }
 
 // unscopedByDesign are single functions in tenant files that must cross organizations: cloud
-// sign-in learns the organization from the email.
+// sign-in learns the organization from the email, and an API key request from the key.
 var unscopedByDesign = map[string]bool{
-	"user_repository.go FindByEmail": true,
+	"user_repository.go FindByEmail":   true,
+	"api_key_repository.go FindByHash": true,
 }
 
 // unscopedTenantAccess reports the functions in src that reach the database without the

@@ -23,6 +23,7 @@ func NewMCPServer(c *Client, toolset Toolset) *mcp.Server {
 	}, nil)
 
 	if toolset == ToolsetCustomer {
+		s.AddReceivingMiddleware(forwardCallerKey)
 		registerCustomerTools(s, c)
 		return s
 	}
