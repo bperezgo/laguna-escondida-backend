@@ -15,6 +15,7 @@ type cloudHandlers struct {
 	sync            *handler.SyncHandler
 	telemetry       *handler.TelemetryHandler
 	organization    *handler.OrganizationHandler
+	apiKey          *handler.APIKeyHandler
 	deliveryZone    *handler.DeliveryZoneHandler
 	nodes           *service.NodeService
 }
@@ -32,6 +33,9 @@ func registerCloudRoutes(router *gin.Engine, adminAPIKey, nodeSyncKey string, jw
 	organizations.GET("/:id", h.organization.GetHandler)
 	organizations.PATCH("/:id", h.organization.UpdateHandler)
 	organizations.PUT("/:id/einvoicing", h.organization.SetEInvoicingHandler)
+	organizations.POST("/:id/api-keys", h.apiKey.IssueHandler)
+	organizations.GET("/:id/api-keys", h.apiKey.ListHandler)
+	organizations.DELETE("/:id/api-keys/:keyId", h.apiKey.RevokeHandler)
 
 	// Invoice routes
 	router.POST("/api/invoices", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.InvoicesCreate), h.invoice.CreateElectronicInvoiceHandler)

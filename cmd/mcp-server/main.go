@@ -44,16 +44,24 @@ func main() {
 		return
 	}
 
-	if cfg.AuthToken == "" {
-		log.Fatal("mcp-server config: MCP_AUTH_TOKEN is not set (required for the HTTP transport; pass --stdio for local Claude Desktop use)")
-	}
-
 	mcpHandler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
 		return server
 	}, nil)
 
+	// The customer toolset acts for whichever organization's key calls it; the full toolset keeps
+	// its one shared secret.
+	var guarded http.Handler
+	if cfg.Toolset == mcpserver.ToolsetCustomer {
+		guarded = mcpserver.RequireOrgAPIKey(mcpHandler)
+	} else {
+		if cfg.AuthToken == "" {
+			log.Fatal("mcp-server config: MCP_AUTH_TOKEN is not set (required for the HTTP transport; pass --stdio for local Claude Desktop use)")
+		}
+		guarded = requireBearer(cfg.AuthToken, mcpHandler)
+	}
+
 	mux := http.NewServeMux()
-	mux.Handle("/mcp", requireBearer(cfg.AuthToken, mcpHandler))
+	mux.Handle("/mcp", guarded)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)

@@ -21,6 +21,9 @@ var platformOrganizationRoutes = []struct{ method, path string }{
 	{http.MethodGet, "/api/platform/organizations/:id"},
 	{http.MethodPatch, "/api/platform/organizations/:id"},
 	{http.MethodPut, "/api/platform/organizations/:id/einvoicing"},
+	{http.MethodPost, "/api/platform/organizations/:id/api-keys"},
+	{http.MethodGet, "/api/platform/organizations/:id/api-keys"},
+	{http.MethodDelete, "/api/platform/organizations/:id/api-keys/:keyId"},
 }
 
 func servePlatformRoute(t *testing.T, mode config.Mode, method, path string, headers map[string]string) int {

@@ -282,6 +282,10 @@ The JWT token contains the following claims:
 
 A token without `org_id` is rejected with `401 Unauthorized`. Tokens issued before organizations were added carry none, so everyone signs in once more after that release. An edge box also rejects a token whose `org_id` is not the box's organization.
 
+### Organization API Keys (`Bearer lgk_…`)
+
+In the cloud, every endpoint that takes `Authorization: Bearer <jwt_token>` also takes an organization API key, `Authorization: Bearer lgk_…`. A key is not a JWT and carries no claims: the server looks it up on every request and acts as the key's user in the key's organization, with that user's current roles. It stops working as soon as it is revoked, its user is deactivated or deleted, or its organization is suspended; each of those returns the same `401` body as an invalid token. Edge boxes refuse every key with `401`. Keys are issued only for agent users; see [Organization API Keys](./api-keys.md).
+
 ### Token Expiration
 
 Tokens expire after **24 hours**. After expiration, the user must sign in again to obtain a new token.
