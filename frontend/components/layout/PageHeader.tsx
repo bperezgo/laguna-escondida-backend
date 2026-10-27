@@ -24,7 +24,8 @@ export default function PageHeader() {
     if (pathname.startsWith("/expenses")) return "Gastos";
     if (pathname.startsWith("/close")) return "Cierre de Caja";
     if (pathname.startsWith("/users")) return "Usuarios";
-    if (pathname.startsWith("/delivery-zones")) return "Zonas de Domicilio";
+    if (pathname.startsWith("/deliveries") || pathname.startsWith("/delivery-zones"))
+      return "Domicilios";
     return organization
       ? organizationDisplayName(organization)
       : "Laguna Escondida";

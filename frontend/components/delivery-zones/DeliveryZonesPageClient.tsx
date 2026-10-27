@@ -36,6 +36,8 @@ const ZoneMap = dynamic(() => import("./ZoneMap"), {
 interface DeliveryZonesPageClientProps {
   initialZones: DeliveryZone[];
   loadError: string;
+  /** Inside the Domicilios page's Zonas tab: that page owns the title and padding. */
+  embedded?: boolean;
 }
 
 interface Draft extends ZoneEditState {
@@ -46,6 +48,7 @@ interface Draft extends ZoneEditState {
 export default function DeliveryZonesPageClient({
   initialZones,
   loadError,
+  embedded = false,
 }: DeliveryZonesPageClientProps) {
   const { hasPermission } = usePermissions();
   const canManage = hasPermission(PERMISSIONS.DELIVERY_ZONES_MANAGE);
@@ -161,7 +164,13 @@ export default function DeliveryZonesPageClient({
   const activeCount = zones.filter((z) => z.active).length;
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "var(--color-bg)", padding: "2rem" }}>
+    <div
+      style={
+        embedded
+          ? undefined
+          : { minHeight: "100vh", backgroundColor: "var(--color-bg)", padding: "2rem" }
+      }
+    >
       <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
         <div
           style={{
@@ -174,19 +183,21 @@ export default function DeliveryZonesPageClient({
           }}
         >
           <div>
-            <h1
-              style={{
-                margin: 0,
-                fontSize: "2rem",
-                fontWeight: "bold",
-                color: "var(--color-text-primary)",
-              }}
-            >
-              Zonas de Domicilio
-            </h1>
+            {!embedded && (
+              <h1
+                style={{
+                  margin: 0,
+                  fontSize: "2rem",
+                  fontWeight: "bold",
+                  color: "var(--color-text-primary)",
+                }}
+              >
+                Zonas de Domicilio
+              </h1>
+            )}
             <p
               style={{
-                margin: "0.5rem 0 0 0",
+                margin: embedded ? 0 : "0.5rem 0 0 0",
                 color: "var(--color-text-secondary)",
                 fontSize: "1rem",
               }}

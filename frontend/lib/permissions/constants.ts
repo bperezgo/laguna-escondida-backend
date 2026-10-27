@@ -84,6 +84,11 @@ export const PERMISSIONS = {
   DELIVERY_ZONES_READ: "delivery-zones:read",
   DELIVERY_ZONES_MANAGE: "delivery-zones:manage",
 
+  // Ordering availability (cloud only): pause switch and hours are granted apart
+  ORDERING_READ: "ordering:read",
+  ORDERING_PAUSE: "ordering:pause",
+  ORDERING_MANAGE: "ordering:manage",
+
   // Edge appliance
   EDGE_UPDATE: "edge:update",
 

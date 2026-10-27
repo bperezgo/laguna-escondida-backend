@@ -97,10 +97,11 @@ const navItems = [
     cloudOnly: true,
   },
   {
-    href: "/delivery-zones",
-    title: "Zonas de Domicilio",
-    description: "Definir en el mapa dónde se aceptan domicilios",
-    permission: PERMISSIONS.DELIVERY_ZONES_READ,
+    href: "/deliveries",
+    title: "Domicilios",
+    description: "Pausas, horarios y zonas de domicilios y pedidos para llevar",
+    // Any of them: an accountant sees the hours, a zone-only role the zones.
+    permissions: [PERMISSIONS.ORDERING_READ, PERMISSIONS.DELIVERY_ZONES_READ],
     accent: "var(--color-secondary)",
     cloudOnly: true,
   },
@@ -218,7 +219,11 @@ export default function HomePage() {
                   (!item.cloudOnly || !isEdge)
               )
               .map((item) => (
-              <PermissionGate key={item.href} permission={item.permission}>
+              <PermissionGate
+                key={item.href}
+                permission={"permission" in item ? item.permission : undefined}
+                permissions={"permissions" in item ? item.permissions : undefined}
+              >
                 <a
                   href={item.href}
                   style={{

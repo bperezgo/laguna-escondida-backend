@@ -10,6 +10,7 @@ const sections = [
   "/invoices",
   "/users",
   "/delivery-zones",
+  "/deliveries",
   "/kitchen",
   "/suppliers",
   "/purchase-entries",
