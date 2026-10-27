@@ -10,6 +10,8 @@ export interface SideDishSSE {
   quantity: number;
 }
 
+export type OrderType = "dine_in" | "takeaway" | "delivery";
+
 export interface OpenBillProductFromSSE {
   open_bill_product_id: string;
   open_bill_id: string;
@@ -19,6 +21,7 @@ export interface OpenBillProductFromSSE {
   area: string;
   status: OpenBillProductStatus;
   temporal_identifier: string;
+  order_type: OrderType;
   priority: number;
   created_at: string;
   created_by_name: string;

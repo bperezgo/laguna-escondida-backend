@@ -42,6 +42,8 @@ export default function CommandCard({
   now,
 }: CommandCardProps) {
   const { isEdge } = usePermissions();
+  const canChangeLines =
+    isEdge || command.order_type === "takeaway" || command.order_type === "delivery";
 
   // Format an instant to the restaurant's local time, whatever the device's.
   const formatClock = (dateString: string) =>
@@ -327,8 +329,8 @@ export default function CommandCard({
 
                 {/* Per-line actions: pin (📌) to mark "cooking now" — shared to every
                     cook screen — and strike (✓) when pending / undo (↶) when done.
-                    Mutations are blocked from cloud — kitchen is read-only there. */}
-                {isEdge && (
+                    Dine-in lines belong to the box; takeaway/delivery only exist in the cloud. */}
+                {canChangeLines && (
                 <PermissionGate permission={PERMISSIONS.COMMANDS_UPDATE}>
                   {!isDone && (
                     <button
