@@ -557,6 +557,38 @@ func TestOrderService_HandleOrderReleasedToKitchenSSE_WaitsFromPayment(t *testin
 	assert.Equal(t, 2, captured.Quantity)
 }
 
+func TestOrderService_PayOrder_ReleaseCarriesOrderType(t *testing.T) {
+	service, eventBus, _ := payHeldOrderFixture(t, dto.OrderTypeTakeaway, singleProductOpenBill(openBillID1).Products)
+	var released dto.OrderReleasedToKitchenEvent
+	eventBus.EXPECT().Publish(mock.Anything, mock.AnythingOfType("dto.OrderReleasedToKitchenEvent")).
+		Run(func(_ context.Context, e pkgports.Event) { released, _ = e.(dto.OrderReleasedToKitchenEvent) }).
+		Return(nil).Once()
+
+	require.NoError(t, payCash(service))
+
+	assert.Equal(t, dto.OrderTypeTakeaway, released.OrderType)
+	assert.Contains(t, string(released.Data()), `"order_type":"takeaway"`, "the type survives the event bus round-trip")
+}
+
+func TestOrderService_HandleOrderReleasedToKitchenSSE_LinesCarryOrderType(t *testing.T) {
+	ctx := createTestContext()
+	service, openBills, notifier := newSSEServiceWithStrictMocks(t)
+	openBills.On("GetProductPreparationResponsibilities", ctx, []string{productID1}).
+		Return([]dto.ProductPreparationResponsibilityWithProduct{{ProductID: productID1, ProductName: "Bandeja", Area: "cocina", Priority: 1}}, nil)
+	var captured *dto.OpenBillProductSSE
+	notifier.On("NotifyArea", ctx, "cocina", OpenBillProductCreatedEventType, mock.Anything).
+		Run(func(args mock.Arguments) { captured, _ = args.Get(3).(*dto.OpenBillProductSSE) }).Return(nil).Once()
+
+	require.NoError(t, service.HandleOrderReleasedToKitchenSSE(ctx, dto.OrderReleasedToKitchenEvent{
+		OpenBillID: openBillID1, TemporalIdentifier: "DOMICILIO-1", OrderType: dto.OrderTypeDelivery,
+		PaidAt:   time.Date(2026, 10, 15, 12, 20, 0, 0, time.UTC),
+		Products: []dto.OrderCreatedEventProduct{{OpenBillProductID: obpID1, ProductID: productID1, Quantity: 1}},
+	}))
+
+	require.NotNil(t, captured)
+	assert.Equal(t, dto.OrderTypeDelivery, captured.OrderType, "the cloud board lets staff act on it")
+}
+
 func TestOrderService_UpdateOrder_KeepsDeliveryFulfillment(t *testing.T) {
 	ctx := createTestContext()
 	openBills := mocks.NewMockOpenBillRepository(t)

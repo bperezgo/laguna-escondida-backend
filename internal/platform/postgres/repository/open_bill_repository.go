@@ -1450,6 +1450,7 @@ func (r *OpenBillRepository) FindPendingByArea(ctx context.Context, area string)
 		Area               string
 		Status             string
 		TemporalIdentifier string
+		OrderType          dto.OrderType
 		Priority           int
 		CreatedAt          time.Time
 		CompletedAt        *time.Time
@@ -1467,6 +1468,7 @@ func (r *OpenBillRepository) FindPendingByArea(ctx context.Context, area string)
 			open_bills_products.area,
 			open_bills_products.status,
 			open_bills.temporal_identifier,
+			open_bills.order_type,
 			open_bills_products.priority,
 			`+kitchenWaitingSince+` as created_at,
 			CASE WHEN open_bills_products.status = 'completed' THEN `+lineCompletedAt+` END as completed_at,
@@ -1510,6 +1512,7 @@ func (r *OpenBillRepository) FindPendingByArea(ctx context.Context, area string)
 			Area:               r.Area,
 			Status:             r.Status,
 			TemporalIdentifier: r.TemporalIdentifier,
+			OrderType:          r.OrderType,
 			Priority:           r.Priority,
 			CreatedAt:          r.CreatedAt,
 			CreatedByName:      r.CreatedByName,
@@ -1549,6 +1552,7 @@ func (r *OpenBillRepository) FindCompletedByAreaBetween(ctx context.Context, are
 		Area               string
 		Status             string
 		TemporalIdentifier string
+		OrderType          dto.OrderType
 		Priority           int
 		CreatedAt          time.Time
 		CompletedAt        time.Time
@@ -1566,6 +1570,7 @@ func (r *OpenBillRepository) FindCompletedByAreaBetween(ctx context.Context, are
 			open_bills_products.area,
 			open_bills_products.status,
 			open_bills.temporal_identifier,
+			open_bills.order_type,
 			open_bills_products.priority,
 			open_bills_products.created_at,
 			`+lineCompletedAt+` as completed_at,
@@ -1608,6 +1613,7 @@ func (r *OpenBillRepository) FindCompletedByAreaBetween(ctx context.Context, are
 			Area:               res.Area,
 			Status:             res.Status,
 			TemporalIdentifier: res.TemporalIdentifier,
+			OrderType:          res.OrderType,
 			Priority:           res.Priority,
 			CreatedAt:          res.CreatedAt,
 			CompletedAt:        &completedAt,

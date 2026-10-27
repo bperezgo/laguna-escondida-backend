@@ -30,3 +30,11 @@ schema: spec-driven
 #     archive:
 #       guidance:
 #         - Summarize the archive outcome before finishing
+rules:
+  proposal:
+    - Keep proposals under 500 words
+    
+operations:
+  archive:
+    guidance:
+      - Summarize the archive outcome before finishing

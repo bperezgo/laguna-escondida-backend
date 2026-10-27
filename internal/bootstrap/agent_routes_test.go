@@ -50,6 +50,9 @@ var agentReachableRoutes = map[string]bool{
 	"PUT /api/orders/:id": true,
 	"PATCH /api/orders/:id/products/:open_bill_product_id/cancel": true,
 	"DELETE /api/orders/:id": true,
+	// ordering:read — an empty PATCH passes; any field then needs ordering:pause or ordering:manage.
+	"GET /api/organization/settings":   true,
+	"PATCH /api/organization/settings": true,
 }
 
 func fullRouter(mode config.Mode, jwtService *service.JWTService) *gin.Engine {
@@ -75,6 +78,7 @@ func fullRouter(mode config.Mode, jwtService *service.JWTService) *gin.Engine {
 			invoice: &handler.InvoiceHandler{}, supportDocument: &handler.SupportDocumentHandler{},
 			sync: &handler.SyncHandler{}, telemetry: &handler.TelemetryHandler{},
 			organization: &handler.OrganizationHandler{}, apiKey: &handler.APIKeyHandler{}, deliveryZone: &handler.DeliveryZoneHandler{},
+			orgSettings: &handler.OrganizationSettingsHandler{},
 		})
 	case config.ModeEdge:
 		registerEdgeRoutes(router, jwtService, &handler.DeviceHandler{})

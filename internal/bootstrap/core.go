@@ -36,6 +36,8 @@ type ModeOptions struct {
 	DeliveryEnabled bool
 	// EInvoicingEnabled is false on the box, which drops organization_einvoicing.
 	EInvoicingEnabled bool
+	// WrapOrganizationSettings puts the cloud's cache in front of the settings read; nil on the box.
+	WrapOrganizationSettings func(ports.OrganizationSettingsRepository) ports.OrganizationSettingsRepository
 }
 
 // noDeliveryZones is the box's zone finder: it never reads delivery_zones, which the box drops.
@@ -63,6 +65,7 @@ type core struct {
 	syncReferenceRepo      *repository.SyncReferenceRepository
 	deliveryZoneRepo       ports.DeliveryZoneRepository
 	einvoicingSettingsRepo ports.EInvoicingSettingsRepository
+	orgSettingsRepo        ports.OrganizationSettingsRepository
 
 	syncIdentity               dto.SyncIdentity
 	stockReconciliationService *service.StockReconciliationService
@@ -113,6 +116,11 @@ func buildCore(cfg *config.Shared, infra Infra, opts ModeOptions) (*core, error)
 	// Edge status: pending-ops/lag come from this node's unsynced outbox (a domain use
 	// case); connectivity comes from the sync scheduler via the in-memory tracker below.
 	edgeStatusService := service.NewEdgeStatusService(syncOutboxRepo, syncIdentity)
+	// The box never writes settings, so its row reads as unconfigured and takeaway stays open.
+	orgSettingsRepo := repository.NewOrganizationSettingsRepository(db, logger)
+	if opts.WrapOrganizationSettings != nil {
+		orgSettingsRepo = opts.WrapOrganizationSettings(orgSettingsRepo)
+	}
 	var deliveryZoneFinder ports.DeliveryZoneFinder = noDeliveryZones{}
 	if opts.DeliveryEnabled {
 		deliveryZoneFinder = deliveryZoneRepo
@@ -135,6 +143,7 @@ func buildCore(cfg *config.Shared, infra Infra, opts ModeOptions) (*core, error)
 		deliveryZoneFinder,
 		cfg.PhoneHomeRegion,
 		service.WithDeliveryEnabled(opts.DeliveryEnabled),
+		service.WithOrderingSettings(orgSettingsRepo),
 	)
 	// The edge only reads products; the supplier repos back the cloud's bulk create.
 	productService := service.NewProductService(productRepo, supplierRepo, supplierCatalogRepo, unitOfWork)
@@ -226,6 +235,7 @@ func buildCore(cfg *config.Shared, infra Infra, opts ModeOptions) (*core, error)
 		syncReferenceRepo:          syncReferenceRepo,
 		deliveryZoneRepo:           deliveryZoneRepo,
 		einvoicingSettingsRepo:     einvoicingSettingsRepo,
+		orgSettingsRepo:            orgSettingsRepo,
 		syncIdentity:               syncIdentity,
 		stockReconciliationService: stockReconciliationService,
 		organizationService:        organizationService,
