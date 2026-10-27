@@ -11,6 +11,7 @@ import {
 import type {
   OpenBillProductFromSSE,
   OpenBillProductStatus,
+  OrderType,
 } from "@/types/commandItem";
 import { useNow } from "@/lib/kitchen/useNow";
 import { redirectIfSessionEnded } from "@/lib/api/session";
@@ -23,6 +24,7 @@ export interface GroupedCommand {
   id: string; // temporal_identifier used as group ID
   temporal_identifier: string;
   created_by_name: string;
+  order_type: OrderType;
   area: string;
   status: "created" | "completed" | "cancelled";
   items: {
@@ -90,6 +92,7 @@ export default function KitchenCommandView() {
         id: temporalId,
         temporal_identifier: temporalId,
         created_by_name: firstProduct.created_by_name,
+        order_type: firstProduct.order_type,
         area: firstProduct.area,
         status: allCompleted ? "completed" : "created",
         items: groupProducts.map((p) => ({
