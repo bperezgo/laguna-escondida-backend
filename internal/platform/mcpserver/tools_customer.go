@@ -406,6 +406,45 @@ func containsOrder(views []orderView, orderID string) bool {
 	return false
 }
 
+type orderingAvailability struct {
+	Delivery dto.Availability `json:"delivery"`
+	Takeaway dto.Availability `json:"takeaway"`
+	Timezone string           `json:"timezone"`
+}
+
+// orderingUnavailable words the backend's ordering refusal for the agent, or nil for any other 422.
+func orderingUnavailable(apiErr *APIError) error {
+	var body struct {
+		Code         string     `json:"code"`
+		OrderType    string     `json:"order_type"`
+		PausedReason *string    `json:"paused_reason"`
+		NextOpensAt  *time.Time `json:"next_opens_at"`
+	}
+	// A body that doesn't decode has no code, and falls through to nil.
+	_ = json.Unmarshal(apiErr.Body, &body)
+	label := "takeaway"
+	if body.OrderType == string(dto.OrderTypeDelivery) {
+		label = "delivery"
+	}
+	switch body.Code {
+	case "ORDERING_PAUSED":
+		reason := "no reason given"
+		if body.PausedReason != nil && *body.PausedReason != "" {
+			reason = *body.PausedReason
+		}
+		return fmt.Errorf("%s orders are paused right now (%s); no order was created. Offer the other order type if "+
+			"get_ordering_availability says it is available, or ask the customer to try again later", label, reason)
+	case "OUTSIDE_ORDERING_HOURS":
+		when := "no opening is scheduled in the next seven days"
+		if body.NextOpensAt != nil {
+			when = "it next opens at " + body.NextOpensAt.Format(time.RFC3339)
+		}
+		return fmt.Errorf("%s is closed right now: %s; no order was created. Tell the customer when it opens, "+
+			"or offer the other order type if get_ordering_availability says it is available", label, when)
+	}
+	return nil
+}
+
 func registerCustomerTools(s *mcp.Server, c *Client) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "list_menu",
@@ -440,6 +479,28 @@ func registerCustomerTools(s *mcp.Server, c *Client) {
 			choices = append(choices, choice)
 		}
 		return jsonOK(json.Marshal(choices))
+	})
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name: "get_ordering_availability",
+		Description: "Whether the restaurant is taking delivery and takeaway orders right now. Call it before taking an order. " +
+			"Each type reports available, and when it isn't, the reason: paused (with paused_reason) or outside_hours (with next_opens_at). " +
+			"closes_at is when an open type stops taking orders. If the requested type is unavailable, offer the other one " +
+			"or tell the customer when it next opens. Creates nothing.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ noInput) (*mcp.CallToolResult, any, error) {
+		body, err := c.Get(ctx, "/api/organization/settings", nil)
+		if err != nil {
+			return backendFailure("the ordering availability could not be loaded", err)
+		}
+		var settings dto.OrganizationSettingsResponse
+		if err := json.Unmarshal(body, &settings); err != nil {
+			return toolError(fmt.Errorf("decode ordering availability: %w", err))
+		}
+		return jsonOK(json.Marshal(orderingAvailability{
+			Delivery: settings.Availability.Delivery,
+			Takeaway: settings.Availability.Takeaway,
+			Timezone: settings.Timezone,
+		}))
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
@@ -498,6 +559,9 @@ func registerCustomerTools(s *mcp.Server, c *Client) {
 		})
 		var apiErr *APIError
 		if errors.As(err, &apiErr) && apiErr.Status == http.StatusUnprocessableEntity {
+			if unavailable := orderingUnavailable(apiErr); unavailable != nil {
+				return toolError(unavailable)
+			}
 			return toolError(errors.New("outside delivery zone: the shared location is not inside the delivery area; offer takeaway instead"))
 		}
 		if err != nil {

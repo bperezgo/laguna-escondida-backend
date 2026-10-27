@@ -1,13 +1,17 @@
 package bootstrap
 
 import (
+	"context"
 	"errors"
 	"log/slog"
+	"time"
 
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
 	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/domain/tenant"
+	"laguna-escondida/backend/internal/platform/cache"
+	"laguna-escondida/backend/internal/platform/cache/memory"
 	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/cron"
 	"laguna-escondida/backend/internal/platform/handler"
@@ -31,6 +35,9 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 	logger := infra.Logger
 	logger.Info("Running in CLOUD mode")
 
+	// One replica, so a process-local cache; a shared one replaces memory.New without touching the decorator.
+	settingsCache := memory.New()
+
 	// The cloud owns on-hand and the restaurant learns it back through the daily pull, so a
 	// cloud-origin stock op would never be delivered to anyone.
 	c, err := buildCore(&cfg.Shared, infra, ModeOptions{
@@ -44,6 +51,9 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		StockAuthoring:              true,
 		DeliveryEnabled:             true,
 		EInvoicingEnabled:           true,
+		WrapOrganizationSettings: func(inner ports.OrganizationSettingsRepository) ports.OrganizationSettingsRepository {
+			return cache.NewCachedOrganizationSettingsRepository(inner, settingsCache, logger)
+		},
 	})
 	if err != nil {
 		return nil, err
@@ -79,6 +89,8 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		c.einvoicingSettingsRepo, c.syncIdentity, logger,
 	)
 
+	c.app.background = append(c.app.background,
+		newBackgroundLoop(func(ctx context.Context) { settingsCache.Sweep(ctx, time.Minute) }))
 	c.app.schedulers = append(c.app.schedulers, namedScheduler{
 		name: "cron scheduler",
 		build: func() (scheduler, error) {
@@ -134,6 +146,7 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		organization:    handler.NewOrganizationHandler(c.organizationService),
 		apiKey:          handler.NewAPIKeyHandler(apiKeyService),
 		deliveryZone:    handler.NewDeliveryZoneHandler(service.NewDeliveryZoneService(c.deliveryZoneRepo)),
+		orgSettings:     handler.NewOrganizationSettingsHandler(service.NewOrganizationSettingsService(c.orgSettingsRepo)),
 		nodes:           service.NewNodeService(repository.NewNodeRepository(db)),
 	})
 

@@ -28,8 +28,10 @@ type Organization struct {
 	PrimaryColor      *string             `json:"primary_color"`
 	SecondaryColor    *string             `json:"secondary_color"`
 	EInvoicing        *EInvoicingSettings `json:"einvoicing"`
-	CreatedAt         time.Time           `json:"created_at"`
-	UpdatedAt         time.Time           `json:"updated_at"`
+	// Settings is read-only here: it changes through the tenant's /api/organization/settings.
+	Settings  OrganizationSettings `json:"settings"`
+	CreatedAt time.Time            `json:"created_at"`
+	UpdatedAt time.Time            `json:"updated_at"`
 }
 
 // CurrentOrganization is what a signed-in user sees of their organization: settings, not status or e-invoicing.

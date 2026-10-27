@@ -117,6 +117,13 @@ const (
 	DeliveryZonesManage Permission = "delivery-zones:manage"
 )
 
+// Ordering permissions: the pause is split from the hours so a floor role can get the switch alone.
+const (
+	OrderingRead   Permission = "ordering:read"
+	OrderingPause  Permission = "ordering:pause"
+	OrderingManage Permission = "ordering:manage"
+)
+
 // Edge appliance permissions
 const (
 	// EdgeUpdate lets a user see and trigger the box's staged appliance update.
@@ -162,6 +169,8 @@ func AllPermissions() []Permission {
 		UsersRead, UsersCreate, UsersUpdate, UsersDelete,
 		// Delivery Zones
 		DeliveryZonesRead, DeliveryZonesManage,
+		// Ordering
+		OrderingRead, OrderingPause, OrderingManage,
 		// Edge appliance
 		EdgeUpdate,
 		// SSE

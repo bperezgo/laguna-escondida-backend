@@ -17,6 +17,7 @@ type cloudHandlers struct {
 	organization    *handler.OrganizationHandler
 	apiKey          *handler.APIKeyHandler
 	deliveryZone    *handler.DeliveryZoneHandler
+	orgSettings     *handler.OrganizationSettingsHandler
 	nodes           *service.NodeService
 }
 
@@ -61,6 +62,16 @@ func registerCloudRoutes(router *gin.Engine, adminAPIKey, nodeSyncKey string, jw
 	}
 
 	RegisterDeliveryZoneRoutes(router, h.deliveryZone, jwtService)
+	RegisterOrganizationSettingsRoutes(router, h.orgSettings, jwtService)
+}
+
+// RegisterOrganizationSettingsRoutes is cloud-only: settings aren't synced, so the box reads as unconfigured.
+// PATCH checks ordering:pause and ordering:manage per field in the handler.
+func RegisterOrganizationSettingsRoutes(router *gin.Engine, settingsHandler *handler.OrganizationSettingsHandler, jwtService *service.JWTService) {
+	settings := router.Group("/api/organization/settings", handler.JWTAuthMiddleware(jwtService),
+		handler.RequirePermission(permissions.OrderingRead))
+	settings.GET("", settingsHandler.GetSettingsHandler)
+	settings.PATCH("", settingsHandler.PatchSettingsHandler)
 }
 
 // RegisterDeliveryZoneRoutes is cloud-only: deliveries are taken in the cloud, and the edge's

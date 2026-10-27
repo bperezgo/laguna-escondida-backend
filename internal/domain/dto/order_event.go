@@ -231,6 +231,7 @@ type OrderReleasedToKitchenEvent struct {
 	OpenBillID         string                     `json:"open_bill_id"`
 	TemporalIdentifier string                     `json:"temporal_identifier"`
 	CreatedByID        string                     `json:"created_by_id"`
+	OrderType          OrderType                  `json:"order_type"`
 	PaidAt             time.Time                  `json:"paid_at"`
 	Products           []OrderCreatedEventProduct `json:"products"`
 }
@@ -240,6 +241,7 @@ func NewOrderReleasedToKitchenEvent(
 	openBillID string,
 	temporalIdentifier string,
 	createdByID string,
+	orderType OrderType,
 	paidAt time.Time,
 	lines []OpenBillProductDetail,
 ) OrderReleasedToKitchenEvent {
@@ -262,6 +264,7 @@ func NewOrderReleasedToKitchenEvent(
 		OpenBillID:         openBillID,
 		TemporalIdentifier: temporalIdentifier,
 		CreatedByID:        createdByID,
+		OrderType:          orderType,
 		PaidAt:             paidAt,
 		Products:           products,
 	}
@@ -276,6 +279,7 @@ func (e OrderReleasedToKitchenEvent) Data() []byte {
 		OpenBillID         string                     `json:"open_bill_id"`
 		TemporalIdentifier string                     `json:"temporal_identifier"`
 		CreatedByID        string                     `json:"created_by_id"`
+		OrderType          OrderType                  `json:"order_type"`
 		PaidAt             time.Time                  `json:"paid_at"`
 		Products           []OrderCreatedEventProduct `json:"products"`
 	}{
@@ -286,6 +290,7 @@ func (e OrderReleasedToKitchenEvent) Data() []byte {
 		OpenBillID:         e.OpenBillID,
 		TemporalIdentifier: e.TemporalIdentifier,
 		CreatedByID:        e.CreatedByID,
+		OrderType:          e.OrderType,
 		PaidAt:             e.PaidAt,
 		Products:           e.Products,
 	}

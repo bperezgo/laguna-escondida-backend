@@ -79,6 +79,9 @@ func (h *OrderHandler) CreateOrderHandler(c *gin.Context) {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "The delivery location is outside every delivery zone", "code": "OUTSIDE_DELIVERY_ZONE"})
 			return
 		}
+		if respondOrderingUnavailable(c, err) {
+			return
+		}
 		if errors.Is(err, orderError.ErrInvalidSideDishSelection) || errors.Is(err, orderError.ErrSideDishQuantityOutOfBounds) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
@@ -529,4 +532,36 @@ func respondAgentScopeError(c *gin.Context, err error) bool {
 		return false
 	}
 	return true
+}
+
+// respondOrderingUnavailable puts the reason or the next opening in the body, so the caller can relay it.
+func respondOrderingUnavailable(c *gin.Context, err error) bool {
+	var paused *orderError.OrderingPausedError
+	if errors.As(err, &paused) {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error":         orderTypeLabel(paused.OrderType) + " orders are paused",
+			"code":          "ORDERING_PAUSED",
+			"order_type":    paused.OrderType,
+			"paused_reason": paused.PausedReason,
+		})
+		return true
+	}
+	var outside *orderError.OutsideOrderingHoursError
+	if errors.As(err, &outside) {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error":         orderTypeLabel(outside.OrderType) + " orders are outside their hours",
+			"code":          "OUTSIDE_ORDERING_HOURS",
+			"order_type":    outside.OrderType,
+			"next_opens_at": outside.NextOpensAt,
+		})
+		return true
+	}
+	return false
+}
+
+func orderTypeLabel(orderType string) string {
+	if orderType == string(dto.OrderTypeDelivery) {
+		return "Delivery"
+	}
+	return "Takeaway"
 }

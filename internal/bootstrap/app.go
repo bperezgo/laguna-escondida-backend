@@ -28,6 +28,30 @@ type namedScheduler struct {
 	build func() (scheduler, error)
 }
 
+// backgroundLoop runs fn from Start until Stop, for work that is a loop rather than a cron.
+type backgroundLoop struct {
+	fn     func(ctx context.Context)
+	cancel context.CancelFunc
+}
+
+func newBackgroundLoop(fn func(ctx context.Context)) *backgroundLoop {
+	return &backgroundLoop{fn: fn}
+}
+
+func (b *backgroundLoop) Start() error {
+	ctx, cancel := context.WithCancel(context.Background())
+	b.cancel = cancel
+	go b.fn(ctx)
+	return nil
+}
+
+func (b *backgroundLoop) Stop() error {
+	if b.cancel != nil {
+		b.cancel()
+	}
+	return nil
+}
+
 type subscriber interface {
 	Start(ctx context.Context) error
 	Close() error
@@ -50,8 +74,10 @@ type App struct {
 	metricsPort string
 	subscribers []namedSubscriber
 	schedulers  []namedScheduler
-	sseHubs     []closableHub
-	eventBus    *eventbus.GoChannelEventBus
+	// background loops run from Run until it returns, like schedulers but with no cron of their own.
+	background []*backgroundLoop
+	sseHubs    []closableHub
+	eventBus   *eventbus.GoChannelEventBus
 }
 
 // Run starts the subscribers, schedulers and HTTP servers, and shuts them down when ctx is done.
@@ -80,6 +106,13 @@ func (a *App) Run(ctx context.Context) error {
 				log.Printf("Failed to stop %s: %v", ns.name, stopErr)
 			}
 		}()
+	}
+
+	for _, loop := range a.background {
+		if err := loop.Start(); err != nil {
+			return fmt.Errorf("start background loop: %w", err)
+		}
+		defer func() { _ = loop.Stop() }()
 	}
 
 	// Metrics on a separate internal port so /metrics is never exposed via the public server.

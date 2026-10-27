@@ -46,6 +46,8 @@ PATCH /api/orders/:id/products/:open_bill_product_id/uncomplete laguna-escondida
 GET /api/orders/closed laguna-escondida/backend/internal/platform/handler.(*OrderHandler).GetClosedOpenBillsTodayHandler-fm
 GET /api/orders/closed/:id laguna-escondida/backend/internal/platform/handler.(*OrderHandler).GetClosedOpenBillWithProductsHandler-fm
 POST /api/orders/pay-order laguna-escondida/backend/internal/platform/handler.(*OrderHandler).PayOrderHandler-fm
+GET /api/organization/settings laguna-escondida/backend/internal/platform/handler.(*OrganizationSettingsHandler).GetSettingsHandler-fm
+PATCH /api/organization/settings laguna-escondida/backend/internal/platform/handler.(*OrganizationSettingsHandler).PatchSettingsHandler-fm
 GET /api/platform/organizations laguna-escondida/backend/internal/platform/handler.(*OrganizationHandler).ListHandler-fm
 POST /api/platform/organizations laguna-escondida/backend/internal/platform/handler.(*OrganizationHandler).CreateHandler-fm
 GET /api/platform/organizations/:id laguna-escondida/backend/internal/platform/handler.(*OrganizationHandler).GetHandler-fm
