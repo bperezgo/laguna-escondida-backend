@@ -55,6 +55,7 @@ type fakeBackend struct {
 	orders   []*fakeOrder
 	products []*dto.Product
 	sides    map[string][]*dto.SideDishOption
+	settings *dto.OrganizationSettingsResponse
 	create   http.HandlerFunc
 	server   *httptest.Server
 }
@@ -72,6 +73,13 @@ func newFakeBackend(t *testing.T) *fakeBackend {
 	mux.HandleFunc("GET /api/delivery-zones/check", func(w http.ResponseWriter, _ *http.Request) {
 		name := "Centro"
 		b.writeJSON(w, http.StatusOK, dto.DeliveryZoneCheckResult{Deliverable: true, ZoneName: &name})
+	})
+	mux.HandleFunc("GET /api/organization/settings", func(w http.ResponseWriter, _ *http.Request) {
+		if b.settings == nil {
+			b.writeJSON(w, http.StatusForbidden, map[string]string{"error": "Insufficient permissions"})
+			return
+		}
+		b.writeJSON(w, http.StatusOK, b.settings)
 	})
 	mux.HandleFunc("GET /api/orders", func(w http.ResponseWriter, r *http.Request) {
 		b.writeJSON(w, http.StatusOK, b.list(r.URL.Query().Get("customer_phone"), false))
@@ -268,10 +276,10 @@ func isUUIDv7(id string) bool {
 
 var customerToolNames = []string{
 	"cancel_my_order", "check_delivery_location", "create_delivery_order", "get_my_orders",
-	"get_side_dish_options", "list_menu", "update_my_order",
+	"get_ordering_availability", "get_side_dish_options", "list_menu", "update_my_order",
 }
 
-func TestNewMCPServer_CustomerToolsetIsExactlyTheSevenTools(t *testing.T) {
+func TestNewMCPServer_CustomerToolsetIsExactlyTheEightTools(t *testing.T) {
 	cs := connectInMemory(t, NewMCPServer(testClient("http://backend.invalid"), ToolsetCustomer))
 
 	assert.Equal(t, customerToolNames, toolNames(t, cs))
@@ -595,6 +603,155 @@ func TestCreateDeliveryOrder_BackendErrorsStateTheReason(t *testing.T) {
 			assert.NotContains(t, text, "/api/orders", "the backend path is not leaked to the model")
 		})
 	}
+}
+
+func TestCreateDeliveryOrder_OrderingUnavailableStatesWhy(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     map[string]any
+		body     string
+		wantErr  []string
+		withheld string
+	}{
+		{
+			name:     "delivery paused between the check and the order",
+			args:     deliveryArgs(),
+			body:     `{"error":"Delivery orders are paused","code":"ORDERING_PAUSED","order_type":"delivery","paused_reason":"cocina saturada"}`,
+			wantErr:  []string{"delivery orders are paused", "cocina saturada", "no order was created"},
+			withheld: "outside delivery zone",
+		},
+		{
+			name: "takeaway after hours",
+			args: map[string]any{"order_type": "takeaway", "lines": []map[string]any{{"product_id": "p-1", "quantity": 1}}},
+			body: `{"error":"Takeaway orders are outside their hours","code":"OUTSIDE_ORDERING_HOURS","order_type":"takeaway",
+				"next_opens_at":"2026-11-02T11:30:00-05:00"}`,
+			wantErr:  []string{"takeaway is closed right now", "2026-11-02T11:30:00-05:00", "no order was created"},
+			withheld: "outside delivery zone",
+		},
+		{
+			name:     "outside hours with nothing scheduled this week",
+			args:     deliveryArgs(),
+			body:     `{"error":"Delivery orders are outside their hours","code":"OUTSIDE_ORDERING_HOURS","order_type":"delivery","next_opens_at":null}`,
+			wantErr:  []string{"delivery is closed right now", "no opening is scheduled in the next seven days"},
+			withheld: "outside delivery zone",
+		},
+		{
+			name:     "paused without a reason",
+			args:     deliveryArgs(),
+			body:     `{"error":"Delivery orders are paused","code":"ORDERING_PAUSED","order_type":"delivery","paused_reason":null}`,
+			wantErr:  []string{"delivery orders are paused", "no reason given"},
+			withheld: "outside delivery zone",
+		},
+		{
+			name:     "zone code still reads as outside the zone",
+			args:     deliveryArgs(),
+			body:     `{"error":"The delivery location is outside every delivery zone","code":"OUTSIDE_DELIVERY_ZONE"}`,
+			wantErr:  []string{"outside delivery zone"},
+			withheld: "paused",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			backend := newFakeBackend(t)
+			backend.create = func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				_, _ = w.Write([]byte(tt.body))
+			}
+			cs := connectCustomer(t, backend, map[string]string{customerPhoneHeader: "573005551234", customerLocationHeader: insidePin})
+
+			text, isErr := call(t, cs, "create_delivery_order", tt.args)
+
+			assert.True(t, isErr)
+			for _, want := range tt.wantErr {
+				assert.Contains(t, text, want)
+			}
+			assert.NotContains(t, text, tt.withheld)
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// get_ordering_availability
+// ---------------------------------------------------------------------------
+
+func TestGetOrderingAvailability_ReturnsAvailabilityAndTimezoneOnly(t *testing.T) {
+	bogota := time.FixedZone("-05", -5*3600)
+	closes := time.Date(2026, 10, 26, 22, 30, 0, 0, bogota)
+	paused, reason := dto.AvailabilityReasonPaused, "cocina saturada"
+	backend := newFakeBackend(t)
+	backend.settings = &dto.OrganizationSettingsResponse{
+		Ordering: dto.OrderingSettings{Takeaway: dto.OrderTypeSettings{Schedule: []dto.OpeningWindow{{Day: "mon", Opens: "11:30", Closes: "22:30"}}}},
+		Availability: dto.OrderingAvailability{
+			Delivery: dto.Availability{Reason: &paused, PausedReason: &reason},
+			Takeaway: dto.Availability{Available: true, ClosesAt: &closes},
+		},
+		Timezone: "America/Bogota",
+	}
+	// No phone or location header: the tool needs neither.
+	cs := connectCustomer(t, backend, nil)
+
+	text, isErr := call(t, cs, "get_ordering_availability", map[string]any{})
+
+	require.False(t, isErr, text)
+	assert.JSONEq(t, `{
+		"delivery": {"available": false, "reason": "paused", "paused_reason": "cocina saturada", "closes_at": null, "next_opens_at": null},
+		"takeaway": {"available": true, "reason": null, "paused_reason": null, "closes_at": "2026-10-26T22:30:00-05:00", "next_opens_at": null},
+		"timezone": "America/Bogota"
+	}`, text)
+	assert.NotContains(t, text, "schedule", "schedules stay internal")
+	requests := backend.requestsTo(http.MethodGet, "/api/organization/settings")
+	require.Len(t, requests, 1)
+	assert.Len(t, backend.recorded(), 1, "it creates nothing")
+}
+
+func TestGetOrderingAvailability_ClosedForTheNight(t *testing.T) {
+	bogota := time.FixedZone("-05", -5*3600)
+	outside := dto.AvailabilityReasonOutsideHours
+	deliveryOpens := time.Date(2026, 10, 27, 18, 0, 0, 0, bogota)
+	takeawayOpens := time.Date(2026, 10, 27, 11, 30, 0, 0, bogota)
+	backend := newFakeBackend(t)
+	backend.settings = &dto.OrganizationSettingsResponse{
+		Availability: dto.OrderingAvailability{
+			Delivery: dto.Availability{Reason: &outside, NextOpensAt: &deliveryOpens},
+			Takeaway: dto.Availability{Reason: &outside, NextOpensAt: &takeawayOpens},
+		},
+		Timezone: "America/Bogota",
+	}
+	cs := connectCustomer(t, backend, nil)
+
+	text, isErr := call(t, cs, "get_ordering_availability", map[string]any{})
+
+	require.False(t, isErr, text)
+	var got orderingAvailability
+	require.NoError(t, json.Unmarshal([]byte(text), &got))
+	assert.Equal(t, outside, *got.Delivery.Reason)
+	assert.Equal(t, outside, *got.Takeaway.Reason)
+	assert.True(t, deliveryOpens.Equal(*got.Delivery.NextOpensAt))
+	assert.True(t, takeawayOpens.Equal(*got.Takeaway.NextOpensAt))
+}
+
+func TestGetOrderingAvailability_BackendRefusal(t *testing.T) {
+	backend := newFakeBackend(t)
+	cs := connectCustomer(t, backend, nil)
+
+	text, isErr := call(t, cs, "get_ordering_availability", map[string]any{})
+
+	assert.True(t, isErr)
+	assert.Contains(t, text, "the ordering availability could not be loaded: Insufficient permissions")
+}
+
+func TestGetOrderingAvailability_DescriptionAsksToCallItFirst(t *testing.T) {
+	cs := connectInMemory(t, NewMCPServer(testClient("http://backend.invalid"), ToolsetCustomer))
+	res, err := cs.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+	for _, tool := range res.Tools {
+		if tool.Name == "get_ordering_availability" {
+			assert.Contains(t, tool.Description, "Call it before taking an order")
+			assert.Contains(t, tool.Description, "offer the other one")
+			return
+		}
+	}
+	t.Fatal("get_ordering_availability is not registered")
 }
 
 // ---------------------------------------------------------------------------

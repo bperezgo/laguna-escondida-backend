@@ -68,6 +68,8 @@ var RolePermissions = map[int][]Permission{
 		UsersRead,
 		// Delivery Zones - full access
 		DeliveryZonesRead, DeliveryZonesManage,
+		// Ordering - full access
+		OrderingRead, OrderingPause, OrderingManage,
 		// Edge appliance - the box usually runs logged in as a manager
 		EdgeUpdate,
 		// SSE - can receive real-time updates
@@ -94,10 +96,12 @@ var RolePermissions = map[int][]Permission{
 		ExpenseCategoriesRead, ExpenseCategoriesCreate, ExpenseCategoriesUpdate,
 		// Expenses - full access
 		ExpensesRead, ExpensesCreate, ExpensesUpdate, ExpensesDelete, ExpensesUpload,
+		// Ordering - can view
+		OrderingRead,
 	},
 	// Takes, changes and cancels orders, never money, kitchen states or the catalog.
 	RoleAgent: {
-		ProductsRead, OrdersRead, OrdersCreate, OrdersUpdate, OrdersDelete,
+		ProductsRead, OrdersRead, OrdersCreate, OrdersUpdate, OrdersDelete, OrderingRead,
 	},
 }
 

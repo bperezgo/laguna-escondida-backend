@@ -76,3 +76,55 @@ func TestOrderHandler_CreateOrder_DeliveryOnTheBox_Returns422(t *testing.T) {
 	assert.Equal(t, "DELIVERY_CLOUD_ONLY", resp["code"])
 	assert.Equal(t, "Deliveries are taken in the cloud", resp["error"])
 }
+
+func TestOrderHandler_CreateOrder_OrderingUnavailable_Returns422(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	const userID = "550e8400-e29b-41d4-a716-446655440020"
+	bogota, err := time.LoadLocation("America/Bogota")
+	require.NoError(t, err)
+	monday23 := time.Date(2026, time.October, 26, 23, 0, 0, 0, bogota)
+	reason := "cocina saturada"
+
+	tests := []struct {
+		name     string
+		settings dto.OrderingSettings
+		body     string
+		want     string
+	}{
+		{
+			name:     "delivery paused",
+			settings: dto.OrderingSettings{Delivery: dto.OrderTypeSettings{Paused: true, PausedReason: &reason}},
+			body: `{"open_bill_id":"550e8400-e29b-41d4-a716-446655440010","temporal_identifier":"550e8400-e29b-41d4-a716-446655440011",
+				"products":[],"order_type":"delivery","customer_phone":"+573005551234","delivery_address":"Cra 7 # 12-34",
+				"delivery_lat":"4.590000","delivery_lng":"-74.095000"}`,
+			want: `{"error":"Delivery orders are paused","code":"ORDERING_PAUSED","order_type":"delivery","paused_reason":"cocina saturada"}`,
+		},
+		{
+			name: "takeaway outside its hours",
+			settings: dto.OrderingSettings{Takeaway: dto.OrderTypeSettings{Schedule: []dto.OpeningWindow{
+				{Day: "mon", Opens: "11:30", Closes: "22:30"},
+			}}},
+			body: `{"open_bill_id":"550e8400-e29b-41d4-a716-446655440010","temporal_identifier":"550e8400-e29b-41d4-a716-446655440011",
+				"products":[],"order_type":"takeaway","customer_phone":"+573005551234"}`,
+			want: `{"error":"Takeaway orders are outside their hours","code":"OUTSIDE_ORDERING_HOURS","order_type":"takeaway",
+				"next_opens_at":"2026-11-02T11:30:00-05:00"}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			settings := mocks.NewMockOrganizationSettingsRepository(t)
+			settings.EXPECT().Get(mock.Anything).Return(&dto.OrganizationSettingsView{Ordering: tt.settings, Timezone: "America/Bogota"}, nil).Once()
+			// Nothing else is reached: the gate refuses before any duplicate, zone or write.
+			orderService := service.NewOrderService(nil, nil, nil, nil, dto.PendingInvoiceStatusPending, nil, nil, nil, nil,
+				dto.SyncIdentity{}, nil, nil, "CO", service.WithOrderingSettings(settings), service.WithClock(func() time.Time { return monday23 }))
+
+			router := gin.New()
+			router.POST("/api/orders", func(c *gin.Context) { c.Set("user_id", userID) }, NewOrderHandler(orderService, nil).CreateOrderHandler)
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/orders", bytes.NewBufferString(tt.body)))
+
+			assert.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+			assert.JSONEq(t, tt.want, rec.Body.String())
+		})
+	}
+}

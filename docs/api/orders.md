@@ -57,6 +57,15 @@ Every order has an `order_type`:
 - The contact is **not** a fiscal customer: no bill owner is created. Choosing who the invoice is for still happens at `pay-order`.
 - Orders replicated from the restaurant (edge) are always `dine_in`.
 
+### Ordering availability
+
+The organization can pause `delivery` and `takeaway` and give each a weekly schedule (see [Organization Settings](./organization-settings.md)). Creating a `takeaway` or `delivery` order while that type is paused or outside its hours is refused with `422` (`ORDERING_PAUSED` or `OUTSIDE_ORDERING_HOURS`), and nothing is created.
+
+- It applies to every creator, staff and agent alike.
+- It runs after the request is validated and, on the box, after `DELIVERY_CLOUD_ONLY`. For a delivery it runs **before** the zone check, so a paused delivery says paused, not outside the zone.
+- `dine_in` is never affected, and neither are updating, voiding or paying an order that already exists.
+- An organization that never configured anything is always open.
+
 ### Held until paid
 
 The lines of an **unpaid** `takeaway` or `delivery` order are **held out of the kitchen**:
@@ -248,6 +257,28 @@ A request that dies mid-flight holds its key for 2 minutes, after which a retry 
 {
   "error": "The delivery location is outside every delivery zone",
   "code": "OUTSIDE_DELIVERY_ZONE"
+}
+```
+
+**422 Unprocessable Entity** — the order type is paused (see [Ordering availability](#ordering-availability)). `paused_reason` is `null` when none was given.
+
+```json
+{
+  "error": "Delivery orders are paused",
+  "code": "ORDERING_PAUSED",
+  "order_type": "delivery",
+  "paused_reason": "cocina saturada"
+}
+```
+
+**422 Unprocessable Entity** — the order type is outside its hours. `next_opens_at` is the next window's opening in the organization's offset, or `null` when none opens within seven days.
+
+```json
+{
+  "error": "Takeaway orders are outside their hours",
+  "code": "OUTSIDE_ORDERING_HOURS",
+  "order_type": "takeaway",
+  "next_opens_at": "2026-11-02T11:30:00-05:00"
 }
 ```
 

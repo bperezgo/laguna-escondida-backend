@@ -50,6 +50,8 @@ type OrderService struct {
 	deliveryZoneFinder          ports.DeliveryZoneFinder
 	deliveryEnabled             bool
 	phoneHomeRegion             string
+	orderingSettings            ports.OrganizationSettingsRepository
+	now                         func() time.Time
 }
 
 // OrderServiceOption adjusts an OrderService to the binary it runs in.
@@ -59,6 +61,15 @@ type OrderServiceOption func(*OrderService)
 // taken there would never be dispatched.
 func WithDeliveryEnabled(enabled bool) OrderServiceOption {
 	return func(s *OrderService) { s.deliveryEnabled = enabled }
+}
+
+// WithOrderingSettings gates takeaway and delivery creation on the organization's pause and hours.
+func WithOrderingSettings(repo ports.OrganizationSettingsRepository) OrderServiceOption {
+	return func(s *OrderService) { s.orderingSettings = repo }
+}
+
+func WithClock(now func() time.Time) OrderServiceOption {
+	return func(s *OrderService) { s.now = now }
 }
 
 func (s *OrderService) apply(opts []OrderServiceOption) *OrderService {
@@ -100,6 +111,7 @@ func NewOrderService(
 		deliveryZoneFinder:          deliveryZoneFinder,
 		deliveryEnabled:             true,
 		phoneHomeRegion:             phoneHomeRegion,
+		now:                         time.Now,
 	}).apply(opts)
 }
 
@@ -141,6 +153,7 @@ func NewOrderServiceWithSSE(
 		deliveryZoneFinder:          deliveryZoneFinder,
 		deliveryEnabled:             true,
 		phoneHomeRegion:             phoneHomeRegion,
+		now:                         time.Now,
 	}).apply(opts)
 }
 
@@ -314,11 +327,15 @@ func (s *OrderService) resolveFulfillment(ctx context.Context, req dto.OrderCont
 	if err != nil {
 		return openBill.Fulfillment{}, err
 	}
+	if fulfillment.IsDelivery() && !s.deliveryEnabled {
+		return openBill.Fulfillment{}, orderError.ErrDeliveryCloudOnly
+	}
+	// Before the zone check, so a paused delivery says paused rather than outside the zone.
+	if err = s.requireOrderingAvailable(ctx, fulfillment.OrderType()); err != nil {
+		return openBill.Fulfillment{}, err
+	}
 	if !fulfillment.IsDelivery() {
 		return fulfillment, nil
-	}
-	if !s.deliveryEnabled {
-		return openBill.Fulfillment{}, orderError.ErrDeliveryCloudOnly
 	}
 
 	zones, err := s.deliveryZoneFinder.ListActive(ctx)
@@ -331,6 +348,33 @@ func (s *OrderService) resolveFulfillment(ctx context.Context, req dto.OrderCont
 		return openBill.Fulfillment{}, orderError.ErrOutsideDeliveryZone
 	}
 	return fulfillment.InZone(zone.ID), nil
+}
+
+// requireOrderingAvailable applies to staff orders too: a pause means the kitchen can't take more.
+func (s *OrderService) requireOrderingAvailable(ctx context.Context, orderType dto.OrderType) error {
+	if s.orderingSettings == nil || !orderType.IsHeldUntilPaid() {
+		return nil
+	}
+	view, err := s.orderingSettings.Get(ctx)
+	if err != nil {
+		return fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
+	}
+	availability, err := EvaluateOrderingAvailability(view.Ordering, view.Timezone, s.now())
+	if err != nil {
+		return fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
+	}
+	result := availability.Takeaway
+	if orderType == dto.OrderTypeDelivery {
+		result = availability.Delivery
+	}
+	switch {
+	case result.Available:
+		return nil
+	case result.Reason != nil && *result.Reason == dto.AvailabilityReasonPaused:
+		return &orderError.OrderingPausedError{OrderType: string(orderType), PausedReason: result.PausedReason}
+	default:
+		return &orderError.OutsideOrderingHoursError{OrderType: string(orderType), NextOpensAt: result.NextOpensAt}
+	}
 }
 
 // resolveSideDishSelections validates a line's side-dish selections against the product's

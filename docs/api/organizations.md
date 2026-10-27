@@ -8,7 +8,7 @@ Create and maintain the organizations (restaurants) that share this POS, their s
 
 > ⚠️ **New organizations can't be used yet.** Creating an organization stores its settings, but nobody can sign in to it and no data can belong to it until tenancy steps 2–4 land (memberships, tenant columns, row-level security). See `docs/multi-tenancy-plan.md` §8.
 
-> ⚠️ **Settings are stored, not yet enforced.** They are returned to the frontend on [`GET /api/auth/me`](./auth.md#get-current-user), but the running organization still comes from `ORGANIZATION_ID`; the edge still prints from `BUSINESS_*` / `TICKET_*`; the timezone is still `America/Bogota`; a `suspended` organization is not blocked. Each consumer switches over in its own tenancy step.
+> ⚠️ **Settings are stored, not yet enforced.** They are returned to the frontend on [`GET /api/auth/me`](./auth.md#get-current-user), but the running organization still comes from `ORGANIZATION_ID`; the edge still prints from `BUSINESS_*` / `TICKET_*`; the timezone is read only to evaluate the ordering schedules in `settings` (and returned on `/api/auth/me`); a `suspended` organization is not blocked. Each consumer switches over in its own tenancy step.
 
 ## Organization Fields
 
@@ -33,8 +33,20 @@ Create and maintain the organizations (restaurants) that share this POS, their s
 | `primary_color`       | string \| null | No       | `null`           | `#RRGGBB`                                                                  |
 | `secondary_color`     | string \| null | No       | `null`           | `#RRGGBB`                                                                  |
 | `einvoicing`          | object \| null | —        | `null`           | See [Set E-Invoicing Prefixes](#set-e-invoicing-prefixes)                  |
+| `settings`            | object         | —        | see below        | Read-only here; changed through the tenant's [`PATCH /api/organization/settings`](./organization-settings.md) |
 | `created_at`          | string         | —        | —                | RFC 3339, read-only                                                        |
 | `updated_at`          | string         | —        | —                | RFC 3339, read-only                                                        |
+
+`settings.ordering` holds the delivery and takeaway pause and schedule (see [Organization Settings](./organization-settings.md#model)). An organization that never saved any reads as:
+
+```json
+{
+  "ordering": {
+    "delivery": { "paused": false, "paused_reason": null, "schedule": [] },
+    "takeaway": { "paused": false, "paused_reason": null, "schedule": [] }
+  }
+}
+```
 
 ## Endpoints
 
@@ -126,6 +138,12 @@ Any field from [Organization Fields](#organization-fields) except the read-only 
   "primary_color": null,
   "secondary_color": null,
   "einvoicing": null,
+  "settings": {
+    "ordering": {
+      "delivery": { "paused": false, "paused_reason": null, "schedule": [] },
+      "takeaway": { "paused": false, "paused_reason": null, "schedule": [] }
+    }
+  },
   "created_at": "2026-10-23T00:08:57.322452Z",
   "updated_at": "2026-10-23T00:08:57.322452Z"
 }
@@ -172,6 +190,12 @@ Any field from [Organization Fields](#organization-fields) except the read-only 
     "invoice_prefix": "MUE",
     "support_document_prefix": "DSM"
   },
+  "settings": {
+    "ordering": {
+      "delivery": { "paused": false, "paused_reason": null, "schedule": [] },
+      "takeaway": { "paused": false, "paused_reason": null, "schedule": [] }
+    }
+  },
   "created_at": "2026-10-23T00:08:57.356478Z",
   "updated_at": "2026-10-23T00:08:57.356478Z"
 }
@@ -201,7 +225,7 @@ Any field from [Organization Fields](#organization-fields) except the read-only 
 
 ## List Organizations
 
-Returns every organization, active and suspended, ordered by name, each with its e-invoicing prefixes or `null`. Not paginated.
+Returns every organization, active and suspended, ordered by name, each with its e-invoicing prefixes or `null` and its `settings`. Not paginated.
 
 ```
 GET /api/platform/organizations
@@ -235,6 +259,12 @@ GET /api/platform/organizations
         "invoice_prefix": "LAG",
         "support_document_prefix": "DS"
       },
+      "settings": {
+        "ordering": {
+          "delivery": { "paused": true, "paused_reason": "cocina saturada", "schedule": [ { "day": "fri", "opens": "18:00", "closes": "02:00" } ] },
+          "takeaway": { "paused": false, "paused_reason": null, "schedule": [] }
+        }
+      },
       "created_at": "2025-03-14T15:02:11.512034Z",
       "updated_at": "2025-03-14T15:02:11.512034Z"
     },
@@ -258,6 +288,12 @@ GET /api/platform/organizations
       "primary_color": null,
       "secondary_color": null,
       "einvoicing": null,
+      "settings": {
+        "ordering": {
+          "delivery": { "paused": false, "paused_reason": null, "schedule": [] },
+          "takeaway": { "paused": false, "paused_reason": null, "schedule": [] }
+        }
+      },
       "created_at": "2026-10-23T00:08:57.322452Z",
       "updated_at": "2026-10-23T00:10:02.118901Z"
     }
