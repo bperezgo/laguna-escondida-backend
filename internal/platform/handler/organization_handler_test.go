@@ -215,3 +215,23 @@ func TestOrganizationHandler_SetEInvoicing_UnknownReturns404(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 }
+
+func TestOrganizationHandler_Get_IncludesSettings(t *testing.T) {
+	router, orgRepo, _ := newOrganizationRouter(t)
+	reason := "cocina saturada"
+	orgRepo.EXPECT().Get(mock.Anything, testOrganizationID).Return(&dto.Organization{
+		ID: testOrganizationID,
+		Settings: dto.OrganizationSettings{Ordering: dto.OrderingSettings{
+			Delivery: dto.OrderTypeSettings{Paused: true, PausedReason: &reason, Schedule: []dto.OpeningWindow{}},
+			Takeaway: dto.OrderTypeSettings{Schedule: []dto.OpeningWindow{{Day: "mon", Opens: "11:30", Closes: "22:30"}}},
+		}},
+	}, nil)
+
+	rec := serveOrganization(router, http.MethodGet, "/api/platform/organizations/"+testOrganizationID, "")
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.JSONEq(t, `{"ordering":{
+		"delivery":{"paused":true,"paused_reason":"cocina saturada","schedule":[]},
+		"takeaway":{"paused":false,"paused_reason":null,"schedule":[{"day":"mon","opens":"11:30","closes":"22:30"}]}
+	}}`, string(decodeBody(t, rec)["settings"]))
+}

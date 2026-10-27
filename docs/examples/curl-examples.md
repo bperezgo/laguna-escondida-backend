@@ -648,7 +648,7 @@ curl -X PATCH "$BASE_URL/orders/550e8400-e29b-41d4-a716-446655440000/products/77
 
 ### Create a Delivery Order (held until paid)
 
-Requires at least one active delivery zone containing the pin (cloud only, see Delivery Zones below). The phone is normalized to `+573005551234`; an outside pin returns `422 OUTSIDE_DELIVERY_ZONE`. Sent to the box instead of the cloud, it returns `422 DELIVERY_CLOUD_ONLY`:
+Requires at least one active delivery zone containing the pin (cloud only, see Delivery Zones below). The phone is normalized to `+573005551234`; an outside pin returns `422 OUTSIDE_DELIVERY_ZONE`, and a paused or closed delivery returns `422 ORDERING_PAUSED` / `OUTSIDE_ORDERING_HOURS` (see Ordering Availability below). Sent to the box instead of the cloud, it returns `422 DELIVERY_CLOUD_ONLY`:
 
 ```bash
 export EDGE_URL="http://localhost:8082/api"
@@ -784,6 +784,76 @@ curl -X PUT "$BASE_URL/delivery-zones/ZONE_ID" \
 ```bash
 curl -X DELETE "$BASE_URL/delivery-zones/ZONE_ID" \
   -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+## Ordering Availability (cloud only)
+
+Pause and hours for delivery and takeaway. Reading needs `ordering:read` (admin, manager, accountant, agent); pausing needs `ordering:pause` and hours need `ordering:manage` (admin, manager).
+
+### Read Settings and Availability Now
+
+```bash
+curl -X GET "$BASE_URL/organization/settings" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Pause Deliveries During a Rush
+
+```bash
+curl -X PATCH "$BASE_URL/organization/settings" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"ordering":{"delivery":{"paused":true,"paused_reason":"cocina saturada"}}}'
+```
+
+A delivery order created now is refused:
+
+```bash
+# 422 {"error":"Delivery orders are paused","code":"ORDERING_PAUSED","order_type":"delivery","paused_reason":"cocina saturada"}
+```
+
+### Resume Deliveries (clears the reason)
+
+```bash
+curl -X PATCH "$BASE_URL/organization/settings" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"ordering":{"delivery":{"paused":false}}}'
+```
+
+### Set Takeaway Hours (Friday runs past midnight)
+
+```bash
+curl -X PATCH "$BASE_URL/organization/settings" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ordering": {
+      "takeaway": {
+        "schedule": [
+          {"day": "mon", "opens": "11:30", "closes": "22:30"},
+          {"day": "fri", "opens": "18:00", "closes": "02:00"}
+        ]
+      }
+    }
+  }'
+```
+
+A takeaway order outside those hours is refused:
+
+```bash
+# 422 {"error":"Takeaway orders are outside their hours","code":"OUTSIDE_ORDERING_HOURS","order_type":"takeaway","next_opens_at":"2026-11-02T11:30:00-05:00"}
+```
+
+### Clear the Takeaway Hours (always open)
+
+```bash
+curl -X PATCH "$BASE_URL/organization/settings" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"ordering":{"takeaway":{"schedule":[]}}}'
 ```
 
 ---

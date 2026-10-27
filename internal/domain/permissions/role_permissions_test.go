@@ -218,7 +218,7 @@ func TestOrdersCompleteProductPermission(t *testing.T) {
 func TestGetPermissionsForRoles_Agent(t *testing.T) {
 	perms := GetPermissionsForRoles([]int{RoleAgent})
 
-	assert.ElementsMatch(t, []Permission{ProductsRead, OrdersRead, OrdersCreate, OrdersUpdate, OrdersDelete}, perms)
+	assert.ElementsMatch(t, []Permission{ProductsRead, OrdersRead, OrdersCreate, OrdersUpdate, OrdersDelete, OrderingRead}, perms)
 	for _, forbidden := range []Permission{OrdersPay, OrdersCompleteProduct, DeliveryZonesManage, DeliveryZonesRead, ProductsCreate, StockCreate} {
 		assert.NotContains(t, perms, forbidden)
 	}
@@ -232,6 +232,33 @@ func TestGetPermissionsForRoles_DeliveryZonesManagedByAdminAndManager(t *testing
 	}
 	for _, role := range []int{RoleServer, RoleCooker, RoleAccountant, RoleAgent} {
 		assert.NotContains(t, GetPermissionsForRoles([]int{role}), DeliveryZonesManage, "role %d", role)
+	}
+}
+
+func TestGetPermissionsForRoles_OrderingGrants(t *testing.T) {
+	tests := []struct {
+		name    string
+		roleID  int
+		granted []Permission
+		denied  []Permission
+	}{
+		{name: "admin", roleID: RoleAdmin, granted: []Permission{OrderingRead, OrderingPause, OrderingManage}},
+		{name: "manager", roleID: RoleManager, granted: []Permission{OrderingRead, OrderingPause, OrderingManage}},
+		{name: "accountant", roleID: RoleAccountant, granted: []Permission{OrderingRead}, denied: []Permission{OrderingPause, OrderingManage}},
+		{name: "agent", roleID: RoleAgent, granted: []Permission{OrderingRead}, denied: []Permission{OrderingPause, OrderingManage}},
+		{name: "server", roleID: RoleServer, denied: []Permission{OrderingRead, OrderingPause, OrderingManage}},
+		{name: "cooker", roleID: RoleCooker, denied: []Permission{OrderingRead, OrderingPause, OrderingManage}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			perms := GetPermissionsForRoles([]int{tt.roleID})
+			for _, p := range tt.granted {
+				assert.Contains(t, perms, p)
+			}
+			for _, p := range tt.denied {
+				assert.NotContains(t, perms, p)
+			}
+		})
 	}
 }
 

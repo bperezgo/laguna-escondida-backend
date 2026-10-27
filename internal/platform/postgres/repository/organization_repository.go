@@ -2,10 +2,12 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
+	"laguna-escondida/backend/internal/domain/aggregate/ordering"
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
@@ -22,26 +24,28 @@ const (
 )
 
 type organizationModel struct {
-	ID                string    `gorm:"column:id;primaryKey"`
-	Name              string    `gorm:"column:name"`
-	Slug              string    `gorm:"column:slug"`
-	Status            string    `gorm:"column:status"`
-	Timezone          string    `gorm:"column:timezone"`
-	Country           string    `gorm:"column:country"`
-	Locale            string    `gorm:"column:locale"`
-	Currency          string    `gorm:"column:currency"`
-	LegalName         *string   `gorm:"column:legal_name"`
-	NIT               *string   `gorm:"column:nit"`
-	Address           *string   `gorm:"column:address"`
-	Phone             *string   `gorm:"column:phone"`
-	TicketFooter      *string   `gorm:"column:ticket_footer"`
-	TicketLegalNotice *string   `gorm:"column:ticket_legal_notice"`
-	DisplayName       *string   `gorm:"column:display_name"`
-	LogoURL           *string   `gorm:"column:logo_url"`
-	PrimaryColor      *string   `gorm:"column:primary_color"`
-	SecondaryColor    *string   `gorm:"column:secondary_color"`
-	CreatedAt         time.Time `gorm:"column:created_at"`
-	UpdatedAt         time.Time `gorm:"column:updated_at"`
+	ID                string  `gorm:"column:id;primaryKey"`
+	Name              string  `gorm:"column:name"`
+	Slug              string  `gorm:"column:slug"`
+	Status            string  `gorm:"column:status"`
+	Timezone          string  `gorm:"column:timezone"`
+	Country           string  `gorm:"column:country"`
+	Locale            string  `gorm:"column:locale"`
+	Currency          string  `gorm:"column:currency"`
+	LegalName         *string `gorm:"column:legal_name"`
+	NIT               *string `gorm:"column:nit"`
+	Address           *string `gorm:"column:address"`
+	Phone             *string `gorm:"column:phone"`
+	TicketFooter      *string `gorm:"column:ticket_footer"`
+	TicketLegalNotice *string `gorm:"column:ticket_legal_notice"`
+	DisplayName       *string `gorm:"column:display_name"`
+	LogoURL           *string `gorm:"column:logo_url"`
+	PrimaryColor      *string `gorm:"column:primary_color"`
+	SecondaryColor    *string `gorm:"column:secondary_color"`
+	// Written only through OrganizationSettingsRepository; NULL on create reads as unconfigured.
+	Settings  []byte    `gorm:"column:settings;->"`
+	CreatedAt time.Time `gorm:"column:created_at"`
+	UpdatedAt time.Time `gorm:"column:updated_at"`
 }
 
 func (organizationModel) TableName() string {
@@ -208,6 +212,17 @@ func organizationToDTO(m *organizationModel) *dto.Organization {
 		TicketFooter: m.TicketFooter, TicketLegalNotice: m.TicketLegalNotice,
 		DisplayName: m.DisplayName, LogoURL: m.LogoURL,
 		PrimaryColor: m.PrimaryColor, SecondaryColor: m.SecondaryColor,
+		Settings:  decodeOrganizationSettings(m.Settings),
 		CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt,
 	}
+}
+
+// decodeOrganizationSettings reads NULL, and a hand-edited value that doesn't parse, as unconfigured.
+func decodeOrganizationSettings(raw []byte) dto.OrganizationSettings {
+	var settings dto.OrganizationSettings
+	if len(raw) > 0 && json.Unmarshal(raw, &settings) != nil {
+		settings = dto.OrganizationSettings{}
+	}
+	settings.Ordering = ordering.Normalize(settings.Ordering)
+	return settings
 }
