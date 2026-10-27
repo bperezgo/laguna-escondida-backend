@@ -12,10 +12,11 @@ import (
 	"strings"
 )
 
+// The cloud signs in by email, an edge box by username.
 type LoginRequest struct {
-	Organization string `json:"organization"`
-	Username     string `json:"username"`
-	Password     string `json:"password"`
+	Email    string `json:"email,omitempty"`
+	Username string `json:"username,omitempty"`
+	Password string `json:"password"`
 }
 
 type LoginResponse struct {
@@ -42,8 +43,9 @@ func main() {
 	log.Println("API URL: ", apiURL)
 
 	username := os.Getenv("USER_NAME")
-	if username == "" {
-		log.Fatal("USER_NAME environment variable is required")
+	email := os.Getenv("EMAIL")
+	if (username == "") == (email == "") {
+		log.Fatal("set exactly one of EMAIL (cloud) or USER_NAME (edge)")
 	}
 
 	password := os.Getenv("PASSWORD")
@@ -54,11 +56,11 @@ func main() {
 	csvFilePath := "scripts/product_responsibilities_seed/ResponsibilitiesSheet.csv"
 
 	log.Println("Authenticating...")
-	jwtToken, err := login(apiURL, username, password)
+	jwtToken, err := login(apiURL, email, username, password)
 	if err != nil {
 		log.Fatalf("Failed to authenticate: %v", err)
 	}
-	log.Printf("Successfully authenticated as: %s\n", username)
+	log.Printf("Successfully authenticated as: %s%s\n", email, username)
 
 	file, err := os.Open(csvFilePath)
 	if err != nil {
@@ -143,18 +145,13 @@ func getField(record []string, index int) string {
 	return strings.TrimSpace(record[index])
 }
 
-func login(apiURL, username, password string) (string, error) {
+func login(apiURL, email, username, password string) (string, error) {
 	endpoint := fmt.Sprintf("%s/api/auth/signin", apiURL)
 
-	organization := os.Getenv("ORGANIZATION")
-	if organization == "" {
-		organization = "laguna-escondida"
-	}
-
 	loginReq := LoginRequest{
-		Organization: organization,
-		Username:     username,
-		Password:     password,
+		Email:    email,
+		Username: username,
+		Password: password,
 	}
 
 	jsonData, err := json.Marshal(loginReq)

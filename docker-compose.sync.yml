@@ -14,6 +14,7 @@
 #
 #   Start:    docker compose -f docker-compose.sync.yml up --build -d
 #   Logs:     docker compose -f docker-compose.sync.yml logs -f edge
+#   MCP:      http://localhost:8090/mcp (customer toolset, needs an lgk_ org API key)
 #   Offline:  docker compose -f docker-compose.sync.yml stop cloud   (then ... start cloud)
 #   Reset:    docker compose -f docker-compose.sync.yml down -v
 #
@@ -150,6 +151,37 @@ services:
     depends_on:
       edge-db:
         condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - laguna-sync-network
+
+  # --- MCP server (customer toolset, CLOUD only) ------------------------------
+  # The WhatsApp agent's tools (menu, delivery orders). It holds no identity: each caller
+  # sends its organization's key as `Authorization: Bearer lgk_…` (issue one with
+  # POST /api/platform/organizations/:id/api-keys, see docs/api/api-keys.md), plus the
+  # X-Customer-Phone / X-Customer-Location headers. Keys are cloud-only, so it targets the cloud.
+  mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: laguna-escondida-sync:latest
+    container_name: laguna-sync-mcp
+    command: ["./mcp-server"]
+    environment:
+      LAGUNA_API_URL: http://cloud:8080
+      MCP_TOOLSET: customer
+      MCP_ADDR: ":8090"
+    ports:
+      - "8090:8090" # MCP endpoint -> http://localhost:8090/mcp
+    # The image's healthcheck probes the API's /api/health on 8080; this binary serves /health on 8090.
+    healthcheck:
+      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8090/health || exit 1" ]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    depends_on:
+      cloud:
+        condition: service_started
     restart: unless-stopped
     networks:
       - laguna-sync-network
