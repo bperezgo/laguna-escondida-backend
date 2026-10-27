@@ -716,6 +716,7 @@ func (s *OrderService) PayOrder(ctx context.Context, payOrderCommand command.Pay
 				openBillAggregate.ID(),
 				openBillAggregate.TemporalIdentifier(),
 				openBillAggregate.CreatedByID(),
+				openBillAggregate.OrderType(),
 				paidAt,
 				openBillWithProducts.Products,
 			)
@@ -1131,6 +1132,7 @@ func (s *OrderService) HandleOrderReleasedToKitchenSSE(ctx context.Context, even
 		TemporalIdentifier: event.TemporalIdentifier,
 		CreatedByID:        event.CreatedByID,
 		CreatedAt:          event.PaidAt,
+		OrderType:          event.OrderType,
 		Products:           event.Products,
 	})
 }
@@ -1196,6 +1198,7 @@ func (s *OrderService) notifyLinesCreated(ctx context.Context, event dto.OrderCr
 			Area:               responsibility.Area,
 			Status:             string(dto.CommandStatusCreated),
 			TemporalIdentifier: event.TemporalIdentifier,
+			OrderType:          event.OrderType,
 			Priority:           responsibility.Priority,
 			SideDishes:         buildSideDishSSE(p, sideDishNames),
 			// Stamp the live payload with the order's real creation instant so the
@@ -1318,6 +1321,7 @@ func (s *OrderService) HandleOrderUpdatedSSE(ctx context.Context, event dto.Orde
 				Area:               responsibility.Area,
 				Status:             string(dto.CommandStatusCancelled),
 				TemporalIdentifier: event.TemporalIdentifier,
+				OrderType:          event.OrderType,
 				Priority:           responsibility.Priority,
 				SideDishes:         buildSideDishSSE(product, sideDishNames),
 				CreatedByName:      createdByName,
@@ -1349,6 +1353,7 @@ func (s *OrderService) HandleOrderUpdatedSSE(ctx context.Context, event dto.Orde
 				Area:               responsibility.Area,
 				Status:             string(dto.CommandStatusCreated),
 				TemporalIdentifier: event.TemporalIdentifier,
+				OrderType:          event.OrderType,
 				Priority:           responsibility.Priority,
 				SideDishes:         buildSideDishSSE(currentProduct, sideDishNames),
 				CreatedAt:          createdAtMap[openBillProductID],
@@ -1375,6 +1380,7 @@ func (s *OrderService) HandleOrderUpdatedSSE(ctx context.Context, event dto.Orde
 					Area:               responsibility.Area,
 					Status:             string(dto.CommandStatusCreated),
 					TemporalIdentifier: event.TemporalIdentifier,
+					OrderType:          event.OrderType,
 					Priority:           responsibility.Priority,
 					SideDishes:         buildSideDishSSE(currentProduct, sideDishNames),
 					CreatedAt:          createdAtMap[openBillProductID],
@@ -1418,6 +1424,7 @@ func (s *OrderService) HandleOrderDeletedSSE(ctx context.Context, event dto.Orde
 			Area:               *product.Area,
 			Status:             string(dto.CommandStatusCancelled),
 			TemporalIdentifier: openBill.TemporalIdentifier,
+			OrderType:          event.OrderType,
 			Priority:           product.Priority,
 			CreatedByName:      openBill.CreatedBy.Name,
 		}
