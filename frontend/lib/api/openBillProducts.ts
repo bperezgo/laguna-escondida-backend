@@ -2,6 +2,18 @@ import { apiRequest } from "./config";
 import type { OpenBillProductFromSSE } from "@/types/commandItem";
 
 /**
+ * Fetch the lines still on an area's board.
+ */
+export async function getPendingOpenBillProducts(
+  area: string,
+): Promise<OpenBillProductFromSSE[]> {
+  const data = await apiRequest<{ products: OpenBillProductFromSSE[] }>(
+    `/open-bill-products/${area}/pending`,
+  );
+  return data.products ?? [];
+}
+
+/**
  * Fetch today's fully-completed comandas for an area (read-only "Comandas Listas").
  * "Today" is the local business day (America/Bogota), computed server-side.
  */

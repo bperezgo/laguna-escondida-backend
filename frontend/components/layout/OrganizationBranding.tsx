@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { usePermissions } from "@/lib/permissions";
 import { resetFormatSettings, setFormatSettings } from "@/lib/format";
 import { brandingCss, organizationDisplayName } from "@/lib/organization";
+import { tabAttention } from "@/lib/kitchen/tabAttentionDocument";
 
 /**
  * Wraps the signed-in screens (not /signin, which keeps the Laguna branding)
@@ -42,7 +43,8 @@ export default function OrganizationBranding({
 
   const title = organization ? organizationDisplayName(organization) : null;
   useEffect(() => {
-    if (title) document.title = title;
+    // Through the store so a kitchen alert count prefix survives page changes.
+    if (title) tabAttention.setBaseTitle(title);
   }, [title, pathname]);
 
   const signedOut = !isLoading && !user && !error;

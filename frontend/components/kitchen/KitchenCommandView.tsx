@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import CommandCard from "./CommandCard";
+import KitchenAlertsControl from "./KitchenAlertsControl";
 import InProgressStrip, { type InProgressGroup } from "./InProgressStrip";
 import {
+  getPendingOpenBillProducts,
   completeOpenBillProduct,
   uncompleteOpenBillProduct,
   setOpenBillProductInProgress,
@@ -15,6 +17,31 @@ import type {
 } from "@/types/commandItem";
 import { useNow } from "@/lib/kitchen/useNow";
 import { redirectIfSessionEnded } from "@/lib/api/session";
+import { usePermissions } from "@/lib/permissions";
+import {
+  createNewOrderTracker,
+  type NewOrderAlert,
+} from "@/lib/kitchen/newOrderTracker";
+import {
+  isTabVisible,
+  listenForTabAttentionReset,
+  tabAttention,
+} from "@/lib/kitchen/tabAttentionDocument";
+import {
+  playAlertSound,
+  registerKitchenServiceWorker,
+  showOrderNotification,
+} from "@/lib/kitchen/kitchenAlerts";
+
+const KITCHEN_AREA = "kitchen";
+
+function raiseAlert(alert: NewOrderAlert) {
+  console.info("[kitchen-alert]", alert);
+  playAlertSound();
+  if (isTabVisible()) return;
+  tabAttention.add();
+  void showOrderNotification(alert);
+}
 
 // How long a fully-completed comanda flashes "✓ Lista" before it leaves the board.
 const READY_FLASH_MS = 3000;
@@ -48,6 +75,9 @@ export interface GroupedCommand {
 
 export default function KitchenCommandView() {
   const now = useNow();
+  const { isEdge, isLoading: permissionsLoading } = usePermissions();
+  // Takeaway/delivery orders only reach the cloud board, which cooks keep in a background tab.
+  const alertsEnabled = !permissionsLoading && !isEdge;
   const [products, setProducts] = useState<OpenBillProductFromSSE[]>([]);
   const [isConnecting, setIsConnecting] = useState(true);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -157,7 +187,15 @@ export default function KitchenCommandView() {
   }, [products]);
 
   useEffect(() => {
+    if (!alertsEnabled) return;
+    listenForTabAttentionReset();
+    registerKitchenServiceWorker();
+  }, [alertsEnabled]);
+
+  useEffect(() => {
+    if (permissionsLoading) return;
     let isMounted = true;
+    const tracker = alertsEnabled ? createNewOrderTracker() : null;
 
     const connectToSSE = () => {
       if (eventSourceRef.current) {
@@ -245,7 +283,18 @@ export default function KitchenCommandView() {
         }
       };
 
+      const handleCreatedForAlerts = (event: MessageEvent) => {
+        if (!tracker) return;
+        try {
+          const alert = tracker.observe(JSON.parse(event.data));
+          if (alert) raiseAlert(alert);
+        } catch {
+          // Already reported by handleCreatedProduct.
+        }
+      };
+
       eventSource.addEventListener("open_bill_product.created", handleCreatedProduct);
+      eventSource.addEventListener("open_bill_product.created", handleCreatedForAlerts);
       eventSource.addEventListener("open_bill_product.updated", handleUpdatedProduct);
       eventSource.addEventListener("open_bill_product.cancelled", handleCancelledProduct);
 
@@ -264,7 +313,20 @@ export default function KitchenCommandView() {
       };
     };
 
-    connectToSSE();
+    const start = async () => {
+      if (tracker) {
+        // Without a baseline the replay would alert every order already on the board;
+        // harmless right after a load (tab visible, audio still locked), so carry on.
+        try {
+          tracker.seed(await getPendingOpenBillProducts(KITCHEN_AREA));
+        } catch (error) {
+          console.error("Error loading pending kitchen lines:", error);
+        }
+      }
+      if (isMounted) connectToSSE();
+    };
+
+    void start();
 
     return () => {
       isMounted = false;
@@ -275,7 +337,7 @@ export default function KitchenCommandView() {
         clearTimeout(reconnectTimeoutRef.current);
       }
     };
-  }, []);
+  }, [permissionsLoading, alertsEnabled]);
 
   const setProductStatus = (
     productId: string,
@@ -497,6 +559,8 @@ export default function KitchenCommandView() {
               </span>
             </div>
           </div>
+
+          {alertsEnabled && <KitchenAlertsControl />}
 
           {/* Commands count */}
           <div
