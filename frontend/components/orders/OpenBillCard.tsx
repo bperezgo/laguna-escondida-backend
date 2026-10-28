@@ -6,6 +6,11 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { Badge, Button, Card } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 
+const ORDER_TYPE_CHIP = {
+  takeaway: "Para llevar",
+  delivery: "Domicilio",
+} as const;
+
 interface OpenBillCardProps {
   openBill: OpenBill;
   isMine?: boolean;
@@ -21,6 +26,13 @@ export default function OpenBillCard({
   onPayClick,
   onRemoveClick,
 }: OpenBillCardProps) {
+  const orderType = openBill.order_type;
+  const typeChip =
+    orderType === "takeaway" || orderType === "delivery" ? ORDER_TYPE_CHIP[orderType] : null;
+  const contactLine = [openBill.customer_name, openBill.customer_phone]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
     <Card
       interactive={!!onClick}
@@ -43,12 +55,47 @@ export default function OpenBillCard({
         <Badge tone="info" dot={false}>
           {openBill.temporal_identifier}
         </Badge>
+        {typeChip && (
+          <Badge tone="warning" dot={false}>
+            {typeChip}
+          </Badge>
+        )}
         {isMine && (
           <Badge tone="success" dot={false}>
             Tú
           </Badge>
         )}
       </div>
+
+      {typeChip && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.25rem",
+            fontSize: "0.875rem",
+            color: "var(--color-text-primary)",
+          }}
+        >
+          {contactLine && <span style={{ fontWeight: 600 }}>{contactLine}</span>}
+          {orderType === "delivery" && openBill.delivery_address && (
+            <span style={{ color: "var(--color-text-secondary)" }}>
+              {openBill.delivery_address}
+            </span>
+          )}
+          {orderType === "delivery" && openBill.delivery_map_url && (
+            <a
+              href={openBill.delivery_map_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              style={{ color: "var(--color-primary)", fontWeight: 600, width: "fit-content" }}
+            >
+              Ver mapa
+            </a>
+          )}
+        </div>
+      )}
 
       {/* Descriptor */}
       {openBill.descriptor ? (

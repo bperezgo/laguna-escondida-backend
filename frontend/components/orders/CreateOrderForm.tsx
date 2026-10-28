@@ -17,11 +17,23 @@ import {
   defaultSelections,
 } from "./orderTakingParts";
 import { formatMoney } from "@/lib/format";
-
-// Prefix pre-filled into the temporal identifier input so the waitress only
-// types the table number after it (e.g. "MESA-12"). This is a frontend-only
-// convention: the backend accepts any temporal identifier.
-const TEMPORAL_IDENTIFIER_PREFIX = "MESA-";
+import { ApiError } from "@/lib/api/config";
+import { organizationSettingsApi } from "@/lib/api/organizationSettings";
+import { PERMISSIONS, usePermissions } from "@/lib/permissions";
+import type { OrderType } from "@/types/commandItem";
+import type { OrganizationSettingsResponse } from "@/types/organizationSettings";
+import {
+  buildCreateOrderRequest,
+  EMPTY_CONTACT,
+  identifierPrefix,
+  missingOrderFields,
+  retypeIdentifier,
+  type DeliveryPin,
+  type OrderContact,
+} from "@/lib/orders/orderTypePayload";
+import { orderErrorMessage } from "@/lib/orders/orderErrors";
+import OrderTypeSection, { unavailableReason } from "./OrderTypeSection";
+import { useDeliveryPinCheck } from "./useDeliveryPinCheck";
 
 interface CreateOrderFormProps {
   onClose: () => void;
@@ -44,9 +56,19 @@ export default function CreateOrderForm({
   onSuccess,
 }: CreateOrderFormProps) {
   const [openBillId] = useState(() => crypto.randomUUID());
+  const { isEdge, isLoading: permissionsLoading, hasPermission } = usePermissions();
+  // Takeaway and delivery are taken in the cloud; the box keeps today's dine-in form.
+  const typeSelectable = !permissionsLoading && !isEdge;
+  const canReadOrdering = hasPermission(PERMISSIONS.ORDERING_READ);
+  const [orderType, setOrderType] = useState<OrderType>("dine_in");
+  const [contact, setContact] = useState<OrderContact>(EMPTY_CONTACT);
+  const [pinCheck, schedulePinCheck] = useDeliveryPinCheck();
+  const [orderingSettings, setOrderingSettings] =
+    useState<OrganizationSettingsResponse | null>(null);
   const [temporalIdentifier, setTemporalIdentifier] = useState(
-    TEMPORAL_IDENTIFIER_PREFIX
+    identifierPrefix("dine_in")
   );
+  const identifierPrefixForType = identifierPrefix(orderType);
   const [descriptor, setDescriptor] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProducts, setSelectedProducts] = useState<
@@ -110,6 +132,25 @@ export default function CreateOrderForm({
       document.body.style.overflow = prevOverflow;
     };
   }, [onClose]);
+
+  // Waiters can't read availability; for them the backend's refusal is the only signal.
+  useEffect(() => {
+    if (!typeSelectable || !canReadOrdering) return;
+    organizationSettingsApi
+      .get()
+      .then(setOrderingSettings)
+      .catch((err) => console.error("Error loading ordering availability:", err));
+  }, [typeSelectable, canReadOrdering]);
+
+  const handleTypeChange = (type: OrderType) => {
+    setOrderType(type);
+    setTemporalIdentifier((prev) => retypeIdentifier(prev, type));
+  };
+
+  const handlePinChange = (pin: DeliveryPin) => {
+    setContact((prev) => ({ ...prev, pin }));
+    schedulePinCheck(pin);
+  };
 
   // Fetch products on mount
   useEffect(() => {
@@ -281,10 +322,15 @@ export default function CreateOrderForm({
       return;
     }
 
-    if (trimmedIdentifier === TEMPORAL_IDENTIFIER_PREFIX) {
+    if (trimmedIdentifier === identifierPrefixForType) {
       setError(
-        `Completa el identificador después de "${TEMPORAL_IDENTIFIER_PREFIX}" (ej: ${TEMPORAL_IDENTIFIER_PREFIX}12)`
+        `Completa el identificador después de "${identifierPrefixForType}" (ej: ${identifierPrefixForType}12)`
       );
+      return;
+    }
+
+    if (orderTypeBlocker) {
+      setError(orderTypeBlocker);
       return;
     }
 
@@ -330,18 +376,26 @@ export default function CreateOrderForm({
         return item;
       });
 
-      await createOrder({
-        open_bill_id: openBillId,
-        temporal_identifier: temporalIdentifier,
-        descriptor: descriptor.trim() || null,
-        products: orderProducts,
-      });
+      await createOrder(
+        buildCreateOrderRequest(
+          {
+            open_bill_id: openBillId,
+            temporal_identifier: temporalIdentifier,
+            descriptor: descriptor.trim() || null,
+            products: orderProducts,
+          },
+          orderType,
+          contact,
+        )
+      );
 
       onSuccess();
       onClose();
     } catch (err) {
       console.error("Error creating order:", err);
-      setError(err instanceof Error ? err.message : "Failed to create order");
+      // Nothing is reset, so the staff member can fix the input and retry.
+      const refusal = err instanceof ApiError ? orderErrorMessage(err.body) : null;
+      setError(refusal ?? (err instanceof Error ? err.message : "Failed to create order"));
     } finally {
       setIsSubmitting(false);
     }
@@ -368,8 +422,22 @@ export default function CreateOrderForm({
     .map((p) => p.product.name);
   const hasPendingWeight = pendingWeightNames.length > 0;
 
+  const missingFields = missingOrderFields(orderType, contact);
+  const orderTypeBlocker =
+    unavailableReason(orderType, orderingSettings) ??
+    (missingFields.length > 0
+      ? `Falta: ${missingFields.join(", ")}`
+      : orderType === "delivery" && pinCheck.status === "outside"
+        ? "La ubicación está fuera de la zona de entrega"
+        : orderType === "delivery" && pinCheck.status === "checking"
+          ? "Verificando la ubicación…"
+          : null);
+
   const canSubmit =
-    !isSubmitting && selectedProducts.size > 0 && !hasPendingWeight;
+    !isSubmitting &&
+    selectedProducts.size > 0 &&
+    !hasPendingWeight &&
+    orderTypeBlocker === null;
 
   const pendingWeightHint = hasPendingWeight ? (
     <div
@@ -385,15 +453,41 @@ export default function CreateOrderForm({
     </div>
   ) : null;
 
+  const orderTypeHint = orderTypeBlocker ? (
+    <div
+      style={{
+        marginBottom: "0.5rem",
+        fontSize: "0.8rem",
+        fontWeight: 600,
+        color: "var(--color-danger)",
+        textAlign: "center",
+      }}
+    >
+      {orderTypeBlocker}
+    </div>
+  ) : null;
+
   // Identifier + descriptor fields (shared by both layouts — required for create)
   const orderDetailsFields = (
     <>
+      {typeSelectable && (
+        <OrderTypeSection
+          orderType={orderType}
+          onTypeChange={handleTypeChange}
+          contact={contact}
+          onContactChange={setContact}
+          onPinChange={handlePinChange}
+          pinCheck={pinCheck}
+          settings={orderingSettings}
+          canReadZones={hasPermission(PERMISSIONS.DELIVERY_ZONES_READ)}
+        />
+      )}
       <Input
-        label="Identificador (mesa) *"
+        label={typeSelectable ? "Identificador *" : "Identificador (mesa) *"}
         type="text"
         value={temporalIdentifier}
         onChange={(e) => setTemporalIdentifier(e.target.value)}
-        placeholder="Ej: MESA-12"
+        placeholder={`Ej: ${identifierPrefixForType}12`}
         required
       />
       <Textarea
@@ -657,6 +751,8 @@ export default function CreateOrderForm({
                     flexDirection: "column",
                     gap: "0.75rem",
                     padding: "0 0.875rem 0.6rem",
+                    maxHeight: "60%",
+                    overflowY: "auto",
                   }}
                 >
                   {orderDetailsFields}
@@ -741,6 +837,7 @@ export default function CreateOrderForm({
                 </span>
               </div>
               {pendingWeightHint}
+              {orderTypeHint}
               <Button type="submit" fullWidth size="lg" disabled={!canSubmit} leftIcon={sendIcon}>
                 {isSubmitting ? "Creando..." : "Crear Orden"}
               </Button>
@@ -956,6 +1053,8 @@ export default function CreateOrderForm({
                 display: "flex",
                 flexDirection: "column",
                 gap: "0.75rem",
+                maxHeight: "60%",
+                overflowY: "auto",
               }}
             >
               <div
@@ -1065,6 +1164,7 @@ export default function CreateOrderForm({
                 </span>
               </div>
               {pendingWeightHint}
+              {orderTypeHint}
               <Button type="submit" fullWidth size="lg" disabled={!canSubmit} leftIcon={sendIcon}>
                 {isSubmitting ? "Creando..." : "Crear Orden"}
               </Button>

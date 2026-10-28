@@ -1,5 +1,5 @@
 import { Product } from "./product";
-import { OpenBillProductStatus } from "./commandItem";
+import { OpenBillProductStatus, OrderType } from "./commandItem";
 
 // Table/Customer related types
 export interface Table {
@@ -40,6 +40,14 @@ export interface OpenBill {
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
+  order_type?: OrderType;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  delivery_address?: string | null;
+  delivery_lat?: string | null;
+  delivery_lng?: string | null;
+  delivery_zone_id?: string | null;
+  delivery_map_url?: string | null;
 }
 
 // A resolved side-dish choice on one order line (ids + quantity; no names).
@@ -104,6 +112,14 @@ export interface CreateOrderRequest {
   temporal_identifier: string;
   descriptor?: string | null;
   products: OrderProductItem[];
+  /** Omitted for dine-in, so the box and dine-in payloads stay as they were. */
+  order_type?: OrderType;
+  customer_name?: string;
+  customer_phone?: string;
+  delivery_address?: string;
+  /** Decimal degrees as strings, up to 6 decimals. */
+  delivery_lat?: string;
+  delivery_lng?: string;
 }
 
 // Update Order Request

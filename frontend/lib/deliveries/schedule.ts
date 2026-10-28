@@ -125,7 +125,7 @@ export function parseSettingsErrorField(
   };
 }
 
-function formatInstant(iso: string, timezone: string, now: Date): string {
+export function formatInstant(iso: string, timezone: string, now: Date = new Date()): string {
   const instant = new Date(iso);
   const time = new Intl.DateTimeFormat("es-CO", {
     timeZone: timezone,

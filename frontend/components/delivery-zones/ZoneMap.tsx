@@ -11,10 +11,7 @@ import type {
   ZoneBoundary,
 } from "@/types/deliveryZone";
 import { parseBoundary } from "@/lib/deliveryZones/geojson";
-
-// Bogotá; only used until there is a zone to fit the view to.
-const DEFAULT_CENTER: L.LatLngExpression = [4.6, -74.08];
-const DEFAULT_ZOOM = 12;
+import { DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from "@/lib/config/map";
 
 // Leaflet writes colors as SVG attributes, which cannot hold var(): read the
 // brand variables (globals.css, or the organization's) when drawing.
@@ -93,8 +90,8 @@ export default function ZoneMap({
   useEffect(() => {
     if (!containerRef.current) return;
     const map = L.map(containerRef.current, {
-      center: DEFAULT_CENTER,
-      zoom: DEFAULT_ZOOM,
+      center: DEFAULT_MAP_CENTER,
+      zoom: DEFAULT_MAP_ZOOM,
     });
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
