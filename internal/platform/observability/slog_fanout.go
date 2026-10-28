@@ -55,3 +55,22 @@ func (h *fanoutHandler) WithGroup(name string) slog.Handler {
 	}
 	return &fanoutHandler{handlers: next}
 }
+
+// minLevelHandler drops records below min. The otelslog bridge enables every level, so without
+// it DEBUG records would reach Loki even though stdout (default INFO) drops them.
+type minLevelHandler struct {
+	slog.Handler
+	min slog.Level
+}
+
+func (h *minLevelHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return level >= h.min && h.Handler.Enabled(ctx, level)
+}
+
+func (h *minLevelHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &minLevelHandler{Handler: h.Handler.WithAttrs(attrs), min: h.min}
+}
+
+func (h *minLevelHandler) WithGroup(name string) slog.Handler {
+	return &minLevelHandler{Handler: h.Handler.WithGroup(name), min: h.min}
+}
