@@ -28,5 +28,5 @@ func NewSlogLogger(enabled bool) *slog.Logger {
 		return slog.New(stdoutHandler)
 	}
 	otelHandler := otelslog.NewHandler(instrumentationName, otelslog.WithLoggerProvider(logglobal.GetLoggerProvider()))
-	return slog.New(newFanoutHandler(stdoutHandler, otelHandler))
+	return slog.New(newFanoutHandler(stdoutHandler, &minLevelHandler{Handler: otelHandler, min: slog.LevelInfo}))
 }

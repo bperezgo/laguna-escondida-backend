@@ -226,6 +226,16 @@ func authenticateAPIKey(c *gin.Context, keys *service.APIKeyService, key string)
 	}, true
 }
 
+// Machine-polled endpoints (edge sync crons, status/health probes) would otherwise flood the
+// INFO access log; their successes drop to DEBUG while failures keep WARN/ERROR.
+var pollingPaths = map[string]bool{
+	"/api/sync/pull":       true,
+	"/api/sync/pull/stock": true,
+	"/api/sync/push":       true,
+	"/api/edge/status":     true,
+	"/api/health":          true,
+}
+
 // LoggerMiddleware logs HTTP requests using the slog logger in JSON format
 func LoggerMiddleware(logger *slog.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -259,6 +269,8 @@ func LoggerMiddleware(logger *slog.Logger) gin.HandlerFunc {
 			level = slog.LevelError
 		case !success:
 			level = slog.LevelWarn
+		case pollingPaths[path]:
+			level = slog.LevelDebug
 		}
 
 		// slog is context-native: passing the request context lets otelgin's active
