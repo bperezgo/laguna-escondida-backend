@@ -9,7 +9,7 @@ the system conversationally.
 - **Transport:** Streamable HTTP (`POST /mcp`) for remote clients, or stdio
   (`--stdio`) for a local client that launches the binary directly (Claude Desktop)
 - **Coverage:** two toolsets, chosen at startup with `MCP_TOOLSET`:
-  - `full` (default): 89 staff tools — one per request/response endpoint (streaming SSE,
+  - `full` (default): 91 staff tools — one per request/response endpoint (streaming SSE,
     node-to-node sync, and edge ticket printing are intentionally excluded), plus one
     host-local file utility (`extract_archive`) and two read-only playbook discovery tools
     (`list_playbooks`, `get_playbook` — see [Playbooks](#playbooks)).
@@ -139,7 +139,7 @@ files from paths on your own machine.
 
 - **Products (7):** `create_product`, `bulk_create_products`, `list_products`, `get_product`, `update_product`, `delete_product`, `list_product_categories`
 - **Product responsibilities (4):** `create_product_responsibility`, `get_product_responsibility`, `update_product_responsibility`, `delete_product_responsibility`
-- **Product ingredients (4):** `add_product_ingredient`, `list_product_ingredients`, `update_product_ingredient`, `remove_product_ingredient`
+- **Product ingredients (6):** `add_product_ingredient`, `list_product_ingredients`, `update_product_ingredient`, `remove_product_ingredient`, `configure_side_dish`, `clear_side_dish`
 - **Orders (12):** `create_order`, `list_active_orders`, `get_order`, `update_order`, `delete_order`, `list_closed_orders_today`, `get_closed_order`, `pay_order`, `complete_order_product`, `uncomplete_order_product`, `set_order_product_in_progress`, `cancel_order_product`
 - **Stock (5):** `list_stock`, `create_stock`, `adjust_stock`, `delete_stock`, `bulk_upsert_stock`
 - **Suppliers (5):** `create_supplier`, `list_suppliers`, `get_supplier`, `update_supplier`, `delete_supplier`
