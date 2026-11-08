@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	openBill "laguna-escondida/backend/internal/domain/aggregate/open_bill"
@@ -41,6 +42,46 @@ type openBillModel struct {
 	DeliveryLat        *decimal.Decimal `gorm:"type:numeric(9,6)"`
 	DeliveryLng        *decimal.Decimal `gorm:"type:numeric(9,6)"`
 	DeliveryZoneID     *string          `gorm:"type:uuid"`
+	OriginColumns
+}
+
+// OriginColumns are an agent order or reservation's origin, written on create only. Exported: gorm
+// skips unexported embedded structs.
+type OriginColumns struct {
+	ChannelID               *string    `gorm:"column:channel_id"`
+	ConversationID          *string    `gorm:"column:conversation_id"`
+	AttributionSource       *string    `gorm:"column:attribution_source"`
+	AttributionAdID         *string    `gorm:"column:attribution_ad_id"`
+	AttributionClickedAt    *time.Time `gorm:"column:attribution_clicked_at"`
+	AttributionCampaignID   *string    `gorm:"column:attribution_campaign_id"`
+	AttributionCampaignName *string    `gorm:"column:attribution_campaign_name"`
+}
+
+func newOriginColumns(origin *dto.Origin) OriginColumns {
+	if origin == nil {
+		return OriginColumns{}
+	}
+	columns := OriginColumns{ChannelID: origin.ChannelID, ConversationID: origin.ConversationID}
+	if a := origin.Attribution; a != nil {
+		columns.AttributionSource, columns.AttributionAdID, columns.AttributionClickedAt = a.Source, a.AdID, a.ClickedAt
+		columns.AttributionCampaignID, columns.AttributionCampaignName = a.CampaignID, a.CampaignName
+	}
+	return columns
+}
+
+func (c OriginColumns) toDTO() *dto.Origin {
+	attribution := &dto.Attribution{
+		Source: c.AttributionSource, AdID: c.AttributionAdID, ClickedAt: c.AttributionClickedAt,
+		CampaignID: c.AttributionCampaignID, CampaignName: c.AttributionCampaignName,
+	}
+	if attribution.Source == nil && attribution.AdID == nil && attribution.ClickedAt == nil &&
+		attribution.CampaignID == nil && attribution.CampaignName == nil {
+		attribution = nil
+	}
+	if c.ChannelID == nil && c.ConversationID == nil && attribution == nil {
+		return nil
+	}
+	return &dto.Origin{ChannelID: c.ChannelID, ConversationID: c.ConversationID, Attribution: attribution}
 }
 
 func (openBillModel) TableName() string {
@@ -85,7 +126,14 @@ const fulfillmentColumns = `
 			open_bills.delivery_address,
 			open_bills.delivery_lat,
 			open_bills.delivery_lng,
-			open_bills.delivery_zone_id,`
+			open_bills.delivery_zone_id,
+			open_bills.channel_id,
+			open_bills.conversation_id,
+			open_bills.attribution_source,
+			open_bills.attribution_ad_id,
+			open_bills.attribution_clicked_at,
+			open_bills.attribution_campaign_id,
+			open_bills.attribution_campaign_name,`
 
 // fulfillmentRow is scanned into the header result structs via gorm:"embedded".
 type fulfillmentRow struct {
@@ -97,6 +145,7 @@ type fulfillmentRow struct {
 	DeliveryLat     *decimal.Decimal
 	DeliveryLng     *decimal.Decimal
 	DeliveryZoneID  *string
+	OriginColumns   `gorm:"embedded"`
 }
 
 func (f fulfillmentRow) toDTO() dto.OrderFulfillment {
@@ -108,6 +157,7 @@ func (f fulfillmentRow) toDTO() dto.OrderFulfillment {
 		DeliveryLat:     f.DeliveryLat,
 		DeliveryLng:     f.DeliveryLng,
 		DeliveryZoneID:  f.DeliveryZoneID,
+		Origin:          f.OriginColumns.toDTO(),
 	}).ToDTO()
 }
 
@@ -306,6 +356,7 @@ func (r *OpenBillRepository) Create(ctx context.Context, aggregate *openBill.Agg
 			DeliveryLat:        fulfillment.DeliveryLat,
 			DeliveryLng:        fulfillment.DeliveryLng,
 			DeliveryZoneID:     fulfillment.DeliveryZoneID,
+			OriginColumns:      newOriginColumns(fulfillment.Origin),
 		}
 
 		if err := tx.Create(model).Error; err != nil {
@@ -654,6 +705,7 @@ func (r *OpenBillRepository) findAggregate(ctx context.Context, where string, id
 		DeliveryLat:     model.DeliveryLat,
 		DeliveryLng:     model.DeliveryLng,
 		DeliveryZoneID:  model.DeliveryZoneID,
+		Origin:          model.toDTO(),
 	}))
 	return aggregate, nil
 }
@@ -1632,4 +1684,26 @@ func (r *OpenBillRepository) FindCompletedByAreaBetween(ctx context.Context, are
 	}
 
 	return sseProducts, nil
+}
+
+// FindOrderOrigin reads an order whether open, paid or voided.
+func (r *OpenBillRepository) FindOrderOrigin(ctx context.Context, orderID string) (*dto.OrderOriginState, bool, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, false, err
+	}
+	var model openBillModel
+	err = db.Where("id = ?", orderID).Take(&model).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return &dto.OrderOriginState{PaidAt: model.PaidAt, CustomerPhone: model.CustomerPhone, Origin: model.toDTO()}, true, nil
+}
+
+// NewOrderOriginReader is the slice of the open bill repository the cloud's sync push reads.
+func NewOrderOriginReader(db *gorm.DB) ports.OrderOriginReader {
+	return &OpenBillRepository{db: db}
 }

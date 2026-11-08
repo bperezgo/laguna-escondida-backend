@@ -38,6 +38,16 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 	// One replica, so a process-local cache; a shared one replaces memory.New without touching the decorator.
 	settingsCache := memory.New()
 
+	// Contacts and marketing events are cloud-only: the box never takes agent orders or reservations.
+	db := infra.DB
+	contactRepo := repository.NewContactRepository(db)
+	reservationRepo := repository.NewReservationRepository(db)
+	feedbackRepo := repository.NewFeedbackRepository(db)
+	marketingOutbox := repository.NewMarketingEventOutboxRepository(db)
+	cloudOrganizations := repository.NewOrganizationRepository(db)
+	contactService := service.NewContactService(contactRepo, reservationRepo, feedbackRepo)
+	marketingEvents := service.NewMarketingEventService(marketingOutbox, cloudOrganizations, cfg.MarketingEvents, cfg.MarketingEvents.Enabled())
+
 	// The cloud owns on-hand and the restaurant learns it back through the daily pull, so a
 	// cloud-origin stock op would never be delivered to anyone.
 	c, err := buildCore(&cfg.Shared, infra, ModeOptions{
@@ -54,17 +64,22 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		WrapOrganizationSettings: func(inner ports.OrganizationSettingsRepository) ports.OrganizationSettingsRepository {
 			return cache.NewCachedOrganizationSettingsRepository(inner, settingsCache, logger)
 		},
+		OrderOptions: []service.OrderServiceOption{
+			service.WithContactRecorder(contactService),
+			service.WithMarketingEvents(marketingEvents),
+		},
 	})
 	if err != nil {
 		return nil, err
 	}
-	db := infra.DB
 
 	// Entity appliers turn a received op's payload snapshot into a local upsert (or a
 	// soft-delete for a tombstone). The sync service dispatches on op.EntityType and
 	// fails closed for any entity type without a registered applier.
 	syncAppliers := map[dto.SyncEntityType]ports.SyncApplier{
-		dto.SyncEntityOpenBill:       repository.NewOpenBillSyncApplier(db),
+		// A payment applied from the box is where the cloud first learns a takeaway was paid.
+		dto.SyncEntityOpenBill: service.NewMarketingPaymentSyncApplier(
+			repository.NewOpenBillSyncApplier(db), repository.NewOrderOriginReader(db), marketingEvents),
 		dto.SyncEntityPurchaseEntry:  repository.NewPurchaseEntrySyncApplier(db),
 		dto.SyncEntityBill:           repository.NewBillSyncApplier(db),
 		dto.SyncEntityPendingInvoice: repository.NewPendingInvoiceSyncApplier(db),
@@ -98,6 +113,30 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 				c.organizationRunner, invoiceService, supportDocService, invoiceSubmissionService, c.stockReconciliationService,
 				cfg.InvoiceURLCron, cfg.SupportDocumentURLCron, cfg.InvoiceSubmitCron, cfg.StockReconcileCron,
 				logger,
+			)
+		},
+	})
+
+	reservationService := service.NewReservationService(
+		reservationRepo, contactService, c.unitOfWork, c.orgSettingsRepo, marketingEvents, cfg.PhoneHomeRegion, logger, nil,
+	)
+	feedbackService := service.NewFeedbackService(
+		feedbackRepo, reservationRepo, c.unitOfWork, c.orgSettingsRepo, marketingEvents, cfg.PhoneHomeRegion, nil,
+	)
+	crmJobs := cron.CRMJobs{Reservations: reservationService, Feedback: feedbackService}
+	if cfg.MarketingEvents.Enabled() {
+		crmJobs.Delivery = service.NewMarketingEventDeliveryService(
+			marketingOutbox, httpclient.NewMarketingEventsClient(infra.HTTPClient, cfg.MarketingEvents.URL),
+			cloudOrganizations, cfg.MarketingEvents, logger, nil,
+		)
+		logger.Info("Marketing events enabled", slog.String("url", cfg.MarketingEvents.URL))
+	}
+	c.app.schedulers = append(c.app.schedulers, namedScheduler{
+		name: "CRM scheduler",
+		build: func() (scheduler, error) {
+			return cron.NewCRMScheduler(
+				c.organizationRunner, cloudOrganizations, cfg.MarketingEvents, crmJobs,
+				cfg.ReservationVisitedCron, cfg.FeedbackRequestCron, logger,
 			)
 		},
 	})
@@ -147,6 +186,9 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		apiKey:          handler.NewAPIKeyHandler(apiKeyService),
 		deliveryZone:    handler.NewDeliveryZoneHandler(service.NewDeliveryZoneService(c.deliveryZoneRepo)),
 		orgSettings:     handler.NewOrganizationSettingsHandler(service.NewOrganizationSettingsService(c.orgSettingsRepo)),
+		reservation:     handler.NewReservationHandler(reservationService),
+		contact:         handler.NewContactHandler(contactService),
+		feedback:        handler.NewFeedbackHandler(feedbackService),
 		nodes:           service.NewNodeService(repository.NewNodeRepository(db)),
 	})
 

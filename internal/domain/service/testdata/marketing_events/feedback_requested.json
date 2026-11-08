@@ -1,0 +1,1 @@
+{"event_id":"{{event_id}}","type":"feedback.requested","occurred_at":"2026-11-09T11:05:00-05:00","channel_id":"ch_1","conversation_id":"conv_9","customer_phone":"573005551234","data":{"feedback_request_id":"fr1","reservation_id":"r1","name":"Ana","starts_at":"2026-11-08T20:00:00-05:00","expires_at":"2026-11-16T11:05:00-05:00"}}

@@ -5,6 +5,7 @@ import "time"
 // OrganizationSettings is the organization's settings bag, stored as one JSON document.
 type OrganizationSettings struct {
 	Ordering OrderingSettings `json:"ordering"`
+	Feedback FeedbackSettings `json:"feedback"`
 }
 
 type OrderingSettings struct {
@@ -46,14 +47,16 @@ type OrderingAvailability struct {
 	Takeaway Availability `json:"takeaway"`
 }
 
-// OrganizationSettingsView is one read of what availability needs: the ordering settings and the timezone.
+// OrganizationSettingsView is one read of the settings and the timezone they are read in.
 type OrganizationSettingsView struct {
 	Ordering OrderingSettings `json:"ordering"`
+	Feedback FeedbackSettings `json:"feedback"`
 	Timezone string           `json:"timezone"`
 }
 
 type OrganizationSettingsResponse struct {
 	Ordering     OrderingSettings     `json:"ordering"`
+	Feedback     FeedbackSettings     `json:"feedback"`
 	Availability OrderingAvailability `json:"availability"`
 	Timezone     string               `json:"timezone"`
 }
@@ -61,6 +64,7 @@ type OrganizationSettingsResponse struct {
 // UpdateOrganizationSettingsRequest: a nil field is left unchanged.
 type UpdateOrganizationSettingsRequest struct {
 	Ordering *OrderingSettingsPatch `json:"ordering"`
+	Feedback *FeedbackSettingsPatch `json:"feedback"`
 }
 
 type OrderingSettingsPatch struct {

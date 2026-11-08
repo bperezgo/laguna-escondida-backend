@@ -69,11 +69,19 @@ func (r *CachedOrganizationSettingsRepository) Get(ctx context.Context) (*dto.Or
 
 // UpdateOrdering drops the entry once the inner write has committed, so this instance's next read reloads it.
 func (r *CachedOrganizationSettingsRepository) UpdateOrdering(ctx context.Context, merge ports.OrderingMerge) (*dto.OrganizationSettingsView, error) {
+	return r.invalidateAfter(ctx, func() (*dto.OrganizationSettingsView, error) { return r.inner.UpdateOrdering(ctx, merge) })
+}
+
+func (r *CachedOrganizationSettingsRepository) UpdateFeedback(ctx context.Context, merge ports.FeedbackMerge) (*dto.OrganizationSettingsView, error) {
+	return r.invalidateAfter(ctx, func() (*dto.OrganizationSettingsView, error) { return r.inner.UpdateFeedback(ctx, merge) })
+}
+
+func (r *CachedOrganizationSettingsRepository) invalidateAfter(ctx context.Context, update func() (*dto.OrganizationSettingsView, error)) (*dto.OrganizationSettingsView, error) {
 	key, err := settingsKey(ctx)
 	if err != nil {
 		return nil, err
 	}
-	saved, err := r.inner.UpdateOrdering(ctx, merge)
+	saved, err := update()
 	if err != nil {
 		return nil, err
 	}

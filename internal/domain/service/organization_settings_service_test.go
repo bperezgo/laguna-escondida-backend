@@ -367,6 +367,7 @@ func TestOrganizationSettingsService_Get_NothingStoredReadsAsDefaults(t *testing
 			"delivery": {"paused": false, "paused_reason": null, "schedule": []},
 			"takeaway": {"paused": false, "paused_reason": null, "schedule": []}
 		},
+		"feedback": {"review_link_enabled": false, "review_url": ""},
 		"availability": {
 			"delivery": {"available": true, "reason": null, "paused_reason": null, "closes_at": null, "next_opens_at": null},
 			"takeaway": {"available": true, "reason": null, "paused_reason": null, "closes_at": null, "next_opens_at": null}

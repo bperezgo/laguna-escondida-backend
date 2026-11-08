@@ -38,6 +38,8 @@ type ModeOptions struct {
 	EInvoicingEnabled bool
 	// WrapOrganizationSettings puts the cloud's cache in front of the settings read; nil on the box.
 	WrapOrganizationSettings func(ports.OrganizationSettingsRepository) ports.OrganizationSettingsRepository
+	// OrderOptions are the cloud's contacts and marketing events for agent orders; none on the box.
+	OrderOptions []service.OrderServiceOption
 }
 
 // noDeliveryZones is the box's zone finder: it never reads delivery_zones, which the box drops.
@@ -142,8 +144,10 @@ func buildCore(cfg *config.Shared, infra Infra, opts ModeOptions) (*core, error)
 		productIngredientRepo,
 		deliveryZoneFinder,
 		cfg.PhoneHomeRegion,
-		service.WithDeliveryEnabled(opts.DeliveryEnabled),
-		service.WithOrderingSettings(orgSettingsRepo),
+		append([]service.OrderServiceOption{
+			service.WithDeliveryEnabled(opts.DeliveryEnabled),
+			service.WithOrderingSettings(orgSettingsRepo),
+		}, opts.OrderOptions...)...,
 	)
 	// The edge only reads products; the supplier repos back the cloud's bulk create.
 	productService := service.NewProductService(productRepo, supplierRepo, supplierCatalogRepo, unitOfWork)

@@ -67,6 +67,7 @@ func TestOrganizationSettingsHandler_Get_200(t *testing.T) {
 			"delivery": {"paused": false, "paused_reason": null, "schedule": []},
 			"takeaway": {"paused": false, "paused_reason": null, "schedule": []}
 		},
+		"feedback": {"review_link_enabled": false, "review_url": ""},
 		"availability": {
 			"delivery": {"available": true, "reason": null, "paused_reason": null, "closes_at": null, "next_opens_at": null},
 			"takeaway": {"available": true, "reason": null, "paused_reason": null, "closes_at": null, "next_opens_at": null}
@@ -175,4 +176,50 @@ func TestOrganizationSettingsHandler_Patch_PauseOnlyRoleCanPause(t *testing.T) {
 	rec := serve(settingsRouter(t, repo, pauseOnly), http.MethodPatch, `{"ordering":{"takeaway":{"paused":true}}}`)
 
 	assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+}
+
+// storeFeedbackMerges applies a feedback patch to empty settings the way the real repository does.
+func storeFeedbackMerges(repo *mocks.MockOrganizationSettingsRepository) {
+	repo.EXPECT().UpdateFeedback(mock.Anything, mock.Anything).
+		RunAndReturn(func(_ context.Context, merge ports.FeedbackMerge) (*dto.OrganizationSettingsView, error) {
+			next, err := merge(dto.FeedbackSettings{})
+			if err != nil {
+				return nil, err
+			}
+			return &dto.OrganizationSettingsView{Feedback: next, Timezone: "America/Bogota"}, nil
+		}).Once()
+}
+
+func TestOrganizationSettingsHandler_PatchFeedback_ManagerTurnsTheLinkOn(t *testing.T) {
+	repo := mocks.NewMockOrganizationSettingsRepository(t)
+	storeFeedbackMerges(repo)
+
+	rec := serve(settingsRouter(t, repo, permissions.RoleManager), http.MethodPatch,
+		`{"feedback":{"review_link_enabled":true,"review_url":"https://g.page/r/abc/review"}}`)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"feedback":{"review_link_enabled":true,"review_url":"https://g.page/r/abc/review"}`)
+}
+
+func TestOrganizationSettingsHandler_PatchFeedback_PlainHTTPIsRejected(t *testing.T) {
+	repo := mocks.NewMockOrganizationSettingsRepository(t)
+
+	rec := serve(settingsRouter(t, repo, permissions.RoleManager), http.MethodPatch, `{"feedback":{"review_url":"http://example.com"}}`)
+
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+	assert.JSONEq(t, `{"error":"invalid feedback.review_url: must be an absolute https URL or empty","code":"INVALID_SETTINGS","field":"feedback.review_url"}`, rec.Body.String())
+	repo.AssertNotCalled(t, "UpdateFeedback", mock.Anything, mock.Anything)
+	repo.AssertNotCalled(t, "UpdateOrdering", mock.Anything, mock.Anything)
+}
+
+func TestOrganizationSettingsHandler_PatchFeedback_403WithoutThePermission(t *testing.T) {
+	for _, role := range []int{permissions.RoleAgent, permissions.RoleAccountant} {
+		repo := mocks.NewMockOrganizationSettingsRepository(t)
+
+		rec := serve(settingsRouter(t, repo, role), http.MethodPatch, `{"feedback":{"review_link_enabled":true}}`)
+
+		assert.Equal(t, http.StatusForbidden, rec.Code, "role %d", role)
+		assert.Contains(t, rec.Body.String(), "settings:feedback:update")
+		repo.AssertNotCalled(t, "UpdateFeedback", mock.Anything, mock.Anything)
+	}
 }

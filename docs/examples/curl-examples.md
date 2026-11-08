@@ -858,6 +858,172 @@ curl -X PATCH "$BASE_URL/organization/settings" \
 
 ---
 
+## Reservations, Contacts and Feedback (cloud only)
+
+Reading needs `reservations:read` (admin, manager, agent); confirming, declining, cancelling as staff and no-shows need `reservations:manage` (admin, manager). The agent creates `whatsapp` requests with its organization API key (`reservations:create`). See [reservations](../api/reservations.md), [contacts](../api/contacts.md) and [feedback](../api/feedback.md).
+
+### Enter a Phone Booking (stored as confirmed)
+
+```bash
+curl -X POST "$BASE_URL/reservations" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_phone": "300 555 9876",
+    "name": "Luis",
+    "party_size": 4,
+    "starts_at": "2026-11-09T19:00:00-05:00",
+    "notes": "Cumpleaños",
+    "source": "phone"
+  }'
+```
+
+### Request a Table as the Agent (stored as requested)
+
+```bash
+curl -X POST "$BASE_URL/reservations" \
+  -H "Authorization: Bearer $AGENT_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_phone": "+573005551234",
+    "name": "Ana",
+    "party_size": 6,
+    "starts_at": "2026-11-09T20:00:00-05:00",
+    "source": "whatsapp",
+    "origin": {
+      "channel_id": "ch_1",
+      "conversation_id": "conv_9",
+      "attribution": {"source": "meta_ctwa", "ad_id": "120210000000001", "clicked_at": "2026-11-08T14:00:00Z"}
+    }
+  }'
+```
+
+### Tonight's List (in time order, every status)
+
+```bash
+curl -X GET "$BASE_URL/reservations?date=2026-11-09" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Only the Requests Waiting for an Answer
+
+```bash
+curl -X GET "$BASE_URL/reservations?date=2026-11-09&status=requested" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### A Guest's Reservations From Yesterday On
+
+```bash
+curl -X GET "$BASE_URL/reservations?phone=%2B573005551234&from=2026-11-07T20:00:00-05:00" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Get a Reservation
+
+```bash
+curl -X GET "$BASE_URL/reservations/$RESERVATION_ID" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Confirm a Request
+
+```bash
+curl -X POST "$BASE_URL/reservations/$RESERVATION_ID/confirm" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Confirming it again is refused:
+
+```bash
+# 409 {"error":"a confirmed reservation cannot become confirmed","code":"INVALID_RESERVATION_TRANSITION","from":"confirmed","to":"confirmed"}
+```
+
+### Decline a Request
+
+```bash
+curl -X POST "$BASE_URL/reservations/$RESERVATION_ID/decline" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"reason":"Fully booked"}'
+```
+
+### Cancel as Staff
+
+```bash
+curl -X POST "$BASE_URL/reservations/$RESERVATION_ID/cancel" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Cancel for the Guest (agent; another guest's id answers 404)
+
+```bash
+curl -X POST "$BASE_URL/reservations/$RESERVATION_ID/cancel" \
+  -H "Authorization: Bearer $AGENT_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"customer_phone":"+573005551234"}'
+```
+
+### Mark a No-show (until feedback was requested)
+
+```bash
+curl -X POST "$BASE_URL/reservations/$RESERVATION_ID/no-show" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Search Contacts
+
+```bash
+curl -X GET "$BASE_URL/contacts?search=ana&limit=20" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### A Contact's History (reservations and feedback)
+
+```bash
+curl -X GET "$BASE_URL/contacts/$CONTACT_ID" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Share the Review Link With Every Guest
+
+```bash
+curl -X PATCH "$BASE_URL/organization/settings" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"feedback":{"review_link_enabled":true,"review_url":"https://g.page/r/abc/review"}}'
+```
+
+### Record a Guest's Answer (agent)
+
+```bash
+curl -X POST "$BASE_URL/feedback" \
+  -H "Authorization: Bearer $AGENT_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"customer_phone":"+573005551234","rating":2,"comment":"La música muy alta"}'
+```
+
+```bash
+# 200 {"feedback":{...,"rating":2,"needs_attention":true},"escalate":true,"review_url":"https://g.page/r/abc/review"}
+# 404 {"error":"no visit awaiting feedback","code":"NO_VISIT_AWAITING_FEEDBACK"} when the phone has no open request
+```
+
+### This Week's Unhappy Guests
+
+```bash
+curl -X GET "$BASE_URL/feedback?needs_attention=true" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Feedback for a Date Range
+
+```bash
+curl -X GET "$BASE_URL/feedback?from=2026-11-01&to=2026-11-15" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
 ## Platform Organizations (cloud only, admin API key)
 
 See `docs/api/organizations.md`. New organizations can't be used until tenancy steps 2–4 land.

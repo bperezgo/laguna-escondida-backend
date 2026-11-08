@@ -115,11 +115,13 @@ func TestRoutes_MatchGolden(t *testing.T) {
 
 func TestNewCloudAndNewEdge_StartNothingBeforeRun(t *testing.T) {
 	cases := []struct {
-		name     string
-		assemble func(Infra) (*App, error)
+		name       string
+		assemble   func(Infra) (*App, error)
+		schedulers []string
 	}{
-		{"cloud", cloudAssembly(testCloudConfig())},
-		{"edge", edgeAssembly(testEdgeConfig())},
+		{"cloud", cloudAssembly(testCloudConfig()), []string{"cron scheduler", "CRM scheduler"}},
+		// The box never marks visits, asks for feedback or sends marketing events.
+		{"edge", edgeAssembly(testEdgeConfig()), []string{"edge sync scheduler"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -132,7 +134,11 @@ func TestNewCloudAndNewEdge_StartNothingBeforeRun(t *testing.T) {
 			time.Sleep(50 * time.Millisecond)
 			assert.LessOrEqual(t, runtime.NumGoroutine(), before, "no scheduler or subscriber goroutine before Run")
 			assert.Len(t, app.subscribers, 2)
-			assert.Len(t, app.schedulers, 1)
+			names := make([]string, len(app.schedulers))
+			for i, s := range app.schedulers {
+				names[i] = s.name
+			}
+			assert.Equal(t, tc.schedulers, names)
 		})
 	}
 }

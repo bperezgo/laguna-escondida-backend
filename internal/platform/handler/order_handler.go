@@ -86,6 +86,11 @@ func (h *OrderHandler) CreateOrderHandler(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
+		var originErr *orderError.ValidationError
+		if errors.As(err, &originErr) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": originErr.Error(), "code": "VALIDATION_ERROR", "field": originErr.Field})
+			return
+		}
 		if isValidationError(err) {
 			RespondError(c, err)
 			return

@@ -9,11 +9,11 @@ the system conversationally.
 - **Transport:** Streamable HTTP (`POST /mcp`) for remote clients, or stdio
   (`--stdio`) for a local client that launches the binary directly (Claude Desktop)
 - **Coverage:** two toolsets, chosen at startup with `MCP_TOOLSET`:
-  - `full` (default): 91 staff tools — one per request/response endpoint (streaming SSE,
+  - `full` (default): 100 staff tools — one per request/response endpoint (streaming SSE,
     node-to-node sync, and edge ticket printing are intentionally excluded), plus one
     host-local file utility (`extract_archive`) and two read-only playbook discovery tools
     (`list_playbooks`, `get_playbook` — see [Playbooks](#playbooks)).
-  - `customer`: only the 8 customer tools, for the customer-facing WhatsApp agent — see
+  - `customer`: only the 12 customer tools, for the customer-facing WhatsApp agent — see
     [Customer toolset](#customer-toolset-whatsapp-agent).
 
 ## Architecture
@@ -135,7 +135,7 @@ files from paths on your own machine.
   `update_support_document_urls` send the `X-API-Key` header
   (`LAGUNA_ADMIN_API_KEY`) instead of a JWT.
 
-## Tool catalog (full toolset, 89)
+## Tool catalog (full toolset, 100)
 
 - **Products (7):** `create_product`, `bulk_create_products`, `list_products`, `get_product`, `update_product`, `delete_product`, `list_product_categories`
 - **Product responsibilities (4):** `create_product_responsibility`, `get_product_responsibility`, `update_product_responsibility`, `delete_product_responsibility`
@@ -151,6 +151,7 @@ files from paths on your own machine.
 - **Support documents (4):** `create_support_document`, `list_support_documents`, `export_support_documents_csv`, `update_support_document_urls`
 - **Users & roles (8):** `create_user`, `list_users`, `get_user`, `update_user`, `reset_user_password`, `delete_user`, `list_roles`, `get_current_user`
 - **Delivery zones (4, cloud only):** `list_delivery_zones`, `create_delivery_zone`, `update_delivery_zone`, `delete_delivery_zone` — `boundary` is the GeoJSON `Polygon`/`MultiPolygon` geometry passed **as a JSON string**, positions `[lng, lat]` (see [`docs/api/delivery-zones.md`](api/delivery-zones.md)). After uploading, check the restaurant's own pin with `GET /api/delivery-zones/check`.
+- **Reservations, contacts and feedback (9, cloud only):** `list_reservations`, `get_reservation`, `create_reservation` (staff bookings: `phone`, `walk_in` or `staff`, stored confirmed), `confirm_reservation`, `decline_reservation`, `cancel_reservation`, `mark_reservation_no_show`, `list_feedback`, `get_contact` — see [`docs/api/reservations.md`](api/reservations.md), [`contacts.md`](api/contacts.md) and [`feedback.md`](api/feedback.md). Confirming, declining and cancelling a WhatsApp reservation messages the guest through marketing-app.
 - **Misc (5):** `backend_health`, `get_edge_status`, `get_bill_owner`, `list_pending_products_by_area`, `list_completed_products_by_area`
 - **Files (1):** `extract_archive` — unzip a `.zip` on the MCP host (e.g. a DIAN invoice bundle), returning file paths and inlined XML. Host-local, not a backend call.
 - **Playbooks (2):** `list_playbooks`, `get_playbook` — discover and read the server's bundled procedures. Static content embedded in the binary, not a backend call. See [Playbooks](#playbooks).
@@ -169,6 +170,10 @@ files from paths on your own machine.
 | `update_my_order(order_id, lines)` | Replaces the lines of one of the caller's **unpaid** orders | ownership check, `GET /api/orders/:id`, `PUT /api/orders/:id` |
 | `cancel_my_order(order_id)` | Voids one of the caller's **unpaid** orders (stock returned) | ownership check, `DELETE /api/orders/:id` |
 | `get_my_orders` | The caller's unpaid orders and those paid today, newest first: payment state (`awaiting_payment`/`paid`) and each line's kitchen state. Voided orders are left out | `GET /api/orders?customer_phone=`, `GET /api/orders/closed?customer_phone=`, then each order's detail |
+| `create_my_reservation(name, party_size, starts_at, notes?)` | Requests a table for the header phone, as `requested` with source `whatsapp` and the header origin. Needs `X-Channel-Id`: without it the call fails before the backend. The description tells the agent that staff will confirm it | `POST /api/reservations` |
+| `get_my_reservations` | The caller's reservations from a day ago on, newest first: id, name, party size, time and status | `GET /api/reservations?phone=&from=` |
+| `cancel_my_reservation(reservation_id)` | Cancels one of the caller's `requested` or `confirmed` reservations that has not started. Any other id gets the same `reservation not found` | `POST /api/reservations/:id/cancel` with the header phone |
+| `record_my_feedback(rating, comment?)` | Records the caller's 1–5 answer to their latest open feedback request. Returns `escalate` (ratings 1–3) and, only when the restaurant shares it, `review_url`. The description tells the agent to share the link when present, hand off to staff on escalate, and never offer anything for a review. No open request fails with `no visit awaiting feedback` | `POST /api/feedback` |
 
 ### Identity and location come from headers, never from the model
 
@@ -179,8 +184,16 @@ The agent runtime sets these headers on **every** MCP request:
 | `Authorization` | `Bearer lgk_…`, the restaurant's organization API key | Stored per organization in the agent runtime (marketing-app's tool-server `token`) |
 | `X-Customer-Phone` | The sender's international number, digits only, e.g. `573005551234` (a leading `+` is accepted). Always read as international, so `34612345678` is Spain's `+34612345678` | WhatsApp verified sender (`wa_id`) |
 | `X-Customer-Location` | `<latitude>,<longitude>` in decimal degrees, e.g. `4.5981,-74.076` | The location pin the customer shared in the chat; omit until one is shared |
+| `X-Channel-Id` | marketing-app channel id, ≤128 characters | The channel the customer wrote on; routes confirmations back. Required by `create_my_reservation`, optional elsewhere |
+| `X-Conversation-Id` | marketing-app conversation id, ≤128 characters | The join key between both systems |
+| `X-Attribution-Source` | e.g. `meta_ctwa` (`^[a-z0-9_]{1,32}$`) | The latest ad click inside the attribution window |
+| `X-Attribution-Ad-Id` | Meta ad id (`source_id`), ≤64 | Same click |
+| `X-Attribution-Clicked-At` | RFC 3339 | Same click |
+| `X-Attribution-Campaign-Id`, `X-Attribution-Campaign-Name` | ≤64, ≤255 | When marketing-app has resolved them |
 
-No customer tool takes a phone or coordinates as an argument, so the model cannot be talked into acting for another number or inventing a pin inside the zone. A call that needs a header and finds it missing or invalid fails with a tool error naming the problem, **before** any backend request.
+`create_delivery_order` and `create_my_reservation` send the channel, conversation and attribution headers to the backend as the created item's `origin`; every one is optional on `create_delivery_order`, so orders keep working before marketing-app sends them. The backend drops an invalid attribution value instead of failing the call. The click identifier (`ctwa_clid`) is never sent.
+
+No customer tool takes a phone, coordinates, channel or attribution as an argument, and no tool response includes the origin, so the model cannot be talked into acting for another number, inventing a pin inside the zone or forging an ad. A call that needs a header and finds it missing or invalid fails with a tool error naming the problem, **before** any backend request.
 
 `update_my_order` and `cancel_my_order` take an order id, but first check it against `GET /api/orders?customer_phone=<header>` (the **active** list). Another customer's order, a paid order and a voided one all get the same `order not found` error, and nothing is changed.
 
@@ -192,7 +205,7 @@ One customer MCP deployment serves every restaurant. It has no identity of its o
 - An MCP session is bound to the key that opened it: the same session continued with another key is refused.
 - A key the backend refuses (revoked, its user deactivated, its organization suspended) makes the tool fail with `credential refused`. Nothing is retried under another credential.
 
-Each key belongs to an agent user: a cloud user with **only** the `agent` role (role id 6). It can read products and ordering availability (`ordering:read`) and create/read/update/delete orders; it gets `403` on pay, kitchen states, changing ordering settings, products, stock, zones, users, suppliers, expenses and invoices. This is the second barrier behind the toolset. The backend also keeps it to takeaway and delivery orders it created (`403 AGENT_ORDER_TYPE_NOT_ALLOWED` / `ORDER_NOT_OWNED`, see [orders](./api/orders.md#the-agent-role)), so even a leaked key cannot touch a dine-in table, a staff-taken order or another organization. Telling one customer from another still rests on the toolset's phone check, since every customer of a restaurant shares its one agent user.
+Each key belongs to an agent user: a cloud user with **only** the `agent` role (role id 6). It can read products and ordering availability (`ordering:read`), create/read/update/delete orders, read and create reservations (`reservations:read`, `reservations:create`) and record feedback (`feedback:create`); it gets `403` on pay, kitchen states, changing ordering or feedback settings, confirming, declining or marking a reservation no-show, reading feedback, products, stock, zones, users, suppliers, expenses and invoices. This is the second barrier behind the toolset. The backend also keeps it to takeaway and delivery orders it created (`403 AGENT_ORDER_TYPE_NOT_ALLOWED` / `ORDER_NOT_OWNED`, see [orders](./api/orders.md#the-agent-role)), so even a leaked key cannot touch a dine-in table, a staff-taken order or another organization. Telling one customer from another still rests on the toolset's phone check, since every customer of a restaurant shares its one agent user.
 
 #### Configuration (customer toolset)
 

@@ -25,6 +25,13 @@ type Cloud struct {
 	// credentials. Without the forward URL the ingest routes are not wired.
 	TelemetryForwardURL string // e.g. "http://127.0.0.1:4319"
 	TelemetryTenantID   string // tenant.id stamped on relayed telemetry; required with TelemetryForwardURL
+
+	// MarketingEvents sends agent order and reservation events to marketing-app; off without its URL.
+	MarketingEvents MarketingEvents
+	// FeedbackRequestCron asks for feedback the morning after visits; ReservationVisitedCron marks
+	// confirmed reservations visited two hours after they start.
+	FeedbackRequestCron    string
+	ReservationVisitedCron string
 }
 
 type ElectronicInvoice struct {
@@ -70,6 +77,19 @@ func LoadCloud() (*Cloud, error) {
 		return nil, errors.New("TELEMETRY_TENANT_ID is required when TELEMETRY_FORWARD_URL is set")
 	}
 
+	marketingEvents, err := loadMarketingEvents()
+	if err != nil {
+		return nil, err
+	}
+	feedbackRequestCron := envOr("FEEDBACK_REQUEST_CRON", "5 * * * *")
+	if err = validateCronExpression("FEEDBACK_REQUEST_CRON", feedbackRequestCron); err != nil {
+		return nil, err
+	}
+	reservationVisitedCron := envOr("RESERVATION_VISITED_CRON", "*/15 * * * *")
+	if err = validateCronExpression("RESERVATION_VISITED_CRON", reservationVisitedCron); err != nil {
+		return nil, err
+	}
+
 	return &Cloud{
 		Shared:                 shared,
 		ElectronicInvoice:      invoice,
@@ -79,6 +99,9 @@ func LoadCloud() (*Cloud, error) {
 		StockReconcileCron:     stockReconcileCron,
 		TelemetryForwardURL:    telemetryForwardURL,
 		TelemetryTenantID:      telemetryTenantID,
+		MarketingEvents:        marketingEvents,
+		FeedbackRequestCron:    feedbackRequestCron,
+		ReservationVisitedCron: reservationVisitedCron,
 	}, nil
 }
 

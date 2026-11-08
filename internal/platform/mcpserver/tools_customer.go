@@ -27,6 +27,15 @@ const (
 	customerPhoneHeader    = "X-Customer-Phone"
 	customerLocationHeader = "X-Customer-Location"
 
+	// Where the conversation came from: forwarded as the created item's origin, never shown to the model.
+	channelIDHeader               = "X-Channel-Id"
+	conversationIDHeader          = "X-Conversation-Id"
+	attributionSourceHeader       = "X-Attribution-Source"
+	attributionAdIDHeader         = "X-Attribution-Ad-Id"
+	attributionClickedAtHeader    = "X-Attribution-Clicked-At"
+	attributionCampaignIDHeader   = "X-Attribution-Campaign-Id"
+	attributionCampaignNameHeader = "X-Attribution-Campaign-Name"
+
 	menuProductTypes      = "SELLABLE,COMPOSITE,BOTH"
 	sideDishLookupWorkers = 8
 
@@ -76,6 +85,33 @@ func customerLocation(req *mcp.CallToolRequest) (lat, lng string, err error) {
 		return "", "", invalid
 	}
 	return lat, lng, nil
+}
+
+// customerOrigin is the runtime's channel, conversation and ad, or nil when it sent none. The
+// backend validates each field; a bad attribution value is dropped there, not here.
+func customerOrigin(req *mcp.CallToolRequest) *dto.OriginRequest {
+	optional := func(name string) *string {
+		if value := headerValue(req, name); value != "" {
+			return &value
+		}
+		return nil
+	}
+	attribution := &dto.AttributionRequest{
+		Source:       optional(attributionSourceHeader),
+		AdID:         optional(attributionAdIDHeader),
+		ClickedAt:    optional(attributionClickedAtHeader),
+		CampaignID:   optional(attributionCampaignIDHeader),
+		CampaignName: optional(attributionCampaignNameHeader),
+	}
+	if attribution.Source == nil && attribution.AdID == nil && attribution.ClickedAt == nil &&
+		attribution.CampaignID == nil && attribution.CampaignName == nil {
+		attribution = nil
+	}
+	origin := &dto.OriginRequest{ChannelID: optional(channelIDHeader), ConversationID: optional(conversationIDHeader), Attribution: attribution}
+	if origin.ChannelID == nil && origin.ConversationID == nil && origin.Attribution == nil {
+		return nil
+	}
+	return origin
 }
 
 func jsonOK(data []byte, err error) (*mcp.CallToolResult, any, error) {
@@ -555,6 +591,7 @@ func registerCustomerTools(s *mcp.Server, c *Client) {
 			OpenBillID:          uuid.Must(uuid.NewV7()).String(),
 			TemporalIdentifier:  uuid.Must(uuid.NewV7()).String(),
 			Products:            items,
+			Origin:              customerOrigin(req),
 			OrderContactRequest: contact,
 		})
 		var apiErr *APIError
@@ -648,4 +685,6 @@ func registerCustomerTools(s *mcp.Server, c *Client) {
 		}
 		return jsonOK(json.Marshal(myOrders{Orders: orders}))
 	})
+
+	registerCustomerReservationTools(s, c)
 }

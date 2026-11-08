@@ -18,6 +18,9 @@ type cloudHandlers struct {
 	apiKey          *handler.APIKeyHandler
 	deliveryZone    *handler.DeliveryZoneHandler
 	orgSettings     *handler.OrganizationSettingsHandler
+	reservation     *handler.ReservationHandler
+	contact         *handler.ContactHandler
+	feedback        *handler.FeedbackHandler
 	nodes           *service.NodeService
 }
 
@@ -63,6 +66,29 @@ func registerCloudRoutes(router *gin.Engine, adminAPIKey, nodeSyncKey string, jw
 
 	RegisterDeliveryZoneRoutes(router, h.deliveryZone, jwtService)
 	RegisterOrganizationSettingsRoutes(router, h.orgSettings, jwtService)
+	RegisterReservationRoutes(router, h.reservation, h.contact, h.feedback, jwtService)
+}
+
+// RegisterReservationRoutes is cloud-only: reservations, contacts and feedback live in the cloud,
+// and the box never reaches the agent or marketing-app. Creating and cancelling let the agent's
+// reservations:create through; the handler holds it to WhatsApp requests and its own guest.
+func RegisterReservationRoutes(router *gin.Engine, reservations *handler.ReservationHandler, contacts *handler.ContactHandler, feedback *handler.FeedbackHandler, jwtService *service.JWTService) {
+	r := router.Group("/api/reservations", handler.JWTAuthMiddleware(jwtService))
+	r.GET("", handler.RequirePermission(permissions.ReservationsRead), reservations.ListHandler)
+	r.GET("/:id", handler.RequirePermission(permissions.ReservationsRead), reservations.GetHandler)
+	r.POST("", handler.RequireAnyPermission(permissions.ReservationsCreate, permissions.ReservationsManage), reservations.CreateHandler)
+	r.POST("/:id/confirm", handler.RequirePermission(permissions.ReservationsManage), reservations.ConfirmHandler)
+	r.POST("/:id/decline", handler.RequirePermission(permissions.ReservationsManage), reservations.DeclineHandler)
+	r.POST("/:id/cancel", handler.RequireAnyPermission(permissions.ReservationsCreate, permissions.ReservationsManage), reservations.CancelHandler)
+	r.POST("/:id/no-show", handler.RequirePermission(permissions.ReservationsManage), reservations.NoShowHandler)
+
+	c := router.Group("/api/contacts", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ReservationsRead))
+	c.GET("", contacts.ListHandler)
+	c.GET("/:id", contacts.GetHandler)
+
+	f := router.Group("/api/feedback", handler.JWTAuthMiddleware(jwtService))
+	f.GET("", handler.RequirePermission(permissions.FeedbackRead), feedback.ListHandler)
+	f.POST("", handler.RequirePermission(permissions.FeedbackCreate), feedback.RecordHandler)
 }
 
 // RegisterOrganizationSettingsRoutes is cloud-only: settings aren't synced, so the box reads as unconfigured.

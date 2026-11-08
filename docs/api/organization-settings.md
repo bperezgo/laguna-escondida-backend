@@ -1,6 +1,6 @@
 # Organization Settings API
 
-The calling organization's ordering settings: when it takes **delivery** and **takeaway** orders. Each type has an emergency **pause** switch and a weekly **schedule**. Creating a takeaway or delivery order while that type is unavailable is refused with `422` (see [Orders → Ordering availability](./orders.md#ordering-availability)). `dine_in` is never affected.
+The calling organization's settings: its **ordering** settings (when it takes **delivery** and **takeaway** orders) and its **feedback** settings (whether guests get the review link, see [Feedback](#feedback)). Each type has an emergency **pause** switch and a weekly **schedule**. Creating a takeaway or delivery order while that type is unavailable is refused with `422` (see [Orders → Ordering availability](./orders.md#ordering-availability)). `dine_in` is never affected.
 
 **Cloud only.** These routes exist only in the cloud binary; on the edge binary they return `404`. The box reads its own organization as unconfigured, so takeaway there is always open.
 
@@ -18,6 +18,7 @@ The calling organization's ordering settings: when it takes **delivery** and **t
 | `ordering:read`   | admin, manager, accountant, agent   | Reading the settings and availability |
 | `ordering:pause`  | admin, manager                      | Changing `paused` and `paused_reason` |
 | `ordering:manage` | admin, manager                      | Changing `schedule` |
+| `settings:feedback:update` | admin, manager             | Changing the `feedback` section |
 
 The pause and the hours are separate permissions so a floor role can get the switch without the hours later. Today only admins and managers hold either.
 
@@ -93,6 +94,10 @@ Delivery paused during a rush; takeaway open until 22:30 on a Monday in Bogotá.
       ]
     }
   },
+  "feedback": {
+    "review_link_enabled": false,
+    "review_url": ""
+  },
   "availability": {
     "delivery": {
       "available": false,
@@ -113,7 +118,7 @@ Delivery paused during a rush; takeaway open until 22:30 on a Monday in Bogotá.
 }
 ```
 
-An organization that never saved settings reads as both types `paused: false`, `paused_reason: null`, `schedule: []`, and both available.
+An organization that never saved settings reads as both types `paused: false`, `paused_reason: null`, `schedule: []`, both available, and `feedback` with the link off.
 
 ### Error Responses
 
@@ -156,8 +161,10 @@ The response is `200` in the same shape as [Get Settings](#get-settings), alread
 | `ordering.<type>.paused`           | boolean        | `ordering:pause`  |
 | `ordering.<type>.paused_reason`    | string \| null | `ordering:pause`  |
 | `ordering.<type>.schedule`         | array          | `ordering:manage` |
+| `feedback.review_link_enabled`     | boolean        | `settings:feedback:update` |
+| `feedback.review_url`              | string         | `settings:feedback:update` |
 
-`<type>` is `delivery` or `takeaway`.
+`<type>` is `delivery` or `takeaway`. An invalid `feedback` section is checked before anything is written, so a body that also touches `ordering` changes nothing.
 
 ### Example Requests
 
@@ -218,5 +225,47 @@ Set takeaway hours, with a Friday window past midnight:
 {
   "error": "Insufficient permissions",
   "required": "ordering:manage"
+}
+```
+
+---
+
+## Feedback
+
+The `feedback` section decides whether guests who answer a [feedback request](./feedback.md) are given the Google review link.
+
+| Field                 | Type    | Description |
+| --------------------- | ------- | ----------- |
+| `review_link_enabled` | boolean | Default `false`. When `true` and `review_url` is set, **every** recorded answer returns the link, whatever the rating. |
+| `review_url`          | string  | An absolute `https` URL, or `""`. Default `""`. |
+
+The rating never decides whether the link is shared: the link goes to every guest or to none. Low ratings (1–3) are flagged for a manager either way.
+
+### Example Request
+
+Turn the link on:
+
+```json
+{ "feedback": { "review_link_enabled": true, "review_url": "https://g.page/r/abc/review" } }
+```
+
+### Error Responses
+
+**400 Bad Request** — `review_url` is not an absolute `https` URL; nothing is stored
+
+```json
+{
+  "error": "invalid feedback.review_url: must be an absolute https URL or empty",
+  "code": "INVALID_SETTINGS",
+  "field": "feedback.review_url"
+}
+```
+
+**403 Forbidden** — the caller lacks `settings:feedback:update`
+
+```json
+{
+  "error": "Insufficient permissions",
+  "required": "settings:feedback:update"
 }
 ```

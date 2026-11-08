@@ -9,6 +9,8 @@ GET /api/auth/context laguna-escondida/backend/internal/platform/handler.(*UserH
 GET /api/auth/me laguna-escondida/backend/internal/platform/handler.(*UserHandler).GetCurrentUserHandler-fm
 POST /api/auth/signin laguna-escondida/backend/internal/platform/handler.(*UserHandler).SignInHandler-fm
 GET /api/bill-owners/:id laguna-escondida/backend/internal/platform/handler.(*BillOwnerHandler).GetByIDHandler-fm
+GET /api/contacts laguna-escondida/backend/internal/platform/handler.(*ContactHandler).ListHandler-fm
+GET /api/contacts/:id laguna-escondida/backend/internal/platform/handler.(*ContactHandler).GetHandler-fm
 GET /api/delivery-zones laguna-escondida/backend/internal/platform/handler.(*DeliveryZoneHandler).ListHandler-fm
 POST /api/delivery-zones laguna-escondida/backend/internal/platform/handler.(*DeliveryZoneHandler).CreateHandler-fm
 DELETE /api/delivery-zones/:id laguna-escondida/backend/internal/platform/handler.(*DeliveryZoneHandler).DeleteHandler-fm
@@ -26,6 +28,8 @@ GET /api/expenses/:id laguna-escondida/backend/internal/platform/handler.(*Expen
 PUT /api/expenses/:id laguna-escondida/backend/internal/platform/handler.(*ExpenseHandler).UpdateExpenseHandler-fm
 POST /api/expenses/:id/documents laguna-escondida/backend/internal/platform/handler.(*ExpenseHandler).UploadExpenseDocumentHandler-fm
 GET /api/expenses/export laguna-escondida/backend/internal/platform/handler.(*ExpenseHandler).ExportExpensesCSVHandler-fm
+GET /api/feedback laguna-escondida/backend/internal/platform/handler.(*FeedbackHandler).ListHandler-fm
+POST /api/feedback laguna-escondida/backend/internal/platform/handler.(*FeedbackHandler).RecordHandler-fm
 GET /api/financial/summary laguna-escondida/backend/internal/platform/handler.(*FinancialHandler).GetFinancialSummaryHandler-fm
 GET /api/health laguna-escondida/backend/internal/platform/handler.HealthCheckHandler
 GET /api/invoices laguna-escondida/backend/internal/platform/handler.(*InvoiceHandler).ListInvoicesHandler-fm
@@ -81,6 +85,13 @@ GET /api/purchase-entries/:id laguna-escondida/backend/internal/platform/handler
 POST /api/purchase-entries/:id/documents laguna-escondida/backend/internal/platform/handler.(*PurchaseEntryHandler).UploadPurchaseEntryDocumentHandler-fm
 GET /api/purchase-entries/export laguna-escondida/backend/internal/platform/handler.(*PurchaseEntryHandler).ExportPurchaseEntriesCSVHandler-fm
 GET /api/reports/daily-close laguna-escondida/backend/internal/platform/handler.(*FinancialHandler).GetDailyCloseHandler-fm
+GET /api/reservations laguna-escondida/backend/internal/platform/handler.(*ReservationHandler).ListHandler-fm
+POST /api/reservations laguna-escondida/backend/internal/platform/handler.(*ReservationHandler).CreateHandler-fm
+GET /api/reservations/:id laguna-escondida/backend/internal/platform/handler.(*ReservationHandler).GetHandler-fm
+POST /api/reservations/:id/cancel laguna-escondida/backend/internal/platform/handler.(*ReservationHandler).CancelHandler-fm
+POST /api/reservations/:id/confirm laguna-escondida/backend/internal/platform/handler.(*ReservationHandler).ConfirmHandler-fm
+POST /api/reservations/:id/decline laguna-escondida/backend/internal/platform/handler.(*ReservationHandler).DeclineHandler-fm
+POST /api/reservations/:id/no-show laguna-escondida/backend/internal/platform/handler.(*ReservationHandler).NoShowHandler-fm
 GET /api/sse/commands/:area laguna-escondida/backend/internal/platform/handler.(*SSEHandler).StreamCommandsHandler-fm
 GET /api/sse/open-bill-products/:area laguna-escondida/backend/internal/platform/handler.(*SSEHandler).StreamOpenBillProductsHandler-fm
 GET /api/stock laguna-escondida/backend/internal/platform/handler.(*StockHandler).GetAllStocksHandler-fm

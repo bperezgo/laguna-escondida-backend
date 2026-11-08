@@ -57,6 +57,8 @@ type fakeBackend struct {
 	sides    map[string][]*dto.SideDishOption
 	settings *dto.OrganizationSettingsResponse
 	create   http.HandlerFunc
+	// override answers a request before the routes above when it returns true.
+	override func(w http.ResponseWriter, r *http.Request) bool
 	server   *httptest.Server
 }
 
@@ -117,6 +119,9 @@ func newFakeBackend(t *testing.T) *fakeBackend {
 			b.mu.Lock()
 			b.requests = append(b.requests, recordedRequest{Method: r.Method, Path: r.URL.Path, Query: r.URL.RawQuery, Body: body})
 			b.mu.Unlock()
+		}
+		if b.override != nil && b.override(w, r) {
+			return
 		}
 		mux.ServeHTTP(w, r)
 	}))
@@ -275,11 +280,12 @@ func isUUIDv7(id string) bool {
 // ---------------------------------------------------------------------------
 
 var customerToolNames = []string{
-	"cancel_my_order", "check_delivery_location", "create_delivery_order", "get_my_orders",
-	"get_ordering_availability", "get_side_dish_options", "list_menu", "update_my_order",
+	"cancel_my_order", "cancel_my_reservation", "check_delivery_location", "create_delivery_order",
+	"create_my_reservation", "get_my_orders", "get_my_reservations", "get_ordering_availability",
+	"get_side_dish_options", "list_menu", "record_my_feedback", "update_my_order",
 }
 
-func TestNewMCPServer_CustomerToolsetIsExactlyTheEightTools(t *testing.T) {
+func TestNewMCPServer_CustomerToolsetIsExactlyTheTwelveTools(t *testing.T) {
 	cs := connectInMemory(t, NewMCPServer(testClient("http://backend.invalid"), ToolsetCustomer))
 
 	assert.Equal(t, customerToolNames, toolNames(t, cs))

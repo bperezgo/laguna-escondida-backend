@@ -51,6 +51,8 @@ type OrderService struct {
 	deliveryEnabled             bool
 	phoneHomeRegion             string
 	orderingSettings            ports.OrganizationSettingsRepository
+	contacts                    ports.ContactRecorder
+	marketingEvents             ports.MarketingEventRecorder
 	now                         func() time.Time
 }
 
@@ -66,6 +68,16 @@ func WithDeliveryEnabled(enabled bool) OrderServiceOption {
 // WithOrderingSettings gates takeaway and delivery creation on the organization's pause and hours.
 func WithOrderingSettings(repo ports.OrganizationSettingsRepository) OrderServiceOption {
 	return func(s *OrderService) { s.orderingSettings = repo }
+}
+
+// WithContactRecorder keeps a contact per phone for the orders the customer agent takes.
+func WithContactRecorder(contacts ports.ContactRecorder) OrderServiceOption {
+	return func(s *OrderService) { s.contacts = contacts }
+}
+
+// WithMarketingEvents records order.paid and order.cancelled for agent orders, in their transactions.
+func WithMarketingEvents(events ports.MarketingEventRecorder) OrderServiceOption {
+	return func(s *OrderService) { s.marketingEvents = events }
 }
 
 func WithClock(now func() time.Time) OrderServiceOption {
@@ -171,6 +183,14 @@ func (s *OrderService) CreateOrder(
 	if permissions.IsAgentOnly(user.RoleIDs) && !fulfillment.OrderType().IsHeldUntilPaid() {
 		return nil, orderError.ErrAgentOrderTypeNotAllowed
 	}
+	origin, droppedOrigin, originErr := shared.NewOrigin(req.Origin, s.now())
+	if originErr != nil {
+		return nil, originErr
+	}
+	if len(droppedOrigin) > 0 && s.logger != nil {
+		s.logger.WarnContext(ctx, "dropped invalid attribution fields from an order", slog.Any("fields", droppedOrigin))
+	}
+	fulfillment = fulfillment.WithOrigin(origin)
 
 	// Reject a duplicate before doing any work: two active orders must never share a
 	// temporal identifier. "Active" excludes completed/cancelled/deleted orders, so a
@@ -295,6 +315,9 @@ func (s *OrderService) CreateOrder(
 		if err := s.appendOpenBillOutbox(ctx, openBillDTO, user.ID, openBillSyncProducts(openBillAggregate), dto.SyncOperationCreate); err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
 		}
+		if err := s.touchAgentContact(ctx, user, openBillDTO.OrderFulfillment); err != nil {
+			return fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
+		}
 		return nil
 	}); err != nil {
 		return nil, err
@@ -318,6 +341,31 @@ func (s *OrderService) CreateOrder(
 	}
 
 	return openBillDTO, nil
+}
+
+// touchAgentContact keeps the guest's contact for an order the customer agent took.
+func (s *OrderService) touchAgentContact(ctx context.Context, user dto.UserDomain, fulfillment dto.OrderFulfillment) error {
+	if s.contacts == nil || !permissions.IsAgentOnly(user.RoleIDs) || fulfillment.CustomerPhone == nil {
+		return nil
+	}
+	var attribution *dto.Attribution
+	if fulfillment.Origin != nil {
+		attribution = fulfillment.Origin.Attribution
+	}
+	_, err := s.contacts.Touch(ctx, dto.ContactTouch{
+		Phone: *fulfillment.CustomerPhone, Name: fulfillment.CustomerName, Attribution: attribution, At: s.now(),
+	})
+	return err
+}
+
+// recordOrderEvent is a no-op unless marketing events are wired; the recorder skips orders without a channel.
+func (s *OrderService) recordOrderEvent(ctx context.Context, eventType dto.MarketingEventType, orderID string, fulfillment dto.OrderFulfillment, amount decimal.Decimal, at time.Time) error {
+	if s.marketingEvents == nil || fulfillment.Origin == nil {
+		return nil
+	}
+	return s.marketingEvents.RecordOrder(ctx, eventType, dto.MarketingOrderSubject{
+		OrderID: orderID, CustomerPhone: fulfillment.CustomerPhone, Origin: fulfillment.Origin, Amount: amount, OccurredAt: at,
+	})
 }
 
 // resolveFulfillment validates type, contact and location, and places a delivery in the oldest
@@ -735,6 +783,9 @@ func (s *OrderService) PayOrder(ctx context.Context, payOrderCommand command.Pay
 		if err := s.appendBillCreateOutbox(txCtx, billDTO); err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
 		}
+		if err := s.recordOrderEvent(txCtx, dto.MarketingEventOrderPaid, openBillAggregate.ID(), paidOpenBillDTO.OrderFulfillment, billDTO.PayAmount, paidAt); err != nil {
+			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
+		}
 
 		if requiresElectronicInvoice(payOrderCommand.PaymentCode, payOrderCommand.Customer) {
 			pendingInvoiceID, err := uuid.NewV7()
@@ -988,6 +1039,9 @@ func (s *OrderService) DeleteOrder(ctx context.Context, openBillID string, user 
 			return fmt.Errorf("%w: %w", orderError.ErrOrderDeletionFailed, err)
 		}
 		if err := s.appendOpenBillDeleteOutbox(ctx, openBillID); err != nil {
+			return fmt.Errorf("%w: %w", orderError.ErrOrderDeletionFailed, err)
+		}
+		if err := s.recordOrderEvent(ctx, dto.MarketingEventOrderCancelled, openBillID, existingOpenBill.OrderFulfillment, decimal.Zero, s.now()); err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderDeletionFailed, err)
 		}
 		return nil
