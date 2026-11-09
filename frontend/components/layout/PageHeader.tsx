@@ -24,6 +24,8 @@ export default function PageHeader() {
     if (pathname.startsWith("/expenses")) return "Gastos";
     if (pathname.startsWith("/close")) return "Cierre de Caja";
     if (pathname.startsWith("/users")) return "Usuarios";
+    if (pathname.startsWith("/reservations")) return "Reservas";
+    if (pathname.startsWith("/feedback")) return "Opiniones";
     if (pathname.startsWith("/deliveries") || pathname.startsWith("/delivery-zones"))
       return "Domicilios";
     return organization

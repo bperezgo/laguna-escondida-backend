@@ -2,6 +2,8 @@ export interface ApiErrorBody {
   error?: string;
   message?: string;
   code?: string;
+  /** The rejected request field on a VALIDATION_ERROR, e.g. party_size. */
+  field?: string;
   order_type?: string;
   paused_reason?: string | null;
   next_opens_at?: string | null;

@@ -106,6 +106,22 @@ const navItems = [
     cloudOnly: true,
   },
   {
+    href: "/reservations",
+    title: "Reservas",
+    description: "Reservas del día en tiempo real: confirmar, rechazar y marcar quién no llegó",
+    permission: PERMISSIONS.RESERVATIONS_READ,
+    accent: "var(--color-secondary)",
+    cloudOnly: true,
+  },
+  {
+    href: "/feedback",
+    title: "Opiniones",
+    description: "Lo que calificaron los clientes después de su visita",
+    permission: PERMISSIONS.FEEDBACK_READ,
+    accent: "var(--color-success)",
+    cloudOnly: true,
+  },
+  {
     href: "/users",
     title: "Usuarios",
     description: "Crear y administrar usuarios del sistema",

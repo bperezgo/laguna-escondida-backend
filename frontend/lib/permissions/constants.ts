@@ -89,6 +89,13 @@ export const PERMISSIONS = {
   ORDERING_PAUSE: "ordering:pause",
   ORDERING_MANAGE: "ordering:manage",
 
+  // Reservations (cloud only)
+  RESERVATIONS_READ: "reservations:read",
+  RESERVATIONS_MANAGE: "reservations:manage",
+
+  // Guest feedback (cloud only)
+  FEEDBACK_READ: "feedback:read",
+
   // Edge appliance
   EDGE_UPDATE: "edge:update",
 
