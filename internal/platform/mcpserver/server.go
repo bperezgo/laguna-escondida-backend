@@ -42,6 +42,7 @@ func NewMCPServer(c *Client, toolset Toolset) *mcp.Server {
 	registerSupportDocumentTools(s, c)
 	registerUserTools(s, c)
 	registerDeliveryZoneTools(s, c)
+	registerReservationTools(s, c)
 	registerMiscTools(s, c)
 	registerFileTools(s)
 	registerPlaybookTools(s)

@@ -218,8 +218,14 @@ func TestOrdersCompleteProductPermission(t *testing.T) {
 func TestGetPermissionsForRoles_Agent(t *testing.T) {
 	perms := GetPermissionsForRoles([]int{RoleAgent})
 
-	assert.ElementsMatch(t, []Permission{ProductsRead, OrdersRead, OrdersCreate, OrdersUpdate, OrdersDelete, OrderingRead}, perms)
-	for _, forbidden := range []Permission{OrdersPay, OrdersCompleteProduct, DeliveryZonesManage, DeliveryZonesRead, ProductsCreate, StockCreate} {
+	assert.ElementsMatch(t, []Permission{
+		ProductsRead, OrdersRead, OrdersCreate, OrdersUpdate, OrdersDelete, OrderingRead,
+		ReservationsRead, ReservationsCreate, FeedbackCreate,
+	}, perms)
+	for _, forbidden := range []Permission{
+		OrdersPay, OrdersCompleteProduct, DeliveryZonesManage, DeliveryZonesRead, ProductsCreate, StockCreate,
+		ReservationsManage, FeedbackRead, SettingsFeedbackUpdate,
+	} {
 		assert.NotContains(t, perms, forbidden)
 	}
 }
@@ -248,6 +254,33 @@ func TestGetPermissionsForRoles_OrderingGrants(t *testing.T) {
 		{name: "agent", roleID: RoleAgent, granted: []Permission{OrderingRead}, denied: []Permission{OrderingPause, OrderingManage}},
 		{name: "server", roleID: RoleServer, denied: []Permission{OrderingRead, OrderingPause, OrderingManage}},
 		{name: "cooker", roleID: RoleCooker, denied: []Permission{OrderingRead, OrderingPause, OrderingManage}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			perms := GetPermissionsForRoles([]int{tt.roleID})
+			for _, p := range tt.granted {
+				assert.Contains(t, perms, p)
+			}
+			for _, p := range tt.denied {
+				assert.NotContains(t, perms, p)
+			}
+		})
+	}
+}
+
+func TestGetPermissionsForRoles_ReservationAndFeedbackGrants(t *testing.T) {
+	tests := []struct {
+		name    string
+		roleID  int
+		granted []Permission
+		denied  []Permission
+	}{
+		{name: "admin", roleID: RoleAdmin, granted: []Permission{ReservationsRead, ReservationsCreate, ReservationsManage, FeedbackRead, FeedbackCreate, SettingsFeedbackUpdate}},
+		{name: "manager", roleID: RoleManager, granted: []Permission{ReservationsRead, ReservationsManage, FeedbackRead, SettingsFeedbackUpdate}, denied: []Permission{ReservationsCreate, FeedbackCreate}},
+		{name: "agent", roleID: RoleAgent, granted: []Permission{ReservationsRead, ReservationsCreate, FeedbackCreate}, denied: []Permission{ReservationsManage, FeedbackRead, SettingsFeedbackUpdate}},
+		{name: "accountant", roleID: RoleAccountant, denied: []Permission{ReservationsRead, ReservationsManage, FeedbackRead, SettingsFeedbackUpdate}},
+		{name: "server", roleID: RoleServer, denied: []Permission{ReservationsRead, ReservationsManage, FeedbackRead}},
+		{name: "cooker", roleID: RoleCooker, denied: []Permission{ReservationsRead, ReservationsManage, FeedbackRead}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

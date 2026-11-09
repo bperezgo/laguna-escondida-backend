@@ -233,5 +233,5 @@ func TestOrganizationHandler_Get_IncludesSettings(t *testing.T) {
 	assert.JSONEq(t, `{"ordering":{
 		"delivery":{"paused":true,"paused_reason":"cocina saturada","schedule":[]},
 		"takeaway":{"paused":false,"paused_reason":null,"schedule":[{"day":"mon","opens":"11:30","closes":"22:30"}]}
-	}}`, string(decodeBody(t, rec)["settings"]))
+	},"feedback":{"review_link_enabled":false,"review_url":""}}`, string(decodeBody(t, rec)["settings"]))
 }

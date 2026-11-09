@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"laguna-escondida/backend/internal/domain/aggregate/feedback"
 	"laguna-escondida/backend/internal/domain/aggregate/ordering"
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/permissions"
@@ -29,13 +30,28 @@ func (s *OrganizationSettingsService) Get(ctx context.Context) (*dto.Organizatio
 }
 
 // Update merges under the repository's row lock, so a pause and a schedule edit saved together
-// don't overwrite each other.
+// don't overwrite each other. The feedback patch is checked first, so an invalid one changes nothing.
 func (s *OrganizationSettingsService) Update(ctx context.Context, req *dto.UpdateOrganizationSettingsRequest) (*dto.OrganizationSettingsResponse, error) {
-	saved, err := s.repo.UpdateOrdering(ctx, func(current dto.OrderingSettings) (dto.OrderingSettings, error) {
-		return ordering.ApplyPatch(current, req.Ordering)
-	})
-	if err != nil {
-		return nil, fmt.Errorf("update ordering settings: %w", err)
+	if _, err := feedback.ApplySettingsPatch(dto.FeedbackSettings{}, req.Feedback); err != nil {
+		return nil, err
+	}
+	var saved *dto.OrganizationSettingsView
+	var err error
+	if req.Feedback == nil || req.Ordering != nil {
+		saved, err = s.repo.UpdateOrdering(ctx, func(current dto.OrderingSettings) (dto.OrderingSettings, error) {
+			return ordering.ApplyPatch(current, req.Ordering)
+		})
+		if err != nil {
+			return nil, fmt.Errorf("update ordering settings: %w", err)
+		}
+	}
+	if req.Feedback != nil {
+		saved, err = s.repo.UpdateFeedback(ctx, func(current dto.FeedbackSettings) (dto.FeedbackSettings, error) {
+			return feedback.ApplySettingsPatch(current, req.Feedback)
+		})
+		if err != nil {
+			return nil, fmt.Errorf("update feedback settings: %w", err)
+		}
 	}
 	return s.respond(saved)
 }
@@ -49,6 +65,9 @@ func (s *OrganizationSettingsService) RequiredPermissions(req *dto.UpdateOrganiz
 	if ordering.TouchesSchedule(req.Ordering) {
 		required = append(required, permissions.OrderingManage)
 	}
+	if feedback.TouchesSettings(req.Feedback) {
+		required = append(required, permissions.SettingsFeedbackUpdate)
+	}
 	return required
 }
 
@@ -58,7 +77,7 @@ func (s *OrganizationSettingsService) respond(view *dto.OrganizationSettingsView
 	if err != nil {
 		return nil, err
 	}
-	return &dto.OrganizationSettingsResponse{Ordering: settings, Availability: availability, Timezone: view.Timezone}, nil
+	return &dto.OrganizationSettingsResponse{Ordering: settings, Feedback: view.Feedback, Availability: availability, Timezone: view.Timezone}, nil
 }
 
 // EvaluateOrderingAvailability is the one place availability is computed, for the settings read and the order gate.

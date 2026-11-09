@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -127,4 +128,26 @@ func TestOrderHandler_CreateOrder_OrderingUnavailable_Returns422(t *testing.T) {
 			assert.JSONEq(t, tt.want, rec.Body.String())
 		})
 	}
+}
+
+func TestOrderHandler_CreateOrder_OverlongChannel_Returns400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	const userID = "550e8400-e29b-41d4-a716-446655440020"
+	// No repository is reached: the origin is refused before any write.
+	orderService := service.NewOrderService(nil, nil, nil, nil, dto.PendingInvoiceStatusPending, nil, nil, nil, nil,
+		dto.SyncIdentity{}, nil, nil, "CO")
+
+	router := gin.New()
+	router.POST("/api/orders", func(c *gin.Context) { c.Set("user_id", userID) }, NewOrderHandler(orderService, nil).CreateOrderHandler)
+
+	body := `{"open_bill_id":"550e8400-e29b-41d4-a716-446655440010","temporal_identifier":"550e8400-e29b-41d4-a716-446655440011",
+		"products":[],"origin":{"channel_id":"` + strings.Repeat("c", 129) + `"}}`
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/orders", bytes.NewBufferString(body)))
+
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+	var resp map[string]string
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.Equal(t, "VALIDATION_ERROR", resp["code"])
+	assert.Equal(t, "origin.channel_id", resp["field"])
 }

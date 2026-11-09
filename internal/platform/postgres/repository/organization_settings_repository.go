@@ -56,7 +56,8 @@ func (r *OrganizationSettingsRepository) get(ctx context.Context, tx *gorm.DB, l
 	if err != nil {
 		return nil, fmt.Errorf("get organization settings: %w", err)
 	}
-	return &dto.OrganizationSettingsView{Ordering: r.decode(ctx, orgID, row.Settings).Ordering, Timezone: row.Timezone}, nil
+	settings := r.decode(ctx, orgID, row.Settings)
+	return &dto.OrganizationSettingsView{Ordering: settings.Ordering, Feedback: settings.Feedback, Timezone: row.Timezone}, nil
 }
 
 // decode treats a hand-edited value that doesn't parse as unconfigured, so a typo opens ordering
@@ -76,44 +77,60 @@ func (r *OrganizationSettingsRepository) decode(ctx context.Context, orgID strin
 
 // UpdateOrdering replaces only the ordering key, leaving any other settings in the bag untouched.
 func (r *OrganizationSettingsRepository) UpdateOrdering(ctx context.Context, merge ports.OrderingMerge) (*dto.OrganizationSettingsView, error) {
+	return r.updateSection(ctx, "ordering", func(current *dto.OrganizationSettingsView) ([]byte, error) {
+		next, err := merge(current.Ordering)
+		if err != nil {
+			return nil, err
+		}
+		current.Ordering = next
+		return json.Marshal(next)
+	})
+}
+
+// UpdateFeedback replaces only the feedback key.
+func (r *OrganizationSettingsRepository) UpdateFeedback(ctx context.Context, merge ports.FeedbackMerge) (*dto.OrganizationSettingsView, error) {
+	return r.updateSection(ctx, "feedback", func(current *dto.OrganizationSettingsView) ([]byte, error) {
+		next, err := merge(current.Feedback)
+		if err != nil {
+			return nil, err
+		}
+		current.Feedback = next
+		return json.Marshal(next)
+	})
+}
+
+// updateSection locks the row, lets apply update the view and encode the section, and stores it
+// under its key.
+func (r *OrganizationSettingsRepository) updateSection(ctx context.Context, key string, apply func(*dto.OrganizationSettingsView) ([]byte, error)) (*dto.OrganizationSettingsView, error) {
 	orgID, err := postgres.OrgID(ctx)
 	if err != nil {
 		return nil, err
 	}
 	var saved *dto.OrganizationSettingsView
 	txErr := postgres.InTx(ctx, r.db, func(tx *gorm.DB) error {
-		var mergeErr error
-		saved, mergeErr = r.mergeLocked(ctx, tx, orgID, merge)
-		return mergeErr
+		current, err := r.get(ctx, tx, true)
+		if err != nil {
+			return err
+		}
+		raw, err := apply(current)
+		if err != nil {
+			return err
+		}
+		err = tx.Exec(`
+			UPDATE organizations
+			SET settings = jsonb_set(
+					CASE WHEN jsonb_typeof(settings) = 'object' THEN settings ELSE '{}'::jsonb END,
+					ARRAY[?]::text[], ?::jsonb),
+				updated_at = NOW()
+			WHERE id = ?`, key, string(raw), orgID).Error
+		if err != nil {
+			return fmt.Errorf("update %s settings: %w", key, err)
+		}
+		saved = current
+		return nil
 	})
 	if txErr != nil {
 		return nil, txErr
 	}
 	return saved, nil
-}
-
-func (r *OrganizationSettingsRepository) mergeLocked(ctx context.Context, tx *gorm.DB, orgID string, merge ports.OrderingMerge) (*dto.OrganizationSettingsView, error) {
-	current, err := r.get(ctx, tx, true)
-	if err != nil {
-		return nil, err
-	}
-	next, err := merge(current.Ordering)
-	if err != nil {
-		return nil, err
-	}
-	raw, err := json.Marshal(next)
-	if err != nil {
-		return nil, fmt.Errorf("encode ordering settings: %w", err)
-	}
-	err = tx.Exec(`
-		UPDATE organizations
-		SET settings = jsonb_set(
-				CASE WHEN jsonb_typeof(settings) = 'object' THEN settings ELSE '{}'::jsonb END,
-				'{ordering}', ?::jsonb),
-			updated_at = NOW()
-		WHERE id = ?`, string(raw), orgID).Error
-	if err != nil {
-		return nil, fmt.Errorf("update ordering settings: %w", err)
-	}
-	return &dto.OrganizationSettingsView{Ordering: next, Timezone: current.Timezone}, nil
 }

@@ -37,6 +37,8 @@ type OrderFulfillment struct {
 	DeliveryLng     *decimal.Decimal `json:"delivery_lng,omitempty"`
 	DeliveryZoneID  *string          `json:"delivery_zone_id,omitempty"`
 	DeliveryMapURL  *string          `json:"delivery_map_url,omitempty"`
+	// Origin is set on agent orders only, at creation, and never changes.
+	Origin *Origin `json:"origin,omitempty"`
 }
 
 type OpenBill struct {
@@ -109,6 +111,7 @@ type CreateOrderRequest struct {
 	TemporalIdentifier string             `json:"temporal_identifier" validate:"required,uuid"`
 	Descriptor         *string            `json:"descriptor,omitempty"`
 	Products           []OrderProductItem `json:"products" validate:"dive"`
+	Origin             *OriginRequest     `json:"origin,omitempty"`
 	OrderContactRequest
 }
 

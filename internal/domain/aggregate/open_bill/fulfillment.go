@@ -27,6 +27,7 @@ type Fulfillment struct {
 	deliveryLat     *decimal.Decimal
 	deliveryLng     *decimal.Decimal
 	deliveryZoneID  *string
+	origin          *dto.Origin
 }
 
 func DineInFulfillment() Fulfillment {
@@ -115,7 +116,18 @@ func RestoreFulfillment(f dto.OrderFulfillment) Fulfillment {
 		deliveryLat:     f.DeliveryLat,
 		deliveryLng:     f.DeliveryLng,
 		deliveryZoneID:  f.DeliveryZoneID,
+		origin:          f.Origin,
 	}
+}
+
+// WithOrigin records where an agent order came from; an empty origin is no origin.
+func (f Fulfillment) WithOrigin(origin dto.Origin) Fulfillment {
+	if origin.ChannelID == nil && origin.ConversationID == nil && origin.Attribution == nil {
+		f.origin = nil
+		return f
+	}
+	f.origin = &origin
+	return f
 }
 
 func (f Fulfillment) InZone(zoneID string) Fulfillment {
@@ -148,6 +160,7 @@ func (f Fulfillment) ToDTO() dto.OrderFulfillment {
 		DeliveryLat:     f.deliveryLat,
 		DeliveryLng:     f.deliveryLng,
 		DeliveryZoneID:  f.deliveryZoneID,
+		Origin:          f.origin,
 	}
 	if f.deliveryLat != nil && f.deliveryLng != nil {
 		mapURL := shared.DeliveryMapURL(*f.deliveryLat, *f.deliveryLng)

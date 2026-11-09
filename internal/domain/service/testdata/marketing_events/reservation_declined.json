@@ -1,0 +1,1 @@
+{"event_id":"{{event_id}}","type":"reservation.declined","occurred_at":"2026-11-08T15:00:00-05:00","channel_id":"ch_1","conversation_id":"conv_9","customer_phone":"573005551234","data":{"reservation_id":"r1","name":"Ana","party_size":6,"starts_at":"2026-11-09T20:00:00-05:00","status":"declined","reason":"Fully booked"}}

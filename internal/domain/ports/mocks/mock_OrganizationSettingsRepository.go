@@ -81,6 +81,65 @@ func (_c *MockOrganizationSettingsRepository_Get_Call) RunAndReturn(run func(con
 	return _c
 }
 
+// UpdateFeedback provides a mock function with given fields: ctx, merge
+func (_m *MockOrganizationSettingsRepository) UpdateFeedback(ctx context.Context, merge ports.FeedbackMerge) (*dto.OrganizationSettingsView, error) {
+	ret := _m.Called(ctx, merge)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateFeedback")
+	}
+
+	var r0 *dto.OrganizationSettingsView
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, ports.FeedbackMerge) (*dto.OrganizationSettingsView, error)); ok {
+		return rf(ctx, merge)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, ports.FeedbackMerge) *dto.OrganizationSettingsView); ok {
+		r0 = rf(ctx, merge)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*dto.OrganizationSettingsView)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, ports.FeedbackMerge) error); ok {
+		r1 = rf(ctx, merge)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrganizationSettingsRepository_UpdateFeedback_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateFeedback'
+type MockOrganizationSettingsRepository_UpdateFeedback_Call struct {
+	*mock.Call
+}
+
+// UpdateFeedback is a helper method to define mock.On call
+//   - ctx context.Context
+//   - merge ports.FeedbackMerge
+func (_e *MockOrganizationSettingsRepository_Expecter) UpdateFeedback(ctx interface{}, merge interface{}) *MockOrganizationSettingsRepository_UpdateFeedback_Call {
+	return &MockOrganizationSettingsRepository_UpdateFeedback_Call{Call: _e.mock.On("UpdateFeedback", ctx, merge)}
+}
+
+func (_c *MockOrganizationSettingsRepository_UpdateFeedback_Call) Run(run func(ctx context.Context, merge ports.FeedbackMerge)) *MockOrganizationSettingsRepository_UpdateFeedback_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(ports.FeedbackMerge))
+	})
+	return _c
+}
+
+func (_c *MockOrganizationSettingsRepository_UpdateFeedback_Call) Return(_a0 *dto.OrganizationSettingsView, _a1 error) *MockOrganizationSettingsRepository_UpdateFeedback_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrganizationSettingsRepository_UpdateFeedback_Call) RunAndReturn(run func(context.Context, ports.FeedbackMerge) (*dto.OrganizationSettingsView, error)) *MockOrganizationSettingsRepository_UpdateFeedback_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // UpdateOrdering provides a mock function with given fields: ctx, merge
 func (_m *MockOrganizationSettingsRepository) UpdateOrdering(ctx context.Context, merge ports.OrderingMerge) (*dto.OrganizationSettingsView, error) {
 	ret := _m.Called(ctx, merge)

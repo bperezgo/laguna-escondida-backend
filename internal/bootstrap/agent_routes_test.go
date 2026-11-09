@@ -53,6 +53,16 @@ var agentReachableRoutes = map[string]bool{
 	// ordering:read — an empty PATCH passes; any field then needs ordering:pause or ordering:manage.
 	"GET /api/organization/settings":   true,
 	"PATCH /api/organization/settings": true,
+	// reservations:read — every reservation and contact, as orders:read reads every order.
+	"GET /api/reservations":     true,
+	"GET /api/reservations/:id": true,
+	"GET /api/contacts":         true,
+	"GET /api/contacts/:id":     true,
+	// reservations:create — cancelling then needs the guest's phone and finds only their reservations.
+	// POST /api/reservations refuses this probe's empty body: only a whatsapp request passes for the agent.
+	"POST /api/reservations/:id/cancel": true,
+	// feedback:create
+	"POST /api/feedback": true,
 }
 
 func fullRouter(mode config.Mode, jwtService *service.JWTService) *gin.Engine {

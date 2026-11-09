@@ -57,6 +57,13 @@ func (h *OrganizationSettingsHandler) PatchSettingsHandler(c *gin.Context) {
 
 func (h *OrganizationSettingsHandler) respondError(c *gin.Context, action string, err error) {
 	log.Printf("Error %s: %v", action, err)
+	var settingsValidation *domainError.ValidationError
+	if errors.As(err, &settingsValidation) {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": settingsValidation.Error(), "code": "INVALID_SETTINGS", "field": settingsValidation.Field,
+		})
+		return
+	}
 	var validation *domainError.OrderingSettingsValidationError
 	if errors.As(err, &validation) {
 		c.JSON(http.StatusBadRequest, gin.H{

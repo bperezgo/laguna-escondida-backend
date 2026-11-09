@@ -124,6 +124,24 @@ const (
 	OrderingManage Permission = "ordering:manage"
 )
 
+// Reservation permissions: the agent creates requests; confirming and the rest are staff's.
+const (
+	ReservationsRead   Permission = "reservations:read"
+	ReservationsCreate Permission = "reservations:create"
+	ReservationsManage Permission = "reservations:manage"
+)
+
+// Feedback permissions
+const (
+	FeedbackRead   Permission = "feedback:read"
+	FeedbackCreate Permission = "feedback:create"
+)
+
+// Settings permissions for sections other than ordering.
+const (
+	SettingsFeedbackUpdate Permission = "settings:feedback:update"
+)
+
 // Edge appliance permissions
 const (
 	// EdgeUpdate lets a user see and trigger the box's staged appliance update.
@@ -171,6 +189,10 @@ func AllPermissions() []Permission {
 		DeliveryZonesRead, DeliveryZonesManage,
 		// Ordering
 		OrderingRead, OrderingPause, OrderingManage,
+		// Reservations
+		ReservationsRead, ReservationsCreate, ReservationsManage,
+		// Feedback
+		FeedbackRead, FeedbackCreate, SettingsFeedbackUpdate,
 		// Edge appliance
 		EdgeUpdate,
 		// SSE

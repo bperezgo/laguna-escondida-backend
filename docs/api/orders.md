@@ -74,6 +74,8 @@ The lines of an **unpaid** `takeaway` or `delivery` order are **held out of the 
 - `in-progress` and `complete` on them return `409 ORDER_AWAITING_PAYMENT`, whoever calls.
 - The order stays editable (`PUT`), its lines cancellable, and it can be deleted (stock returned), like any open order. Stock is reserved at creation, as for any order.
 
+**Paying reports agent orders.** Paying an agent order that has an `origin.channel_id` records `order.paid` for marketing-app in the payment's transaction, whether it is paid in the cloud or the payment arrives from the box through sync (see [marketing events](./marketing-events.md)). Orders taken at the till record nothing.
+
 **Paying releases them.** After `POST /api/orders/pay-order`, the lines appear live on their kitchen boards (an `open_bill_product.created` SSE event per line), and from then on follow the [paid-order lifecycle](#kitchen-lines-after-payment). The kitchen's waiting time (`created_at` on the board) is the **payment instant**, both in the live event and after a reload. `dine_in` is unchanged.
 
 ## Kitchen lines after payment
@@ -139,6 +141,10 @@ A request that dies mid-flight holds its key for 2 minutes, after which a retry 
 | delivery_address    | string | Conditional | Required for `delivery`; reference for the rider |
 | delivery_lat        | string | Conditional | Required for `delivery`; latitude in [-90, 90] |
 | delivery_lng        | string | Conditional | Required for `delivery`; longitude in [-180, 180] |
+| origin              | object | No       | Where an agent order came from, set by the customer MCP server from the WhatsApp runtime's headers. Fixed at creation; returned on staff reads. See [Reservations → Origin](./reservations.md#origin) |
+| origin.channel_id   | string | No       | marketing-app channel (≤128); an agent order with one reports `order.paid` / `order.cancelled` to marketing-app ([marketing events](./marketing-events.md)) |
+| origin.conversation_id | string | No    | marketing-app conversation (≤128) |
+| origin.attribution  | object | No       | `source`, `ad_id`, `clicked_at`, `campaign_id`, `campaign_name`; an invalid field is dropped, never failing the order |
 
 > **Side dishes:** For a composite product whose ingredients are configured as side dishes (see [Products API → Side Dishes](./products.md#side-dishes)), a line may carry `side_dishes` to override how much of each is served. Omitted side dishes resolve to their configured default, so a line with no `side_dishes` behaves exactly as before. A selection referencing a non-side-dish ingredient, or a quantity outside `[min, max]`, rejects the whole order. Side-dish changes never affect the plate price; stock consumption follows the selected quantities.
 
@@ -241,6 +247,7 @@ A request that dies mid-flight holds its key for 2 minutes, after which a retry 
 | `ORDER_MISSING_FIELD`             | `customer_phone` (takeaway/delivery), `delivery_address` or `delivery_lat`/`delivery_lng` (delivery) missing |
 | `INVALID_PHONE`                   | `customer_phone` is not a valid number for its country         |
 | `ORDER_INVALID_DELIVERY_LOCATION` | `delivery_lat`/`delivery_lng` not numeric or out of range      |
+| `VALIDATION_ERROR`                | `origin.channel_id` or `origin.conversation_id` longer than 128 characters (`field` names it) |
 
 **422 Unprocessable Entity** — a `delivery` order sent to the restaurant's box (edge). Deliveries are taken in the cloud only; `dine_in` and `takeaway` work on both.
 
@@ -525,7 +532,7 @@ Returns a specific order with its product details.
 
 `DELETE /api/orders/:id`
 
-Voids an open (unpaid) order: it leaves the active list and its stock is returned.
+Voids an open (unpaid) order: it leaves the active list and its stock is returned. An agent order with an `origin.channel_id` reports `order.cancelled` to marketing-app in the same transaction.
 
 ### Path Parameters
 
