@@ -22,6 +22,7 @@ type reservationFixture struct {
 	repo     *mocks.MockReservationRepository
 	contacts *mocks.MockContactRecorder
 	outbox   *txOutbox
+	live     *liveFeed
 	service  *ReservationService
 	now      time.Time
 	created  *dto.Reservation
@@ -34,10 +35,11 @@ func newReservationFixture(t *testing.T, now time.Time) *reservationFixture {
 		repo:     mocks.NewMockReservationRepository(t),
 		contacts: mocks.NewMockContactRecorder(t),
 		outbox:   &txOutbox{},
+		live:     &liveFeed{},
 		now:      now,
 	}
 	f.service = NewReservationService(f.repo, f.contacts, f.outbox, crmSettings(t, dto.FeedbackSettings{}),
-		newRecordingEvents(t, f.outbox), "CO", discardLogger(), fixedClock(now))
+		newRecordingEvents(t, f.outbox), f.live, "CO", discardLogger(), fixedClock(now))
 	return f
 }
 
@@ -599,7 +601,7 @@ func TestReservationService_List_EmptyAndFailing(t *testing.T) {
 		settings := mocks.NewMockOrganizationSettingsRepository(t)
 		settings.EXPECT().Get(mock.Anything).Return(&dto.OrganizationSettingsView{Timezone: "Mars/Olympus"}, nil).Once()
 		svc := NewReservationService(mocks.NewMockReservationRepository(t), mocks.NewMockContactRecorder(t), &txOutbox{}, settings,
-			newRecordingEvents(t, &txOutbox{}), "CO", discardLogger(), nil)
+			newRecordingEvents(t, &txOutbox{}), nil, "CO", discardLogger(), nil)
 		_, err := svc.List(crmContext(), dto.ReservationListQuery{})
 		require.ErrorIs(t, err, domainError.ErrReservationOperation)
 	})

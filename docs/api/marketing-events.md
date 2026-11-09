@@ -37,9 +37,9 @@ keyed by the organization's signing secret. Verify it over the raw bytes before 
 | ----------------------- | --------------------------------------------------------------------- | ------------------------- |
 | `order.paid`            | An agent order is recorded as paid in the cloud, paid there or applied from the box | `/backend/events`        |
 | `order.cancelled`       | An agent order is voided                                               | `/backend/events`        |
-| `reservation.confirmed` | Staff confirm a WhatsApp reservation                                   | `/backend/notifications` |
-| `reservation.declined`  | Staff decline it, with an optional `reason`                            | `/backend/notifications` |
-| `reservation.cancelled` | The guest (through the agent) or staff cancel it; `cancelled_by` says which | `/backend/notifications` |
+| `reservation.confirmed` | Staff confirm a WhatsApp reservation before its `starts_at`             | `/backend/notifications` |
+| `reservation.declined`  | Staff decline it before its `starts_at`, with an optional `reason`      | `/backend/notifications` |
+| `reservation.cancelled` | The guest (through the agent) or staff cancel it before its `starts_at`; `cancelled_by` says which | `/backend/notifications` |
 | `feedback.requested`    | The morning-after job opens a feedback request                         | `/backend/notifications` |
 
 A request, a visit and a no-show produce no event.

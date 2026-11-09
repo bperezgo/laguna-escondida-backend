@@ -17,6 +17,7 @@ import (
 	"laguna-escondida/backend/internal/platform/handler"
 	"laguna-escondida/backend/internal/platform/httpclient"
 	"laguna-escondida/backend/internal/platform/postgres/repository"
+	"laguna-escondida/backend/internal/platform/sse"
 	"laguna-escondida/backend/internal/platform/stockmovement"
 	"laguna-escondida/backend/internal/platform/syncstatus"
 )
@@ -117,8 +118,10 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		},
 	})
 
+	reservationHub := sse.NewReservationHub(logger)
+	c.app.sseHubs = append(c.app.sseHubs, reservationHub)
 	reservationService := service.NewReservationService(
-		reservationRepo, contactService, c.unitOfWork, c.orgSettingsRepo, marketingEvents, cfg.PhoneHomeRegion, logger, nil,
+		reservationRepo, contactService, c.unitOfWork, c.orgSettingsRepo, marketingEvents, reservationHub, cfg.PhoneHomeRegion, logger, nil,
 	)
 	feedbackService := service.NewFeedbackService(
 		feedbackRepo, reservationRepo, c.unitOfWork, c.orgSettingsRepo, marketingEvents, cfg.PhoneHomeRegion, nil,
@@ -187,6 +190,7 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		deliveryZone:    handler.NewDeliveryZoneHandler(service.NewDeliveryZoneService(c.deliveryZoneRepo)),
 		orgSettings:     handler.NewOrganizationSettingsHandler(service.NewOrganizationSettingsService(c.orgSettingsRepo)),
 		reservation:     handler.NewReservationHandler(reservationService),
+		reservationLive: handler.NewReservationStreamHandler(reservationHub, logger),
 		contact:         handler.NewContactHandler(contactService),
 		feedback:        handler.NewFeedbackHandler(feedbackService),
 		nodes:           service.NewNodeService(repository.NewNodeRepository(db)),

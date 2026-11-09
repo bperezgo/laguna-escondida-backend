@@ -94,6 +94,7 @@ POST /api/reservations/:id/decline laguna-escondida/backend/internal/platform/ha
 POST /api/reservations/:id/no-show laguna-escondida/backend/internal/platform/handler.(*ReservationHandler).NoShowHandler-fm
 GET /api/sse/commands/:area laguna-escondida/backend/internal/platform/handler.(*SSEHandler).StreamCommandsHandler-fm
 GET /api/sse/open-bill-products/:area laguna-escondida/backend/internal/platform/handler.(*SSEHandler).StreamOpenBillProductsHandler-fm
+GET /api/sse/reservations laguna-escondida/backend/internal/platform/handler.(*ReservationStreamHandler).StreamHandler-fm
 GET /api/stock laguna-escondida/backend/internal/platform/handler.(*StockHandler).GetAllStocksHandler-fm
 POST /api/stock laguna-escondida/backend/internal/platform/handler.(*StockHandler).CreateStockHandler-fm
 DELETE /api/stock/:product_id laguna-escondida/backend/internal/platform/handler.(*StockHandler).DeleteStockHandler-fm

@@ -21,6 +21,7 @@ type ReservationService struct {
 	unitOfWork      ports.UnitOfWork
 	settings        ports.OrganizationSettingsRepository
 	events          ports.MarketingEventRecorder
+	live            ports.ReservationNotifier
 	phoneHomeRegion string
 	logger          *slog.Logger
 	now             func() time.Time
@@ -32,6 +33,7 @@ func NewReservationService(
 	unitOfWork ports.UnitOfWork,
 	settings ports.OrganizationSettingsRepository,
 	events ports.MarketingEventRecorder,
+	live ports.ReservationNotifier,
 	phoneHomeRegion string,
 	logger *slog.Logger,
 	now func() time.Time,
@@ -39,12 +41,16 @@ func NewReservationService(
 	if now == nil {
 		now = time.Now
 	}
+	if live == nil {
+		live = noReservationNotifier{}
+	}
 	return &ReservationService{
 		reservations:    reservations,
 		contacts:        contacts,
 		unitOfWork:      unitOfWork,
 		settings:        settings,
 		events:          events,
+		live:            live,
 		phoneHomeRegion: phoneHomeRegion,
 		logger:          logger,
 		now:             now,
@@ -90,6 +96,7 @@ func (s *ReservationService) Create(ctx context.Context, req *dto.CreateReservat
 	if err != nil {
 		return nil, err
 	}
+	s.live.ReservationChanged(ctx, created)
 	return created, nil
 }
 
@@ -151,11 +158,15 @@ func (s *ReservationService) transition(ctx context.Context, id string, apply fu
 			}
 			return fmt.Errorf("%w: update reservation: %w", domainError.ErrReservationOperation, err)
 		}
+		if !aggregate.GuestIsNotified(now) {
+			return nil
+		}
 		return s.events.RecordReservation(ctx, updated, now)
 	})
 	if err != nil {
 		return nil, err
 	}
+	s.live.ReservationChanged(ctx, updated)
 	return updated, nil
 }
 
@@ -187,22 +198,29 @@ func (s *ReservationService) listFilter(ctx context.Context, query dto.Reservati
 		}
 	}
 
+	hasDate := strings.TrimSpace(query.Date) != ""
+	if rawFrom := strings.TrimSpace(query.From); rawFrom != "" {
+		from, err := time.Parse(time.RFC3339, rawFrom)
+		if err != nil {
+			return filter, &domainError.ValidationError{Field: "from", Reason: "must be a date and time with offset (RFC 3339)"}
+		}
+		filter.From = &from
+	}
+
 	if raw := strings.TrimSpace(query.Phone); raw != "" {
 		phone, err := shared.NewPhone(raw, s.phoneHomeRegion)
 		if err != nil {
 			return filter, &domainError.ValidationError{Field: "phone", Reason: "must be a valid phone number"}
 		}
 		filter.Phone = phone.Value()
-		if rawFrom := strings.TrimSpace(query.From); rawFrom != "" {
-			from, err := time.Parse(time.RFC3339, rawFrom)
-			if err != nil {
-				return filter, &domainError.ValidationError{Field: "from", Reason: "must be a date and time with offset (RFC 3339)"}
-			}
-			filter.From = &from
-		}
-		if strings.TrimSpace(query.Date) == "" {
+		if !hasDate {
 			return filter, nil
 		}
+	} else if filter.From != nil {
+		if hasDate {
+			return filter, &domainError.ValidationError{Field: "from", Reason: "cannot be combined with date"}
+		}
+		return filter, nil
 	}
 
 	loc, err := s.location(ctx)
@@ -234,7 +252,8 @@ func (s *ReservationService) MarkVisited(ctx context.Context) (int, error) {
 		if err := aggregate.MarkVisited(now); err != nil {
 			continue
 		}
-		err := s.reservations.Update(ctx, aggregate.ToDTO(), current.Status)
+		visited := aggregate.ToDTO()
+		err := s.reservations.Update(ctx, visited, current.Status)
 		if errors.Is(err, domainError.ErrReservationTransition) {
 			// Staff changed it since the list was read; their change stands.
 			continue
@@ -242,6 +261,7 @@ func (s *ReservationService) MarkVisited(ctx context.Context) (int, error) {
 		if err != nil {
 			return marked, fmt.Errorf("%w: mark reservation %s visited: %w", domainError.ErrReservationOperation, current.ID, err)
 		}
+		s.live.ReservationChanged(ctx, visited)
 		marked++
 	}
 	return marked, nil
@@ -258,6 +278,10 @@ func (s *ReservationService) location(ctx context.Context) (*time.Location, erro
 	}
 	return loc, nil
 }
+
+type noReservationNotifier struct{}
+
+func (noReservationNotifier) ReservationChanged(context.Context, *dto.Reservation) {}
 
 func isReservationStatus(status dto.ReservationStatus) bool {
 	switch status {

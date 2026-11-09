@@ -22,9 +22,9 @@ const (
 	VisitedAfter = 2 * time.Hour
 )
 
-// transitions is the whole lifecycle; visited → no_show is further limited by MarkNoShow.
+// transitions is the whole lifecycle; requested → no_show and visited → no_show are further limited by MarkNoShow.
 var transitions = map[dto.ReservationStatus][]dto.ReservationStatus{
-	dto.ReservationStatusRequested: {dto.ReservationStatusConfirmed, dto.ReservationStatusDeclined, dto.ReservationStatusCancelled},
+	dto.ReservationStatusRequested: {dto.ReservationStatusConfirmed, dto.ReservationStatusDeclined, dto.ReservationStatusCancelled, dto.ReservationStatusNoShow},
 	dto.ReservationStatusConfirmed: {dto.ReservationStatusVisited, dto.ReservationStatusCancelled, dto.ReservationStatusNoShow},
 	dto.ReservationStatusVisited:   {dto.ReservationStatusNoShow},
 }
@@ -137,14 +137,22 @@ func (a *Aggregate) Cancel(by dto.ReservationCancelledBy, now time.Time) error {
 	return nil
 }
 
+// GuestIsNotified: a change made once the reservation's time has come is not messaged; it would
+// tell the guest about a booking already over.
+func (a *Aggregate) GuestIsNotified(now time.Time) bool {
+	return a.startsAt.After(now)
+}
+
 // CustomerMayCancel: only a pending or confirmed reservation that has not started yet.
 func (a *Aggregate) CustomerMayCancel(now time.Time) bool {
 	return (a.status == dto.ReservationStatusRequested || a.status == dto.ReservationStatusConfirmed) && a.startsAt.After(now)
 }
 
 // MarkNoShow lets staff correct a visit overnight, but not once the guest was asked how it went.
+// A request nobody answered can be closed as a no-show once its time has come.
 func (a *Aggregate) MarkNoShow(now time.Time) error {
-	if a.status == dto.ReservationStatusVisited && a.feedbackRequested {
+	if (a.status == dto.ReservationStatusVisited && a.feedbackRequested) ||
+		(a.status == dto.ReservationStatusRequested && a.startsAt.After(now)) {
 		return &domainError.ReservationTransitionError{From: string(a.status), To: string(dto.ReservationStatusNoShow)}
 	}
 	return a.moveTo(dto.ReservationStatusNoShow, now)

@@ -13,12 +13,16 @@ Table reservations, from a guest's WhatsApp request or entered by staff. v1 reco
      |   \ staff decline    |    \ staff no-show               | staff no-show,
      |    v                 |     v                            | until feedback is requested
      |   declined           |    no_show <---------------------+
+     |                      |     ^
+     |                      |     | staff no-show, once starts_at has come
+     |                      |     +----------------------------- requested
      v                      v
  cancelled (guest/staff)    cancelled (guest/staff)
 ```
 
 - A `whatsapp` reservation starts as `requested`; one entered by staff (`phone`, `walk_in`, `staff`) starts as `confirmed`.
 - A cloud job runs every 15 minutes and moves each `confirmed` reservation to `visited` two hours after its `starts_at`.
+- A request nobody answered in time can still be closed: confirm it if the guest came (the job then moves it to `visited`), or mark a no-show.
 - Any other move answers `409 INVALID_RESERVATION_TRANSITION` and changes nothing.
 - Each reservation belongs to a [contact](contacts.md), one per phone, created on the guest's first reservation or agent order.
 
@@ -59,6 +63,7 @@ Table reservations, from a guest's WhatsApp request or entered by staff. v1 reco
 | POST   | `/api/reservations/:id/decline`  | `reservations:manage`          | Decline a request                    |
 | POST   | `/api/reservations/:id/cancel`   | `reservations:create` or `:manage` | Cancel, as staff or for the guest |
 | POST   | `/api/reservations/:id/no-show`  | `reservations:manage`          | Mark a no-show                       |
+| GET    | `/api/sse/reservations`          | `reservations:manage`          | Stream reservation changes (SSE)     |
 
 ---
 
@@ -110,12 +115,14 @@ GET /api/reservations
 
 | Param  | Type   | Required | Description                                                                 |
 | ------ | ------ | -------- | --------------------------------------------------------------------------- |
-| date   | string | No       | `YYYY-MM-DD` in the organization's timezone. Default: today, unless `phone` is given |
+| date   | string | No       | `YYYY-MM-DD` in the organization's timezone. Default: today, unless `phone` or `from` is given |
 | status | string | No       | One status, or several comma-separated: `requested,confirmed`              |
 | phone  | string | No       | Only this guest's reservations (national or `+international`)              |
-| from   | string | No       | With `phone`: only those starting at or after this RFC 3339 time           |
+| from   | string | No       | Only those starting at or after this RFC 3339 time. Without `phone`, every day from then on; it cannot be combined with `date` |
 
 Ordered by `starts_at`, oldest first, in every status unless filtered. Times in responses are UTC.
+
+To find every request still waiting for staff, whatever its day, ask for `status=requested&from=<start of today>`. Bookings are at most 60 days ahead, so the list stays short.
 
 ### Example Response (200 OK)
 
@@ -163,7 +170,7 @@ Ordered by `starts_at`, oldest first, in every status unless filtered. Times in 
 
 | Status | Code               | When                                          |
 | ------ | ------------------ | --------------------------------------------- |
-| 400    | `VALIDATION_ERROR` | `date`, `status`, `phone` or `from` is invalid; `field` names it |
+| 400    | `VALIDATION_ERROR` | `date`, `status`, `phone` or `from` is invalid, or `from` comes with `date` and no `phone`; `field` names it |
 | 403    | —                  | Missing `reservations:read`                   |
 
 ---
@@ -266,11 +273,11 @@ Each returns the updated [reservation](#the-reservation-object).
 | confirm   | `requested`                            | none                                   |
 | decline   | `requested`                            | `{"reason": "Fully booked"}` (optional, ≤255) |
 | cancel    | `requested`, `confirmed`               | none as staff; `{"customer_phone": "..."}` for the guest |
-| no-show   | `confirmed`; `visited` until feedback is requested | none                       |
+| no-show   | `confirmed`; `visited` until feedback is requested; `requested` once `starts_at` has come | none |
 
 **Cancel** with `reservations:manage` cancels as staff (`cancelled_by: "staff"`). Without it, the body's `customer_phone` must own the reservation, which must be `requested` or `confirmed` and not started; anything else answers `404 RESERVATION_NOT_FOUND`, the same as an unknown id, and changes nothing.
 
-A WhatsApp reservation's confirm, decline and cancel each send an event to marketing-app, which messages the guest (see [marketing events](marketing-events.md)).
+A WhatsApp reservation's confirm, decline and cancel each send an event to marketing-app, which messages the guest (see [marketing events](marketing-events.md)). A change made once `starts_at` has come sends nothing: the guest is not told about a booking already over.
 
 ### Example Request (decline)
 
@@ -315,3 +322,37 @@ A WhatsApp reservation's confirm, decline and cancel each send an event to marke
   "to": "confirmed"
 }
 ```
+
+---
+
+## Stream Reservation Changes (SSE)
+
+```
+GET /api/sse/reservations
+Accept: text/event-stream
+```
+
+A [Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events) stream for staff screens. Each time a reservation of the caller's organization is created or changes status (staff actions, the guest's WhatsApp request or cancellation, and the job that marks visits), the stream sends a `reservation` event whose data is the whole [reservation](#the-reservation-object). Nothing is sent for other organizations.
+
+The stream opens with a `: connected` comment and sends a `: heartbeat` comment every 15 seconds. It does not replay changes: a screen loads the day with `GET /api/reservations` each time it (re)connects, then applies events by `id`. Delivery is best effort; a screen too slow to read is skipped. `feedback_requested` changes without an event.
+
+Needs `reservations:manage` (admin, manager). The agent role, which can read reservations, cannot open the stream.
+
+### Example Stream
+
+```
+: connected
+
+event: reservation
+data: {"id":"019a5e1d-0c44-7a8e-b7d2-91f0a6c3e5b2","contact_id":"019a5e1d-0c43-7d15-8e6a-c2b7f4a19d03","contact_phone":"+573005551234","name":"Ana","party_size":6,"starts_at":"2026-11-10T01:00:00Z","source":"whatsapp","status":"requested","feedback_requested":false,"origin":{"channel_id":"ch_1","conversation_id":"conv_9"},"created_at":"2026-11-09T20:10:40Z","updated_at":"2026-11-09T20:10:40Z"}
+
+: heartbeat
+```
+
+### Errors
+
+| Status | Code | When                                    |
+| ------ | ---- | --------------------------------------- |
+| 401    | —    | Missing or invalid token                |
+| 403    | —    | Missing `reservations:manage`           |
+| 404    | —    | On the box (edge)                       |

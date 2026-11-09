@@ -912,6 +912,13 @@ curl -X GET "$BASE_URL/reservations?date=2026-11-09&status=requested" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
+### Every Request Still Waiting, Whatever Its Day
+
+```bash
+curl -X GET "$BASE_URL/reservations?status=requested&from=2026-11-09T00:00:00-05:00" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
 ### A Guest's Reservations From Yesterday On
 
 ```bash
@@ -964,11 +971,19 @@ curl -X POST "$BASE_URL/reservations/$RESERVATION_ID/cancel" \
   -d '{"customer_phone":"+573005551234"}'
 ```
 
-### Mark a No-show (until feedback was requested)
+### Mark a No-show (a confirmed one, an unanswered request once its time came, or a visit until feedback was requested)
 
 ```bash
 curl -X POST "$BASE_URL/reservations/$RESERVATION_ID/no-show" \
   -H "Authorization: Bearer $TOKEN"
+```
+
+### Follow Reservation Changes Live (SSE)
+
+```bash
+curl -N "$BASE_URL/sse/reservations" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Accept: text/event-stream"
 ```
 
 ### Search Contacts

@@ -19,6 +19,7 @@ type cloudHandlers struct {
 	deliveryZone    *handler.DeliveryZoneHandler
 	orgSettings     *handler.OrganizationSettingsHandler
 	reservation     *handler.ReservationHandler
+	reservationLive *handler.ReservationStreamHandler
 	contact         *handler.ContactHandler
 	feedback        *handler.FeedbackHandler
 	nodes           *service.NodeService
@@ -67,6 +68,8 @@ func registerCloudRoutes(router *gin.Engine, adminAPIKey, nodeSyncKey string, jw
 	RegisterDeliveryZoneRoutes(router, h.deliveryZone, jwtService)
 	RegisterOrganizationSettingsRoutes(router, h.orgSettings, jwtService)
 	RegisterReservationRoutes(router, h.reservation, h.contact, h.feedback, jwtService)
+	// Staff screens only: the WhatsApp agent holds reservations:read but has no use for a live feed.
+	router.GET("/api/sse/reservations", handler.SSEMiddleware(), handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ReservationsManage), h.reservationLive.StreamHandler)
 }
 
 // RegisterReservationRoutes is cloud-only: reservations, contacts and feedback live in the cloud,

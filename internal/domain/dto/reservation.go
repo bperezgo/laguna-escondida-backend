@@ -80,7 +80,7 @@ type ReservationListFilter struct {
 }
 
 // ReservationListQuery is the list endpoint's query: Date (YYYY-MM-DD, organization-local),
-// or Phone with an optional From (RFC 3339). Neither means today.
+// or Phone with an optional From (RFC 3339), or From alone for every day from then on. None means today.
 type ReservationListQuery struct {
 	Date   string
 	Status string
