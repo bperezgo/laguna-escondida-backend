@@ -49,6 +49,8 @@ x-app-env: &app-env
   DB_PASSWORD: postgres
   DB_NAME: laguna_escondida
   DB_SSLMODE: disable
+  MARKETING_APP_EVENTS_URL: http://host.docker.internal:8085
+  MARKETING_APP_EVENTS_SECRET_LAGUNA_ESCONDIDA: marketing-app-events-secret
 
 services:
   # --- CLOUD side ------------------------------------------------------------
@@ -125,7 +127,7 @@ services:
       dockerfile: Dockerfile
     image: laguna-escondida-sync:latest
     container_name: laguna-sync-edge
-    command: ["./edge"]
+    command: [ "./edge" ]
     environment:
       <<: *app-env
       DB_HOST: edge-db
@@ -166,7 +168,7 @@ services:
       dockerfile: Dockerfile
     image: laguna-escondida-sync:latest
     container_name: laguna-sync-mcp
-    command: ["./mcp-server"]
+    command: [ "./mcp-server" ]
     environment:
       LAGUNA_API_URL: http://cloud:8080
       MCP_TOOLSET: customer
