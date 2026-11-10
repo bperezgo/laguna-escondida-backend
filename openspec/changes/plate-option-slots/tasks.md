@@ -8,7 +8,7 @@
 - [x] 2.1 Add DTOs in `domain/dto` (slot, choice, choice item, replace request, `LineChoice`) and domain errors for slot validation, side-dish/slot conflict and invalid line choices; verify `go build ./...`
 - [x] 2.2 Add a `PlateOptionSlotRepository` port (find by composite, replace for composite, has-slots check, find changed for sync) and run `make generate-mocks`; verify the mocks compile
 - [x] 2.3 Implement `PlateOptionSlotService.Get` and `Replace` with the validation rules from spec "A composite plate can be configured with option slots" and the exclusivity check against side-dish rows; verify with `plate_option_slot_service_test.go` covering every scenario of the first two requirements (90%+ on the service)
-- [x] 2.4 Make `ProductIngredientService.ConfigureSideDish` reject a plate that has slots (409); add the test case in `product_ingredient_service_test.go` (ask before changing existing cases)
+- [x] 2.4 ~~Make `ProductIngredientService.ConfigureSideDish` reject a plate that has slots (409)~~ Superseded by 8.2: side dishes are removed, so there is no conflict to check
 
 ## 3. Domain: orders and stock
 
