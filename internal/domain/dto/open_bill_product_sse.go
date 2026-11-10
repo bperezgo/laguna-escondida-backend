@@ -22,6 +22,7 @@ type OpenBillProductSSE struct {
 	OrderType     OrderType     `json:"order_type"`
 	Priority      int           `json:"priority"`
 	SideDishes    []SideDishSSE `json:"side_dishes,omitempty"`
+	Choices       []LineChoice  `json:"choices,omitempty"`
 	CreatedAt     time.Time     `json:"created_at"`
 	CreatedByName string        `json:"created_by_name"`
 	// CompletedAt is only populated by the completed/ready feed (from updated_at);

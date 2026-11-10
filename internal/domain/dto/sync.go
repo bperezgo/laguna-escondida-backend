@@ -167,11 +167,17 @@ type ProductIngredientSyncPayload struct {
 	CompositeProductID  string          `json:"composite_product_id"`
 	IngredientProductID string          `json:"ingredient_product_id"`
 	DefaultQuantity     decimal.Decimal `json:"default_quantity"`
-	IsSideDish          bool            `json:"is_side_dish"`
-	MinQuantity         int             `json:"min_quantity"`
-	MaxQuantity         int             `json:"max_quantity"`
 	CreatedAt           time.Time       `json:"created_at"`
 	UpdatedAt           time.Time       `json:"updated_at"`
+}
+
+// PlateOptionSlotsSyncPayload is one plate's whole live slot list. The box replaces its copy
+// with it, so a removed slot or choice propagates without per-row tombstones; an empty Slots
+// means the plate no longer has any. UpdatedAt is the latest change to the plate's slots.
+type PlateOptionSlotsSyncPayload struct {
+	CompositeProductID string            `json:"composite_product_id"`
+	Slots              []PlateOptionSlot `json:"slots"`
+	UpdatedAt          time.Time         `json:"updated_at"`
 }
 
 // UserSyncPayload carries a user down to the edge plus its role assignments. RoleIDs are
@@ -199,7 +205,9 @@ type SyncPullResponse struct {
 	Suppliers               []SupplierSyncPayload              `json:"suppliers"`
 	ProductResponsibilities []ProductResponsibilitySyncPayload `json:"product_responsibilities"`
 	ProductIngredients      []ProductIngredientSyncPayload     `json:"product_ingredients"`
-	Cursor                  time.Time                          `json:"cursor"`
+	// An older box ignores this field; a newer box reads its absence as no changes.
+	PlateOptionSlots []PlateOptionSlotsSyncPayload `json:"plate_option_slots,omitempty"`
+	Cursor           time.Time                     `json:"cursor"`
 }
 
 // SyncStockPullResponse is the cloud's reply to GET /api/sync/pull/stock: the stock rows
@@ -225,6 +233,7 @@ type SyncPullResult struct {
 	Suppliers               int
 	ProductResponsibilities int
 	ProductIngredients      int
+	PlateOptionSlots        int
 }
 
 // BillSyncProduct is one finalized line item carried in a bill sync payload: just the
@@ -329,6 +338,8 @@ type OpenBillSyncProduct struct {
 	Priority          int                 `json:"priority"`
 	CreatedBy         string              `json:"created_by"`
 	SideDishes        []SideDishSelection `json:"side_dishes,omitempty"`
-	StartedAt         *time.Time          `json:"started_at,omitempty"`
-	CompletedAt       *time.Time          `json:"completed_at,omitempty"`
+	// Absent from nodes that predate plate option slots; the line then keeps no choices.
+	Choices     []LineChoice `json:"choices,omitempty"`
+	StartedAt   *time.Time   `json:"started_at,omitempty"`
+	CompletedAt *time.Time   `json:"completed_at,omitempty"`
 }

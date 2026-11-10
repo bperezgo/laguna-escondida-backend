@@ -14,5 +14,4 @@ type ProductIngredientRepository interface {
 	FindByCompositeProductID(ctx context.Context, compositeProductID string) ([]*dto.ProductIngredient, error)
 	FindByCompositeProductIDWithProducts(ctx context.Context, compositeProductID string) ([]*dto.ProductIngredientWithProduct, error)
 	FindByIngredientProductID(ctx context.Context, ingredientProductID string) ([]*dto.ProductIngredient, error)
-	FindSideDishesByCompositeProductID(ctx context.Context, compositeProductID string) ([]*dto.ProductIngredient, error)
 }

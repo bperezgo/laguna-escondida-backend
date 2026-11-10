@@ -29,15 +29,9 @@ type removeProductIngredientInput struct {
 	IngredientID string `json:"ingredient_id" jsonschema:"the recipe row id (UUID): the id field from list_product_ingredients, not ingredient_product_id"`
 }
 
-type configureSideDishInput struct {
-	ProductID    string                       `json:"product_id" jsonschema:"the composite product id (UUID)"`
-	IngredientID string                       `json:"ingredient_id" jsonschema:"the recipe row id (UUID): the id field from list_product_ingredients, not ingredient_product_id"`
-	Body         dto.ConfigureSideDishRequest `json:"body" jsonschema:"default_quantity, min_quantity and max_quantity in whole units, with 0 <= min <= default <= max"`
-}
-
-type clearSideDishInput struct {
-	ProductID    string `json:"product_id" jsonschema:"the composite product id (UUID)"`
-	IngredientID string `json:"ingredient_id" jsonschema:"the recipe row id (UUID): the id field from list_product_ingredients, not ingredient_product_id"`
+type setPlateOptionSlotsInput struct {
+	ProductID string                             `json:"product_id" jsonschema:"the composite product id (UUID)"`
+	Body      dto.ReplacePlateOptionSlotsRequest `json:"body" jsonschema:"the plate's full ordered slot list; it replaces the current one"`
 }
 
 func registerProductIngredientTools(s *mcp.Server, c *Client) {
@@ -86,12 +80,11 @@ func registerProductIngredientTools(s *mcp.Server, c *Client) {
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
-		Name: "configure_side_dish",
-		Description: "Mark a recipe ingredient as a side dish the customer can adjust, with default/min/max in whole units " +
-			"(min 0 makes it optional). The default replaces the ingredient's recipe quantity, so a side dish should be a " +
-			"portion product (e.g. a composite \"Porción arroz de coco\" whose own recipe holds the grams), not a raw gram ingredient. Cloud only.",
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, in configureSideDishInput) (*mcp.CallToolResult, any, error) {
-		body, err := c.Put(ctx, "/api/products/"+url.PathEscape(in.ProductID)+"/ingredients/"+url.PathEscape(in.IngredientID)+"/side-dish", in.Body)
+		Name: "get_plate_option_slots",
+		Description: "List a composite plate's option slots: each slot's choices in order, the default of each, and the ingredient " +
+			"quantities each choice consumes. An empty list means the plate has nothing to choose.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in productIngredientsListInput) (*mcp.CallToolResult, any, error) {
+		body, err := c.Get(ctx, "/api/products/"+url.PathEscape(in.ProductID)+"/option-slots", nil)
 		if err != nil {
 			return toolError(err)
 		}
@@ -99,10 +92,13 @@ func registerProductIngredientTools(s *mcp.Server, c *Client) {
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
-		Name:        "clear_side_dish",
-		Description: "Turn a side dish back into a fixed recipe ingredient; its current default quantity stays as the fixed amount. Cloud only.",
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, in clearSideDishInput) (*mcp.CallToolResult, any, error) {
-		body, err := c.Delete(ctx, "/api/products/"+url.PathEscape(in.ProductID)+"/ingredients/"+url.PathEscape(in.IngredientID)+"/side-dish")
+		Name: "set_plate_option_slots",
+		Description: "Replace a composite plate's option slots with the full list sent. Each slot needs a name and exactly one default " +
+			"choice; each choice is a bundle of ingredient products and whole quantities (an empty bundle means \"without\", e.g. Sin ensalada). " +
+			"Resend existing ids (from get_plate_option_slots) to keep them; anything left out is removed. An empty list removes every slot. " +
+			"Keep a choosable part out of the plate's recipe: the recipe is always consumed, the chosen bundles on top. Choices never change the price. Cloud only.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in setPlateOptionSlotsInput) (*mcp.CallToolResult, any, error) {
+		body, err := c.Put(ctx, "/api/products/"+url.PathEscape(in.ProductID)+"/option-slots", in.Body)
 		if err != nil {
 			return toolError(err)
 		}

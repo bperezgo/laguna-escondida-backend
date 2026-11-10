@@ -35,7 +35,7 @@ var agentReachableRoutes = map[string]bool{
 	"GET /api/products/:id":                 true,
 	"GET /api/product-responsibilities/:id": true,
 	"GET /api/products/:id/ingredients":     true,
-	"GET /api/products/:id/side-dishes":     true,
+	"GET /api/products/:id/option-slots":    true,
 	// orders:read — includes every order and both kitchen boards, not only the agent's own.
 	"GET /api/orders":                             true,
 	"GET /api/orders/closed":                      true,
@@ -75,12 +75,14 @@ func fullRouter(mode config.Mode, jwtService *service.JWTService) *gin.Engine {
 		order: &handler.OrderHandler{}, product: &handler.ProductHandler{}, stock: &handler.StockHandler{},
 		user: &handler.UserHandler{}, billOwner: &handler.BillOwnerHandler{},
 		productIngredient: &handler.ProductIngredientHandler{}, sse: &handler.SSEHandler{}, edge: &handler.EdgeHandler{},
+		plateOptionSlot: &handler.PlateOptionSlotHandler{},
 	}, mode == config.ModeCloud)
 	switch mode {
 	case config.ModeCloud:
 		registerCloudBackOfficeRoutes(router, "admin-key", jwtService, backOfficeHandlers{
 			product: &handler.ProductHandler{}, productIngredient: &handler.ProductIngredientHandler{},
-			user: &handler.UserHandler{}, supplier: &handler.SupplierHandler{},
+			plateOptionSlot: &handler.PlateOptionSlotHandler{},
+			user:            &handler.UserHandler{}, supplier: &handler.SupplierHandler{},
 			purchaseEntry: &handler.PurchaseEntryHandler{}, expense: &handler.ExpenseHandler{},
 			financial: &handler.FinancialHandler{},
 		})

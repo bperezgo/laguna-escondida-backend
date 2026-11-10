@@ -118,6 +118,7 @@ func RegisterDeliveryZoneRoutes(router *gin.Engine, zoneHandler *handler.Deliver
 type backOfficeHandlers struct {
 	product           *handler.ProductHandler
 	productIngredient *handler.ProductIngredientHandler
+	plateOptionSlot   *handler.PlateOptionSlotHandler
 	user              *handler.UserHandler
 	supplier          *handler.SupplierHandler
 	purchaseEntry     *handler.PurchaseEntryHandler
@@ -153,9 +154,8 @@ func registerCloudBackOfficeRoutes(router *gin.Engine, adminAPIKey string, jwtSe
 	router.PUT("/api/products/:id/ingredients/:ingredient_id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), h.productIngredient.UpdateIngredientHandler)
 	router.DELETE("/api/products/:id/ingredients/:ingredient_id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), h.productIngredient.RemoveIngredientHandler)
 
-	// Side-dish configuration routes
-	router.PUT("/api/products/:id/ingredients/:ingredient_id/side-dish", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), h.productIngredient.ConfigureSideDishHandler)
-	router.DELETE("/api/products/:id/ingredients/:ingredient_id/side-dish", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), h.productIngredient.ClearSideDishHandler)
+	// Plate option slot routes
+	router.PUT("/api/products/:id/option-slots", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsUpdate), h.plateOptionSlot.ReplaceHandler)
 
 	// Supplier routes
 	router.POST("/api/suppliers", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.SuppliersCreate), h.supplier.CreateSupplierHandler)

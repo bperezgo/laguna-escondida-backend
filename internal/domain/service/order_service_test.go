@@ -127,7 +127,6 @@ func createTestService(t *testing.T, productRepo ports.ProductRepository, openBi
 		m.EXPECT().ExistsActiveByTemporalIdentifier(mock.Anything, mock.Anything).Return(false, nil).Maybe()
 	}
 	mockIngredientRepo := mocks.NewMockProductIngredientRepository(t)
-	mockIngredientRepo.EXPECT().FindSideDishesByCompositeProductID(mock.Anything, mock.Anything).Return([]*dto.ProductIngredient{}, nil).Maybe()
 	return NewOrderService(openBillRepo, productRepo, billRepo, mockPendingInvoiceRepo, dto.PendingInvoiceStatusPending, billOwnerRepo, mockUnitOfWork, mockEventBus, mockOutbox, dto.SyncIdentity{NodeID: testNodeID}, mockIngredientRepo, nil, "CO")
 }
 
@@ -268,184 +267,32 @@ func TestCreateOrder_SingleProduct(t *testing.T) {
 	// Verify mocks
 }
 
-// createTestServiceWithIngredientRepo builds an OrderService with a caller-supplied
-// ProductIngredientRepository mock so side-dish resolution/validation can be exercised.
-func createTestServiceWithIngredientRepo(t *testing.T, productRepo ports.ProductRepository, openBillRepo ports.OpenBillRepository, ingredientRepo ports.ProductIngredientRepository) *OrderService {
-	mockUnitOfWork := createMockUnitOfWork(t)
-	mockEventBus := createMockEventBus(t)
-	mockOutbox := createMockSyncOutboxRepository(t)
-	mockPendingInvoiceRepo := mocks.NewMockPendingInvoiceRepository(t)
-	mockPendingInvoiceRepo.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Maybe()
-	if m, ok := openBillRepo.(*mocks.MockOpenBillRepository); ok {
-		m.EXPECT().ExistsActiveByTemporalIdentifier(mock.Anything, mock.Anything).Return(false, nil).Maybe()
-	}
-	return NewOrderService(openBillRepo, productRepo, nil, mockPendingInvoiceRepo, dto.PendingInvoiceStatusPending, nil, mockUnitOfWork, mockEventBus, mockOutbox, dto.SyncIdentity{NodeID: testNodeID}, ingredientRepo, nil, "CO")
-}
-
-func sideDishOption(ingredientID string, defaultQty, minQty, maxQty int) *dto.ProductIngredient {
-	return &dto.ProductIngredient{
-		IngredientProductID: ingredientID,
-		DefaultQuantity:     decimal.NewFromInt(int64(defaultQty)),
-		IsSideDish:          true,
-		MinQuantity:         minQty,
-		MaxQuantity:         maxQty,
-	}
-}
-
-func TestCreateOrder_SideDish_RejectAboveMax(t *testing.T) {
+// Option slots replaced side dishes; a client that still sends side-dish quantities is refused
+// before anything is written.
+func TestCreateOrder_SideDishes_Rejected(t *testing.T) {
 	ctx := createTestContext()
 	mockProductRepo := mocks.NewMockProductRepository(t)
 	mockOpenBillRepo := mocks.NewMockOpenBillRepository(t)
-	mockIngredientRepo := mocks.NewMockProductIngredientRepository(t)
-	service := createTestServiceWithIngredientRepo(t, mockProductRepo, mockOpenBillRepo, mockIngredientRepo)
-	user := createTestUser()
+	service := createTestService(t, mockProductRepo, mockOpenBillRepo, nil, nil)
 
 	plateID := uuidPlaceholder1
-	canastaID := uuidPlaceholder3
 	plate := createTestProductWithType(plateID, "Plate", "platos", 1, 100.0, 0, dto.ProductTypeComposite)
-
 	req := &dto.CreateOrderRequest{
 		OpenBillID:         uuidPlaceholder0,
 		TemporalIdentifier: "TABLE-01",
 		Products: []dto.OrderProductItem{
 			{OpenBillProductID: uuidPlaceholder2, ProductID: plateID, Quantity: 1,
-				SideDishes: []dto.SideDishSelection{{IngredientProductID: canastaID, Quantity: 4}}},
+				SideDishes: []dto.SideDishSelection{{IngredientProductID: uuidPlaceholder3, Quantity: 1}}},
 		},
 	}
-
 	mockProductRepo.On("FindByIDs", ctx, []string{plateID}).Return([]*dto.Product{plate}, nil)
-	mockOpenBillRepo.On("GetProductPreparationResponsibilities", ctx, []string{plateID}).Return([]dto.ProductPreparationResponsibilityWithProduct{}, nil)
-	mockIngredientRepo.On("FindSideDishesByCompositeProductID", ctx, plateID).
-		Return([]*dto.ProductIngredient{sideDishOption(canastaID, 2, 0, 3)}, nil)
+	mockOpenBillRepo.On("GetProductPreparationResponsibilities", ctx, []string{plateID}).Return([]dto.ProductPreparationResponsibilityWithProduct{}, nil).Maybe()
 
-	result, err := service.CreateOrder(ctx, req, user)
+	result, err := service.CreateOrder(ctx, req, createTestUser())
 
-	require.ErrorIs(t, err, orderError.ErrSideDishQuantityOutOfBounds)
+	require.ErrorIs(t, err, orderError.ErrSideDishesNotSupported)
 	assert.Nil(t, result)
 	mockOpenBillRepo.AssertNotCalled(t, "Create")
-}
-
-func TestCreateOrder_SideDish_RejectNonSideDishIngredient(t *testing.T) {
-	ctx := createTestContext()
-	mockProductRepo := mocks.NewMockProductRepository(t)
-	mockOpenBillRepo := mocks.NewMockOpenBillRepository(t)
-	mockIngredientRepo := mocks.NewMockProductIngredientRepository(t)
-	service := createTestServiceWithIngredientRepo(t, mockProductRepo, mockOpenBillRepo, mockIngredientRepo)
-	user := createTestUser()
-
-	plateID := uuidPlaceholder1
-	saladID := uuidPlaceholder3
-	notASideDishID := productID1
-	plate := createTestProductWithType(plateID, "Plate", "platos", 1, 100.0, 0, dto.ProductTypeComposite)
-
-	req := &dto.CreateOrderRequest{
-		OpenBillID:         uuidPlaceholder0,
-		TemporalIdentifier: "TABLE-01",
-		Products: []dto.OrderProductItem{
-			{OpenBillProductID: uuidPlaceholder2, ProductID: plateID, Quantity: 1,
-				SideDishes: []dto.SideDishSelection{{IngredientProductID: notASideDishID, Quantity: 1}}},
-		},
-	}
-
-	mockProductRepo.On("FindByIDs", ctx, []string{plateID}).Return([]*dto.Product{plate}, nil)
-	mockOpenBillRepo.On("GetProductPreparationResponsibilities", ctx, []string{plateID}).Return([]dto.ProductPreparationResponsibilityWithProduct{}, nil)
-	mockIngredientRepo.On("FindSideDishesByCompositeProductID", ctx, plateID).
-		Return([]*dto.ProductIngredient{sideDishOption(saladID, 1, 0, 2)}, nil)
-
-	result, err := service.CreateOrder(ctx, req, user)
-
-	require.ErrorIs(t, err, orderError.ErrInvalidSideDishSelection)
-	assert.Nil(t, result)
-	mockOpenBillRepo.AssertNotCalled(t, "Create")
-}
-
-func TestCreateOrder_SideDish_RemoveToZero(t *testing.T) {
-	ctx := createTestContext()
-	mockProductRepo := mocks.NewMockProductRepository(t)
-	mockOpenBillRepo := mocks.NewMockOpenBillRepository(t)
-	mockIngredientRepo := mocks.NewMockProductIngredientRepository(t)
-	service := createTestServiceWithIngredientRepo(t, mockProductRepo, mockOpenBillRepo, mockIngredientRepo)
-	user := createTestUser()
-
-	plateID := uuidPlaceholder1
-	saladID := uuidPlaceholder3
-	plate := createTestProductWithType(plateID, "Plate", "platos", 1, 100.0, 0, dto.ProductTypeComposite)
-
-	req := &dto.CreateOrderRequest{
-		OpenBillID:         uuidPlaceholder0,
-		TemporalIdentifier: "TABLE-01",
-		Products: []dto.OrderProductItem{
-			{OpenBillProductID: uuidPlaceholder2, ProductID: plateID, Quantity: 1,
-				SideDishes: []dto.SideDishSelection{{IngredientProductID: saladID, Quantity: 0}}},
-		},
-	}
-
-	mockProductRepo.On("FindByIDs", ctx, []string{plateID}).Return([]*dto.Product{plate}, nil)
-	mockOpenBillRepo.On("GetProductPreparationResponsibilities", ctx, []string{plateID}).Return([]dto.ProductPreparationResponsibilityWithProduct{}, nil)
-	mockIngredientRepo.On("FindSideDishesByCompositeProductID", ctx, plateID).
-		Return([]*dto.ProductIngredient{sideDishOption(saladID, 1, 0, 2)}, nil)
-
-	var captured *openBill.Aggregate
-	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*open_bill.Aggregate")).
-		Run(func(args mock.Arguments) { captured, _ = args.Get(1).(*openBill.Aggregate) }).Return(nil)
-
-	result, err := service.CreateOrder(ctx, req, user)
-
-	require.NoError(t, err)
-	assert.NotNil(t, result)
-	require.NotNil(t, captured)
-	require.Len(t, captured.Products(), 1)
-	sd := captured.Products()[0].SideDishes()
-	require.Len(t, sd, 1)
-	assert.Equal(t, saladID, sd[0].IngredientProductID)
-	assert.Equal(t, 0, sd[0].Quantity)
-}
-
-func TestCreateOrder_SideDish_NoSelectionResolvesToDefaults(t *testing.T) {
-	ctx := createTestContext()
-	mockProductRepo := mocks.NewMockProductRepository(t)
-	mockOpenBillRepo := mocks.NewMockOpenBillRepository(t)
-	mockIngredientRepo := mocks.NewMockProductIngredientRepository(t)
-	service := createTestServiceWithIngredientRepo(t, mockProductRepo, mockOpenBillRepo, mockIngredientRepo)
-	user := createTestUser()
-
-	plateID := uuidPlaceholder1
-	saladID := uuidPlaceholder3
-	canastaID := productID2
-	plate := createTestProductWithType(plateID, "Plate", "platos", 1, 100.0, 0, dto.ProductTypeComposite)
-
-	req := &dto.CreateOrderRequest{
-		OpenBillID:         uuidPlaceholder0,
-		TemporalIdentifier: "TABLE-01",
-		Products: []dto.OrderProductItem{
-			{OpenBillProductID: uuidPlaceholder2, ProductID: plateID, Quantity: 1},
-		},
-	}
-
-	mockProductRepo.On("FindByIDs", ctx, []string{plateID}).Return([]*dto.Product{plate}, nil)
-	mockOpenBillRepo.On("GetProductPreparationResponsibilities", ctx, []string{plateID}).Return([]dto.ProductPreparationResponsibilityWithProduct{}, nil)
-	mockIngredientRepo.On("FindSideDishesByCompositeProductID", ctx, plateID).
-		Return([]*dto.ProductIngredient{
-			sideDishOption(saladID, 1, 0, 2),
-			sideDishOption(canastaID, 2, 0, 3),
-		}, nil)
-
-	var captured *openBill.Aggregate
-	mockOpenBillRepo.On("Create", ctx, mock.AnythingOfType("*open_bill.Aggregate")).
-		Run(func(args mock.Arguments) { captured, _ = args.Get(1).(*openBill.Aggregate) }).Return(nil)
-
-	result, err := service.CreateOrder(ctx, req, user)
-
-	require.NoError(t, err)
-	assert.NotNil(t, result)
-	require.NotNil(t, captured)
-	require.Len(t, captured.Products(), 1)
-	byIngredient := map[string]int{}
-	for _, sd := range captured.Products()[0].SideDishes() {
-		byIngredient[sd.IngredientProductID] = sd.Quantity
-	}
-	assert.Equal(t, 1, byIngredient[saladID], "salad resolves to default 1")
-	assert.Equal(t, 2, byIngredient[canastaID], "canasta resolves to default 2")
 }
 
 func TestCreateOrder_MultipleProducts(t *testing.T) {

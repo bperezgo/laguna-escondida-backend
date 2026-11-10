@@ -144,6 +144,9 @@ func (a *OpenBillSyncApplier) reconcileProducts(db *gorm.DB, payload *dto.OpenBi
 		if err := replaceSideDishes(db, item.OpenBillProductID, item.SideDishes); err != nil {
 			return fmt.Errorf("upsert open_bill product side dishes: %w", err)
 		}
+		if err := replaceLineChoices(db, item.OpenBillProductID, item.Choices); err != nil {
+			return fmt.Errorf("upsert open_bill product choices: %w", err)
+		}
 		keepIDs = append(keepIDs, item.OpenBillProductID)
 	}
 

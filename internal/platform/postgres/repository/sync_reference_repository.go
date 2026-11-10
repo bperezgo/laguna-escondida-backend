@@ -204,9 +204,6 @@ func (r *SyncReferenceRepository) FindChangedProductIngredients(ctx context.Cont
 			CompositeProductID:  m.CompositeProductID,
 			IngredientProductID: m.IngredientProductID,
 			DefaultQuantity:     m.DefaultQuantity,
-			IsSideDish:          m.IsSideDish,
-			MinQuantity:         m.MinQuantity,
-			MaxQuantity:         m.MaxQuantity,
 			CreatedAt:           m.CreatedAt,
 			UpdatedAt:           m.UpdatedAt,
 		}
@@ -230,9 +227,6 @@ func (r *SyncReferenceRepository) UpsertProductIngredients(ctx context.Context, 
 			CompositeProductID:  ing.CompositeProductID,
 			IngredientProductID: ing.IngredientProductID,
 			DefaultQuantity:     ing.DefaultQuantity,
-			IsSideDish:          ing.IsSideDish,
-			MinQuantity:         ing.MinQuantity,
-			MaxQuantity:         ing.MaxQuantity,
 			CreatedAt:           ing.CreatedAt,
 			UpdatedAt:           ing.UpdatedAt,
 		}
@@ -242,8 +236,7 @@ func (r *SyncReferenceRepository) UpsertProductIngredients(ctx context.Context, 
 		Columns: []clause.Column{{Name: "id"}},
 		Where:   postgres.SameOrganization("product_ingredients"),
 		DoUpdates: clause.AssignmentColumns([]string{
-			"composite_product_id", "ingredient_product_id", "default_quantity",
-			"is_side_dish", "min_quantity", "max_quantity", "updated_at",
+			"composite_product_id", "ingredient_product_id", "default_quantity", "updated_at",
 		}),
 	}).Create(&models).Error; err != nil {
 		return fmt.Errorf("upsert product ingredients: %w", err)
@@ -523,4 +516,64 @@ func (r *SyncReferenceRepository) ReplaceStockAmounts(ctx context.Context, stock
 		return fmt.Errorf("replace stock amounts: %w", err)
 	}
 	return nil
+}
+
+// FindChangedPlateOptionSlots returns each plate whose slots changed after since with its whole
+// live list. Every replace bumps all of the plate's slot rows, removed ones included, so the
+// slot table alone tells which plates changed.
+func (r *SyncReferenceRepository) FindChangedPlateOptionSlots(ctx context.Context, since time.Time) ([]dto.PlateOptionSlotsSyncPayload, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
+
+	var changed []struct {
+		CompositeProductID string
+		UpdatedAt          time.Time
+	}
+	if err = db.Model(&plateOptionSlotModel{}).
+		Select("composite_product_id, MAX(updated_at) AS updated_at").
+		Where("updated_at > ?", since).
+		Group("composite_product_id").
+		Order("updated_at ASC").
+		Scan(&changed).Error; err != nil {
+		return nil, fmt.Errorf("query changed plate option slots: %w", err)
+	}
+	if len(changed) == 0 {
+		return nil, nil
+	}
+
+	ids := make([]string, len(changed))
+	for i, c := range changed {
+		ids[i] = c.CompositeProductID
+	}
+	byPlate, err := loadPlateOptionSlots(db, ids)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]dto.PlateOptionSlotsSyncPayload, len(changed))
+	for i, c := range changed {
+		slots := byPlate[c.CompositeProductID]
+		if slots == nil {
+			slots = []dto.PlateOptionSlot{}
+		}
+		out[i] = dto.PlateOptionSlotsSyncPayload{CompositeProductID: c.CompositeProductID, Slots: slots, UpdatedAt: c.UpdatedAt}
+	}
+	return out, nil
+}
+
+// ReplacePlateOptionSlots applies each plate's pulled slot list as the box's whole copy.
+func (r *SyncReferenceRepository) ReplacePlateOptionSlots(ctx context.Context, plates []dto.PlateOptionSlotsSyncPayload) error {
+	if len(plates) == 0 {
+		return nil
+	}
+	return postgres.TenantTx(ctx, r.db, func(tx *gorm.DB) error {
+		for _, plate := range plates {
+			if err := replacePlateOptionSlots(tx, plate.CompositeProductID, plate.Slots, plate.UpdatedAt); err != nil {
+				return fmt.Errorf("replace plate option slots of %s: %w", plate.CompositeProductID, err)
+			}
+		}
+		return nil
+	})
 }

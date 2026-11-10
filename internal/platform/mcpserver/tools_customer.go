@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -36,8 +37,8 @@ const (
 	attributionCampaignIDHeader   = "X-Attribution-Campaign-Id"
 	attributionCampaignNameHeader = "X-Attribution-Campaign-Name"
 
-	menuProductTypes      = "SELLABLE,COMPOSITE,BOTH"
-	sideDishLookupWorkers = 8
+	menuProductTypes  = "SELLABLE,COMPOSITE,BOTH"
+	slotLookupWorkers = 8
 
 	paymentAwaiting = "awaiting_payment"
 	paymentPaid     = "paid"
@@ -147,12 +148,31 @@ type menuProductInput struct {
 	ProductID string `json:"product_id" jsonschema:"the product id (UUID) from list_menu"`
 }
 
-type sideDishChoice struct {
-	IngredientProductID string `json:"ingredient_product_id"`
-	Name                string `json:"name"`
-	DefaultQuantity     int    `json:"default_quantity"`
-	MinQuantity         int    `json:"min_quantity"`
-	MaxQuantity         int    `json:"max_quantity"`
+type slotChoiceView struct {
+	ChoiceID  string `json:"choice_id"`
+	Name      string `json:"name"`
+	IsDefault bool   `json:"default"`
+}
+
+type slotView struct {
+	Name    string           `json:"name"`
+	Choices []slotChoiceView `json:"choices"`
+}
+
+type slotOptions struct {
+	Slots []slotView `json:"slots"`
+}
+
+func slotOptionsView(slots []dto.PlateOptionSlot) slotOptions {
+	out := slotOptions{Slots: make([]slotView, 0, len(slots))}
+	for _, s := range slots {
+		view := slotView{Name: s.Name, Choices: make([]slotChoiceView, 0, len(s.Choices))}
+		for _, c := range s.Choices {
+			view.Choices = append(view.Choices, slotChoiceView{ChoiceID: c.ID, Name: c.Name, IsDefault: c.IsDefault})
+		}
+		out.Slots = append(out.Slots, view)
+	}
+	return out
 }
 
 type locationCheck struct {
@@ -160,16 +180,16 @@ type locationCheck struct {
 	ZoneName    *string `json:"zone_name,omitempty"`
 }
 
-func (c *Client) sideDishOptions(ctx context.Context, productID string) ([]*dto.SideDishOption, error) {
-	body, err := c.Get(ctx, "/api/products/"+url.PathEscape(productID)+"/side-dishes", nil)
+func (c *Client) optionSlots(ctx context.Context, productID string) ([]dto.PlateOptionSlot, error) {
+	body, err := c.Get(ctx, "/api/products/"+url.PathEscape(productID)+"/option-slots", nil)
 	if err != nil {
 		return nil, err
 	}
-	var resp dto.SideDishOptionListResponse
+	var resp dto.PlateOptionSlotListResponse
 	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, fmt.Errorf("decode side dishes: %w", err)
+		return nil, fmt.Errorf("decode option slots: %w", err)
 	}
-	return resp.SideDishes, nil
+	return resp.Slots, nil
 }
 
 func (c *Client) listMenu(ctx context.Context) ([]menuItem, error) {
@@ -201,16 +221,16 @@ func (c *Client) listMenu(ctx context.Context) ([]menuItem, error) {
 		})
 	}
 
-	// Only composites can carry side-dish options; the product list does not say which do.
+	// Only composites can carry option slots; the product list does not say which do.
 	group, groupCtx := errgroup.WithContext(ctx)
-	group.SetLimit(sideDishLookupWorkers)
+	group.SetLimit(slotLookupWorkers)
 	for _, index := range composites {
 		group.Go(func() error {
-			options, err := c.sideDishOptions(groupCtx, menu[index].ProductID)
+			slots, err := c.optionSlots(groupCtx, menu[index].ProductID)
 			if err != nil {
 				return err
 			}
-			menu[index].HasSideDishOptions = len(options) > 0
+			menu[index].HasSideDishOptions = len(slots) > 0
 			return nil
 		})
 	}
@@ -224,16 +244,11 @@ func (c *Client) listMenu(ctx context.Context) ([]menuItem, error) {
 // Orders
 // ---------------------------------------------------------------------------
 
-type sideDishInput struct {
-	IngredientProductID string `json:"ingredient_product_id" jsonschema:"the side-dish ingredient id from get_side_dish_options"`
-	Quantity            int    `json:"quantity" jsonschema:"chosen quantity, within the option's min and max (0 removes it)"`
-}
-
 type orderLineInput struct {
-	ProductID  string          `json:"product_id" jsonschema:"the product id (UUID) from list_menu"`
-	Quantity   int             `json:"quantity" jsonschema:"how many, at least 1"`
-	Notes      *string         `json:"notes,omitempty" jsonschema:"optional preparation notes, e.g. sin cebolla"`
-	SideDishes []sideDishInput `json:"side_dishes,omitempty" jsonschema:"optional side-dish choices; omitted ones use their default"`
+	ProductID string   `json:"product_id" jsonschema:"the product id (UUID) from list_menu"`
+	Quantity  int      `json:"quantity" jsonschema:"how many, at least 1"`
+	Notes     *string  `json:"notes,omitempty" jsonschema:"optional preparation notes, e.g. sin cebolla; a change the options do not allow goes here for staff to confirm"`
+	Choices   []string `json:"choices,omitempty" jsonschema:"for a plate with slots: choice_id values from get_side_dish_options, at most one per slot; a slot left out is served with its default"`
 }
 
 type createDeliveryOrderInput struct {
@@ -253,10 +268,27 @@ type orderIDOnlyInput struct {
 }
 
 type orderLineView struct {
-	Name     string  `json:"name"`
-	Quantity int     `json:"quantity"`
-	Notes    *string `json:"notes,omitempty"`
-	State    string  `json:"state,omitempty"`
+	Name     string           `json:"name"`
+	Quantity int              `json:"quantity"`
+	Notes    *string          `json:"notes,omitempty"`
+	Choices  []lineChoiceView `json:"choices,omitempty"`
+	State    string           `json:"state,omitempty"`
+}
+
+type lineChoiceView struct {
+	Slot   string `json:"slot"`
+	Choice string `json:"choice"`
+}
+
+func lineChoiceViews(choices []dto.LineChoice) []lineChoiceView {
+	if len(choices) == 0 {
+		return nil
+	}
+	out := make([]lineChoiceView, len(choices))
+	for i, c := range choices {
+		out[i] = lineChoiceView{Slot: c.SlotName, Choice: c.ChoiceName}
+	}
+	return out
 }
 
 type orderView struct {
@@ -306,18 +338,75 @@ func orderItems(lines []orderLineInput, existing []dto.OpenBillProductDetail) []
 			ProductID:         l.ProductID,
 			Quantity:          l.Quantity,
 			Notes:             l.Notes,
-		}
-		for _, sd := range l.SideDishes {
-			item.SideDishes = append(item.SideDishes, dto.SideDishSelection{IngredientProductID: sd.IngredientProductID, Quantity: sd.Quantity})
+			Choices:           l.Choices,
 		}
 		items = append(items, item)
 	}
 	return items
 }
 
+// lineChoices names, per line, the choice each slot resolved to: the one sent or the slot's
+// default, as the backend resolved it. The order already exists, so a failed lookup only
+// leaves the names out.
+func (c *Client) lineChoices(ctx context.Context, items []dto.OrderProductItem) map[string][]lineChoiceView {
+	slotsByProduct := make(map[string][]dto.PlateOptionSlot)
+	var mu sync.Mutex
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.SetLimit(slotLookupWorkers)
+	seen := make(map[string]bool, len(items))
+	for _, item := range items {
+		productID := item.ProductID
+		if seen[productID] {
+			continue
+		}
+		seen[productID] = true
+		group.Go(func() error {
+			if slots, err := c.optionSlots(groupCtx, productID); err == nil {
+				mu.Lock()
+				slotsByProduct[productID] = slots
+				mu.Unlock()
+			}
+			return nil
+		})
+	}
+	_ = group.Wait()
+
+	byLine := make(map[string][]lineChoiceView, len(items))
+	for _, item := range items {
+		slots := slotsByProduct[item.ProductID]
+		if len(slots) == 0 {
+			continue
+		}
+		chosen := make(map[string]bool, len(item.Choices))
+		for _, id := range item.Choices {
+			chosen[id] = true
+		}
+		views := make([]lineChoiceView, 0, len(slots))
+		for _, slot := range slots {
+			for _, choice := range slot.Choices {
+				if chosen[choice.ID] || (choice.IsDefault && !slotHasChoice(slot, chosen)) {
+					views = append(views, lineChoiceView{Slot: slot.Name, Choice: choice.Name})
+					break
+				}
+			}
+		}
+		byLine[item.OpenBillProductID] = views
+	}
+	return byLine
+}
+
+func slotHasChoice(slot dto.PlateOptionSlot, chosen map[string]bool) bool {
+	for _, choice := range slot.Choices {
+		if chosen[choice.ID] {
+			return true
+		}
+	}
+	return false
+}
+
 // writtenOrderView trims a create/update response; its products are the catalog entries, so
 // names come from there and quantities from the lines that were sent.
-func writtenOrderView(order *dto.OpenBill, items []dto.OrderProductItem) orderView {
+func writtenOrderView(order *dto.OpenBill, items []dto.OrderProductItem, choices map[string][]lineChoiceView) orderView {
 	names := make(map[string]string, len(order.Products))
 	for _, p := range order.Products {
 		names[p.ID] = p.Name
@@ -331,7 +420,9 @@ func writtenOrderView(order *dto.OpenBill, items []dto.OrderProductItem) orderVi
 		Lines:        make([]orderLineView, 0, len(items)),
 	}
 	for _, item := range items {
-		view.Lines = append(view.Lines, orderLineView{Name: names[item.ProductID], Quantity: item.Quantity, Notes: item.Notes})
+		view.Lines = append(view.Lines, orderLineView{
+			Name: names[item.ProductID], Quantity: item.Quantity, Notes: item.Notes, Choices: choices[item.OpenBillProductID],
+		})
 	}
 	return view
 }
@@ -351,7 +442,9 @@ func detailOrderView(order *dto.OpenBillWithProducts) orderView {
 		view.PaymentState = paymentPaid
 	}
 	for _, p := range order.Products {
-		view.Lines = append(view.Lines, orderLineView{Name: p.Product.Name, Quantity: p.Quantity, Notes: p.Notes, State: string(p.Status)})
+		view.Lines = append(view.Lines, orderLineView{
+			Name: p.Product.Name, Quantity: p.Quantity, Notes: p.Notes, Choices: lineChoiceViews(p.Choices), State: string(p.Status),
+		})
 	}
 	return view
 }
@@ -484,7 +577,7 @@ func orderingUnavailable(apiErr *APIError) error {
 func registerCustomerTools(s *mcp.Server, c *Client) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "list_menu",
-		Description: "List what the customer can order: each product's id, name, category, description, price with taxes, and whether it has side-dish options (see get_side_dish_options).",
+		Description: "List what the customer can order: each product's id, name, category, description, price with taxes, and whether it has options (slots) to choose from (see get_side_dish_options).",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ noInput) (*mcp.CallToolResult, any, error) {
 		menu, err := c.listMenu(ctx)
 		if err != nil {
@@ -494,27 +587,17 @@ func registerCustomerTools(s *mcp.Server, c *Client) {
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
-		Name:        "get_side_dish_options",
-		Description: "For one product, list its side-dish choices with the allowed quantity range and the default.",
+		Name: "get_side_dish_options",
+		Description: "For one product, list what the customer can choose, as {\"slots\": [...]}: each slot takes exactly one of its choices " +
+			"and is served with its default unless the customer asks for a change; send the choice_id values as the line's choices. " +
+			"An empty list means the product has nothing to choose. Only the listed choices can be ordered; anything else can only go " +
+			"in the line's notes, for staff to confirm.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in menuProductInput) (*mcp.CallToolResult, any, error) {
-		options, err := c.sideDishOptions(ctx, in.ProductID)
+		slots, err := c.optionSlots(ctx, in.ProductID)
 		if err != nil {
-			return backendFailure("the side-dish options could not be loaded", err)
+			return backendFailure("the options could not be loaded", err)
 		}
-		choices := make([]sideDishChoice, 0, len(options))
-		for _, o := range options {
-			choice := sideDishChoice{
-				IngredientProductID: o.IngredientProductID,
-				DefaultQuantity:     o.DefaultQuantity,
-				MinQuantity:         o.MinQuantity,
-				MaxQuantity:         o.MaxQuantity,
-			}
-			if o.IngredientProduct != nil {
-				choice.Name = o.IngredientProduct.Name
-			}
-			choices = append(choices, choice)
-		}
-		return jsonOK(json.Marshal(choices))
+		return jsonOK(json.Marshal(slotOptionsView(slots)))
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
@@ -561,7 +644,9 @@ func registerCustomerTools(s *mcp.Server, c *Client) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "create_delivery_order",
 		Description: "Create a takeaway or delivery order for the customer in this chat. A delivery goes to the location the customer shared " +
-			"and needs the address reference for the rider. The order is awaiting payment; the kitchen starts it once it is paid.",
+			"and needs the address reference for the rider. The order is awaiting payment; the kitchen starts it once it is paid. " +
+			"For a plate with slots send choices only when the customer asked for a change; each line comes back " +
+			"with the choice every slot resolved to. If a choice is refused, call get_side_dish_options again and ask the customer.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in createDeliveryOrderInput) (*mcp.CallToolResult, any, error) {
 		orderType := dto.OrderType(strings.TrimSpace(in.OrderType))
 		if orderType != dto.OrderTypeTakeaway && orderType != dto.OrderTypeDelivery {
@@ -608,12 +693,13 @@ func registerCustomerTools(s *mcp.Server, c *Client) {
 		if err := json.Unmarshal(body, &order); err != nil {
 			return toolError(fmt.Errorf("decode order: %w", err))
 		}
-		return jsonOK(json.Marshal(writtenOrderView(&order, items)))
+		return jsonOK(json.Marshal(writtenOrderView(&order, items, c.lineChoices(ctx, items))))
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
-		Name:        "update_my_order",
-		Description: "Replace the lines of one of this customer's unpaid orders. The order type, contact and location do not change. Fails with order not found once the order is paid.",
+		Name: "update_my_order",
+		Description: "Replace the lines of one of this customer's unpaid orders. The order type, contact and location do not change. Fails with order not found once the order is paid. " +
+			"Lines take the same shape as in create_delivery_order, choices included; resend a plate's choices or it goes back to its defaults.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in updateMyOrderInput) (*mcp.CallToolResult, any, error) {
 		if err := validateLines(in.Lines); err != nil {
 			return toolError(err)
@@ -643,7 +729,7 @@ func registerCustomerTools(s *mcp.Server, c *Client) {
 		if err := json.Unmarshal(body, &order); err != nil {
 			return toolError(fmt.Errorf("decode order: %w", err))
 		}
-		return jsonOK(json.Marshal(writtenOrderView(&order, items)))
+		return jsonOK(json.Marshal(writtenOrderView(&order, items, c.lineChoices(ctx, items))))
 	})
 
 	mcp.AddTool(s, &mcp.Tool{

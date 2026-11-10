@@ -27,7 +27,7 @@ GET /api/product-responsibilities/:id laguna-escondida/backend/internal/platform
 GET /api/products laguna-escondida/backend/internal/platform/handler.(*ProductHandler).ListProductsHandler-fm
 GET /api/products/:id laguna-escondida/backend/internal/platform/handler.(*ProductHandler).GetProductByIDHandler-fm
 GET /api/products/:id/ingredients laguna-escondida/backend/internal/platform/handler.(*ProductIngredientHandler).GetIngredientsHandler-fm
-GET /api/products/:id/side-dishes laguna-escondida/backend/internal/platform/handler.(*ProductIngredientHandler).GetSideDishOptionsHandler-fm
+GET /api/products/:id/option-slots laguna-escondida/backend/internal/platform/handler.(*PlateOptionSlotHandler).GetHandler-fm
 GET /api/products/categories laguna-escondida/backend/internal/platform/handler.(*ProductHandler).ListCategoriesHandler-fm
 GET /api/sse/commands/:area laguna-escondida/backend/internal/platform/handler.(*SSEHandler).StreamCommandsHandler-fm
 GET /api/sse/open-bill-products/:area laguna-escondida/backend/internal/platform/handler.(*SSEHandler).StreamOpenBillProductsHandler-fm

@@ -70,6 +70,10 @@ func (s *SyncPullService) PullChanges(ctx context.Context) (*dto.SyncPullResult,
 		if err := s.writer.UpsertProductIngredients(ctx, resp.ProductIngredients); err != nil {
 			return fmt.Errorf("upsert product ingredients: %w", err)
 		}
+		// Bundle items reference products, so slots land after products too.
+		if err := s.writer.ReplacePlateOptionSlots(ctx, resp.PlateOptionSlots); err != nil {
+			return fmt.Errorf("replace plate option slots: %w", err)
+		}
 		if err := s.writer.UpsertUsers(ctx, resp.Users); err != nil {
 			return fmt.Errorf("upsert users: %w", err)
 		}
@@ -93,5 +97,6 @@ func (s *SyncPullService) PullChanges(ctx context.Context) (*dto.SyncPullResult,
 		Suppliers:               len(resp.Suppliers),
 		ProductResponsibilities: len(resp.ProductResponsibilities),
 		ProductIngredients:      len(resp.ProductIngredients),
+		PlateOptionSlots:        len(resp.PlateOptionSlots),
 	}, nil
 }

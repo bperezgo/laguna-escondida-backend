@@ -54,7 +54,7 @@ type fakeBackend struct {
 	requests []recordedRequest
 	orders   []*fakeOrder
 	products []*dto.Product
-	sides    map[string][]*dto.SideDishOption
+	slots    map[string][]dto.PlateOptionSlot
 	settings *dto.OrganizationSettingsResponse
 	create   http.HandlerFunc
 	// override answers a request before the routes above when it returns true.
@@ -63,14 +63,14 @@ type fakeBackend struct {
 }
 
 func newFakeBackend(t *testing.T) *fakeBackend {
-	b := &fakeBackend{t: t, sides: map[string][]*dto.SideDishOption{}}
+	b := &fakeBackend{t: t, slots: map[string][]dto.PlateOptionSlot{}}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/auth/signin", func(w http.ResponseWriter, _ *http.Request) { writeSignIn(w) })
 	mux.HandleFunc("GET /api/products", func(w http.ResponseWriter, _ *http.Request) {
 		b.writeJSON(w, http.StatusOK, dto.ProductListResponse{Products: b.products})
 	})
-	mux.HandleFunc("GET /api/products/{id}/side-dishes", func(w http.ResponseWriter, r *http.Request) {
-		b.writeJSON(w, http.StatusOK, dto.SideDishOptionListResponse{SideDishes: b.sides[r.PathValue("id")]})
+	mux.HandleFunc("GET /api/products/{id}/option-slots", func(w http.ResponseWriter, r *http.Request) {
+		b.writeJSON(w, http.StatusOK, dto.PlateOptionSlotListResponse{Slots: b.slots[r.PathValue("id")]})
 	})
 	mux.HandleFunc("GET /api/delivery-zones/check", func(w http.ResponseWriter, _ *http.Request) {
 		name := "Centro"
@@ -430,7 +430,7 @@ func TestCustomerTools_ForeignSenderIsReadAsInternational(t *testing.T) {
 // 7.4 Menu and location
 // ---------------------------------------------------------------------------
 
-func TestListMenu_OnlySellableWithSideDishFlag(t *testing.T) {
+func TestListMenu_OnlySellableWithOptionsFlag(t *testing.T) {
 	backend := newFakeBackend(t)
 	desc := "Con arroz y patacón"
 	backend.products = []*dto.Product{
@@ -439,7 +439,7 @@ func TestListMenu_OnlySellableWithSideDishFlag(t *testing.T) {
 		{ID: "soda", Name: "Gaseosa", Category: "Bebidas", ProductType: dto.ProductTypeSellable, TotalPriceWithTaxes: decimal.NewFromInt(5000)},
 		{ID: "tomato", Name: "Tomate", Category: "Insumos", ProductType: dto.ProductTypeIngredient},
 	}
-	backend.sides["plate"] = []*dto.SideDishOption{{IngredientProductID: "rice", IngredientProduct: &dto.Product{Name: "Arroz"}, DefaultQuantity: 1, MaxQuantity: 2}}
+	backend.slots["plate"] = tilapiaSlots()
 	cs := connectCustomer(t, backend, map[string]string{customerPhoneHeader: "573005551234"})
 
 	text, isErr := call(t, cs, "list_menu", nil)
@@ -458,18 +458,18 @@ func TestListMenu_OnlySellableWithSideDishFlag(t *testing.T) {
 	assert.False(t, byID["soda"].HasSideDishOptions)
 	assert.True(t, byID["plate"].Price.Equal(decimal.NewFromInt(32000)))
 	assert.Equal(t, "product_type=SELLABLE%2CCOMPOSITE%2CBOTH", backend.requestsTo(http.MethodGet, "/api/products")[0].Query)
-	assert.Empty(t, backend.requestsTo(http.MethodGet, "/api/products/soda"), "only composites are asked for side dishes")
+	assert.Empty(t, backend.requestsTo(http.MethodGet, "/api/products/soda"), "only composites are asked for options")
 }
 
-func TestGetSideDishOptions_Trimmed(t *testing.T) {
+func TestGetSideDishOptions_NothingToChoose(t *testing.T) {
 	backend := newFakeBackend(t)
-	backend.sides["plate"] = []*dto.SideDishOption{{IngredientProductID: "rice", IngredientProduct: &dto.Product{Name: "Arroz", SKU: "secret-sku"}, DefaultQuantity: 1, MinQuantity: 0, MaxQuantity: 2}}
 	cs := connectCustomer(t, backend, nil)
 
 	text, isErr := call(t, cs, "get_side_dish_options", map[string]any{"product_id": "plate"})
 
 	require.False(t, isErr, text)
-	assert.JSONEq(t, `[{"ingredient_product_id":"rice","name":"Arroz","default_quantity":1,"min_quantity":0,"max_quantity":2}]`, text)
+	assert.JSONEq(t, `{"slots":[]}`, text)
+	assert.Empty(t, backend.requestsTo(http.MethodGet, "/api/products/plate/side-dishes"))
 }
 
 func TestCheckDeliveryLocation_UsesTheHeaderPin(t *testing.T) {
@@ -496,8 +496,7 @@ func deliveryArgs() map[string]any {
 		"delivery_address": "Cra 7 # 12-34, apto 501",
 		"lines": []map[string]any{
 			{"product_id": "11112222-0000-0000-0000-000000000001", "quantity": 2, "notes": "sin cebolla"},
-			{"product_id": "33334444-0000-0000-0000-000000000002", "quantity": 1,
-				"side_dishes": []map[string]any{{"ingredient_product_id": "rice", "quantity": 0}}},
+			{"product_id": "33334444-0000-0000-0000-000000000002", "quantity": 1, "choices": []string{"choice-coconut-rice"}},
 		},
 	}
 }
@@ -525,7 +524,7 @@ func TestCreateDeliveryOrder_PostsHeaderPhoneAndPinWithGeneratedIDs(t *testing.T
 	for _, p := range sent.Products {
 		assert.True(t, isUUIDv7(p.OpenBillProductID))
 	}
-	assert.Equal(t, []dto.SideDishSelection{{IngredientProductID: "rice", Quantity: 0}}, sent.Products[1].SideDishes)
+	assert.Equal(t, []string{"choice-coconut-rice"}, sent.Products[1].Choices)
 
 	var view orderView
 	require.NoError(t, json.Unmarshal([]byte(text), &view))

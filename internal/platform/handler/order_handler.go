@@ -82,8 +82,7 @@ func (h *OrderHandler) CreateOrderHandler(c *gin.Context) {
 		if respondOrderingUnavailable(c, err) {
 			return
 		}
-		if errors.Is(err, orderError.ErrInvalidSideDishSelection) || errors.Is(err, orderError.ErrSideDishQuantityOutOfBounds) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		if respondLineSelectionError(c, err) {
 			return
 		}
 		var originErr *orderError.ValidationError
@@ -161,6 +160,9 @@ func (h *OrderHandler) UpdateOrderHandler(c *gin.Context) {
 		}
 		if errors.Is(err, orderError.ErrProductNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "One or more products not found"})
+			return
+		}
+		if respondLineSelectionError(c, err) {
 			return
 		}
 		if errors.Is(err, orderError.ErrOrderUpdateFailed) {
@@ -503,6 +505,17 @@ func (h *OrderHandler) CancelOpenBillProductHandler(c *gin.Context) {
 
 func respondAwaitingPayment(c *gin.Context) {
 	c.JSON(http.StatusConflict, gin.H{"error": "The order must be paid before the kitchen can prepare it", "code": "ORDER_AWAITING_PAYMENT"})
+}
+
+// respondLineSelectionError answers 400 with the reason, which names the slot or choice so the
+// agent can relay it to the customer.
+func respondLineSelectionError(c *gin.Context, err error) bool {
+	if errors.Is(err, orderError.ErrSideDishesNotSupported) ||
+		errors.Is(err, orderError.ErrInvalidLineChoice) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return true
+	}
+	return false
 }
 
 func isValidationError(err error) bool {

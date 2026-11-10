@@ -97,6 +97,7 @@ func buildCore(cfg *config.Shared, infra Infra, opts ModeOptions) (*core, error)
 	supplierRepo := repository.NewSupplierRepository(db)
 	supplierCatalogRepo := repository.NewSupplierCatalogRepository(db)
 	productIngredientRepo := repository.NewProductIngredientRepository(db)
+	plateOptionSlotRepo := repository.NewPlateOptionSlotRepository(db)
 	billRepo := repository.NewBillRepository(db)
 	pendingInvoiceRepo := repository.NewPendingInvoiceRepository(db)
 
@@ -147,6 +148,7 @@ func buildCore(cfg *config.Shared, infra Infra, opts ModeOptions) (*core, error)
 		append([]service.OrderServiceOption{
 			service.WithDeliveryEnabled(opts.DeliveryEnabled),
 			service.WithOrderingSettings(orgSettingsRepo),
+			service.WithOrderPlateOptionSlots(plateOptionSlotRepo),
 		}, opts.OrderOptions...)...,
 	)
 	// The edge only reads products; the supplier repos back the cloud's bulk create.
@@ -166,6 +168,7 @@ func buildCore(cfg *config.Shared, infra Infra, opts ModeOptions) (*core, error)
 	organizationRunner := service.NewOrganizationRunner(organizationRepo, sessionOpener)
 	billOwnerService := service.NewBillOwnerService(billOwnerRepo)
 	productIngredientService := service.NewProductIngredientService(productIngredientRepo, productRepo)
+	plateOptionSlotService := service.NewPlateOptionSlotService(plateOptionSlotRepo, productRepo)
 
 	eventSubscriber, err := eventbus.NewGoChannelEventSubscriber(infra.EventBus.PubSub(), watermillLogger)
 	if err != nil {
@@ -216,6 +219,7 @@ func buildCore(cfg *config.Shared, infra Infra, opts ModeOptions) (*core, error)
 		user:              handler.NewUserHandler(userService, organizationService, logger),
 		billOwner:         handler.NewBillOwnerHandler(billOwnerService),
 		productIngredient: handler.NewProductIngredientHandler(productIngredientService),
+		plateOptionSlot:   handler.NewPlateOptionSlotHandler(plateOptionSlotService),
 		sse:               handler.NewSSEHandler(sseHub, openBillProductHub, orderService, logger),
 		edge:              opts.StatusHandler(edgeStatusService, syncStatusTracker),
 	}

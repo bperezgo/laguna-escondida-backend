@@ -167,12 +167,14 @@ func (s *EdgeSyncScheduler) pull(ctx context.Context) {
 		return
 	}
 	s.tracker.RecordSuccess()
-	if result.Products+result.Users+result.Suppliers+result.ProductResponsibilities > 0 {
+	if result.Products+result.Users+result.Suppliers+result.ProductResponsibilities+result.ProductIngredients+result.PlateOptionSlots > 0 {
 		s.logger.InfoContext(ctx, "Edge sync pull job completed",
 			slog.Int("products", result.Products),
 			slog.Int("users", result.Users),
 			slog.Int("suppliers", result.Suppliers),
 			slog.Int("product_responsibilities", result.ProductResponsibilities),
+			slog.Int("product_ingredients", result.ProductIngredients),
+			slog.Int("plate_option_slots", result.PlateOptionSlots),
 		)
 	}
 }

@@ -256,7 +256,7 @@ func (h *StockEventHandler) expandComposite(ctx context.Context, composite *dto.
 	if err != nil {
 		return fmt.Errorf("failed to get ingredients: %w", err)
 	}
-	if len(ingredients) == 0 {
+	if len(ingredients) == 0 && len(sideDishes) == 0 {
 		h.logger.Warn("composite product has no ingredients",
 			slog.String("product_id", composite.ID),
 		)
@@ -265,6 +265,14 @@ func (h *StockEventHandler) expandComposite(ctx context.Context, composite *dto.
 
 	path[composite.ID] = struct{}{}
 	defer delete(path, composite.ID)
+
+	recipeRows := make(map[string]struct{}, len(ingredients))
+	for _, ingredient := range ingredients {
+		recipeRows[ingredient.IngredientProductID] = struct{}{}
+	}
+	if err := h.consumeBundleExtras(ctx, sideDishes, recipeRows, quantity, sign); err != nil {
+		return err
+	}
 
 	for _, ingredient := range ingredients {
 		perUnit := ingredient.DefaultQuantity
@@ -296,6 +304,27 @@ func (h *StockEventHandler) expandComposite(ctx context.Context, composite *dto.
 		}
 	}
 
+	return nil
+}
+
+// consumeBundleExtras consumes the selected ingredients that are not rows of the plate's recipe:
+// a plate with option slots draws its sides from bundles, which name products directly. A bundle
+// item that is itself composite expands through its own recipe. Legacy side dishes are always
+// recipe rows, so for those plates this does nothing.
+func (h *StockEventHandler) consumeBundleExtras(ctx context.Context, selections map[string]int, recipeRows map[string]struct{}, quantity decimal.Decimal, sign int) error {
+	extras := make([]string, 0, len(selections))
+	for ingredientID, qty := range selections {
+		if _, isRecipeRow := recipeRows[ingredientID]; !isRecipeRow && qty > 0 {
+			extras = append(extras, ingredientID)
+		}
+	}
+	sort.Strings(extras)
+	for _, ingredientID := range extras {
+		childQty := decimal.NewFromInt(int64(selections[ingredientID])).Mul(quantity)
+		if err := h.adjustStockForProduct(ctx, ingredientID, childQty, sign, nil); err != nil {
+			return fmt.Errorf("failed to adjust bundle ingredient stock: %w", err)
+		}
+	}
 	return nil
 }
 

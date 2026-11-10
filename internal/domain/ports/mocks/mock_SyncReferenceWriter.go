@@ -22,6 +22,53 @@ func (_m *MockSyncReferenceWriter) EXPECT() *MockSyncReferenceWriter_Expecter {
 	return &MockSyncReferenceWriter_Expecter{mock: &_m.Mock}
 }
 
+// ReplacePlateOptionSlots provides a mock function with given fields: ctx, plates
+func (_m *MockSyncReferenceWriter) ReplacePlateOptionSlots(ctx context.Context, plates []dto.PlateOptionSlotsSyncPayload) error {
+	ret := _m.Called(ctx, plates)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ReplacePlateOptionSlots")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, []dto.PlateOptionSlotsSyncPayload) error); ok {
+		r0 = rf(ctx, plates)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockSyncReferenceWriter_ReplacePlateOptionSlots_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ReplacePlateOptionSlots'
+type MockSyncReferenceWriter_ReplacePlateOptionSlots_Call struct {
+	*mock.Call
+}
+
+// ReplacePlateOptionSlots is a helper method to define mock.On call
+//   - ctx context.Context
+//   - plates []dto.PlateOptionSlotsSyncPayload
+func (_e *MockSyncReferenceWriter_Expecter) ReplacePlateOptionSlots(ctx interface{}, plates interface{}) *MockSyncReferenceWriter_ReplacePlateOptionSlots_Call {
+	return &MockSyncReferenceWriter_ReplacePlateOptionSlots_Call{Call: _e.mock.On("ReplacePlateOptionSlots", ctx, plates)}
+}
+
+func (_c *MockSyncReferenceWriter_ReplacePlateOptionSlots_Call) Run(run func(ctx context.Context, plates []dto.PlateOptionSlotsSyncPayload)) *MockSyncReferenceWriter_ReplacePlateOptionSlots_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]dto.PlateOptionSlotsSyncPayload))
+	})
+	return _c
+}
+
+func (_c *MockSyncReferenceWriter_ReplacePlateOptionSlots_Call) Return(_a0 error) *MockSyncReferenceWriter_ReplacePlateOptionSlots_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockSyncReferenceWriter_ReplacePlateOptionSlots_Call) RunAndReturn(run func(context.Context, []dto.PlateOptionSlotsSyncPayload) error) *MockSyncReferenceWriter_ReplacePlateOptionSlots_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ReplaceStockAmounts provides a mock function with given fields: ctx, stocks
 func (_m *MockSyncReferenceWriter) ReplaceStockAmounts(ctx context.Context, stocks []dto.StockSyncPayload) error {
 	ret := _m.Called(ctx, stocks)
