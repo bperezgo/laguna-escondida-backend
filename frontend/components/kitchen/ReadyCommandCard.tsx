@@ -15,6 +15,7 @@ export interface ReadyCommand {
     notes?: string | null;
     // Resolved side dishes (names already resolved by the backend).
     side_dishes?: { name: string; quantity: number }[];
+    choices?: { slot_name: string; choice_name: string }[];
   }[];
 }
 
@@ -193,7 +194,33 @@ export default function ReadyCommandCard({ command }: ReadyCommandCardProps) {
 
             {/* Resolved side dishes (names resolved by the backend). Muted to
                 match the completed look; "sin {name}" marks a removed one. */}
-            {item.side_dishes && item.side_dishes.length > 0 && (
+            {item.choices && item.choices.length > 0 ? (
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "0.35rem",
+                  marginTop: "0.25rem",
+                  paddingLeft: "0.5rem",
+                  borderLeft: "3px solid var(--color-border)",
+                }}
+              >
+                {item.choices.map((c) => (
+                  <span
+                    key={`${c.slot_name}-${c.choice_name}`}
+                    title={c.slot_name}
+                    style={{
+                      fontSize: "0.85rem",
+                      fontWeight: 600,
+                      color: "var(--color-text-muted)",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {c.choice_name}
+                  </span>
+                ))}
+              </div>
+            ) : item.side_dishes && item.side_dishes.length > 0 && (
               <div
                 style={{
                   display: "flex",

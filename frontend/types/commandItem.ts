@@ -29,6 +29,8 @@ export interface OpenBillProductFromSSE {
   completed_at?: string | null;
   // Resolved side-dish selections for this line, with names pre-resolved by the backend.
   side_dishes?: SideDishSSE[];
+  // For a plate with option slots: one per slot, e.g. Acompañante: Papas.
+  choices?: { slot_name: string; choice_name: string }[];
 }
 
 /**

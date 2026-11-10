@@ -4,8 +4,9 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { productsApi } from "@/lib/api/products";
 import { createOrder } from "@/lib/api/orders";
 import { recipeApi } from "@/lib/api/recipe";
-import type { Product, SideDishOption } from "@/types/product";
-import type { OrderProductItem, SideDishSelection } from "@/types/order";
+import type { Product, PlateOptionSlot } from "@/types/product";
+import { choicesPayload, selectChoice } from "@/lib/orders/lineChoices";
+import type { OrderProductItem } from "@/types/order";
 import { fuzzyFilter } from "@/lib/search/fuzzy";
 import { Button, Input, Textarea } from "@/components/ui";
 import {
@@ -14,7 +15,6 @@ import {
   CategoryPills,
   sendIcon,
   isWeighedProduct,
-  defaultSelections,
 } from "./orderTakingParts";
 import { formatMoney } from "@/lib/format";
 import { ApiError } from "@/lib/api/config";
@@ -46,9 +46,8 @@ interface ProductWithQuantity {
   product: Product;
   quantity: number;
   notes: string;
-  // Per-line side-dish selection. Empty until the operator touches a stepper;
-  // omitted/partial sets are filled with defaults by the backend.
-  sideDishes: SideDishSelection[];
+  // Choice ids for a plate with option slots; unpicked slots go with their default.
+  choices: string[];
 }
 
 export default function CreateOrderForm({
@@ -84,27 +83,21 @@ export default function CreateOrderForm({
   // says which line to focus. Set when a weighed product is (re)tapped in the menu.
   const [focusNonce, setFocusNonce] = useState(0);
   const [focusLineItemId, setFocusLineItemId] = useState<string | null>(null);
-  // product_id -> its side-dish options (empty array = composite with no side
-  // dishes, or a fetch that failed). Cached so a product on several lines is
-  // fetched once.
-  const [sideDishOptions, setSideDishOptions] = useState<
-    Map<string, SideDishOption[]>
-  >(new Map());
+  // product_id -> its option slots (empty array = no slots, or a fetch that
+  // failed). Cached so a product on several lines is fetched once.
+  const [optionSlots, setOptionSlots] = useState<Map<string, PlateOptionSlot[]>>(
+    new Map(),
+  );
 
-  const ensureSideDishOptions = useCallback(
+  const ensureOptionSlots = useCallback(
     async (product: Product) => {
-      if (product.product_type !== "COMPOSITE") return; // only composites have side dishes
-      if (sideDishOptions.has(product.id)) return; // cached
-      try {
-        const opts = await recipeApi.listSideDishes(product.id);
-        setSideDishOptions((prev) => new Map(prev).set(product.id, opts));
-      } catch {
-        // Non-fatal: a fetch failure just means no steppers for this line;
-        // ordering still works (backend fills defaults).
-        setSideDishOptions((prev) => new Map(prev).set(product.id, []));
-      }
+      if (product.product_type !== "COMPOSITE") return;
+      if (optionSlots.has(product.id)) return;
+      // Non-fatal: a failed fetch just means no pills; the backend applies defaults.
+      const slots = await recipeApi.listOptionSlots(product.id).catch(() => []);
+      setOptionSlots((prev) => new Map(prev).set(product.id, slots));
     },
-    [sideDishOptions],
+    [optionSlots],
   );
 
   // Mobile layout: below 768px we render the Menú / Pedido tabs (Option B); the
@@ -197,9 +190,8 @@ export default function CreateOrderForm({
   }, [products, searchQuery, selectedCategory]);
 
   const handleProductSelect = (product: Product) => {
-    // Composite products may carry side dishes — fetch their options once so the
-    // line can render steppers.
-    ensureSideDishOptions(product);
+    // Composite plates may have option slots — fetch them once so the line can render pills.
+    ensureOptionSlots(product);
     const weighed = isWeighedProduct(product);
     // Weighed products live on a single line — re-tapping focuses the existing
     // line instead of adding a duplicate.
@@ -226,9 +218,7 @@ export default function CreateOrderForm({
           // scale reading. Unit products start at 1.
           quantity: weighed ? 0 : 1,
           notes: "",
-          // Seeded empty; the steppers display each option's default until the
-          // operator changes one, and the submit fills the full set.
-          sideDishes: [],
+          choices: [],
         });
         return newMap;
       });
@@ -288,27 +278,19 @@ export default function CreateOrderForm({
     });
   };
 
-  // The quantity is already clamped to the option's [min, max] by the stepper.
-  const handleSideDishChange = (
+  const handleChoiceChange = (
     lineItemId: string,
-    ingredientProductId: string,
-    quantity: number,
+    slotId: string,
+    choiceId: string,
   ) => {
     setSelectedProducts((prev) => {
-      const newMap = new Map(prev);
-      const existing = newMap.get(lineItemId);
+      const existing = prev.get(lineItemId);
       if (!existing) return prev;
-      const others = existing.sideDishes.filter(
-        (s) => s.ingredient_product_id !== ingredientProductId,
-      );
-      newMap.set(lineItemId, {
+      const slots = optionSlots.get(existing.product.id) ?? [];
+      return new Map(prev).set(lineItemId, {
         ...existing,
-        sideDishes: [
-          ...others,
-          { ingredient_product_id: ingredientProductId, quantity },
-        ],
+        choices: selectChoice(slots, existing.choices, slotId, choiceId),
       });
-      return newMap;
     });
   };
 
@@ -355,23 +337,16 @@ export default function CreateOrderForm({
     try {
       const orderProducts: OrderProductItem[] = Array.from(
         selectedProducts.values()
-      ).map(({ openBillProductId, product, quantity, notes, sideDishes }) => {
+      ).map(({ openBillProductId, product, quantity, notes, choices }) => {
         const item: OrderProductItem = {
           open_bill_product_id: openBillProductId,
           product_id: product.id,
           quantity,
           notes: notes.trim() || null,
         };
-        // Only send side_dishes for composite lines that actually have options.
-        const opts = sideDishOptions.get(product.id);
-        if (product.product_type === "COMPOSITE" && opts && opts.length > 0) {
-          // Drop any stale selection whose option no longer exists so it can't
-          // trigger a whole-order rejection.
-          const validIds = new Set(opts.map((o) => o.ingredient_product_id));
-          const chosen = sideDishes.filter((s) =>
-            validIds.has(s.ingredient_product_id),
-          );
-          item.side_dishes = chosen.length > 0 ? chosen : defaultSelections(opts);
+        const slots = optionSlots.get(product.id);
+        if (slots && slots.length > 0) {
+          item.choices = choicesPayload(slots, choices);
         }
         return item;
       });
@@ -783,12 +758,12 @@ export default function CreateOrderForm({
                         key={item.lineItemId}
                         item={{
                           ...item,
-                          sideDishOptions: sideDishOptions.get(item.product.id),
+                          optionSlots: optionSlots.get(item.product.id),
                         }}
                         onQuantityChange={handleQuantityChange}
                         onNotesChange={handleNotesChange}
                         onRemove={handleRemove}
-                        onSideDishChange={handleSideDishChange}
+                        onChoiceChange={handleChoiceChange}
                         focusSignal={
                           focusLineItemId === item.lineItemId ? focusNonce : 0
                         }
@@ -1112,12 +1087,12 @@ export default function CreateOrderForm({
                     key={item.lineItemId}
                     item={{
                       ...item,
-                      sideDishOptions: sideDishOptions.get(item.product.id),
+                      optionSlots: optionSlots.get(item.product.id),
                     }}
                     onQuantityChange={handleQuantityChange}
                     onNotesChange={handleNotesChange}
                     onRemove={handleRemove}
-                    onSideDishChange={handleSideDishChange}
+                    onChoiceChange={handleChoiceChange}
                     focusSignal={
                       focusLineItemId === item.lineItemId ? focusNonce : 0
                     }

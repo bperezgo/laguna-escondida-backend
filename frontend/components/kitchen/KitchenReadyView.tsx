@@ -75,6 +75,7 @@ export default function KitchenReadyView() {
           quantity: p.quantity,
           notes: p.notes,
           side_dishes: p.side_dishes,
+          choices: p.choices,
         })),
       });
     });

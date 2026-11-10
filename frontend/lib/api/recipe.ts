@@ -5,9 +5,9 @@ import type {
   ProductIngredientListResponse,
   AddIngredientRequest,
   UpdateIngredientRequest,
-  SideDishOption,
-  SideDishOptionListResponse,
-  ConfigureSideDishRequest,
+  PlateOptionSlot,
+  PlateOptionSlotListResponse,
+  ReplacePlateOptionSlotsRequest,
 } from "@/types/product";
 
 /**
@@ -71,39 +71,26 @@ export const recipeApi = {
   },
 
   /**
-   * List a composite product's side-dish options (with joined ingredient product for names).
+   * List a composite plate's option slots (empty when it has none).
    */
-  async listSideDishes(productId: string): Promise<SideDishOption[]> {
-    const response = await apiRequest<SideDishOptionListResponse>(
-      `/products/${productId}/side-dishes`,
+  async listOptionSlots(productId: string): Promise<PlateOptionSlot[]> {
+    const response = await apiRequest<PlateOptionSlotListResponse>(
+      `/products/${productId}/option-slots`,
     );
-    return response.side_dishes || [];
+    return response.slots || [];
   },
 
   /**
-   * Mark an ingredient as a side dish (or update its bounds).
+   * Replace the plate's whole slot list; returns the saved list. Cloud only.
    */
-  async configureSideDish(
+  async replaceOptionSlots(
     productId: string,
-    ingredientId: string,
-    req: ConfigureSideDishRequest,
-  ): Promise<ProductIngredient> {
-    return apiRequest<ProductIngredient>(
-      `/products/${productId}/ingredients/${ingredientId}/side-dish`,
+    req: ReplacePlateOptionSlotsRequest,
+  ): Promise<PlateOptionSlot[]> {
+    const response = await apiRequest<PlateOptionSlotListResponse>(
+      `/products/${productId}/option-slots`,
       { method: "PUT", body: JSON.stringify(req) },
     );
-  },
-
-  /**
-   * Revert an ingredient back to a fixed (non-configurable) recipe row.
-   */
-  async clearSideDish(
-    productId: string,
-    ingredientId: string,
-  ): Promise<ProductIngredient> {
-    return apiRequest<ProductIngredient>(
-      `/products/${productId}/ingredients/${ingredientId}/side-dish`,
-      { method: "DELETE" },
-    );
+    return response.slots || [];
   },
 };

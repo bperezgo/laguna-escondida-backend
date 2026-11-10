@@ -12,6 +12,7 @@ import { PRODUCT_TYPES, UNITS_OF_MEASURE, PREPARATION_AREAS, PRIORITY_LEVELS, re
 import { productsApi } from "@/lib/api/products";
 import { Modal, Input, Select, Textarea, Button } from "@/components/ui";
 import IngredientsEditor from "@/components/products/IngredientsEditor";
+import OptionSlotsEditor from "@/components/products/OptionSlotsEditor";
 
 interface ProductFormProps {
   product?: Product | null;
@@ -651,7 +652,10 @@ export default function ProductForm({
             saved as COMPOSITE before its recipe can be edited. */}
         {formData.product_type === "COMPOSITE" &&
           (product && product.product_type === "COMPOSITE" ? (
-            <IngredientsEditor product={product} />
+            <>
+              <IngredientsEditor product={product} />
+              <OptionSlotsEditor product={product} />
+            </>
           ) : (
             <div
               style={{

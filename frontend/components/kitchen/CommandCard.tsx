@@ -424,7 +424,38 @@ export default function CommandCard({
               {/* Resolved side dishes (names already resolved by the backend).
                   Only the ones actually being served show; a removed side dish
                   (0×) is just omitted — the cook has nothing to do for it. */}
-              {(() => {
+              {item.choices && item.choices.length > 0 && (
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "0.4rem",
+                    marginTop: "0.35rem",
+                    paddingLeft: "0.5rem",
+                    borderLeft: "3px solid var(--color-primary)",
+                  }}
+                >
+                  {item.choices.map((c) => (
+                    <span
+                      key={`${c.slot_name}-${c.choice_name}`}
+                      title={c.slot_name}
+                      style={{
+                        fontSize: "0.95rem",
+                        fontWeight: 700,
+                        padding: "0.15rem 0.5rem",
+                        borderRadius: "var(--radius-sm)",
+                        backgroundColor: "var(--color-primary-light)",
+                        color: "var(--color-primary)",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {c.choice_name}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {/* A slot plate's side_dishes are its summed bundles; its choices already say it. */}
+              {!item.choices?.length && (() => {
                 const activeSides =
                   item.side_dishes?.filter((sd) => sd.quantity > 0) ?? [];
                 if (activeSides.length === 0) return null;

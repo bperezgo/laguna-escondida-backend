@@ -3,8 +3,8 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useRef } from "react";
 import { Input } from "@/components/ui";
-import type { Product, SideDishOption } from "@/types/product";
-import type { SideDishSelection } from "@/types/order";
+import type { Product, PlateOptionSlot } from "@/types/product";
+import { selectedChoiceId } from "@/lib/orders/lineChoices";
 import type { OpenBillProductStatus } from "@/types/commandItem";
 import { formatMoney, formatTime } from "@/lib/format";
 
@@ -14,18 +14,6 @@ import { formatMoney, formatTime } from "@/lib/format";
 // nobody taps "+" six thousand times.
 export const isWeighedProduct = (product: Product): boolean =>
   product.unit_of_measure !== "unit";
-
-// Seed a composite line's side-dish selections from its options' defaults.
-// Sending this full set (or a partial subset) is safe — the backend fills any
-// omitted side dish with its default.
-export function defaultSelections(
-  opts: SideDishOption[],
-): SideDishSelection[] {
-  return opts.map((o) => ({
-    ingredient_product_id: o.ingredient_product_id,
-    quantity: o.default_quantity,
-  }));
-}
 
 // Shared presentational parts for the order-taking screens (CreateOrderForm +
 // EditOrderForm). Keeping these in one place guarantees the create and edit flows
@@ -192,10 +180,10 @@ export interface OrderLineItemData {
   createdAt?: string;
   /** Name of the staff member who added this line, only shown when different from the order creator. */
   createdByName?: string;
-  /** The product's configured side-dish options (names + bounds). Absent/empty for non-composites. */
-  sideDishOptions?: SideDishOption[];
-  /** Current per-line side-dish selection (ids + quantities). */
-  sideDishes?: SideDishSelection[];
+  /** The plate's option slots; absent/empty for plates without them. */
+  optionSlots?: PlateOptionSlot[];
+  /** Choice ids picked on this line; a slot without one shows its default. */
+  choices?: string[];
 }
 
 // ── A single order line item: quantity control + name/meta + notes ──
@@ -211,7 +199,7 @@ export function OrderLineItem({
   onQuantityChange,
   onNotesChange,
   onRemove = () => {},
-  onSideDishChange = () => {},
+  onChoiceChange = () => {},
   locked = false,
   focusSignal = 0,
 }: {
@@ -219,11 +207,7 @@ export function OrderLineItem({
   onQuantityChange: (lineItemId: string, quantity: number) => void;
   onNotesChange: (lineItemId: string, notes: string) => void;
   onRemove?: (lineItemId: string) => void;
-  onSideDishChange?: (
-    lineItemId: string,
-    ingredientProductId: string,
-    quantity: number,
-  ) => void;
+  onChoiceChange?: (lineItemId: string, slotId: string, choiceId: string) => void;
   locked?: boolean;
   focusSignal?: number;
 }) {
@@ -235,8 +219,8 @@ export function OrderLineItem({
     status,
     createdAt,
     createdByName,
-    sideDishOptions,
-    sideDishes,
+    optionSlots,
+    choices,
   } = item;
   const weighed = isWeighedProduct(product);
   const unit = product.unit_of_measure;
@@ -546,10 +530,8 @@ export function OrderLineItem({
         </div>
       </div>
 
-      {/* Guarniciones (side dishes): a full-width row below the name/stepper so
-          the option names have room to show in full. One +/- stepper per
-          configured option, clamped to [min, max]. Never affects the price. */}
-      {sideDishOptions && sideDishOptions.length > 0 && (
+      {/* Option slots: one single-choice group per slot, default preselected. Never affects the price. */}
+      {optionSlots && optionSlots.length > 0 && (
         <div
           style={{
             width: "100%",
@@ -559,100 +541,61 @@ export function OrderLineItem({
             border: "1px solid var(--color-border)",
             display: "flex",
             flexDirection: "column",
-            gap: "0.4rem",
+            gap: "0.5rem",
           }}
         >
-          <span
-            style={{
-              fontSize: "0.68rem",
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: "0.04em",
-              color: "var(--color-text-muted)",
-            }}
-          >
-            Guarniciones
-          </span>
-          {sideDishOptions.map((opt) => {
-            const current =
-              sideDishes?.find(
-                (s) => s.ingredient_product_id === opt.ingredient_product_id,
-              )?.quantity ?? opt.default_quantity;
-            const label =
-              opt.ingredient_product?.name ?? opt.ingredient_product_id;
-            const atMin = current <= opt.min_quantity;
-            const atMax = current >= opt.max_quantity;
-            const change = (next: number) => {
-              const clamped = Math.min(
-                opt.max_quantity,
-                Math.max(opt.min_quantity, next),
-              );
-              onSideDishChange(lineItemId, opt.ingredient_product_id, clamped);
-            };
-            const removed = current === 0;
+          {optionSlots.map((slot) => {
+            const selected = selectedChoiceId(slot, choices ?? []);
             return (
               <div
-                key={opt.ingredient_product_id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                }}
+                key={slot.id}
+                role="radiogroup"
+                aria-label={slot.name}
+                style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}
               >
                 <span
                   style={{
-                    flex: 1,
-                    minWidth: 0,
-                    fontSize: "0.85rem",
-                    fontWeight: 600,
-                    color: removed
-                      ? "var(--color-text-muted)"
-                      : "var(--color-text-primary)",
-                    textDecoration: removed ? "line-through" : "none",
-                  }}
-                >
-                  {label}
-                </span>
-                <span
-                  style={{
                     fontSize: "0.68rem",
-                    color: "var(--color-text-muted)",
-                    fontVariantNumeric: "tabular-nums",
-                    flexShrink: 0,
-                  }}
-                >
-                  {opt.min_quantity}–{opt.max_quantity}
-                </span>
-                <button
-                  type="button"
-                  disabled={locked || atMin}
-                  onClick={() => change(current - 1)}
-                  style={stepButtonStyle(locked || atMin)}
-                  aria-label={`Quitar ${label}`}
-                >
-                  −
-                </button>
-                <span
-                  style={{
-                    minWidth: "20px",
-                    textAlign: "center",
                     fontWeight: 700,
-                    fontSize: "0.9rem",
-                    color: "var(--color-text-primary)",
-                    fontVariantNumeric: "tabular-nums",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                    color: "var(--color-text-muted)",
                   }}
                 >
-                  {current}
+                  {slot.name}
                 </span>
-                <button
-                  type="button"
-                  disabled={locked || atMax}
-                  onClick={() => change(current + 1)}
-                  style={stepButtonStyle(locked || atMax)}
-                  aria-label={`Agregar ${label}`}
-                >
-                  +
-                </button>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
+                  {slot.choices.map((choice) => {
+                    const active = choice.id === selected;
+                    return (
+                      <button
+                        key={choice.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        disabled={locked}
+                        onClick={() => onChoiceChange(lineItemId, slot.id, choice.id)}
+                        style={{
+                          fontSize: "0.8rem",
+                          fontWeight: 600,
+                          padding: "0.35rem 0.7rem",
+                          borderRadius: "999px",
+                          cursor: locked ? "default" : "pointer",
+                          border: active
+                            ? "1px solid var(--color-primary)"
+                            : "1px solid var(--color-border)",
+                          backgroundColor: active
+                            ? "var(--color-primary)"
+                            : "var(--color-surface)",
+                          color: active ? "white" : "var(--color-text-secondary)",
+                          opacity: locked && !active ? 0.6 : 1,
+                        }}
+                      >
+                        {choice.name}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             );
           })}

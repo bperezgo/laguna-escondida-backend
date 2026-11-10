@@ -69,6 +69,7 @@ export interface GroupedCommand {
     completed_at?: string | null;
     // Resolved side dishes (names already resolved by the backend).
     side_dishes?: { name: string; quantity: number }[];
+    choices?: { slot_name: string; choice_name: string }[];
   }[];
   created_at: string;
 }
@@ -136,6 +137,7 @@ export default function KitchenCommandView() {
           status: p.status,
           completed_at: p.completed_at,
           side_dishes: p.side_dishes,
+          choices: p.choices,
         })),
         created_at: firstProduct.created_at,
       });
