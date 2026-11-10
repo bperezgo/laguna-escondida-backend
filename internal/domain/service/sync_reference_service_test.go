@@ -35,6 +35,7 @@ func TestChangesSince_AdvancesCursorToMaxChangeTime(t *testing.T) {
 		Return([]dto.ProductResponsibilitySyncPayload{}, nil).Once()
 	reader.EXPECT().FindChangedProductIngredients(mock.Anything, since).
 		Return([]dto.ProductIngredientSyncPayload{}, nil).Once()
+	reader.EXPECT().FindChangedPlateOptionSlots(mock.Anything, since).Return(nil, nil).Once()
 
 	resp, err := NewSyncReferenceService(reader, slog.Default()).ChangesSince(context.Background(), since)
 	require.NoError(t, err)
@@ -57,6 +58,7 @@ func TestChangesSince_ResponsibilityChangeDrivesCursor(t *testing.T) {
 	reader.EXPECT().FindChangedProductResponsibilities(mock.Anything, since).
 		Return([]dto.ProductResponsibilitySyncPayload{{ID: "pr1", ProductID: "p1", UpdatedAt: respUpdated}}, nil).Once()
 	reader.EXPECT().FindChangedProductIngredients(mock.Anything, since).Return(nil, nil).Once()
+	reader.EXPECT().FindChangedPlateOptionSlots(mock.Anything, since).Return(nil, nil).Once()
 
 	resp, err := NewSyncReferenceService(reader, slog.Default()).ChangesSince(context.Background(), since)
 	require.NoError(t, err)
@@ -76,13 +78,14 @@ func TestChangesSince_IngredientChangeDrivesCursor(t *testing.T) {
 	reader.EXPECT().FindChangedSuppliers(mock.Anything, since).Return(nil, nil).Once()
 	reader.EXPECT().FindChangedProductResponsibilities(mock.Anything, since).Return(nil, nil).Once()
 	reader.EXPECT().FindChangedProductIngredients(mock.Anything, since).
-		Return([]dto.ProductIngredientSyncPayload{{ID: "pi1", CompositeProductID: "plate", IngredientProductID: "salad", IsSideDish: true, MinQuantity: 0, MaxQuantity: 2, UpdatedAt: ingUpdated}}, nil).Once()
+		Return([]dto.ProductIngredientSyncPayload{{ID: "pi1", CompositeProductID: "plate", IngredientProductID: "salad", UpdatedAt: ingUpdated}}, nil).Once()
+	reader.EXPECT().FindChangedPlateOptionSlots(mock.Anything, since).Return(nil, nil).Once()
 
 	resp, err := NewSyncReferenceService(reader, slog.Default()).ChangesSince(context.Background(), since)
 	require.NoError(t, err)
-	assert.Equal(t, ingUpdated, resp.Cursor, "a side-dish/recipe change advances the cursor")
+	assert.Equal(t, ingUpdated, resp.Cursor, "a recipe change advances the cursor")
 	require.Len(t, resp.ProductIngredients, 1)
-	assert.True(t, resp.ProductIngredients[0].IsSideDish)
+	assert.Equal(t, "pi1", resp.ProductIngredients[0].ID)
 }
 
 func TestChangesSince_NoChanges_CursorUnchanged(t *testing.T) {
@@ -94,6 +97,7 @@ func TestChangesSince_NoChanges_CursorUnchanged(t *testing.T) {
 	reader.EXPECT().FindChangedSuppliers(mock.Anything, since).Return(nil, nil).Once()
 	reader.EXPECT().FindChangedProductResponsibilities(mock.Anything, since).Return(nil, nil).Once()
 	reader.EXPECT().FindChangedProductIngredients(mock.Anything, since).Return(nil, nil).Once()
+	reader.EXPECT().FindChangedPlateOptionSlots(mock.Anything, since).Return(nil, nil).Once()
 
 	resp, err := NewSyncReferenceService(reader, slog.Default()).ChangesSince(context.Background(), since)
 	require.NoError(t, err)
@@ -110,4 +114,40 @@ func TestChangesSince_ReaderError_Propagates(t *testing.T) {
 	resp, err := NewSyncReferenceService(reader, slog.Default()).ChangesSince(context.Background(), since)
 	require.Error(t, err)
 	assert.Nil(t, resp)
+}
+
+// A plate's slot list travels as one document whose updated_at moves the cursor, so a
+// slot-only edit in the cloud is never stranded.
+func TestChangesSince_PlateOptionSlotsDriveCursor(t *testing.T) {
+	reader := mocks.NewMockSyncReferenceReader(t)
+	since := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	slotsUpdated := since.Add(4 * time.Hour)
+
+	reader.EXPECT().FindChangedProducts(mock.Anything, since).Return(nil, nil).Once()
+	reader.EXPECT().FindChangedUsers(mock.Anything, since).Return(nil, nil).Once()
+	reader.EXPECT().FindChangedSuppliers(mock.Anything, since).Return(nil, nil).Once()
+	reader.EXPECT().FindChangedProductResponsibilities(mock.Anything, since).Return(nil, nil).Once()
+	reader.EXPECT().FindChangedProductIngredients(mock.Anything, since).Return(nil, nil).Once()
+	plates := []dto.PlateOptionSlotsSyncPayload{{CompositeProductID: "tilapia", Slots: []dto.PlateOptionSlot{}, UpdatedAt: slotsUpdated}}
+	reader.EXPECT().FindChangedPlateOptionSlots(mock.Anything, since).Return(plates, nil).Once()
+
+	resp, err := NewSyncReferenceService(reader, slog.Default()).ChangesSince(context.Background(), since)
+	require.NoError(t, err)
+	assert.Equal(t, slotsUpdated, resp.Cursor)
+	assert.Equal(t, plates, resp.PlateOptionSlots, "a plate whose slots were all removed still travels")
+}
+
+func TestChangesSince_PlateOptionSlotsReadFails(t *testing.T) {
+	reader := mocks.NewMockSyncReferenceReader(t)
+	since := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	reader.EXPECT().FindChangedProducts(mock.Anything, since).Return(nil, nil).Once()
+	reader.EXPECT().FindChangedUsers(mock.Anything, since).Return(nil, nil).Once()
+	reader.EXPECT().FindChangedSuppliers(mock.Anything, since).Return(nil, nil).Once()
+	reader.EXPECT().FindChangedProductResponsibilities(mock.Anything, since).Return(nil, nil).Once()
+	reader.EXPECT().FindChangedProductIngredients(mock.Anything, since).Return(nil, nil).Once()
+	reader.EXPECT().FindChangedPlateOptionSlots(mock.Anything, since).Return(nil, errors.New("db down")).Once()
+
+	_, err := NewSyncReferenceService(reader, slog.Default()).ChangesSince(context.Background(), since)
+	require.ErrorContains(t, err, "plate option slots")
 }

@@ -166,6 +166,7 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 	registerCloudBackOfficeRoutes(c.router, cfg.AdminAPIKey, c.jwtService, backOfficeHandlers{
 		product:           c.handlers.product,
 		productIngredient: c.handlers.productIngredient,
+		plateOptionSlot:   c.handlers.plateOptionSlot,
 		user:              c.handlers.user,
 		supplier:          handler.NewSupplierHandler(service.NewSupplierService(c.supplierRepo, c.supplierCatalogRepo, c.productRepo)),
 		purchaseEntry:     handler.NewPurchaseEntryHandler(purchaseEntryService),

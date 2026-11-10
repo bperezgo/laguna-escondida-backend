@@ -18,6 +18,7 @@ type apiHandlers struct {
 	user              *handler.UserHandler
 	billOwner         *handler.BillOwnerHandler
 	productIngredient *handler.ProductIngredientHandler
+	plateOptionSlot   *handler.PlateOptionSlotHandler
 	sse               *handler.SSEHandler
 	edge              *handler.EdgeHandler
 }
@@ -53,7 +54,7 @@ func registerAPIRoutes(router *gin.Engine, adminAPIKey string, jwtService *servi
 	router.GET("/api/products/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsRead), h.product.GetProductByIDHandler)
 	router.GET("/api/product-responsibilities/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsRead), h.product.GetProductResponsibilityByIDHandler)
 	router.GET("/api/products/:id/ingredients", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsRead), h.productIngredient.GetIngredientsHandler)
-	router.GET("/api/products/:id/side-dishes", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsRead), h.productIngredient.GetSideDishOptionsHandler)
+	router.GET("/api/products/:id/option-slots", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsRead), h.plateOptionSlot.GetHandler)
 
 	// Stock routes — reads in both modes, authoring cloud-only (see registerStockRoutes).
 	registerStockRoutes(router, h.stock, jwtService, handler.AdminAPIKeyMiddleware(adminAPIKey), stockAuthoring)

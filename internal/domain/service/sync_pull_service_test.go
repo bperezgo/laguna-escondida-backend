@@ -47,6 +47,7 @@ func TestPullChanges_FirstPull_AppliesAndAdvances(t *testing.T) {
 	writer.EXPECT().UpsertProducts(mock.Anything, resp.Products).Return(nil).Once()
 	writer.EXPECT().UpsertProductResponsibilities(mock.Anything, resp.ProductResponsibilities).Return(nil).Once()
 	writer.EXPECT().UpsertProductIngredients(mock.Anything, mock.Anything).Return(nil).Once()
+	writer.EXPECT().ReplacePlateOptionSlots(mock.Anything, mock.Anything).Return(nil).Once()
 	writer.EXPECT().UpsertUsers(mock.Anything, resp.Users).Return(nil).Once()
 	writer.EXPECT().UpsertSuppliers(mock.Anything, resp.Suppliers).Return(nil).Once()
 	state.EXPECT().AdvancePulledCursor(mock.Anything, testCloudNodeID, cursor).Return(nil).Once()
@@ -79,6 +80,7 @@ func TestPullChanges_UsesStoredCursor(t *testing.T) {
 	writer.EXPECT().UpsertProducts(mock.Anything, mock.Anything).Return(nil).Once()
 	writer.EXPECT().UpsertProductResponsibilities(mock.Anything, mock.Anything).Return(nil).Once()
 	writer.EXPECT().UpsertProductIngredients(mock.Anything, mock.Anything).Return(nil).Once()
+	writer.EXPECT().ReplacePlateOptionSlots(mock.Anything, mock.Anything).Return(nil).Once()
 	writer.EXPECT().UpsertUsers(mock.Anything, mock.Anything).Return(nil).Once()
 	writer.EXPECT().UpsertSuppliers(mock.Anything, mock.Anything).Return(nil).Once()
 	state.EXPECT().AdvancePulledCursor(mock.Anything, testCloudNodeID, newCursor).Return(nil).Once()
@@ -104,6 +106,7 @@ func TestPullChanges_NoChanges_DoesNotAdvanceCursor(t *testing.T) {
 	writer.EXPECT().UpsertProducts(mock.Anything, mock.Anything).Return(nil).Once()
 	writer.EXPECT().UpsertProductResponsibilities(mock.Anything, mock.Anything).Return(nil).Once()
 	writer.EXPECT().UpsertProductIngredients(mock.Anything, mock.Anything).Return(nil).Once()
+	writer.EXPECT().ReplacePlateOptionSlots(mock.Anything, mock.Anything).Return(nil).Once()
 	writer.EXPECT().UpsertUsers(mock.Anything, mock.Anything).Return(nil).Once()
 	writer.EXPECT().UpsertSuppliers(mock.Anything, mock.Anything).Return(nil).Once()
 
@@ -127,4 +130,47 @@ func TestPullChanges_PullError_Propagates(t *testing.T) {
 	assert.Nil(t, result)
 	// A failed pull applies nothing.
 	writer.AssertNotCalled(t, "UpsertProducts", mock.Anything, mock.Anything)
+}
+
+func TestPullChanges_ReplacesPlateOptionSlots(t *testing.T) {
+	ctx := context.Background()
+	client := mocks.NewMockSyncPullClient(t)
+	writer := mocks.NewMockSyncReferenceWriter(t)
+	state := mocks.NewMockSyncStateRepository(t)
+
+	state.EXPECT().GetPulledCursor(mock.Anything, testCloudNodeID).Return(nil, nil).Once()
+	cursor := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	resp := &dto.SyncPullResponse{
+		PlateOptionSlots: []dto.PlateOptionSlotsSyncPayload{{CompositeProductID: "tilapia", UpdatedAt: cursor}},
+		Cursor:           cursor,
+	}
+	client.EXPECT().Pull(mock.Anything, mock.Anything).Return(resp, nil).Once()
+	writer.EXPECT().UpsertProducts(mock.Anything, mock.Anything).Return(nil).Once()
+	writer.EXPECT().UpsertProductResponsibilities(mock.Anything, mock.Anything).Return(nil).Once()
+	writer.EXPECT().UpsertProductIngredients(mock.Anything, mock.Anything).Return(nil).Once()
+	writer.EXPECT().ReplacePlateOptionSlots(mock.Anything, resp.PlateOptionSlots).Return(nil).Once()
+	writer.EXPECT().UpsertUsers(mock.Anything, mock.Anything).Return(nil).Once()
+	writer.EXPECT().UpsertSuppliers(mock.Anything, mock.Anything).Return(nil).Once()
+	state.EXPECT().AdvancePulledCursor(mock.Anything, testCloudNodeID, cursor).Return(nil).Once()
+
+	result, err := newPullService(t, client, writer, state).PullChanges(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.PlateOptionSlots)
+}
+
+func TestPullChanges_PlateOptionSlotsFailureRollsBack(t *testing.T) {
+	ctx := context.Background()
+	client := mocks.NewMockSyncPullClient(t)
+	writer := mocks.NewMockSyncReferenceWriter(t)
+	state := mocks.NewMockSyncStateRepository(t)
+
+	state.EXPECT().GetPulledCursor(mock.Anything, testCloudNodeID).Return(nil, nil).Once()
+	client.EXPECT().Pull(mock.Anything, mock.Anything).Return(&dto.SyncPullResponse{Cursor: time.Now()}, nil).Once()
+	writer.EXPECT().UpsertProducts(mock.Anything, mock.Anything).Return(nil).Once()
+	writer.EXPECT().UpsertProductResponsibilities(mock.Anything, mock.Anything).Return(nil).Once()
+	writer.EXPECT().UpsertProductIngredients(mock.Anything, mock.Anything).Return(nil).Once()
+	writer.EXPECT().ReplacePlateOptionSlots(mock.Anything, mock.Anything).Return(errors.New("fk violation")).Once()
+
+	_, err := newPullService(t, client, writer, state).PullChanges(ctx)
+	require.ErrorContains(t, err, "replace plate option slots")
 }

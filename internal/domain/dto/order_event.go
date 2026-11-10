@@ -12,16 +12,38 @@ const OrderDeletedEventName = "order.deleted"
 const OrderUpdatedEventName = "order.updated"
 const OrderReleasedToKitchenEventName = "order.released_to_kitchen"
 
-// OrderCreatedEventProduct mirrors OrderProductItem field-for-field (same names, types, order)
-// so NewOrderCreatedEvent/NewOrderUpdatedEvent can build it via a direct struct conversion
-// (OrderCreatedEventProduct(p)). SideDishes carries the full resolved set (design D7) so both
-// the stock handler and the SSE consumer read the same per-line selection off one event.
+// OrderCreatedEventProduct is a resolved order line. SideDishes carries the full resolved set
+// (design D7) so both the stock handler and the SSE consumer read the same per-line selection
+// off one event; Choices are the line's resolved plate choices, for the kitchen.
 type OrderCreatedEventProduct struct {
 	OpenBillProductID string              `json:"open_bill_product_id"`
 	ProductID         string              `json:"product_id"`
 	Quantity          int                 `json:"quantity"`
 	Notes             *string             `json:"notes,omitempty"`
 	SideDishes        []SideDishSelection `json:"side_dishes,omitempty"`
+	Choices           []LineChoice        `json:"choices,omitempty"`
+}
+
+func eventProductFromItem(p OrderProductItem) OrderCreatedEventProduct {
+	return OrderCreatedEventProduct{
+		OpenBillProductID: p.OpenBillProductID,
+		ProductID:         p.ProductID,
+		Quantity:          p.Quantity,
+		Notes:             p.Notes,
+		SideDishes:        p.SideDishes,
+		Choices:           p.ResolvedChoices,
+	}
+}
+
+func eventProductFromDetail(p OpenBillProductDetail) OrderCreatedEventProduct {
+	return OrderCreatedEventProduct{
+		OpenBillProductID: p.OpenBillProductID,
+		ProductID:         p.Product.ID,
+		Quantity:          p.Quantity,
+		Notes:             p.Notes,
+		SideDishes:        p.SideDishes,
+		Choices:           p.Choices,
+	}
 }
 
 type OrderCreatedEvent struct {
@@ -50,7 +72,7 @@ func NewOrderCreatedEvent(
 ) OrderCreatedEvent {
 	eventProducts := make([]OrderCreatedEventProduct, len(products))
 	for i, p := range products {
-		eventProducts[i] = OrderCreatedEventProduct(p)
+		eventProducts[i] = eventProductFromItem(p)
 	}
 
 	return OrderCreatedEvent{
@@ -108,13 +130,7 @@ type OrderDeletedEvent struct {
 func NewOrderDeletedEvent(openBillID string, products []OpenBillProductDetail) OrderDeletedEvent {
 	eventProducts := make([]OrderCreatedEventProduct, len(products))
 	for i, p := range products {
-		eventProducts[i] = OrderCreatedEventProduct{
-			OpenBillProductID: p.OpenBillProductID,
-			ProductID:         p.Product.ID,
-			Quantity:          p.Quantity,
-			Notes:             p.Notes,
-			SideDishes:        p.SideDishes,
-		}
+		eventProducts[i] = eventProductFromDetail(p)
 	}
 
 	return OrderDeletedEvent{
@@ -168,18 +184,12 @@ func NewOrderUpdatedEvent(
 ) OrderUpdatedEvent {
 	prevProducts := make([]OrderCreatedEventProduct, len(previousProducts))
 	for i, p := range previousProducts {
-		prevProducts[i] = OrderCreatedEventProduct{
-			OpenBillProductID: p.OpenBillProductID,
-			ProductID:         p.Product.ID,
-			Quantity:          p.Quantity,
-			Notes:             p.Notes,
-			SideDishes:        p.SideDishes,
-		}
+		prevProducts[i] = eventProductFromDetail(p)
 	}
 
 	currProducts := make([]OrderCreatedEventProduct, len(currentProducts))
 	for i, p := range currentProducts {
-		currProducts[i] = OrderCreatedEventProduct(p)
+		currProducts[i] = eventProductFromItem(p)
 	}
 
 	return OrderUpdatedEvent{
@@ -250,13 +260,7 @@ func NewOrderReleasedToKitchenEvent(
 		if p.Status == CommandStatusCancelled {
 			continue
 		}
-		products = append(products, OrderCreatedEventProduct{
-			OpenBillProductID: p.OpenBillProductID,
-			ProductID:         p.Product.ID,
-			Quantity:          p.Quantity,
-			Notes:             p.Notes,
-			SideDishes:        p.SideDishes,
-		})
+		products = append(products, eventProductFromDetail(p))
 	}
 
 	return OrderReleasedToKitchenEvent{

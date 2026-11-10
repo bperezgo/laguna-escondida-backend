@@ -553,52 +553,67 @@ curl -X DELETE "$BASE_URL/products/COMPOSITE_PRODUCT_ID/ingredients/INGREDIENT_I
   -H "Authorization: Bearer $TOKEN"
 ```
 
-### Mark an Ingredient as a Side Dish (default 1, min 0, max 2)
+### Configure the Tilapia's Option Slots (cloud only)
+
+Replaces the plate's whole slot list. Resend the ids from the GET to keep them. Keep the choosable parts out of the plate's recipe.
 
 ```bash
-curl -X PUT "$BASE_URL/products/COMPOSITE_PRODUCT_ID/ingredients/INGREDIENT_ID/side-dish" \
+curl -X PUT "$BASE_URL/products/TILAPIA_ID/option-slots" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "default_quantity": 1,
-    "min_quantity": 0,
-    "max_quantity": 2
+    "slots": [
+      {
+        "name": "Arroz",
+        "choices": [
+          { "name": "Arroz blanco", "is_default": true, "items": [{ "ingredient_product_id": "ARROZ_BLANCO_ID", "quantity": 1 }] },
+          { "name": "Arroz de coco", "items": [{ "ingredient_product_id": "ARROZ_COCO_ID", "quantity": 1 }] }
+        ]
+      },
+      {
+        "name": "Acompañante",
+        "choices": [
+          { "name": "Canastas", "is_default": true, "items": [{ "ingredient_product_id": "CANASTA_ID", "quantity": 2 }] },
+          { "name": "Papas", "items": [{ "ingredient_product_id": "PAPAS_ID", "quantity": 1 }] },
+          { "name": "Patacón", "items": [{ "ingredient_product_id": "PATACON_ID", "quantity": 1 }] }
+        ]
+      },
+      {
+        "name": "Ensalada",
+        "choices": [
+          { "name": "Ensalada", "is_default": true, "items": [{ "ingredient_product_id": "ENSALADA_ID", "quantity": 1 }] },
+          { "name": "Canasta extra", "items": [{ "ingredient_product_id": "CANASTA_ID", "quantity": 1 }] }
+        ]
+      }
+    ]
   }'
 ```
 
-### Clear an Ingredient's Side-Dish Flag
+### List the Tilapia's Option Slots
 
 ```bash
-curl -X DELETE "$BASE_URL/products/COMPOSITE_PRODUCT_ID/ingredients/INGREDIENT_ID/side-dish" \
+curl -X GET "$BASE_URL/products/TILAPIA_ID/option-slots" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-### List a Composite's Side-Dish Options
+### Order the Tilapia with "Papas"
 
-```bash
-curl -X GET "$BASE_URL/products/COMPOSITE_PRODUCT_ID/side-dishes" \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-### Create an Order with Side-Dish Selections (drop salad, 3 canasta)
+Only the Acompañante slot changes; Arroz and Ensalada take their defaults. `PAPAS_CHOICE_ID` is the choice `id` from the list above.
 
 ```bash
 curl -X POST "$BASE_URL/orders" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "open_bill_id": "550e8400-e29b-41d4-a716-446655440000",
-    "temporal_identifier": "660e8400-e29b-41d4-a716-446655440001",
-    "descriptor": "Mesa 5",
+    "open_bill_id": "550e8400-e29b-41d4-a716-446655440010",
+    "temporal_identifier": "660e8400-e29b-41d4-a716-446655440011",
+    "descriptor": "Mesa 7",
     "products": [
       {
-        "open_bill_product_id": "770e8400-e29b-41d4-a716-446655440002",
-        "product_id": "COMPOSITE_PRODUCT_ID",
+        "open_bill_product_id": "770e8400-e29b-41d4-a716-446655440012",
+        "product_id": "TILAPIA_ID",
         "quantity": 1,
-        "side_dishes": [
-          { "ingredient_product_id": "SALAD_INGREDIENT_ID", "quantity": 0 },
-          { "ingredient_product_id": "CANASTA_INGREDIENT_ID", "quantity": 3 }
-        ]
+        "choices": ["PAPAS_CHOICE_ID"]
       }
     ]
   }'

@@ -366,53 +366,6 @@ func TestAcceptance_TwoLevelComposite_AC2(t *testing.T) {
 	require.False(t, hasC, "top composite must not carry its own stock row")
 }
 
-// SideDish round-trip: the real repository must persist and read back the side-dish fields
-// (is_side_dish, min/max, default_quantity) added by migration 000057.
-func TestAcceptance_SideDishOption_RoundTrip(t *testing.T) {
-	r := newEdge(t)
-
-	cID := uuid.NewString()
-	saladID := uuid.NewString()
-	proteinID := uuid.NewString()
-	r.seedProduct(cID, "Plate", dto.ProductTypeComposite)
-	r.seedProduct(saladID, "Salad", dto.ProductTypeIngredient)
-	r.seedProduct(proteinID, "Protein", dto.ProductTypeIngredient)
-
-	now := time.Now().UTC().Truncate(time.Microsecond)
-	sideDishID := uuid.NewString()
-	require.NoError(t, r.ingredientRepo.Create(r.ctx, &dto.ProductIngredient{
-		ID:                  sideDishID,
-		CompositeProductID:  cID,
-		IngredientProductID: saladID,
-		DefaultQuantity:     decimal.NewFromInt(1),
-		IsSideDish:          true,
-		MinQuantity:         0,
-		MaxQuantity:         2,
-		CreatedAt:           now,
-		UpdatedAt:           now,
-	}), "create side-dish row")
-	require.NoError(t, r.ingredientRepo.Create(r.ctx, &dto.ProductIngredient{
-		ID:                  uuid.NewString(),
-		CompositeProductID:  cID,
-		IngredientProductID: proteinID,
-		DefaultQuantity:     decimal.NewFromInt(1),
-		CreatedAt:           now,
-		UpdatedAt:           now,
-	}), "create fixed row")
-
-	got, err := r.ingredientRepo.FindByID(r.ctx, sideDishID)
-	require.NoError(t, err)
-	require.True(t, got.IsSideDish)
-	require.Equal(t, 0, got.MinQuantity)
-	require.Equal(t, 2, got.MaxQuantity)
-	require.True(t, got.DefaultQuantity.Equal(decimal.NewFromInt(1)))
-
-	sideDishes, err := r.ingredientRepo.FindSideDishesByCompositeProductID(r.ctx, cID)
-	require.NoError(t, err)
-	require.Len(t, sideDishes, 1, "only the side-dish row is returned, not the fixed protein")
-	require.Equal(t, saladID, sideDishes[0].IngredientProductID)
-}
-
 // Order-line side dishes must survive a persist → read round trip through the real
 // open_bill repository (both the DTO reader and the aggregate reader).
 func TestAcceptance_OpenBillSideDishes_RoundTrip(t *testing.T) {

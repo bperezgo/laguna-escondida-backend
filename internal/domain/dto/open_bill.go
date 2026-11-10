@@ -79,6 +79,7 @@ type OpenBillProductDetail struct {
 	Area              *string             `json:"area,omitempty"`
 	Priority          int                 `json:"priority"`
 	SideDishes        []SideDishSelection `json:"side_dishes,omitempty"`
+	Choices           []LineChoice        `json:"choices,omitempty"`
 	// CreatedAt is when this line item was first added. Preserved across order
 	// updates (the repository upserts by id), so it reflects original creation.
 	CreatedAt     time.Time  `json:"created_at"`
@@ -138,6 +139,10 @@ type OrderProductItem struct {
 	Quantity          int                 `json:"quantity" validate:"required,min=1"`
 	Notes             *string             `json:"notes,omitempty"`
 	SideDishes        []SideDishSelection `json:"side_dishes,omitempty" validate:"dive"`
+	// Choices are choice ids for a plate with option slots; an omitted slot takes its default.
+	Choices []string `json:"choices,omitempty"`
+	// ResolvedChoices is filled by the server, one per slot, never read from a request.
+	ResolvedChoices []LineChoice `json:"-"`
 }
 
 // SideDishSelection is the resolved quantity chosen for one of a plate's side-dish options

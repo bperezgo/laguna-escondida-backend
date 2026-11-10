@@ -45,6 +45,10 @@ func (s *SyncReferenceService) ChangesSince(ctx context.Context, since time.Time
 	if err != nil {
 		return nil, fmt.Errorf("find changed product ingredients: %w", err)
 	}
+	plateOptionSlots, err := s.reader.FindChangedPlateOptionSlots(ctx, since)
+	if err != nil {
+		return nil, fmt.Errorf("find changed plate option slots: %w", err)
+	}
 
 	cursor := since
 	for _, p := range products {
@@ -62,6 +66,9 @@ func (s *SyncReferenceService) ChangesSince(ctx context.Context, since time.Time
 	for _, ing := range ingredients {
 		cursor = laterCursor(cursor, ing.UpdatedAt, nil)
 	}
+	for _, plate := range plateOptionSlots {
+		cursor = laterCursor(cursor, plate.UpdatedAt, nil)
+	}
 
 	return &dto.SyncPullResponse{
 		Products:                products,
@@ -69,6 +76,7 @@ func (s *SyncReferenceService) ChangesSince(ctx context.Context, since time.Time
 		Suppliers:               suppliers,
 		ProductResponsibilities: responsibilities,
 		ProductIngredients:      ingredients,
+		PlateOptionSlots:        plateOptionSlots,
 		Cursor:                  cursor,
 	}, nil
 }

@@ -132,9 +132,7 @@ A request that dies mid-flight holds its key for 2 minutes, after which a retry 
 | products[].product_id           | string | Yes | Product UUID                         |
 | products[].quantity             | int    | Yes | Quantity (min 1)                     |
 | products[].notes                | string | No  | Optional notes for the item          |
-| products[].side_dishes          | array  | No  | Side-dish selections for a composite product (see below) |
-| products[].side_dishes[].ingredient_product_id | string | Yes | UUID of the side-dish ingredient |
-| products[].side_dishes[].quantity              | int    | Yes | Chosen quantity, within the option's `[min, max]` (0 removes it) |
+| products[].choices              | array  | No  | For a plate with option slots: choice ids, at most one per slot; an omitted slot takes its default (see [Plate choices](#plate-choices)) |
 | order_type          | string | No       | `dine_in` (default), `takeaway` or `delivery` |
 | customer_name       | string | No       | Customer name |
 | customer_phone      | string | Conditional | Required for `takeaway` and `delivery`; normalized to E.164 |
@@ -146,7 +144,18 @@ A request that dies mid-flight holds its key for 2 minutes, after which a retry 
 | origin.conversation_id | string | No    | marketing-app conversation (≤128) |
 | origin.attribution  | object | No       | `source`, `ad_id`, `clicked_at`, `campaign_id`, `campaign_name`; an invalid field is dropped, never failing the order |
 
-> **Side dishes:** For a composite product whose ingredients are configured as side dishes (see [Products API → Side Dishes](./products.md#side-dishes)), a line may carry `side_dishes` to override how much of each is served. Omitted side dishes resolve to their configured default, so a line with no `side_dishes` behaves exactly as before. A selection referencing a non-side-dish ingredient, or a quantity outside `[min, max]`, rejects the whole order. Side-dish changes never affect the plate price; stock consumption follows the selected quantities.
+### Plate choices
+
+A plate with option slots (see [Products API → Plate Option Slots](./products.md#plate-option-slots)) takes `choices`, a list of choice ids. The line resolves to **exactly one choice per slot**: the one sent for that slot, or the slot's default. The server sums the chosen bundles into the line's `side_dishes`, which order reads and the kitchen feed return as the ingredients the line consumes (older orders keep the side dishes they were taken with), and records the resolved choices with the slot and choice names they were taken with. Choices never change the price.
+
+The whole request is rejected with `400`, and nothing is created or changed, when a line:
+
+- sends a choice id that is not a current choice of that plate (a removed choice, or one of another plate);
+- sends two choices of one slot, or the same id twice;
+- sends `side_dishes` (option slots replaced side dishes; any product);
+- sends `choices` for a product without slots.
+
+The rule is the same for staff and the agent. A change the configuration does not allow goes in the line's `notes`, for staff to confirm.
 
 ### Example Request
 
@@ -160,15 +169,19 @@ A request that dies mid-flight holds its key for 2 minutes, after which a retry 
       "open_bill_product_id": "770e8400-e29b-41d4-a716-446655440002",
       "product_id": "880e8400-e29b-41d4-a716-446655440003",
       "quantity": 2,
-      "notes": "Sin hielo",
-      "side_dishes": [
-        { "ingredient_product_id": "aa0e8400-e29b-41d4-a716-446655440010", "quantity": 0 },
-        { "ingredient_product_id": "bb0e8400-e29b-41d4-a716-446655440011", "quantity": 3 }
-      ]
+      "notes": "Sin hielo"
+    },
+    {
+      "open_bill_product_id": "770e8400-e29b-41d4-a716-446655440004",
+      "product_id": "019a5b00-0000-7000-8000-0000000000f1",
+      "quantity": 1,
+      "choices": ["019a5b10-0000-7000-8000-000000000b04"]
     }
   ]
 }
 ```
+
+The second line is a tilapia with "Papas": it is served with Arroz blanco (default), Papas and Ensalada (default).
 
 ### Example Response (201 Created)
 
@@ -232,7 +245,27 @@ A request that dies mid-flight holds its key for 2 minutes, after which a retry 
 
 ### Error Responses
 
-**400 Bad Request** — invalid `order_type`, a missing contact/location field, an invalid phone or location, or an invalid side-dish selection. The `code` names the problem.
+**400 Bad Request** — an invalid plate choice; the message names the slot or the unknown choice so it can be relayed to the customer
+
+```json
+{
+  "error": "invalid plate choice: the \"Acompañante\" slot of Tilapia takes one choice"
+}
+```
+
+```json
+{
+  "error": "invalid plate choice: choice 019a5b10-0000-7000-8000-000000000b05 is not an option of Tilapia"
+}
+```
+
+```json
+{
+  "error": "side dishes are no longer offered; send the plate's choices"
+}
+```
+
+**400 Bad Request** — invalid `order_type`, a missing contact/location field, or an invalid phone or location. The `code` names the problem.
 
 ```json
 {
@@ -338,7 +371,7 @@ Updates an existing order's products, description, and/or temporal identifier. S
 | products[].product_id           | string | Yes | Product UUID                           |
 | products[].quantity             | int    | Yes | Quantity (min 1)                       |
 | products[].notes                | string | No  | Optional notes for the item            |
-| products[].side_dishes          | array  | No  | Side-dish selections (same shape as Create; editing them adjusts stock and re-notifies the kitchen) |
+| products[].choices              | array  | No  | Plate choices (same rules as Create). Resend a line's choices to keep them; a line sent without them goes back to the defaults. Changing them returns the old bundles to stock, consumes the new ones and re-notifies the kitchen |
 
 ### Example Request
 
@@ -351,10 +384,7 @@ Updates an existing order's products, description, and/or temporal identifier. S
       "open_bill_product_id": "770e8400-e29b-41d4-a716-446655440002",
       "product_id": "880e8400-e29b-41d4-a716-446655440003",
       "quantity": 3,
-      "notes": "Con limón",
-      "side_dishes": [
-        { "ingredient_product_id": "bb0e8400-e29b-41d4-a716-446655440011", "quantity": 1 }
-      ]
+      "notes": "Con limón"
     }
   ]
 }
@@ -375,6 +405,14 @@ Updates an existing order's products, description, and/or temporal identifier. S
 ```
 
 ### Error Responses
+
+**400 Bad Request** - Invalid plate choice or a line sending `side_dishes` (same rules and messages as Create), e.g. a choice removed from the plate since the line was taken
+
+```json
+{
+  "error": "invalid plate choice: choice 019a5b10-0000-7000-8000-000000000b05 is not an option of Tilapia"
+}
+```
 
 **404 Not Found** - Order not found
 
@@ -519,12 +557,35 @@ Returns a specific order with its product details.
       "priority": 1,
       "started_at": "2025-06-15T10:32:00Z",
       "completed_at": "2025-06-15T10:41:00Z"
+    },
+    {
+      "open_bill_product_id": "770e8400-e29b-41d4-a716-446655440004",
+      "product": {
+        "id": "019a5b00-0000-7000-8000-0000000000f1",
+        "name": "Tilapia"
+      },
+      "quantity": 1,
+      "status": "created",
+      "area": "cocina",
+      "priority": 1,
+      "side_dishes": [
+        { "ingredient_product_id": "019a5b00-0000-7000-8000-0000000000a1", "quantity": 1 },
+        { "ingredient_product_id": "019a5b00-0000-7000-8000-0000000000a4", "quantity": 1 },
+        { "ingredient_product_id": "019a5b00-0000-7000-8000-0000000000a6", "quantity": 1 }
+      ],
+      "choices": [
+        { "slot_id": "019a5b10-0000-7000-8000-000000000a01", "slot_name": "Arroz", "choice_id": "019a5b10-0000-7000-8000-000000000b01", "choice_name": "Arroz blanco" },
+        { "slot_id": "019a5b10-0000-7000-8000-000000000a02", "slot_name": "Acompañante", "choice_id": "019a5b10-0000-7000-8000-000000000b04", "choice_name": "Papas" },
+        { "slot_id": "019a5b10-0000-7000-8000-000000000a03", "slot_name": "Ensalada", "choice_id": "019a5b10-0000-7000-8000-000000000b06", "choice_name": "Ensalada" }
+      ]
     }
   ],
   "created_at": "2025-06-15T10:30:00Z",
   "updated_at": "2025-06-15T10:30:00Z"
 }
 ```
+
+A line of a plate with slots carries `choices`, one per slot, with the names it was taken with (or last changed with); renaming or removing a choice afterwards does not change them. The closed-order reads and the kitchen feed (`GET /api/open-bill-products/:area/pending` and `/completed`, and the `open_bill_product.created`/`.updated` SSE events) carry the same `choices` array. A line replicated from a node that predates plate choices has none.
 
 ---
 

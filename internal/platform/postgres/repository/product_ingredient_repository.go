@@ -26,9 +26,6 @@ type productIngredientModel struct {
 	CompositeProductID  string          `gorm:"type:uuid;not null;column:composite_product_id"`
 	IngredientProductID string          `gorm:"type:uuid;not null;column:ingredient_product_id"`
 	DefaultQuantity     decimal.Decimal `gorm:"type:numeric(19,4);not null;column:default_quantity"`
-	IsSideDish          bool            `gorm:"not null;column:is_side_dish;default:false"`
-	MinQuantity         int             `gorm:"not null;column:min_quantity;default:0"`
-	MaxQuantity         int             `gorm:"not null;column:max_quantity;default:0"`
 	CreatedAt           time.Time       `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
 	UpdatedAt           time.Time       `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
 }
@@ -42,9 +39,6 @@ type productIngredientWithProductModel struct {
 	CompositeProductID  string          `gorm:"column:composite_product_id"`
 	IngredientProductID string          `gorm:"column:ingredient_product_id"`
 	DefaultQuantity     decimal.Decimal `gorm:"column:default_quantity"`
-	IsSideDish          bool            `gorm:"column:is_side_dish"`
-	MinQuantity         int             `gorm:"column:min_quantity"`
-	MaxQuantity         int             `gorm:"column:max_quantity"`
 	CreatedAt           time.Time       `gorm:"column:created_at"`
 	UpdatedAt           time.Time       `gorm:"column:updated_at"`
 	ProductID           string          `gorm:"column:product_id"`
@@ -75,9 +69,6 @@ func (r *ProductIngredientRepository) Create(ctx context.Context, ingredient *dt
 		CompositeProductID:  ingredient.CompositeProductID,
 		IngredientProductID: ingredient.IngredientProductID,
 		DefaultQuantity:     ingredient.DefaultQuantity,
-		IsSideDish:          ingredient.IsSideDish,
-		MinQuantity:         ingredient.MinQuantity,
-		MaxQuantity:         ingredient.MaxQuantity,
 		CreatedAt:           ingredient.CreatedAt,
 		UpdatedAt:           ingredient.UpdatedAt,
 	}
@@ -92,9 +83,6 @@ func (r *ProductIngredientRepository) Update(ctx context.Context, id string, ing
 	}
 	updateData := map[string]interface{}{
 		"default_quantity": ingredient.DefaultQuantity,
-		"is_side_dish":     ingredient.IsSideDish,
-		"min_quantity":     ingredient.MinQuantity,
-		"max_quantity":     ingredient.MaxQuantity,
 		"updated_at":       ingredient.UpdatedAt,
 	}
 
@@ -164,9 +152,6 @@ func (r *ProductIngredientRepository) FindByCompositeProductIDWithProducts(ctx c
 			pi.composite_product_id,
 			pi.ingredient_product_id,
 			pi.default_quantity,
-			pi.is_side_dish,
-			pi.min_quantity,
-			pi.max_quantity,
 			pi.created_at,
 			pi.updated_at,
 			p.id as product_id,
@@ -202,9 +187,6 @@ func (r *ProductIngredientRepository) FindByCompositeProductIDWithProducts(ctx c
 			CompositeProductID:  model.CompositeProductID,
 			IngredientProductID: model.IngredientProductID,
 			DefaultQuantity:     model.DefaultQuantity,
-			IsSideDish:          model.IsSideDish,
-			MinQuantity:         model.MinQuantity,
-			MaxQuantity:         model.MaxQuantity,
 			CreatedAt:           model.CreatedAt,
 			UpdatedAt:           model.UpdatedAt,
 			IngredientProduct: &dto.Product{
@@ -226,29 +208,6 @@ func (r *ProductIngredientRepository) FindByCompositeProductIDWithProducts(ctx c
 				UpdatedAt:           model.ProductUpdatedAt,
 			},
 		}
-	}
-
-	return result, nil
-}
-
-func (r *ProductIngredientRepository) FindSideDishesByCompositeProductID(ctx context.Context, compositeProductID string) ([]*dto.ProductIngredient, error) {
-	db, err := postgres.TenantDB(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
-	var models []productIngredientModel
-
-	err = db.
-		Where("composite_product_id = ? AND is_side_dish = ?", compositeProductID, true).
-		Find(&models).Error
-
-	if err != nil {
-		return nil, err
-	}
-
-	result := make([]*dto.ProductIngredient, len(models))
-	for i, model := range models {
-		result[i] = r.toDTO(&model)
 	}
 
 	return result, nil
@@ -283,9 +242,6 @@ func (r *ProductIngredientRepository) toDTO(model *productIngredientModel) *dto.
 		CompositeProductID:  model.CompositeProductID,
 		IngredientProductID: model.IngredientProductID,
 		DefaultQuantity:     model.DefaultQuantity,
-		IsSideDish:          model.IsSideDish,
-		MinQuantity:         model.MinQuantity,
-		MaxQuantity:         model.MaxQuantity,
 		CreatedAt:           model.CreatedAt,
 		UpdatedAt:           model.UpdatedAt,
 	}

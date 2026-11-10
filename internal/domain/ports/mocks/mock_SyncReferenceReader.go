@@ -24,6 +24,65 @@ func (_m *MockSyncReferenceReader) EXPECT() *MockSyncReferenceReader_Expecter {
 	return &MockSyncReferenceReader_Expecter{mock: &_m.Mock}
 }
 
+// FindChangedPlateOptionSlots provides a mock function with given fields: ctx, since
+func (_m *MockSyncReferenceReader) FindChangedPlateOptionSlots(ctx context.Context, since time.Time) ([]dto.PlateOptionSlotsSyncPayload, error) {
+	ret := _m.Called(ctx, since)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindChangedPlateOptionSlots")
+	}
+
+	var r0 []dto.PlateOptionSlotsSyncPayload
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time) ([]dto.PlateOptionSlotsSyncPayload, error)); ok {
+		return rf(ctx, since)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time) []dto.PlateOptionSlotsSyncPayload); ok {
+		r0 = rf(ctx, since)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]dto.PlateOptionSlotsSyncPayload)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, time.Time) error); ok {
+		r1 = rf(ctx, since)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockSyncReferenceReader_FindChangedPlateOptionSlots_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindChangedPlateOptionSlots'
+type MockSyncReferenceReader_FindChangedPlateOptionSlots_Call struct {
+	*mock.Call
+}
+
+// FindChangedPlateOptionSlots is a helper method to define mock.On call
+//   - ctx context.Context
+//   - since time.Time
+func (_e *MockSyncReferenceReader_Expecter) FindChangedPlateOptionSlots(ctx interface{}, since interface{}) *MockSyncReferenceReader_FindChangedPlateOptionSlots_Call {
+	return &MockSyncReferenceReader_FindChangedPlateOptionSlots_Call{Call: _e.mock.On("FindChangedPlateOptionSlots", ctx, since)}
+}
+
+func (_c *MockSyncReferenceReader_FindChangedPlateOptionSlots_Call) Run(run func(ctx context.Context, since time.Time)) *MockSyncReferenceReader_FindChangedPlateOptionSlots_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockSyncReferenceReader_FindChangedPlateOptionSlots_Call) Return(_a0 []dto.PlateOptionSlotsSyncPayload, _a1 error) *MockSyncReferenceReader_FindChangedPlateOptionSlots_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockSyncReferenceReader_FindChangedPlateOptionSlots_Call) RunAndReturn(run func(context.Context, time.Time) ([]dto.PlateOptionSlotsSyncPayload, error)) *MockSyncReferenceReader_FindChangedPlateOptionSlots_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // FindChangedProductIngredients provides a mock function with given fields: ctx, since
 func (_m *MockSyncReferenceReader) FindChangedProductIngredients(ctx context.Context, since time.Time) ([]dto.ProductIngredientSyncPayload, error) {
 	ret := _m.Called(ctx, since)

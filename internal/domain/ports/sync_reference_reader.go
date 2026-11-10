@@ -16,6 +16,8 @@ type SyncReferenceReader interface {
 	FindChangedSuppliers(ctx context.Context, since time.Time) ([]dto.SupplierSyncPayload, error)
 	FindChangedProductResponsibilities(ctx context.Context, since time.Time) ([]dto.ProductResponsibilitySyncPayload, error)
 	FindChangedProductIngredients(ctx context.Context, since time.Time) ([]dto.ProductIngredientSyncPayload, error)
+	// FindChangedPlateOptionSlots returns, per plate whose slots changed, its whole live slot list.
+	FindChangedPlateOptionSlots(ctx context.Context, since time.Time) ([]dto.PlateOptionSlotsSyncPayload, error)
 	// FindChangedStock is read by the stock pull, not the reference pull. stock.updated_at
 	// moves on every sale, so it travels on its own daily channel rather than adding a
 	// steady stream of rows to the every-minute reference pull (design D4).

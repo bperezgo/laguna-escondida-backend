@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
+	"sort"
 	"time"
 
 	"laguna-escondida/backend/internal/domain/aggregate/bill"
@@ -47,6 +49,7 @@ type OrderService struct {
 	syncIdentity                dto.SyncIdentity
 	taxConfig                   dto.TaxConfig
 	productIngredientRepo       ports.ProductIngredientRepository
+	plateOptionSlotRepo         ports.PlateOptionSlotRepository
 	deliveryZoneFinder          ports.DeliveryZoneFinder
 	deliveryEnabled             bool
 	phoneHomeRegion             string
@@ -78,6 +81,11 @@ func WithContactRecorder(contacts ports.ContactRecorder) OrderServiceOption {
 // WithMarketingEvents records order.paid and order.cancelled for agent orders, in their transactions.
 func WithMarketingEvents(events ports.MarketingEventRecorder) OrderServiceOption {
 	return func(s *OrderService) { s.marketingEvents = events }
+}
+
+// WithOrderPlateOptionSlots resolves lines of plates with option slots from their choices.
+func WithOrderPlateOptionSlots(repo ports.PlateOptionSlotRepository) OrderServiceOption {
+	return func(s *OrderService) { s.plateOptionSlotRepo = repo }
 }
 
 func WithClock(now func() time.Time) OrderServiceOption {
@@ -252,8 +260,9 @@ func (s *OrderService) CreateOrder(
 			}
 
 			var resolvedSideDishes []dto.SideDishSelection
+			var resolvedChoices []dto.LineChoice
 			if productExists {
-				resolvedSideDishes, err = s.resolveSideDishSelections(ctx, product, item.SideDishes)
+				resolvedSideDishes, resolvedChoices, err = s.resolveLineSelections(ctx, product, item)
 				if err != nil {
 					return nil, err
 				}
@@ -272,10 +281,12 @@ func (s *OrderService) CreateOrder(
 				return nil, fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
 			}
 			openBillProduct.SetSideDishes(resolvedSideDishes)
+			openBillProduct.SetChoices(resolvedChoices)
 			openBillProducts = append(openBillProducts, openBillProduct)
 
 			resolvedItem := item
 			resolvedItem.SideDishes = resolvedSideDishes
+			resolvedItem.ResolvedChoices = resolvedChoices
 			resolvedProducts = append(resolvedProducts, resolvedItem)
 		}
 		req.Products = resolvedProducts
@@ -425,58 +436,91 @@ func (s *OrderService) requireOrderingAvailable(ctx context.Context, orderType d
 	}
 }
 
-// resolveSideDishSelections validates a line's side-dish selections against the product's
-// configured options and returns the full resolved set (design D2): each side-dish option
-// carries its selected quantity, or its default when the line specified nothing for it. A
-// selection that references a non-side-dish ingredient, or whose quantity is outside the
-// option's [min, max], is rejected. Non-composite products (and composites with no side
-// dishes) resolve to nil, preserving today's behavior.
-func (s *OrderService) resolveSideDishSelections(ctx context.Context, product *dto.Product, provided []dto.SideDishSelection) ([]dto.SideDishSelection, error) {
-	if product.ProductType != dto.ProductTypeComposite {
-		if len(provided) > 0 {
-			return nil, orderError.ErrInvalidSideDishSelection
+// resolveLineSelections resolves a line against its plate's option slots. Side-dish quantities
+// are refused: slots replaced them, and a line naming them is from a client that predates that.
+func (s *OrderService) resolveLineSelections(ctx context.Context, product *dto.Product, item dto.OrderProductItem) ([]dto.SideDishSelection, []dto.LineChoice, error) {
+	if len(item.SideDishes) > 0 {
+		return nil, nil, orderError.ErrSideDishesNotSupported
+	}
+
+	var slots []dto.PlateOptionSlot
+	if product.ProductType == dto.ProductTypeComposite && s.plateOptionSlotRepo != nil {
+		var err error
+		slots, err = s.plateOptionSlotRepo.FindByCompositeProductID(ctx, product.ID)
+		if err != nil {
+			return nil, nil, fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
 		}
-		return nil, nil
 	}
 
-	options, err := s.productIngredientRepo.FindSideDishesByCompositeProductID(ctx, product.ID)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
+	if len(slots) == 0 {
+		if len(item.Choices) > 0 {
+			return nil, nil, fmt.Errorf("%w: %s has no option slots", orderError.ErrInvalidLineChoice, product.Name)
+		}
+		return nil, nil, nil
+	}
+	return resolveChoices(product, slots, item.Choices)
+}
+
+// resolveChoices picks one choice per slot, the given one or the slot's default, and sums the
+// chosen bundles per ingredient into the line's side-dish selections.
+func resolveChoices(product *dto.Product, slots []dto.PlateOptionSlot, choiceIDs []string) ([]dto.SideDishSelection, []dto.LineChoice, error) {
+	type slotChoice struct {
+		slot   *dto.PlateOptionSlot
+		choice *dto.PlateOptionChoice
+	}
+	byChoiceID := make(map[string]slotChoice)
+	for i := range slots {
+		for j := range slots[i].Choices {
+			byChoiceID[slots[i].Choices[j].ID] = slotChoice{slot: &slots[i], choice: &slots[i].Choices[j]}
+		}
 	}
 
-	optionByIngredient := make(map[string]*dto.ProductIngredient, len(options))
-	for _, opt := range options {
-		optionByIngredient[opt.IngredientProductID] = opt
-	}
-
-	providedByIngredient := make(map[string]int, len(provided))
-	for _, sel := range provided {
-		opt, ok := optionByIngredient[sel.IngredientProductID]
+	picked := make(map[string]*dto.PlateOptionChoice, len(slots))
+	for _, id := range choiceIDs {
+		sc, ok := byChoiceID[id]
 		if !ok {
-			return nil, orderError.ErrInvalidSideDishSelection
+			return nil, nil, fmt.Errorf("%w: choice %s is not an option of %s", orderError.ErrInvalidLineChoice, id, product.Name)
 		}
-		if sel.Quantity < opt.MinQuantity || sel.Quantity > opt.MaxQuantity {
-			return nil, orderError.ErrSideDishQuantityOutOfBounds
+		if _, taken := picked[sc.slot.ID]; taken {
+			return nil, nil, fmt.Errorf("%w: the %q slot of %s takes one choice", orderError.ErrInvalidLineChoice, sc.slot.Name, product.Name)
 		}
-		providedByIngredient[sel.IngredientProductID] = sel.Quantity
+		picked[sc.slot.ID] = sc.choice
 	}
 
-	if len(options) == 0 {
-		return nil, nil
+	qtyByIngredient := make(map[string]int)
+	choices := make([]dto.LineChoice, 0, len(slots))
+	for i := range slots {
+		slot := &slots[i]
+		choice, ok := picked[slot.ID]
+		if !ok {
+			choice = defaultChoice(slot)
+		}
+		if choice == nil {
+			return nil, nil, fmt.Errorf("%w: the %q slot of %s has no default", orderError.ErrInvalidLineChoice, slot.Name, product.Name)
+		}
+		choices = append(choices, dto.LineChoice{SlotID: slot.ID, SlotName: slot.Name, ChoiceID: choice.ID, ChoiceName: choice.Name})
+		for _, it := range choice.Items {
+			qtyByIngredient[it.IngredientProductID] += it.Quantity
+		}
 	}
 
-	resolved := make([]dto.SideDishSelection, 0, len(options))
-	for _, opt := range options {
-		qty := int(opt.DefaultQuantity.IntPart())
-		if providedQty, ok := providedByIngredient[opt.IngredientProductID]; ok {
-			qty = providedQty
-		}
-		resolved = append(resolved, dto.SideDishSelection{
-			IngredientProductID: opt.IngredientProductID,
-			Quantity:            qty,
-		})
+	var selections []dto.SideDishSelection
+	for ingredientID, qty := range qtyByIngredient {
+		selections = append(selections, dto.SideDishSelection{IngredientProductID: ingredientID, Quantity: qty})
 	}
-	return resolved, nil
+	sort.Slice(selections, func(i, j int) bool {
+		return selections[i].IngredientProductID < selections[j].IngredientProductID
+	})
+	return selections, choices, nil
+}
+
+func defaultChoice(slot *dto.PlateOptionSlot) *dto.PlateOptionChoice {
+	for i := range slot.Choices {
+		if slot.Choices[i].IsDefault {
+			return &slot.Choices[i]
+		}
+	}
+	return nil
 }
 
 // openBillSyncProducts snapshots an aggregate's line items — including each product's
@@ -496,6 +540,7 @@ func openBillSyncProducts(aggregate *openBill.Aggregate) []dto.OpenBillSyncProdu
 			Priority:          p.Priority(),
 			CreatedBy:         p.CreatedByID(),
 			SideDishes:        p.SideDishes(),
+			Choices:           p.Choices(),
 			StartedAt:         p.StartedAt(),
 			CompletedAt:       p.CompletedAt(),
 		})
@@ -641,8 +686,9 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 			}
 
 			var resolvedSideDishes []dto.SideDishSelection
+			var resolvedChoices []dto.LineChoice
 			if productExists {
-				resolvedSideDishes, err = s.resolveSideDishSelections(ctx, product, item.SideDishes)
+				resolvedSideDishes, resolvedChoices, err = s.resolveLineSelections(ctx, product, item)
 				if err != nil {
 					return nil, err
 				}
@@ -678,10 +724,12 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 				return nil, fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
 			}
 			openBillProduct.SetSideDishes(resolvedSideDishes)
+			openBillProduct.SetChoices(resolvedChoices)
 			openBillProducts = append(openBillProducts, openBillProduct)
 
 			resolvedItem := item
 			resolvedItem.SideDishes = resolvedSideDishes
+			resolvedItem.ResolvedChoices = resolvedChoices
 			resolvedProducts = append(resolvedProducts, resolvedItem)
 		}
 		req.Products = resolvedProducts
@@ -1204,7 +1252,7 @@ func buildSideDishSSE(line dto.OrderCreatedEventProduct, nameByID map[string]str
 // sideDishesChanged reports whether a line's resolved side-dish selection differs between two
 // event snapshots, so an edit that touches only side dishes still re-notifies the kitchen.
 func sideDishesChanged(previous, current dto.OrderCreatedEventProduct) bool {
-	return consumptionKey(previous) != consumptionKey(current)
+	return consumptionKey(previous) != consumptionKey(current) || !slices.Equal(previous.Choices, current.Choices)
 }
 
 // HandleOrderCreatedSSE notifies frontend via SSE when products with preparation areas are created
@@ -1299,6 +1347,7 @@ func (s *OrderService) notifyLinesCreated(ctx context.Context, event dto.OrderCr
 			OrderType:          event.OrderType,
 			Priority:           responsibility.Priority,
 			SideDishes:         buildSideDishSSE(p, sideDishNames),
+			Choices:            p.Choices,
 			// Stamp the live payload with the order's real creation instant so the
 			// kitchen countdown starts correctly. Without this it defaults to Go's
 			// zero time and the line shows "¡URGENTE!" until a refresh.
@@ -1422,6 +1471,7 @@ func (s *OrderService) HandleOrderUpdatedSSE(ctx context.Context, event dto.Orde
 				OrderType:          event.OrderType,
 				Priority:           responsibility.Priority,
 				SideDishes:         buildSideDishSSE(product, sideDishNames),
+				Choices:            product.Choices,
 				CreatedByName:      createdByName,
 			}
 
@@ -1454,6 +1504,7 @@ func (s *OrderService) HandleOrderUpdatedSSE(ctx context.Context, event dto.Orde
 				OrderType:          event.OrderType,
 				Priority:           responsibility.Priority,
 				SideDishes:         buildSideDishSSE(currentProduct, sideDishNames),
+				Choices:            currentProduct.Choices,
 				CreatedAt:          createdAtMap[openBillProductID],
 				CreatedByName:      createdByName,
 			}
@@ -1481,6 +1532,7 @@ func (s *OrderService) HandleOrderUpdatedSSE(ctx context.Context, event dto.Orde
 					OrderType:          event.OrderType,
 					Priority:           responsibility.Priority,
 					SideDishes:         buildSideDishSSE(currentProduct, sideDishNames),
+					Choices:            currentProduct.Choices,
 					CreatedAt:          createdAtMap[openBillProductID],
 					CreatedByName:      createdByName,
 				}

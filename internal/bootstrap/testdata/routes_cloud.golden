@@ -73,9 +73,8 @@ GET /api/products/:id/ingredients laguna-escondida/backend/internal/platform/han
 POST /api/products/:id/ingredients laguna-escondida/backend/internal/platform/handler.(*ProductIngredientHandler).AddIngredientHandler-fm
 DELETE /api/products/:id/ingredients/:ingredient_id laguna-escondida/backend/internal/platform/handler.(*ProductIngredientHandler).RemoveIngredientHandler-fm
 PUT /api/products/:id/ingredients/:ingredient_id laguna-escondida/backend/internal/platform/handler.(*ProductIngredientHandler).UpdateIngredientHandler-fm
-DELETE /api/products/:id/ingredients/:ingredient_id/side-dish laguna-escondida/backend/internal/platform/handler.(*ProductIngredientHandler).ClearSideDishHandler-fm
-PUT /api/products/:id/ingredients/:ingredient_id/side-dish laguna-escondida/backend/internal/platform/handler.(*ProductIngredientHandler).ConfigureSideDishHandler-fm
-GET /api/products/:id/side-dishes laguna-escondida/backend/internal/platform/handler.(*ProductIngredientHandler).GetSideDishOptionsHandler-fm
+GET /api/products/:id/option-slots laguna-escondida/backend/internal/platform/handler.(*PlateOptionSlotHandler).GetHandler-fm
+PUT /api/products/:id/option-slots laguna-escondida/backend/internal/platform/handler.(*PlateOptionSlotHandler).ReplaceHandler-fm
 GET /api/products/:id/suppliers laguna-escondida/backend/internal/platform/handler.(*SupplierHandler).GetProductSuppliersHandler-fm
 POST /api/products/bulk laguna-escondida/backend/internal/platform/handler.(*ProductHandler).BulkCreateProductsHandler-fm
 GET /api/products/categories laguna-escondida/backend/internal/platform/handler.(*ProductHandler).ListCategoriesHandler-fm

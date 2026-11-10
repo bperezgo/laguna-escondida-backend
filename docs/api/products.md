@@ -2,12 +2,12 @@
 
 Manage products, including sellable items and ingredients.
 
-**Cloud only: catalog writes.** The box (edge) serves every read here (`GET /api/products`, `/api/products/categories`, `/api/products/:id`, `/api/products/:id/ingredients`, `/api/products/:id/side-dishes`, `/api/product-responsibilities/:id`) from what it last pulled from the cloud. These routes exist only in the cloud; on the box they return `404`, because the next pull would overwrite the edit:
+**Cloud only: catalog writes.** The box (edge) serves every read here (`GET /api/products`, `/api/products/categories`, `/api/products/:id`, `/api/products/:id/ingredients`, `/api/products/:id/option-slots`, `/api/product-responsibilities/:id`) from what it last pulled from the cloud. These routes exist only in the cloud; on the box they return `404`, because the next pull would overwrite the edit:
 
 - `POST /api/products`, `POST /api/products/bulk`, `PUT /api/products/:id`, `DELETE /api/products/:id`
 - `POST /api/product-responsibilities`, `PUT /api/product-responsibilities/:id`, `DELETE /api/product-responsibilities/:id`
 - `POST /api/products/:id/ingredients`, `PUT /api/products/:id/ingredients/:ingredient_id`, `DELETE /api/products/:id/ingredients/:ingredient_id`
-- `PUT /api/products/:id/ingredients/:ingredient_id/side-dish`, `DELETE /api/products/:id/ingredients/:ingredient_id/side-dish`
+- `PUT /api/products/:id/option-slots`
 - `GET /api/products/:id/suppliers` (the box keeps no suppliers)
 
 ## Product Types
@@ -45,9 +45,8 @@ Manage products, including sellable items and ingredients.
 | GET    | `/api/products/:id/ingredients`               | List ingredients of a composite product |
 | PUT    | `/api/products/:id/ingredients/:ingredientId` | Update ingredient quantity              |
 | DELETE | `/api/products/:id/ingredients/:ingredientId` | Remove ingredient from product          |
-| GET    | `/api/products/:id/side-dishes`                        | List a composite's side-dish options |
-| PUT    | `/api/products/:id/ingredients/:ingredientId/side-dish` | Mark an ingredient as a side dish    |
-| DELETE | `/api/products/:id/ingredients/:ingredientId/side-dish` | Clear an ingredient's side-dish flag |
+| GET    | `/api/products/:id/option-slots`                       | List a plate's option slots          |
+| PUT    | `/api/products/:id/option-slots`                       | Replace a plate's option slots (cloud only) |
 
 ---
 
@@ -452,15 +451,12 @@ POST /api/products/:id/ingredients
   "composite_product_id": "660e8400-e29b-41d4-a716-446655440001",
   "ingredient_product_id": "770e8400-e29b-41d4-a716-446655440002",
   "default_quantity": "2.5",
-  "is_side_dish": false,
-  "min_quantity": 0,
-  "max_quantity": 0,
   "created_at": "2024-01-26T16:00:00Z",
   "updated_at": "2024-01-26T16:00:00Z"
 }
 ```
 
-> **Note:** The recipe amount is `default_quantity` (renamed from `quantity`). A fixed ingredient keeps `is_side_dish: false`; `min_quantity`/`max_quantity` apply only to side dishes (see [Side Dishes](#side-dishes)).
+> **Note:** The recipe amount is `default_quantity` (renamed from `quantity`). Every recipe row is always consumed; what the customer can choose lives in the plate's [option slots](#plate-option-slots).
 
 ### Error Responses
 
@@ -522,9 +518,6 @@ GET /api/products/:id/ingredients
       "composite_product_id": "660e8400-e29b-41d4-a716-446655440001",
       "ingredient_product_id": "770e8400-e29b-41d4-a716-446655440002",
       "default_quantity": "2.5",
-      "is_side_dish": false,
-      "min_quantity": 0,
-      "max_quantity": 0,
       "created_at": "2024-01-26T16:00:00Z",
       "updated_at": "2024-01-26T16:00:00Z",
       "ingredient_product": {
@@ -589,9 +582,6 @@ PUT /api/products/:id/ingredients/:ingredientId
   "composite_product_id": "660e8400-e29b-41d4-a716-446655440001",
   "ingredient_product_id": "770e8400-e29b-41d4-a716-446655440002",
   "default_quantity": "3.0",
-  "is_side_dish": false,
-  "min_quantity": 0,
-  "max_quantity": 0,
   "created_at": "2024-01-26T16:00:00Z",
   "updated_at": "2024-01-26T16:30:00Z"
 }
@@ -646,7 +636,7 @@ When a COMPOSITE product is ordered:
 
 1. The stock of the **composite product itself is NOT decreased**
 2. Instead, the stock of each **ingredient** is decreased
-3. The quantity decreased is: `ingredient.default_quantity * order_quantity` for fixed ingredients, or `selected_quantity * order_quantity` for side dishes (see [Side Dishes](#side-dishes))
+3. The quantity decreased is `ingredient.default_quantity * order_quantity` for each recipe row, plus the bundles of the line's chosen options (see [Plate Option Slots](#plate-option-slots))
 
 ### Example
 
@@ -664,130 +654,31 @@ This happens automatically via the event-driven stock management system.
 
 ---
 
-# Side Dishes
+# Plate Option Slots
 
-A composite product's ingredients can be marked as customer-configurable **side dishes** with `default`, `min`, and `max` quantities. A server can then adjust those side dishes on an order line within `[min, max]` (e.g. drop the salad, take 3 canasta instead of 2). Fixed ingredients (protein, oil, base) are unchanged and always consume their exact recipe amount. An "offered alternative" (e.g. fries) is a side dish whose `default_quantity` is `0`.
+A composite plate can have **option slots** (they replaced per-ingredient side dishes): ordered, named groups of **choices**, each slot with exactly one default. Every order line for the plate ends with exactly one choice per slot (the one sent, or the default), so "white **or** coconut rice", "fries **instead of** the two canastas" or "a canasta **in place of** the salad" can be configured and nothing else can be ordered.
 
-Side-dish changes never affect the plate price; `min`/`max` are the guardrail against abuse. See the [Orders API](./orders.md) for how a line selects side-dish quantities.
+A choice is a **bundle**: ingredient products with whole quantities (e.g. "Canastas" = 2 canasta de patacón). An empty bundle means the plate is served without that slot (e.g. "Sin ensalada"); it exists only where configured. Bundle ingredients reference products directly and need not be recipe rows; a composite bundle item (e.g. "Canasta con hogao") is consumed through its own recipe. Choices never change the price; an upcharge stays a separate product.
+
+**Recipe rule:** the plate's recipe holds only the fixed parts (the fish), which are always consumed. Anything the customer can choose lives only in the slots' choices, whose bundles are consumed on top. An ingredient that is both a recipe row and in a chosen bundle consumes the bundle's quantity instead of the recipe's, but a recipe row is still consumed when another choice is picked, so keep choosable parts out of the recipe. See the [Orders API](./orders.md#plate-choices) for how a line picks choices.
 
 ## Endpoints
 
-| Method | Endpoint                                                | Description                          |
-| ------ | ------------------------------------------------------- | ------------------------------------ |
-| GET    | `/api/products/:id/side-dishes`                         | List a composite's side-dish options |
-| PUT    | `/api/products/:id/ingredients/:ingredientId/side-dish` | Mark an ingredient as a side dish    |
-| DELETE | `/api/products/:id/ingredients/:ingredientId/side-dish` | Clear an ingredient's side-dish flag |
+| Method | Endpoint                         | Description                                 |
+| ------ | -------------------------------- | ------------------------------------------- |
+| GET    | `/api/products/:id/option-slots` | List a plate's option slots (cloud and box) |
+| PUT    | `/api/products/:id/option-slots` | Replace a plate's option slots (cloud only) |
 
 ---
 
-## Mark an Ingredient as a Side Dish
+## List Option Slots
 
-Designates an existing composite ingredient as a side dish and sets its bounds. The configuration is rejected unless `0 <= min_quantity <= default_quantity <= max_quantity`.
+Returns the plate's live slots in order, each with its choices in order, the default marked, and each choice's bundle with ingredient names. A plate without slots (or any non-composite product) returns an empty list. On the box it returns the configuration last pulled from the cloud.
 
-```
-PUT /api/products/:id/ingredients/:ingredientId/side-dish
-```
-
-### Path Parameters
-
-| Parameter    | Type | Description          |
-| ------------ | ---- | -------------------- |
-| id           | UUID | Composite product ID |
-| ingredientId | UUID | Ingredient (recipe row) ID |
-
-### Request Body
-
-| Field            | Type | Required | Description                              |
-| ---------------- | ---- | -------- | ---------------------------------------- |
-| default_quantity | int  | Yes      | Default quantity served on a plate       |
-| min_quantity     | int  | Yes      | Minimum a server may set (0 = removable) |
-| max_quantity     | int  | Yes      | Maximum a server may set                 |
-
-### Example Request
-
-```json
-{
-  "default_quantity": 1,
-  "min_quantity": 0,
-  "max_quantity": 2
-}
-```
-
-### Example Response (200 OK)
-
-```json
-{
-  "id": "880e8400-e29b-41d4-a716-446655440003",
-  "composite_product_id": "660e8400-e29b-41d4-a716-446655440001",
-  "ingredient_product_id": "770e8400-e29b-41d4-a716-446655440002",
-  "default_quantity": "1",
-  "is_side_dish": true,
-  "min_quantity": 0,
-  "max_quantity": 2,
-  "created_at": "2024-01-26T16:00:00Z",
-  "updated_at": "2024-01-26T17:00:00Z"
-}
-```
-
-### Error Responses
-
-**400 Bad Request** — bounds violate `0 <= min <= default <= max`
-
-```json
-{
-  "error": "invalid side-dish bounds: require 0 <= min <= default <= max"
-}
-```
-
-**404 Not Found** — ingredient not found on this product
-
-```json
-{
-  "error": "Ingredient not found"
-}
-```
-
----
-
-## Clear an Ingredient's Side-Dish Flag
-
-Reverts a side dish back to a fixed ingredient. Its `default_quantity` is preserved as the exact amount always consumed; `min`/`max` reset to 0.
+Requires `products:read`.
 
 ```
-DELETE /api/products/:id/ingredients/:ingredientId/side-dish
-```
-
-### Path Parameters
-
-| Parameter    | Type | Description                |
-| ------------ | ---- | -------------------------- |
-| id           | UUID | Composite product ID       |
-| ingredientId | UUID | Ingredient (recipe row) ID |
-
-### Example Response (200 OK)
-
-```json
-{
-  "id": "880e8400-e29b-41d4-a716-446655440003",
-  "composite_product_id": "660e8400-e29b-41d4-a716-446655440001",
-  "ingredient_product_id": "770e8400-e29b-41d4-a716-446655440002",
-  "default_quantity": "1",
-  "is_side_dish": false,
-  "min_quantity": 0,
-  "max_quantity": 0,
-  "created_at": "2024-01-26T16:00:00Z",
-  "updated_at": "2024-01-26T17:05:00Z"
-}
-```
-
----
-
-## List Side-Dish Options
-
-Returns a composite product's side-dish options with each option's default, min, and max, so a client can render the +/- controls and enforce bounds.
-
-```
-GET /api/products/:id/side-dishes
+GET /api/products/:id/option-slots
 ```
 
 ### Path Parameters
@@ -800,20 +691,166 @@ GET /api/products/:id/side-dishes
 
 ```json
 {
-  "side_dishes": [
+  "slots": [
     {
-      "ingredient_product_id": "770e8400-e29b-41d4-a716-446655440002",
-      "default_quantity": 1,
-      "min_quantity": 0,
-      "max_quantity": 2,
-      "ingredient_product": {
-        "id": "770e8400-e29b-41d4-a716-446655440002",
-        "name": "Ensalada",
-        "product_type": "INGREDIENT",
-        "unit_of_measure": "unit"
-      }
+      "id": "019a5b10-0000-7000-8000-000000000a01",
+      "composite_product_id": "019a5b00-0000-7000-8000-0000000000f1",
+      "name": "Arroz",
+      "position": 0,
+      "choices": [
+        {
+          "id": "019a5b10-0000-7000-8000-000000000b01",
+          "name": "Arroz blanco",
+          "position": 0,
+          "is_default": true,
+          "items": [
+            {
+              "id": "019a5b10-0000-7000-8000-000000000c01",
+              "ingredient_product_id": "019a5b00-0000-7000-8000-0000000000a1",
+              "ingredient_name": "Porción arroz blanco",
+              "quantity": 1,
+              "created_at": "2026-11-09T15:00:00Z",
+              "updated_at": "2026-11-09T15:00:00Z"
+            }
+          ],
+          "created_at": "2026-11-09T15:00:00Z",
+          "updated_at": "2026-11-09T15:00:00Z"
+        },
+        {
+          "id": "019a5b10-0000-7000-8000-000000000b02",
+          "name": "Arroz de coco",
+          "position": 1,
+          "is_default": false,
+          "items": [
+            {
+              "id": "019a5b10-0000-7000-8000-000000000c02",
+              "ingredient_product_id": "019a5b00-0000-7000-8000-0000000000a2",
+              "ingredient_name": "Porción arroz de coco",
+              "quantity": 1,
+              "created_at": "2026-11-09T15:00:00Z",
+              "updated_at": "2026-11-09T15:00:00Z"
+            }
+          ],
+          "created_at": "2026-11-09T15:00:00Z",
+          "updated_at": "2026-11-09T15:00:00Z"
+        }
+      ],
+      "created_at": "2026-11-09T15:00:00Z",
+      "updated_at": "2026-11-09T15:00:00Z"
     }
   ]
+}
+```
+
+### Error Responses
+
+**404 Not Found** — the product does not exist
+
+```json
+{
+  "error": "Product not found"
+}
+```
+
+---
+
+## Replace Option Slots
+
+Makes the request the plate's **whole** slot list, in one transaction: list order is display order. A slot or choice sent with the `id` of an existing slot or choice **of this plate** keeps that id, so open orders and cached ids stay valid; one sent without an id (or with an unknown one) gets a new id. A slot or choice left out is removed and can no longer be ordered; lines already taken with it keep showing it. An empty `slots` list removes every slot. A rejected request leaves the previous configuration unchanged. The change reaches the box on its next pull.
+
+Cloud only; requires `products:update`. On the box this route returns `404`.
+
+```
+PUT /api/products/:id/option-slots
+```
+
+### Path Parameters
+
+| Parameter | Type | Description          |
+| --------- | ---- | -------------------- |
+| id        | UUID | Composite product ID |
+
+### Request Body
+
+| Field                                       | Type    | Required | Description |
+| ------------------------------------------- | ------- | -------- | ----------- |
+| slots                                       | array   | Yes      | The plate's full ordered slot list (`[]` removes every slot) |
+| slots[].id                                  | UUID    | No       | An existing slot of this plate, to keep its id |
+| slots[].name                                | string  | Yes      | Not empty; unique within the plate (case-insensitive) |
+| slots[].choices                             | array   | Yes      | At least one; exactly one with `is_default: true` |
+| slots[].choices[].id                        | UUID    | No       | An existing choice of this plate, to keep its id |
+| slots[].choices[].name                      | string  | Yes      | Not empty; unique within the slot (case-insensitive) |
+| slots[].choices[].is_default                | boolean | No       | `true` on exactly one choice per slot |
+| slots[].choices[].items                     | array   | No       | The bundle; empty or omitted means "without" |
+| slots[].choices[].items[].ingredient_product_id | UUID | Yes   | A product of the same organization; at most once per bundle; not the plate itself |
+| slots[].choices[].items[].quantity          | int     | Yes      | Whole units, at least 1 |
+
+### Example Request
+
+```json
+{
+  "slots": [
+    {
+      "name": "Arroz",
+      "choices": [
+        { "name": "Arroz blanco", "is_default": true, "items": [{ "ingredient_product_id": "019a5b00-0000-7000-8000-0000000000a1", "quantity": 1 }] },
+        { "name": "Arroz de coco", "items": [{ "ingredient_product_id": "019a5b00-0000-7000-8000-0000000000a2", "quantity": 1 }] }
+      ]
+    },
+    {
+      "name": "Acompañante",
+      "choices": [
+        { "name": "Canastas", "is_default": true, "items": [{ "ingredient_product_id": "019a5b00-0000-7000-8000-0000000000a3", "quantity": 2 }] },
+        { "name": "Papas", "items": [{ "ingredient_product_id": "019a5b00-0000-7000-8000-0000000000a4", "quantity": 1 }] },
+        { "name": "Patacón", "items": [{ "ingredient_product_id": "019a5b00-0000-7000-8000-0000000000a5", "quantity": 1 }] }
+      ]
+    },
+    {
+      "name": "Ensalada",
+      "choices": [
+        { "name": "Ensalada", "is_default": true, "items": [{ "ingredient_product_id": "019a5b00-0000-7000-8000-0000000000a6", "quantity": 1 }] },
+        { "name": "Canasta extra", "items": [{ "ingredient_product_id": "019a5b00-0000-7000-8000-0000000000a3", "quantity": 1 }] }
+      ]
+    }
+  ]
+}
+```
+
+### Example Response (200 OK)
+
+The saved list, in the shape of [List Option Slots](#list-option-slots).
+
+### Error Responses
+
+**400 Bad Request** — the document breaks a rule; the message names the slot or choice
+
+```json
+{
+  "error": "invalid plate option slots: slot \"Arroz\" must have exactly one default choice, got 2"
+}
+```
+
+**400 Bad Request** — the product is not composite, or a bundle names the plate itself
+
+```json
+{
+  "error": "product is not a composite product"
+}
+```
+
+**404 Not Found** — the plate does not exist
+
+```json
+{
+  "error": "Product not found"
+}
+```
+
+**404 Not Found** — a bundle ingredient does not exist in this organization (another organization's product looks the same)
+
+```json
+{
+  "error": "a bundle ingredient does not exist"
 }
 ```
 

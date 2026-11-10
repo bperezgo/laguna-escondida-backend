@@ -26,8 +26,10 @@ offline-first: it serves entirely from local data and never hard-depends on the 
 
 Two data flows, deliberately asymmetric:
 
-- **Pull (cloud → edge), reference data.** `products`, `users`, `suppliers`, and
-  `product_preparation_responsibilities` are cloud-owned. The edge pulls a **cursor diff**
+- **Pull (cloud → edge), reference data.** `products`, `users`, `suppliers`,
+  `product_preparation_responsibilities`, `product_ingredients` and plate option slots are
+  cloud-owned. Plate option slots travel as one document per plate (its whole live slot list,
+  so a removal or an emptied plate propagates without tombstones; the box replaces its copy). The edge pulls a **cursor diff**
   over `updated_at`/`deleted_at`: the cloud returns rows changed after the edge's
   `last_pulled_cursor`, the edge upserts them. Payloads carry `deleted_at` (so soft-deletes
   propagate) and the user payload carries the **password hash** (so the edge can authenticate
@@ -391,9 +393,9 @@ Status: ✅ implemented · 🟡 partial · ⬜ not yet.
 | --- | --- | --- | --- | --- | --- |
 | SYNC-INV-01 | Identity derivation | setup | 1 | ⬜ | `TestSync_Identity_DeriveMatchesAcrossNodes` |
 | SYNC-INV-02 | Auth fails closed | B | 1 | ⬜ | `TestSync_Auth_PushRejectsMissingOrWrongKey` (also `node_auth_middleware_test.go`) |
-| SYNC-INV-03 | Pull: new rows | E.1 | 1 | ✅ | `TestSync_Pull_ReplicatesNewProduct`, `TestSync_Pull_ReplicatesProductResponsibility` |
-| SYNC-INV-04 | Pull: updates | E.2 | 1 | ✅ | `TestSync_Pull_ReplicatesUpdate`, `TestSync_Pull_ReplicatesProductResponsibility` (responsibility-only) |
-| SYNC-INV-05 | Pull: tombstones | E.3 | 1 | ✅ | `TestSync_Pull_ReplicatesTombstone`, `TestSync_Pull_ReplicatesResponsibilityTombstone` |
+| SYNC-INV-03 | Pull: new rows | E.1 | 1 | ✅ | `TestSync_Pull_ReplicatesNewProduct`, `TestSync_Pull_ReplicatesProductResponsibility`, `TestSync_Pull_ReplicatesPlateOptionSlots` |
+| SYNC-INV-04 | Pull: updates | E.2 | 1 | ✅ | `TestSync_Pull_ReplicatesUpdate`, `TestSync_Pull_ReplicatesProductResponsibility` (responsibility-only), `TestSync_Pull_ReplicatesPlateOptionSlots` |
+| SYNC-INV-05 | Pull: tombstones | E.3 | 1 | ✅ | `TestSync_Pull_ReplicatesTombstone`, `TestSync_Pull_ReplicatesResponsibilityTombstone`, `TestSync_Pull_ReplicatesPlateOptionSlots` |
 | SYNC-INV-06 | Pull: offline auth | E.4 | 1 | 🟡 | `TestSync_Pull_UserCarriesPasswordHash` (hash replicates; live offline sign-in TODO) |
 | SYNC-INV-07 | Pull: cursor monotonic | E note | 1 | ✅ | `TestSync_Pull_CursorDoesNotRewindOnNoOp` |
 | SYNC-INV-08 | Pull: incremental | *(new)* | 1 | ✅ | `TestSync_Pull_SecondPullIsIncremental` |

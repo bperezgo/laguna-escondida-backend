@@ -126,3 +126,62 @@ func TestHandleOrderUpdatedSSE_ReNotifiesOnSideDishChange(t *testing.T) {
 	require.Equal(t, "Canasta", captured.SideDishes[0].Name)
 	require.Equal(t, 3, captured.SideDishes[0].Quantity)
 }
+
+// The kitchen sees a slot plate's swap: the created line carries its resolved choices.
+func TestHandleOrderCreatedSSE_CarriesLineChoices(t *testing.T) {
+	ctx := context.Background()
+	mockOpenBillRepo := mocks.NewMockOpenBillRepository(t)
+	mockNotifier := mocks.NewMockOpenBillProductSSENotifier(t)
+	service := newSSEService(mockOpenBillRepo, mocks.NewMockProductRepository(t), mockNotifier)
+
+	choices := []dto.LineChoice{
+		{SlotID: "s1", SlotName: "Arroz", ChoiceID: "c1", ChoiceName: "Arroz de coco"},
+		{SlotID: "s2", SlotName: "Acompañante", ChoiceID: "c2", ChoiceName: "Papas"},
+		{SlotID: "s3", SlotName: "Ensalada", ChoiceID: "c3", ChoiceName: "Ensalada"},
+	}
+	event := dto.OrderCreatedEvent{
+		OpenBillID: "order-1", TemporalIdentifier: "TABLE-01",
+		Products: []dto.OrderCreatedEventProduct{{OpenBillProductID: "line-1", ProductID: "tilapia", Quantity: 1, Choices: choices}},
+	}
+	mockOpenBillRepo.On("GetProductPreparationResponsibilities", ctx, []string{"tilapia"}).
+		Return([]dto.ProductPreparationResponsibilityWithProduct{{ProductID: "tilapia", ProductName: "Tilapia", Area: "cocina"}}, nil)
+
+	var captured *dto.OpenBillProductSSE
+	mockNotifier.On("NotifyArea", ctx, "cocina", OpenBillProductCreatedEventType, mock.Anything).
+		Run(func(args mock.Arguments) { captured, _ = args.Get(3).(*dto.OpenBillProductSSE) }).Return(nil)
+
+	require.NoError(t, service.HandleOrderCreatedSSE(ctx, event))
+	require.NotNil(t, captured)
+	require.Equal(t, choices, captured.Choices)
+}
+
+// Changing only a choice whose bundle matches the old one still re-notifies the kitchen.
+func TestHandleOrderUpdatedSSE_ReNotifiesOnChoiceChange(t *testing.T) {
+	ctx := context.Background()
+	mockOpenBillRepo := mocks.NewMockOpenBillRepository(t)
+	mockNotifier := mocks.NewMockOpenBillProductSSENotifier(t)
+	service := newSSEService(mockOpenBillRepo, mocks.NewMockProductRepository(t), mockNotifier)
+
+	line := func(choiceName string) dto.OrderCreatedEventProduct {
+		return dto.OrderCreatedEventProduct{OpenBillProductID: "line-1", ProductID: "tilapia", Quantity: 1,
+			Choices: []dto.LineChoice{{SlotID: "s1", SlotName: "Acompañante", ChoiceID: "c-" + choiceName, ChoiceName: choiceName}}}
+	}
+	event := dto.OrderUpdatedEvent{
+		OpenBillID: "order-1", TemporalIdentifier: "TABLE-01",
+		PreviousProducts: []dto.OrderCreatedEventProduct{line("Canastas")},
+		CurrentProducts:  []dto.OrderCreatedEventProduct{line("Canastas dobles")},
+	}
+	mockOpenBillRepo.On("GetProductPreparationResponsibilities", ctx, mock.Anything).
+		Return([]dto.ProductPreparationResponsibilityWithProduct{{ProductID: "tilapia", ProductName: "Tilapia", Area: "cocina"}}, nil)
+	mockOpenBillRepo.On("FindByIDWithProducts", ctx, "order-1").Return(&dto.OpenBillWithProducts{
+		Products: []dto.OpenBillProductDetail{{OpenBillProductID: "line-1", CreatedAt: time.Now()}},
+	}, nil)
+
+	var captured *dto.OpenBillProductSSE
+	mockNotifier.On("NotifyArea", ctx, "cocina", OpenBillProductUpdatedEventType, mock.Anything).
+		Run(func(args mock.Arguments) { captured, _ = args.Get(3).(*dto.OpenBillProductSSE) }).Return(nil)
+
+	require.NoError(t, service.HandleOrderUpdatedSSE(ctx, event))
+	require.NotNil(t, captured)
+	require.Equal(t, "Canastas dobles", captured.Choices[0].ChoiceName)
+}

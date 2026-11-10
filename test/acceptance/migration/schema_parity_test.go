@@ -31,8 +31,9 @@ const (
 // edgeTables is what the box stores; adding a table to edge/ means adding it here on purpose.
 var edgeTables = []string{
 	"bill_owners", "bill_products", "bills", "historic_stock", "idempotency_keys",
-	"open_bill_product_side_dishes", "open_bills", "open_bills_products", "organizations",
-	"pending_invoices", "product_ingredients", "product_preparation_responsibilities", "products",
+	"open_bill_product_choices", "open_bill_product_side_dishes", "open_bills", "open_bills_products",
+	"organizations", "pending_invoices", "plate_option_choice_items", "plate_option_choices",
+	"plate_option_slots", "product_ingredients", "product_preparation_responsibilities", "products",
 	"roles", "schema_migrations", "stock", "sync_outbox", "sync_state", "user_roles", "users",
 }
 

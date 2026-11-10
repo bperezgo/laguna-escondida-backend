@@ -239,6 +239,75 @@ func loadSideDishesByLine(db *gorm.DB, openBillProductIDs []string) (map[string]
 	return result, nil
 }
 
+type openBillProductChoiceModel struct {
+	postgres.TenantOwned
+	ID                string     `gorm:"type:uuid;primaryKey"`
+	OpenBillProductID string     `gorm:"type:uuid;not null;column:open_bill_product_id"`
+	SlotID            string     `gorm:"type:uuid;not null;column:slot_id"`
+	SlotName          string     `gorm:"not null;column:slot_name"`
+	ChoiceID          string     `gorm:"type:uuid;not null;column:choice_id"`
+	ChoiceName        string     `gorm:"not null;column:choice_name"`
+	Position          int        `gorm:"not null;column:position"`
+	CreatedAt         time.Time  `gorm:"type:timestamp;not null"`
+	UpdatedAt         time.Time  `gorm:"type:timestamp;not null"`
+	DeletedAt         *time.Time `gorm:"type:timestamp;column:deleted_at"`
+}
+
+func (openBillProductChoiceModel) TableName() string {
+	return "open_bill_product_choices"
+}
+
+// replaceLineChoices rewrites a line's resolved choices; like side dishes, the set is a snapshot.
+func replaceLineChoices(tx *gorm.DB, openBillProductID string, choices []dto.LineChoice) error {
+	now := time.Now()
+	if err := tx.Model(&openBillProductChoiceModel{}).
+		Where("open_bill_product_id = ? AND deleted_at IS NULL", openBillProductID).
+		Updates(map[string]any{"deleted_at": now, "updated_at": now}).Error; err != nil {
+		return err
+	}
+	if len(choices) == 0 {
+		return nil
+	}
+	rows := make([]openBillProductChoiceModel, len(choices))
+	for i, c := range choices {
+		rows[i] = openBillProductChoiceModel{
+			ID:                uuid.Must(uuid.NewV7()).String(),
+			OpenBillProductID: openBillProductID,
+			SlotID:            c.SlotID,
+			SlotName:          c.SlotName,
+			ChoiceID:          c.ChoiceID,
+			ChoiceName:        c.ChoiceName,
+			Position:          i,
+			CreatedAt:         now,
+			UpdatedAt:         now,
+		}
+	}
+	return tx.Create(&rows).Error
+}
+
+// loadChoicesByLine returns each line's live resolved choices in slot order, in one query.
+func loadChoicesByLine(db *gorm.DB, openBillProductIDs []string) (map[string][]dto.LineChoice, error) {
+	result := make(map[string][]dto.LineChoice)
+	if len(openBillProductIDs) == 0 {
+		return result, nil
+	}
+	var rows []openBillProductChoiceModel
+	if err := db.Where("open_bill_product_id IN ? AND deleted_at IS NULL", openBillProductIDs).
+		Order("position ASC").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		result[row.OpenBillProductID] = append(result[row.OpenBillProductID], dto.LineChoice{
+			SlotID:     row.SlotID,
+			SlotName:   row.SlotName,
+			ChoiceID:   row.ChoiceID,
+			ChoiceName: row.ChoiceName,
+		})
+	}
+	return result, nil
+}
+
 // loadSideDishSSEByLine returns each line's resolved side dishes (ingredient name + quantity)
 // for the kitchen feed, keyed by open_bill_product_id, in two queries. Names are resolved from
 // the products table at read time (design D7: names live on the product, not on the persisted
@@ -383,6 +452,9 @@ func (r *OpenBillRepository) Create(ctx context.Context, aggregate *openBill.Agg
 					return err
 				}
 				if err := replaceSideDishes(tx, item.ID(), item.SideDishes()); err != nil {
+					return err
+				}
+				if err := replaceLineChoices(tx, item.ID(), item.Choices()); err != nil {
 					return err
 				}
 			}
@@ -552,6 +624,10 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 	if err != nil {
 		return nil, err
 	}
+	choicesByLine, err := loadChoicesByLine(db, lineIDs)
+	if err != nil {
+		return nil, err
+	}
 
 	productDetails := make([]dto.OpenBillProductDetail, len(productResults))
 	for i, pr := range productResults {
@@ -581,6 +657,7 @@ func (r *OpenBillRepository) FindByID(ctx context.Context, id string) (*dto.Open
 			Area:          pr.Area,
 			Priority:      pr.Priority,
 			SideDishes:    sideDishesByLine[pr.ID],
+			Choices:       choicesByLine[pr.ID],
 			CreatedAt:     pr.CreatedAt,
 			CreatedByName: pr.ProductCreatedByName,
 			StartedAt:     pr.StartedAt,
@@ -661,6 +738,10 @@ func (r *OpenBillRepository) findAggregate(ctx context.Context, where string, id
 	if err != nil {
 		return nil, err
 	}
+	choicesByLine, err := loadChoicesByLine(db, lineIDs)
+	if err != nil {
+		return nil, err
+	}
 
 	products := make([]*openBill.OpenBillProduct, 0, len(productModels))
 	for _, pm := range productModels {
@@ -678,6 +759,7 @@ func (r *OpenBillRepository) findAggregate(ctx context.Context, where string, id
 			return nil, err
 		}
 		product.SetSideDishes(sideDishesByLine[pm.ID])
+		product.SetChoices(choicesByLine[pm.ID])
 		product.RestoreTiming(pm.StartedAt, pm.CompletedAt)
 		products = append(products, product)
 	}
@@ -808,6 +890,9 @@ func (r *OpenBillRepository) Update(ctx context.Context, aggregate *openBill.Agg
 			if err := replaceSideDishes(tx, item.ID(), item.SideDishes()); err != nil {
 				return err
 			}
+			if err := replaceLineChoices(tx, item.ID(), item.Choices()); err != nil {
+				return err
+			}
 		}
 
 		for openBillProductID, existing := range existingProductMap {
@@ -821,6 +906,9 @@ func (r *OpenBillRepository) Update(ctx context.Context, aggregate *openBill.Agg
 				}
 				if err := tx.Where("open_bill_product_id = ?", openBillProductID).
 					Delete(&openBillProductSideDishModel{}).Error; err != nil {
+					return err
+				}
+				if err := replaceLineChoices(tx, openBillProductID, nil); err != nil {
 					return err
 				}
 			}
@@ -1097,6 +1185,10 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 	if err != nil {
 		return nil, err
 	}
+	choicesByLine, err := loadChoicesByLine(db, lineIDs)
+	if err != nil {
+		return nil, err
+	}
 
 	productDetails := make([]dto.OpenBillProductDetail, len(productResults))
 	for i, pr := range productResults {
@@ -1124,6 +1216,7 @@ func (r *OpenBillRepository) FindByIDWithProducts(ctx context.Context, id string
 			Area:          pr.Area,
 			Priority:      pr.Priority,
 			SideDishes:    sideDishesByLine[pr.ID],
+			Choices:       choicesByLine[pr.ID],
 			CreatedAt:     pr.CreatedAt,
 			CreatedByName: pr.ProductCreatedByName,
 			StartedAt:     pr.StartedAt,
@@ -1362,6 +1455,10 @@ func (r *OpenBillRepository) FindByIDIncludingDeletedWithProducts(ctx context.Co
 	if err != nil {
 		return nil, err
 	}
+	choicesByLine, err := loadChoicesByLine(db, lineIDs)
+	if err != nil {
+		return nil, err
+	}
 
 	productDetails := make([]dto.OpenBillProductDetail, len(productResults))
 	for i, pr := range productResults {
@@ -1389,6 +1486,7 @@ func (r *OpenBillRepository) FindByIDIncludingDeletedWithProducts(ctx context.Co
 			Area:          pr.Area,
 			Priority:      pr.Priority,
 			SideDishes:    sideDishesByLine[pr.ID],
+			Choices:       choicesByLine[pr.ID],
 			CreatedAt:     pr.CreatedAt,
 			CreatedByName: pr.ProductCreatedByName,
 			StartedAt:     pr.StartedAt,
@@ -1579,8 +1677,13 @@ func (r *OpenBillRepository) FindPendingByArea(ctx context.Context, area string)
 	if err != nil {
 		return nil, err
 	}
+	choicesByLine, err := loadChoicesByLine(db, lineIDs)
+	if err != nil {
+		return nil, err
+	}
 	for _, p := range sseProducts {
 		p.SideDishes = sideDishesByLine[p.OpenBillProductID]
+		p.Choices = choicesByLine[p.OpenBillProductID]
 	}
 
 	return sseProducts, nil
@@ -1679,8 +1782,13 @@ func (r *OpenBillRepository) FindCompletedByAreaBetween(ctx context.Context, are
 	if err != nil {
 		return nil, err
 	}
+	choicesByLine, err := loadChoicesByLine(db, lineIDs)
+	if err != nil {
+		return nil, err
+	}
 	for _, p := range sseProducts {
 		p.SideDishes = sideDishesByLine[p.OpenBillProductID]
+		p.Choices = choicesByLine[p.OpenBillProductID]
 	}
 
 	return sseProducts, nil

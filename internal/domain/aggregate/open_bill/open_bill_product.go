@@ -20,6 +20,7 @@ type OpenBillProduct struct {
 	priority    int
 	createdByID string
 	sideDishes  []dto.SideDishSelection
+	choices     []dto.LineChoice
 	startedAt   *time.Time
 	completedAt *time.Time
 }
@@ -125,6 +126,15 @@ func (p *OpenBillProduct) SideDishes() []dto.SideDishSelection {
 // rather than a constructor argument so the many existing call sites stay untouched.
 func (p *OpenBillProduct) SetSideDishes(sideDishes []dto.SideDishSelection) {
 	p.sideDishes = sideDishes
+}
+
+// Choices returns the line's resolved plate choices, one per slot; nil for a plate without slots.
+func (p *OpenBillProduct) Choices() []dto.LineChoice {
+	return p.choices
+}
+
+func (p *OpenBillProduct) SetChoices(choices []dto.LineChoice) {
+	p.choices = choices
 }
 
 func (p *OpenBillProduct) StartedAt() *time.Time {

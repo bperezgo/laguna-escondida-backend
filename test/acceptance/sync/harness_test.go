@@ -581,15 +581,12 @@ func newProductResponsibility(productID, area string, priority int, changedAt ti
 	}
 }
 
-func newSideDishIngredient(compositeID, ingredientID string, defaultQty, minQty, maxQty int, changedAt time.Time) dto.ProductIngredientSyncPayload {
+func newRecipeIngredient(compositeID, ingredientID string, qty int, changedAt time.Time) dto.ProductIngredientSyncPayload {
 	return dto.ProductIngredientSyncPayload{
 		ID:                  uuid.NewString(),
 		CompositeProductID:  compositeID,
 		IngredientProductID: ingredientID,
-		DefaultQuantity:     decimal.NewFromInt(int64(defaultQty)),
-		IsSideDish:          true,
-		MinQuantity:         minQty,
-		MaxQuantity:         maxQty,
+		DefaultQuantity:     decimal.NewFromInt(int64(qty)),
 		CreatedAt:           changedAt,
 		UpdatedAt:           changedAt,
 	}
