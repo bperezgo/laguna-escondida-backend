@@ -89,10 +89,27 @@ export const OVERDUE_DAYS = 7;
  * a request is added or replaced, anything else leaves the queue.
  */
 export function applyPendingChange(list: Reservation[], changed: Reservation, fromDay: string): Reservation[] {
+  return applyStatusChange(list, changed, fromDay, ["requested"]);
+}
+
+/** The statuses the "Todas" view lists: everything still ahead, answered or not. */
+export const ACTIVE_STATUSES: readonly ReservationStatus[] = ["requested", "confirmed"];
+
+/** Keeps the list of pending and confirmed reservations, every day from `fromDay` on, current with a change. */
+export function applyActiveChange(list: Reservation[], changed: Reservation, fromDay: string): Reservation[] {
+  return applyStatusChange(list, changed, fromDay, ACTIVE_STATUSES);
+}
+
+function applyStatusChange(
+  list: Reservation[],
+  changed: Reservation,
+  fromDay: string,
+  statuses: readonly ReservationStatus[]
+): Reservation[] {
   const current = list.find((r) => r.id === changed.id);
   if (current && new Date(current.updated_at) > new Date(changed.updated_at)) return list;
   const others = list.filter((r) => r.id !== changed.id);
-  if (changed.status !== "requested" || businessDayOf(changed.starts_at) < fromDay) return others;
+  if (!statuses.includes(changed.status) || businessDayOf(changed.starts_at) < fromDay) return others;
   return sortReservations([...others, changed]);
 }
 

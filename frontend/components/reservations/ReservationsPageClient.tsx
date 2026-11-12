@@ -16,6 +16,7 @@ import {
   SOURCE_LABEL,
   STATUS_LABEL,
   actionsFor,
+  applyActiveChange,
   applyChange,
   applyPendingChange,
   businessDayOf,
@@ -55,6 +56,16 @@ const STREAM_LABEL: Record<StreamState, string> = {
 };
 
 const FILTERS: StatusFilter[] = ["all", "requested", "confirmed", "visited", "closed"];
+const ACTIVE_FILTERS: StatusFilter[] = ["all", "requested", "confirmed"];
+
+export type ReservationsView = "day" | "all";
+
+const VIEWS: ReservationsView[] = ["day", "all"];
+
+const VIEW_LABEL: Record<ReservationsView, string> = {
+  day: "Por día",
+  all: "Pendientes y confirmadas",
+};
 const FRESH_MS = 8000;
 
 interface PendingAction {
@@ -102,7 +113,13 @@ function cancelledByLabel(reservation: Reservation): string | null {
   return reservation.cancelled_by === "customer" ? "Cancelada por el cliente" : "Cancelada por el restaurante";
 }
 
-export default function ReservationsPageClient({ requestedDay }: { requestedDay: string | null }) {
+export default function ReservationsPageClient({
+  requestedDay,
+  requestedView,
+}: {
+  requestedDay: string | null;
+  requestedView: ReservationsView;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const { hasPermission, isAdmin, isLoading: permissionsLoading } = usePermissions();
@@ -112,6 +129,7 @@ export default function ReservationsPageClient({ requestedDay }: { requestedDay:
   const now = useNow(30_000);
   const today = todayInBusinessTz(new Date(now));
 
+  const [view, setView] = useState<ReservationsView>(requestedView);
   const [day, setDay] = useState(requestedDay ?? today);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -125,10 +143,16 @@ export default function ReservationsPageClient({ requestedDay }: { requestedDay:
   const [creating, setCreating] = useState(false);
   const [createKey, setCreateKey] = useState(0);
   const [pendingQueue, setPendingQueue] = useState<Reservation[]>([]);
+  const [active, setActive] = useState<Reservation[]>([]);
+  const [activeLoading, setActiveLoading] = useState(true);
+  const [activeError, setActiveError] = useState("");
+  const [activeFilter, setActiveFilter] = useState<StatusFilter>("all");
 
   const dayRef = useRef(day);
   const todayRef = useRef(today);
+  const viewRef = useRef(view);
   const pendingSeq = useRef(0);
+  const activeSeq = useRef(0);
   const loadSeq = useRef(0);
   const freshTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
@@ -163,10 +187,36 @@ export default function ReservationsPageClient({ requestedDay }: { requestedDay:
     }
   }, []);
 
+  // Every pending and confirmed reservation, whatever day it is for; overdue requests included.
+  const loadActive = useCallback(async () => {
+    const seq = ++activeSeq.current;
+    try {
+      const from = startsAtInZone(shiftDay(todayRef.current, -OVERDUE_DAYS), "00:00", formatSettings.timeZone);
+      const data = await reservationsApi.listActive(from);
+      if (seq !== activeSeq.current) return;
+      setActive(sortReservations(data.reservations));
+      setActiveError("");
+    } catch (error) {
+      if (seq !== activeSeq.current) return;
+      setActiveError(
+        error instanceof ApiError && error.status === 403
+          ? "No tienes permiso para ver las reservas."
+          : "No se pudieron cargar las reservas."
+      );
+    } finally {
+      if (seq === activeSeq.current) setActiveLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     todayRef.current = today;
     if (!permissionsLoading && canManage) void loadPending();
   }, [today, permissionsLoading, canManage, loadPending]);
+
+  useEffect(() => {
+    viewRef.current = view;
+    if (view === "all") void loadActive();
+  }, [view, today, loadActive]);
 
   useEffect(() => {
     dayRef.current = day;
@@ -200,6 +250,7 @@ export default function ReservationsPageClient({ requestedDay }: { requestedDay:
     (changed: Reservation) => {
       setReservations((prev) => applyChange(prev, changed, dayRef.current));
       setPendingQueue((prev) => applyPendingChange(prev, changed, shiftDay(todayRef.current, -OVERDUE_DAYS)));
+      setActive((prev) => applyActiveChange(prev, changed, shiftDay(todayRef.current, -OVERDUE_DAYS)));
       if (changed.status === "requested") markFresh(changed.id);
     },
     [markFresh]
@@ -207,16 +258,34 @@ export default function ReservationsPageClient({ requestedDay }: { requestedDay:
   const onOpen = useCallback(() => {
     void load(dayRef.current);
     void loadPending();
-  }, [load, loadPending]);
+    if (viewRef.current === "all") void loadActive();
+  }, [load, loadPending, loadActive]);
   const stream = useReservationStream(!permissionsLoading && canManage, onChange, onOpen);
 
+  const syncUrl = (nextView: ReservationsView, nextDay: string) => {
+    const query = new URLSearchParams();
+    if (nextView === "all") query.set("view", "all");
+    else if (nextDay !== today) query.set("date", nextDay);
+    router.replace(query.size > 0 ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
+
+  const switchView = (next: ReservationsView) => {
+    if (next === view) return;
+    setView(next);
+    setActionMessage("");
+    syncUrl(next, day);
+  };
+
+  // Also leaves the "all" view, so a date picked from it opens that day.
   const goTo = (target: string) => {
-    if (!target || target === day) return;
+    if (!target || (target === day && view === "day")) return;
+    setActionMessage("");
+    setView("day");
+    syncUrl("day", target);
+    if (target === day) return;
     setLoading(true);
     setReservations([]);
     setDay(target);
-    setActionMessage("");
-    router.replace(target === today ? pathname : `${pathname}?date=${target}`, { scroll: false });
   };
 
   const run = async (reservation: Reservation, action: ReservationAction, reason?: string) => {
@@ -226,12 +295,14 @@ export default function ReservationsPageClient({ requestedDay }: { requestedDay:
       const updated = await reservationsApi.act(reservation.id, action, reason);
       setReservations((prev) => applyChange(prev, updated, dayRef.current));
       setPendingQueue((prev) => applyPendingChange(prev, updated, shiftDay(todayRef.current, -OVERDUE_DAYS)));
+      setActive((prev) => applyActiveChange(prev, updated, shiftDay(todayRef.current, -OVERDUE_DAYS)));
       setPending(null);
     } catch (error) {
       setActionMessage(actionError(error));
       setPending(null);
       void load(dayRef.current);
       void loadPending();
+      if (viewRef.current === "all") void loadActive();
     } finally {
       setBusyId(null);
     }
@@ -241,6 +312,8 @@ export default function ReservationsPageClient({ requestedDay }: { requestedDay:
     setCreating(false);
     setFilter("all");
     markFresh(created.id);
+    setActive((prev) => applyActiveChange(prev, created, shiftDay(todayRef.current, -OVERDUE_DAYS)));
+    if (view === "all") return;
     const createdDay = businessDayOf(created.starts_at);
     if (createdDay === day) {
       setReservations((prev) => applyChange(prev, created, day));
@@ -274,6 +347,14 @@ export default function ReservationsPageClient({ requestedDay }: { requestedDay:
   const shown = reservations.filter((r) => matchesFilter(r, filter));
   const overdue = pendingQueue.filter((r) => isOverdue(r, now));
   const upcoming = pendingQueue.filter((r) => !isOverdue(r, now));
+  const activeCounts = useMemo(
+    () =>
+      Object.fromEntries(
+        ACTIVE_FILTERS.map((f) => [f, active.filter((r) => matchesFilter(r, f)).length])
+      ) as Record<StatusFilter, number>,
+    [active]
+  );
+  const activeShown = active.filter((r) => matchesFilter(r, activeFilter));
   const timeFormat = inBusinessTimeZone({ hour: "2-digit", minute: "2-digit" });
 
   const renderQueueItem = (reservation: Reservation) => {
@@ -325,6 +406,74 @@ export default function ReservationsPageClient({ requestedDay }: { requestedDay:
     );
   };
 
+  const renderItem = (reservation: Reservation, withDay: boolean) => {
+    const actions = canManage ? actionsFor(reservation, now) : [];
+    const busy = busyId === reservation.id;
+    const cancelledBy = cancelledByLabel(reservation);
+    return (
+      <article
+        key={reservation.id}
+        className={styles.item}
+        data-status={reservation.status}
+        data-fresh={fresh.has(reservation.id)}
+      >
+        <div>
+          {withDay && (
+            <button
+              type="button"
+              className={styles.itemDay}
+              onClick={() => goTo(businessDayOf(reservation.starts_at))}
+              title="Ver ese día"
+            >
+              {queueDayLabel(businessDayOf(reservation.starts_at), today)}
+            </button>
+          )}
+          <div className={styles.time}>{formatTime(reservation.starts_at, timeFormat)}</div>
+          <div className={styles.party}>
+            {reservation.party_size} {reservation.party_size === 1 ? "persona" : "personas"}
+          </div>
+        </div>
+
+        <div className={styles.main}>
+          <div className={styles.nameRow}>
+            <span className={styles.name}>{reservation.name}</span>
+            <Badge tone={STATUS_TONE[reservation.status]}>{STATUS_LABEL[reservation.status]}</Badge>
+            {reservation.origin.attribution?.ad_id && (
+              <Badge tone="info" dot={false}>
+                Anuncio
+              </Badge>
+            )}
+          </div>
+          <div className={styles.meta}>
+            <a href={`tel:${reservation.contact_phone}`}>{reservation.contact_phone}</a>
+            <span>{SOURCE_LABEL[reservation.source]}</span>
+            {cancelledBy && <span>{cancelledBy}</span>}
+          </div>
+          {reservation.notes && <div className={styles.note}>“{reservation.notes}”</div>}
+          {reservation.status === "declined" && reservation.decline_reason && (
+            <div className={styles.note}>Motivo: {reservation.decline_reason}</div>
+          )}
+        </div>
+
+        {actions.length > 0 && (
+          <div className={styles.actions}>
+            {actions.map((action) => (
+              <Button
+                key={action}
+                size="sm"
+                variant={action === "confirm" ? "primary" : action === "no-show" ? "danger" : "secondary"}
+                disabled={busy}
+                onClick={() => onAction(reservation, action)}
+              >
+                {busy && action === "confirm" ? "Guardando…" : actionLabel(reservation, action, now)}
+              </Button>
+            ))}
+          </div>
+        )}
+      </article>
+    );
+  };
+
   return (
     <div className={styles.page}>
       <div className={styles.inner}>
@@ -335,30 +484,49 @@ export default function ReservationsPageClient({ requestedDay }: { requestedDay:
           </p>
         </div>
 
+        <div className={styles.tabs} role="tablist" aria-label="Vista de reservas">
+          {VIEWS.map((v) => (
+            <button
+              key={v}
+              type="button"
+              role="tab"
+              className={styles.tab}
+              aria-selected={view === v}
+              onClick={() => switchView(v)}
+            >
+              {VIEW_LABEL[v]}
+            </button>
+          ))}
+        </div>
+
         <div className={styles.toolbar}>
-          <div className={styles.dayNav}>
-            <Button variant="secondary" size="sm" onClick={() => goTo(shiftDay(day, -1))} aria-label="Día anterior">
-              ←
-            </Button>
-            <span className={styles.dayLabel} aria-live="polite">
-              {dayLabel(day, today)}
-            </span>
-            <Button variant="secondary" size="sm" onClick={() => goTo(shiftDay(day, 1))} aria-label="Día siguiente">
-              →
-            </Button>
-            {day !== today && (
-              <Button variant="ghost" size="sm" onClick={() => goTo(today)}>
-                Hoy
-              </Button>
-            )}
-            <input
-              type="date"
-              className={styles.dateInput}
-              value={day}
-              onChange={(e) => goTo(e.target.value)}
-              aria-label="Elegir fecha"
-            />
-          </div>
+          {view === "day" ? (
+              <div className={styles.dayNav}>
+                <Button variant="secondary" size="sm" onClick={() => goTo(shiftDay(day, -1))} aria-label="Día anterior">
+                  ←
+                </Button>
+                <span className={styles.dayLabel} aria-live="polite">
+                  {dayLabel(day, today)}
+                </span>
+                <Button variant="secondary" size="sm" onClick={() => goTo(shiftDay(day, 1))} aria-label="Día siguiente">
+                  →
+                </Button>
+                {day !== today && (
+                  <Button variant="ghost" size="sm" onClick={() => goTo(today)}>
+                    Hoy
+                  </Button>
+                )}
+                <input
+                  type="date"
+                  className={styles.dateInput}
+                  value={day}
+                  onChange={(e) => goTo(e.target.value)}
+                  aria-label="Elegir fecha"
+                />
+              </div>
+          ) : (
+            <span className={styles.subtitle}>Todas las solicitudes y reservas confirmadas, sin importar el día.</span>
+          )}
           <div className={styles.dayNav}>
             {canCreate && <Button onClick={openCreate}>Nueva reserva</Button>}
             {canManage && (
@@ -370,127 +538,106 @@ export default function ReservationsPageClient({ requestedDay }: { requestedDay:
           </div>
         </div>
 
-        {canManage && overdue.length > 0 && (
-          <section className={styles.queue} data-kind="overdue" aria-label="Solicitudes sin respuesta">
-            <div className={styles.queueHead}>
-              <h2 className={styles.queueTitle}>Sin respuesta</h2>
-              <span className={styles.queueCount}>
-                Ya pasó la hora y nadie las contestó. Marca qué pasó; el cliente no recibe ningún mensaje.
-              </span>
-            </div>
-            <ul className={styles.queueList}>{overdue.map(renderQueueItem)}</ul>
-          </section>
-        )}
-
-        {canManage && upcoming.length > 0 && (
-          <section className={styles.queue} aria-label="Solicitudes por confirmar">
-            <div className={styles.queueHead}>
-              <h2 className={styles.queueTitle}>Por confirmar</h2>
-              <span className={styles.queueCount}>
-                {upcoming.length} {upcoming.length === 1 ? "solicitud" : "solicitudes"} de todos los días
-              </span>
-            </div>
-            <ul className={styles.queueList}>{upcoming.map(renderQueueItem)}</ul>
-          </section>
-        )}
-
-        <div className={styles.summary}>
-          <div className={styles.stat}>
-            <span className={styles.statValue}>{summary.reservations}</span>
-            <span className={styles.statLabel}>Reservas</span>
-          </div>
-          <div className={styles.stat}>
-            <span className={styles.statValue}>{summary.pending}</span>
-            <span className={styles.statLabel}>Por confirmar</span>
-          </div>
-          <div className={styles.stat}>
-            <span className={styles.statValue}>{summary.guests}</span>
-            <span className={styles.statLabel}>Personas confirmadas</span>
-          </div>
-        </div>
-
-        <div className={styles.filters} role="group" aria-label="Filtrar por estado">
-          {FILTERS.map((f) => (
-            <button
-              key={f}
-              type="button"
-              className={styles.filter}
-              aria-pressed={filter === f}
-              onClick={() => setFilter(f)}
-            >
-              {FILTER_LABEL[f]} ({counts[f]})
-            </button>
-          ))}
-        </div>
-
-        {loadError && <div className={styles.banner}>{loadError}</div>}
-        {actionMessage && <div className={styles.banner}>{actionMessage}</div>}
-
-        <div className={styles.list}>
-          {!loading && !loadError && shown.length === 0 && (
-            <div className={styles.empty}>
-              {reservations.length === 0 ? "No hay reservas para este día." : "Ninguna reserva con este estado."}
-            </div>
-          )}
-          {loading && reservations.length === 0 && <div className={styles.empty}>Cargando reservas…</div>}
-          {shown.map((reservation) => {
-            const actions = canManage ? actionsFor(reservation, now) : [];
-            const busy = busyId === reservation.id;
-            const cancelledBy = cancelledByLabel(reservation);
-            return (
-              <article
-                key={reservation.id}
-                className={styles.item}
-                data-status={reservation.status}
-                data-fresh={fresh.has(reservation.id)}
-              >
-                <div>
-                  <div className={styles.time}>{formatTime(reservation.starts_at, timeFormat)}</div>
-                  <div className={styles.party}>
-                    {reservation.party_size} {reservation.party_size === 1 ? "persona" : "personas"}
-                  </div>
+        {view === "day" ? (
+          <>
+            {canManage && overdue.length > 0 && (
+              <section className={styles.queue} data-kind="overdue" aria-label="Solicitudes sin respuesta">
+                <div className={styles.queueHead}>
+                  <h2 className={styles.queueTitle}>Sin respuesta</h2>
+                  <span className={styles.queueCount}>
+                    Ya pasó la hora y nadie las contestó. Marca qué pasó; el cliente no recibe ningún mensaje.
+                  </span>
                 </div>
+                <ul className={styles.queueList}>{overdue.map(renderQueueItem)}</ul>
+              </section>
+            )}
 
-                <div className={styles.main}>
-                  <div className={styles.nameRow}>
-                    <span className={styles.name}>{reservation.name}</span>
-                    <Badge tone={STATUS_TONE[reservation.status]}>{STATUS_LABEL[reservation.status]}</Badge>
-                    {reservation.origin.attribution?.ad_id && (
-                      <Badge tone="info" dot={false}>
-                        Anuncio
-                      </Badge>
-                    )}
-                  </div>
-                  <div className={styles.meta}>
-                    <a href={`tel:${reservation.contact_phone}`}>{reservation.contact_phone}</a>
-                    <span>{SOURCE_LABEL[reservation.source]}</span>
-                    {cancelledBy && <span>{cancelledBy}</span>}
-                  </div>
-                  {reservation.notes && <div className={styles.note}>“{reservation.notes}”</div>}
-                  {reservation.status === "declined" && reservation.decline_reason && (
-                    <div className={styles.note}>Motivo: {reservation.decline_reason}</div>
-                  )}
+            {canManage && upcoming.length > 0 && (
+              <section className={styles.queue} aria-label="Solicitudes por confirmar">
+                <div className={styles.queueHead}>
+                  <h2 className={styles.queueTitle}>Por confirmar</h2>
+                  <span className={styles.queueCount}>
+                    {upcoming.length} {upcoming.length === 1 ? "solicitud" : "solicitudes"} de todos los días
+                  </span>
                 </div>
+                <ul className={styles.queueList}>{upcoming.map(renderQueueItem)}</ul>
+              </section>
+            )}
 
-                {actions.length > 0 && (
-                  <div className={styles.actions}>
-                    {actions.map((action) => (
-                      <Button
-                        key={action}
-                        size="sm"
-                        variant={action === "confirm" ? "primary" : action === "no-show" ? "danger" : "secondary"}
-                        disabled={busy}
-                        onClick={() => onAction(reservation, action)}
-                      >
-                        {busy && action === "confirm" ? "Guardando…" : actionLabel(reservation, action, now)}
-                      </Button>
-                    ))}
-                  </div>
-                )}
-              </article>
-            );
-          })}
-        </div>
+            <div className={styles.summary}>
+              <div className={styles.stat}>
+                <span className={styles.statValue}>{summary.reservations}</span>
+                <span className={styles.statLabel}>Reservas</span>
+              </div>
+              <div className={styles.stat}>
+                <span className={styles.statValue}>{summary.pending}</span>
+                <span className={styles.statLabel}>Por confirmar</span>
+              </div>
+              <div className={styles.stat}>
+                <span className={styles.statValue}>{summary.guests}</span>
+                <span className={styles.statLabel}>Personas confirmadas</span>
+              </div>
+            </div>
+
+            <div className={styles.filters} role="group" aria-label="Filtrar por estado">
+              {FILTERS.map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  className={styles.filter}
+                  aria-pressed={filter === f}
+                  onClick={() => setFilter(f)}
+                >
+                  {FILTER_LABEL[f]} ({counts[f]})
+                </button>
+              ))}
+            </div>
+
+            {loadError && <div className={styles.banner}>{loadError}</div>}
+            {actionMessage && <div className={styles.banner}>{actionMessage}</div>}
+
+            <div className={styles.list}>
+              {!loading && !loadError && shown.length === 0 && (
+                <div className={styles.empty}>
+                  {reservations.length === 0 ? "No hay reservas para este día." : "Ninguna reserva con este estado."}
+                </div>
+              )}
+              {loading && reservations.length === 0 && <div className={styles.empty}>Cargando reservas…</div>}
+              {shown.map((reservation) => renderItem(reservation, false))}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className={styles.filters} role="group" aria-label="Filtrar por estado">
+              {ACTIVE_FILTERS.map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  className={styles.filter}
+                  aria-pressed={activeFilter === f}
+                  onClick={() => setActiveFilter(f)}
+                >
+                  {FILTER_LABEL[f]} ({activeCounts[f]})
+                </button>
+              ))}
+            </div>
+
+            {activeError && <div className={styles.banner}>{activeError}</div>}
+            {actionMessage && <div className={styles.banner}>{actionMessage}</div>}
+
+            <div className={styles.list}>
+              {!activeLoading && !activeError && activeShown.length === 0 && (
+                <div className={styles.empty}>
+                  {active.length === 0
+                    ? "No hay reservas pendientes ni confirmadas."
+                    : "Ninguna reserva con este estado."}
+                </div>
+              )}
+              {activeLoading && active.length === 0 && <div className={styles.empty}>Cargando reservas…</div>}
+              {activeShown.map((reservation) => renderItem(reservation, true))}
+            </div>
+          </>
+        )}
       </div>
 
       {canCreate && creating && (

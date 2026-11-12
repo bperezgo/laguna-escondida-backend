@@ -4,6 +4,7 @@ import type { Reservation } from "../../types/reservation.ts";
 import {
   actionsFor,
   applyChange,
+  applyActiveChange,
   applyPendingChange,
   businessDayOf,
   isDay,
@@ -105,6 +106,22 @@ test("an older change never brings back an answered request", () => {
   const list = applyPendingChange([shown], reservation({}), "2026-11-09");
 
   assert.equal(list[0].notes, "newer");
+});
+
+test("a confirmed request stays in the active list", () => {
+  const confirmed = reservation({ status: "confirmed", updated_at: "2026-11-09T16:00:00Z" });
+
+  const list = applyActiveChange([reservation({})], confirmed, "2026-11-09");
+
+  assert.deepEqual(list.map((r) => r.status), ["confirmed"]);
+});
+
+test("a cancelled or visited reservation leaves the active list", () => {
+  const cancelled = reservation({ status: "cancelled", updated_at: "2026-11-09T16:00:00Z" });
+  const visited = reservation({ status: "visited", updated_at: "2026-11-09T16:00:00Z" });
+
+  assert.deepEqual(applyActiveChange([reservation({})], cancelled, "2026-11-09"), []);
+  assert.deepEqual(applyActiveChange([reservation({})], visited, "2026-11-09"), []);
 });
 
 test("a request is overdue once its time has come", () => {

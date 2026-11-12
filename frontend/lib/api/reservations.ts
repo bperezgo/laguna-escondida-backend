@@ -18,6 +18,12 @@ export const reservationsApi = {
     return apiRequest<ReservationListResponse>(`/reservations?${query}`);
   },
 
+  /** Pending and confirmed reservations starting at or after `from` (RFC 3339), any day. */
+  listActive(from: string): Promise<ReservationListResponse> {
+    const query = new URLSearchParams({ status: "requested,confirmed", from });
+    return apiRequest<ReservationListResponse>(`/reservations?${query}`);
+  },
+
   /** Stored as confirmed: no message goes to the guest. */
   create(request: CreateStaffReservationRequest): Promise<Reservation> {
     return apiRequest<Reservation>("/reservations", {
