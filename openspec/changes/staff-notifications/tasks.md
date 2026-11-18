@@ -4,8 +4,8 @@
 
 ## 1. Domain event bus: contracts
 
-- [ ] 1.1 Add `internal/domain/dto/domain_events.go` with `DomainEventMeta` (id as UUID v7, name, organization, subject, occurred at), the four events `OrderCreated`, `OrderPaid`, `ReservationRequested` and `ReservationConfirmed` (fields per the `domain-event-bus` spec, plus `ConfirmedBy`) and `StoredEvent`. Verify with `go build ./...`
-- [ ] 1.2 Add `internal/domain/ports/event_bus.go` with `DomainEvent`, `EventPublisher`, `EventConsumer` and `EventDeliveryStore` (ClaimDue, MarkDone, MarkFailed with dead after the limit), plus `internal/domain/eventconsumer/decode.go` with a generic `Decode[T]`. Run `make generate-mocks`. Verify that `go build ./...` passes and a small test decodes a `StoredEvent` into `OrderPaid`
+- [x] 1.1 Add `internal/domain/dto/domain_events.go` with `DomainEventMeta` (id as UUID v7, name, organization, subject, occurred at), the four events `OrderCreated`, `OrderPaid`, `ReservationRequested` and `ReservationConfirmed` (fields per the `domain-event-bus` spec, plus `ConfirmedBy`) and `StoredEvent`. Verify with `go build ./...`
+- [x] 1.2 Add `internal/domain/ports/event_bus.go` with `DomainEvent`, `EventPublisher`, `EventConsumer` and `EventDeliveryStore` (ClaimDue, MarkDone, MarkFailed with dead after the limit), plus `internal/domain/eventconsumer/decode.go` with a generic `Decode[T]`. Run `make generate-mocks`. Verify that `go build ./...` passes and a small test decodes a `StoredEvent` into `OrderPaid`
 
 ## 2. Domain event bus: persistence, relay, bridge
 
