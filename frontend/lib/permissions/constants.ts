@@ -92,6 +92,7 @@ export const PERMISSIONS = {
   // Reservations (cloud only)
   RESERVATIONS_READ: "reservations:read",
   RESERVATIONS_MANAGE: "reservations:manage",
+  SETTINGS_RESERVATIONS_UPDATE: "settings:reservations:update",
 
   // Guest feedback (cloud only)
   FEEDBACK_READ: "feedback:read",

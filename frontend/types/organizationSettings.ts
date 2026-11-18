@@ -39,8 +39,22 @@ export interface OrderingAvailability {
   takeaway: Availability;
 }
 
+/** Auto-confirm policy for WhatsApp reservations. A request failing any rule waits for staff. */
+export interface ReservationSettings {
+  auto_confirm_enabled: boolean;
+  /** 1–50 */
+  max_party_size: number;
+  /** 0–10080 */
+  min_notice_minutes: number;
+  /** Required while enabled. */
+  daily_guest_cap: number | null;
+  /** Empty means any time. */
+  schedule: OpeningWindow[];
+}
+
 export interface OrganizationSettingsResponse {
   ordering: OrderingSettings;
+  reservations: ReservationSettings;
   availability: OrderingAvailability;
   timezone: string;
 }
@@ -52,9 +66,19 @@ export interface OrderTypeSettingsPatch {
   schedule?: OpeningWindow[];
 }
 
+/** Needs settings:reservations:update. A cap can't be set back to null; turn the policy off instead. */
+export interface ReservationSettingsPatch {
+  auto_confirm_enabled?: boolean;
+  max_party_size?: number;
+  min_notice_minutes?: number;
+  daily_guest_cap?: number;
+  schedule?: OpeningWindow[];
+}
+
 export interface UpdateOrganizationSettingsRequest {
-  ordering: {
+  ordering?: {
     delivery?: OrderTypeSettingsPatch;
     takeaway?: OrderTypeSettingsPatch;
   };
+  reservations?: ReservationSettingsPatch;
 }

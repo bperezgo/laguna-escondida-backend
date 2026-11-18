@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Badge, Button, Modal, Textarea } from "@/components/ui";
 import type { BadgeTone } from "@/components/ui";
@@ -124,6 +125,7 @@ export default function ReservationsPageClient({
   const pathname = usePathname();
   const { hasPermission, isAdmin, isLoading: permissionsLoading } = usePermissions();
   const canManage = hasPermission(PERMISSIONS.RESERVATIONS_MANAGE);
+  const canEditSettings = hasPermission(PERMISSIONS.SETTINGS_RESERVATIONS_UPDATE);
   // Bookings come from the agent; creating them here is the admins' fallback, kept off the floor.
   const canCreate = canManage && isAdmin;
   const now = useNow(30_000);
@@ -477,11 +479,18 @@ export default function ReservationsPageClient({
   return (
     <div className={styles.page}>
       <div className={styles.inner}>
-        <div>
-          <h1 className={styles.title}>Reservas</h1>
-          <p className={styles.subtitle}>
-            Las reservas del día, las que llegan por WhatsApp y lo que pasó con cada una.
-          </p>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem", flexWrap: "wrap" }}>
+          <div>
+            <h1 className={styles.title}>Reservas</h1>
+            <p className={styles.subtitle}>
+              Las reservas del día, las que llegan por WhatsApp y lo que pasó con cada una.
+            </p>
+          </div>
+          {canEditSettings && (
+            <Link href="/reservations/ajustes" className={styles.settingsLink}>
+              Confirmación automática
+            </Link>
+          )}
         </div>
 
         <div className={styles.tabs} role="tablist" aria-label="Vista de reservas">
