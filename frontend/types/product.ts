@@ -1,0 +1,208 @@
+export type ProductType = "SELLABLE" | "INGREDIENT" | "COMPOSITE" | "BOTH";
+
+export type UnitOfMeasure = "unit" | "kg" | "g" | "l" | "ml";
+
+export const PRODUCT_TYPES: { value: ProductType; label: string }[] = [
+  { value: "SELLABLE", label: "Vendible" },
+  { value: "INGREDIENT", label: "Ingrediente" },
+  { value: "COMPOSITE", label: "Compuesto" },
+  { value: "BOTH", label: "Vendible e Ingrediente" },
+];
+
+export const UNITS_OF_MEASURE: { value: UnitOfMeasure; label: string }[] = [
+  { value: "unit", label: "Unidades" },
+  { value: "kg", label: "Kilogramos (kg)" },
+  { value: "g", label: "Gramos (g)" },
+  { value: "l", label: "Litros (l)" },
+  { value: "ml", label: "Mililitros (ml)" },
+];
+
+export const PREPARATION_AREAS: { value: string; label: string }[] = [
+  { value: "kitchen", label: "Cocina" },
+  { value: "bar", label: "Bar" },
+  { value: "grill", label: "Parrilla" },
+  { value: "sushi", label: "Sushi" },
+  { value: "desserts", label: "Postres" },
+];
+
+export const PRIORITY_LEVELS: { value: number; label: string }[] = [
+  { value: 0, label: "No definido" },
+  { value: 1, label: "Bajo" },
+  { value: 2, label: "Medio" },
+  { value: 3, label: "Alto" },
+];
+
+export interface Product {
+  id: string;
+  name: string;
+  category: string;
+  product_type: ProductType;
+  unit_of_measure: UnitOfMeasure;
+  ico: string;
+  ico_amount?: string;
+  version: number;
+  sku: string;
+  total_price_with_taxes: string;
+  unit_price: string;
+  description?: string;
+  brand?: string | null;
+  model?: string | null;
+  vat: string;
+  vat_amount?: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+  // Single preparation responsibility (area + priority) embedded on product reads,
+  // or null/absent when the product has no responsibility.
+  preparation_responsibility?: ProductResponsibility | null;
+}
+
+export interface CreateProductRequest {
+  name: string;
+  category: string;
+  product_type: ProductType;
+  unit_of_measure: UnitOfMeasure;
+  sku: string;
+  description?: string | null;
+  // Price fields - only required for SELLABLE, COMPOSITE, BOTH
+  total_price_with_taxes?: string;
+  vat?: string;
+  ico?: string;
+  taxes_format?: string;
+  // Preparation responsibility, reconciled atomically with the product:
+  // object = create/update, null = remove, omitted = leave unchanged.
+  preparation_responsibility?: { area: string; priority: number } | null;
+}
+
+export interface UpdateProductRequest {
+  name: string;
+  category: string;
+  product_type: ProductType;
+  unit_of_measure: UnitOfMeasure;
+  sku: string;
+  description?: string | null;
+  // Price fields - only required for SELLABLE, COMPOSITE, BOTH
+  total_price_with_taxes?: string;
+  vat?: string;
+  ico?: string;
+  taxes_format?: string;
+  // Preparation responsibility, reconciled atomically with the product:
+  // object = create/update, null = remove, omitted = leave unchanged.
+  preparation_responsibility?: { area: string; priority: number } | null;
+}
+
+export interface ProductListResponse {
+  products: Product[];
+  total?: number;
+}
+
+// Helper function to check if a product type requires pricing
+export function requiresPricing(productType: ProductType): boolean {
+  return productType !== "INGREDIENT";
+}
+
+// Product Responsibility Types
+export interface ProductResponsibility {
+  id: string;
+  product_id: string;
+  area: string;
+  priority: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateProductResponsibilityRequest {
+  product_name: string;
+  area: string;
+  priority: number;
+}
+
+export interface UpdateProductResponsibilityRequest {
+  area: string;
+  priority: number;
+}
+
+// Composite product recipe (ingredient) types.
+// A COMPOSITE product is sold directly but decrements its ingredients' stock via a recipe.
+// Backend endpoints: /products/:id/ingredients (see BSP-29 / BSP-18).
+export interface ProductIngredient {
+  id: string;
+  composite_product_id: string;
+  ingredient_product_id: string;
+  // Recipe amount. Comes back as a string ("3") from the backend's decimal type.
+  // (Renamed from `quantity` in BSP-33; the add/update *request* bodies still use `quantity`.)
+  default_quantity: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Recipe row as returned by GET /products/:id/ingredients — includes the joined ingredient product.
+export interface ProductIngredientWithProduct extends ProductIngredient {
+  ingredient_product?: Product | null;
+}
+
+export interface AddIngredientRequest {
+  ingredient_product_id: string;
+  quantity: string;
+}
+
+export interface UpdateIngredientRequest {
+  quantity: string;
+}
+
+export interface ProductIngredientListResponse {
+  ingredients: ProductIngredientWithProduct[];
+}
+
+// Plate option slots for a COMPOSITE plate. Each slot is a single-choice group with exactly
+// one default; a choice is a bundle of whole ingredient quantities (an empty bundle means "without").
+export interface PlateOptionChoiceItem {
+  id: string;
+  ingredient_product_id: string;
+  ingredient_name: string;
+  quantity: number;
+}
+
+export interface PlateOptionChoice {
+  id: string;
+  name: string;
+  position: number;
+  is_default: boolean;
+  items: PlateOptionChoiceItem[];
+}
+
+export interface PlateOptionSlot {
+  id: string;
+  composite_product_id: string;
+  name: string;
+  position: number;
+  choices: PlateOptionChoice[];
+}
+
+export interface PlateOptionSlotListResponse {
+  slots: PlateOptionSlot[];
+}
+
+// PUT body: the plate's whole slot list. Sending an existing id keeps it, so open orders stay
+// valid; anything left out is removed.
+export interface PlateOptionChoiceItemInput {
+  ingredient_product_id: string;
+  quantity: number;
+}
+
+export interface PlateOptionChoiceInput {
+  id?: string;
+  name: string;
+  is_default?: boolean;
+  items?: PlateOptionChoiceItemInput[];
+}
+
+export interface PlateOptionSlotInput {
+  id?: string;
+  name: string;
+  choices: PlateOptionChoiceInput[];
+}
+
+export interface ReplacePlateOptionSlotsRequest {
+  slots: PlateOptionSlotInput[];
+}
