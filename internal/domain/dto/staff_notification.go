@@ -136,3 +136,12 @@ type RuleWithChannel struct {
 	Rule    NotificationRule
 	Channel NotificationChannel
 }
+
+// ClaimedStaffNotification is a leased notification with what sending needs: whether its rule and
+// channel still exist and are enabled, the channel type and its encrypted secret. Attempts includes the claim.
+type ClaimedStaffNotification struct {
+	Notification *StaffNotification
+	Live         bool
+	ChannelType  NotificationChannelType
+	Secret       []byte
+}

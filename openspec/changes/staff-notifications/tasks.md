@@ -33,8 +33,8 @@
 
 ## 6. Notifications: consumer and sending
 
-- [ ] 6.1 Add the message builders and `StaffNotificationConsumer` (name `staff-notifications`, the four events: decode, load matching rules with enabled channels, build the message, insert with `expires_at`). Verify with service tests for two rules giving two rows, a disabled channel giving none, no match giving none, an event delivered twice giving one row per rule, and the message fields of each "Messages have a fixed layout per event" scenario
-- [ ] 6.2 Implement `StaffNotificationDeliveryService.DeliverDue` (dropped, expired, decrypt, send, `sent` on 2xx, `rejected` on 401/403/404, 429 `max(Retry-After, backoff)`, otherwise backoff 10s doubling to a 5m cap) and register a 5s job in `EventRelayScheduler`, only when wired. Verify with service tests for each outcome and an expiry with a fixed clock
+- [x] 6.1 Add the message builders and `StaffNotificationConsumer` (name `staff-notifications`, the four events: decode, load matching rules with enabled channels, build the message, insert with `expires_at`). Verify with service tests for two rules giving two rows, a disabled channel giving none, no match giving none, an event delivered twice giving one row per rule, and the message fields of each "Messages have a fixed layout per event" scenario
+- [x] 6.2 Implement `StaffNotificationDeliveryService.DeliverDue` (dropped, expired, decrypt, send, `sent` on 2xx, `rejected` on 401/403/404, 429 `max(Retry-After, backoff)`, otherwise backoff 10s doubling to a 5m cap) and register a 5s job in `EventRelayScheduler`, only when wired. Verify with service tests for each outcome and an expiry with a fixed clock
 
 ## 7. Notifications: persistence and adapters
 

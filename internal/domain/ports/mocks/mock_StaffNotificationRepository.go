@@ -25,23 +25,23 @@ func (_m *MockStaffNotificationRepository) EXPECT() *MockStaffNotificationReposi
 }
 
 // ClaimDue provides a mock function with given fields: ctx, now, leaseUntil, limit
-func (_m *MockStaffNotificationRepository) ClaimDue(ctx context.Context, now time.Time, leaseUntil time.Time, limit int) ([]*dto.StaffNotification, error) {
+func (_m *MockStaffNotificationRepository) ClaimDue(ctx context.Context, now time.Time, leaseUntil time.Time, limit int) ([]*dto.ClaimedStaffNotification, error) {
 	ret := _m.Called(ctx, now, leaseUntil, limit)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ClaimDue")
 	}
 
-	var r0 []*dto.StaffNotification
+	var r0 []*dto.ClaimedStaffNotification
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, time.Time, time.Time, int) ([]*dto.StaffNotification, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time, time.Time, int) ([]*dto.ClaimedStaffNotification, error)); ok {
 		return rf(ctx, now, leaseUntil, limit)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, time.Time, time.Time, int) []*dto.StaffNotification); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time, time.Time, int) []*dto.ClaimedStaffNotification); ok {
 		r0 = rf(ctx, now, leaseUntil, limit)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*dto.StaffNotification)
+			r0 = ret.Get(0).([]*dto.ClaimedStaffNotification)
 		}
 	}
 
@@ -75,12 +75,12 @@ func (_c *MockStaffNotificationRepository_ClaimDue_Call) Run(run func(ctx contex
 	return _c
 }
 
-func (_c *MockStaffNotificationRepository_ClaimDue_Call) Return(_a0 []*dto.StaffNotification, _a1 error) *MockStaffNotificationRepository_ClaimDue_Call {
+func (_c *MockStaffNotificationRepository_ClaimDue_Call) Return(_a0 []*dto.ClaimedStaffNotification, _a1 error) *MockStaffNotificationRepository_ClaimDue_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockStaffNotificationRepository_ClaimDue_Call) RunAndReturn(run func(context.Context, time.Time, time.Time, int) ([]*dto.StaffNotification, error)) *MockStaffNotificationRepository_ClaimDue_Call {
+func (_c *MockStaffNotificationRepository_ClaimDue_Call) RunAndReturn(run func(context.Context, time.Time, time.Time, int) ([]*dto.ClaimedStaffNotification, error)) *MockStaffNotificationRepository_ClaimDue_Call {
 	_c.Call.Return(run)
 	return _c
 }

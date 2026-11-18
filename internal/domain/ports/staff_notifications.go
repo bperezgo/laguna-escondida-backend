@@ -31,8 +31,9 @@ type StaffNotificationRepository interface {
 	// Insert is idempotent on (rule, event): a repeat records nothing and returns inserted=false.
 	Insert(ctx context.Context, notification *dto.StaffNotification) (inserted bool, err error)
 	// ClaimDue leases up to limit pending notifications due at now, skipping rows another sender holds,
-	// by moving their next attempt to leaseUntil and counting the attempt.
-	ClaimDue(ctx context.Context, now, leaseUntil time.Time, limit int) ([]*dto.StaffNotification, error)
+	// by moving their next attempt to leaseUntil and counting the attempt. Live is false when the rule
+	// or channel was deleted or disabled.
+	ClaimDue(ctx context.Context, now, leaseUntil time.Time, limit int) ([]*dto.ClaimedStaffNotification, error)
 	MarkSent(ctx context.Context, id string, at time.Time) error
 	// MarkFailed stores the outcome of a failed attempt: pending with its next attempt, or a final status.
 	MarkFailed(ctx context.Context, id string, status dto.StaffNotificationStatus, nextAttemptAt time.Time, lastError string) error
