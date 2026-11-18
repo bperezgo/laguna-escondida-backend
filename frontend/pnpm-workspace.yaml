@@ -1,0 +1,7 @@
+# pnpm blocks dependency build scripts by default for security.
+# Allow these two — both ship native binaries we rely on:
+#   sharp        -> Next.js image optimization
+#   unrs-resolver -> ESLint import resolver
+allowBuilds:
+  sharp: true
+  unrs-resolver: true

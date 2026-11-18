@@ -1,0 +1,4 @@
+# Truncated example JWTs in docs (only the public {"alg":"HS256","typ":"JWT"} header + "...").
+c8a4d51f54aceec5411451ba3c5204c845db2200:docs/examples/curl-examples.md:generic-api-key:31
+c8a4d51f54aceec5411451ba3c5204c845db2200:docs/api/auth.md:generic-api-key:40
+b28a9ec17edd5c2f017dbb222decfd91f772c920:frontend/frontend-permissions-guide.md:generic-api-key:32

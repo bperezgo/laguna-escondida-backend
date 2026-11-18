@@ -139,12 +139,12 @@ DB_HOST=postgres        STORAGE_ENDPOINT=http://minio:9000
 ```
 
 ```
-make migrate-up         # the scripts honour DB_* now; no host stack needed
-make run                # API on :8080 in here → the api port from [init] on your Mac
-make run-mcp            # MCP on :8090 in here → the mcp port on your Mac
-make test               # unit tests
-make test-acceptance    # testcontainers → SIBLING containers on the host daemon
-make lint               # golangci-lint v2, matching .golangci.yml
+make -C backend migrate-up         # the scripts honour DB_* now; no host stack needed
+make -C backend run                # API on :8080 in here → the api port from [init] on your Mac
+make -C backend run-mcp            # MCP on :8090 in here → the mcp port on your Mac
+make -C backend test               # unit tests
+make -C backend test-acceptance    # testcontainers → SIBLING containers on the host daemon
+make -C backend lint               # golangci-lint v2, matching .golangci.yml
 ```
 
 `make test-acceptance` works because of two things that are easy to lose: the host
