@@ -1,0 +1,36 @@
+---
+import { Icon } from "astro-icon/components";
+
+import ProductShot from "../ProductShot.astro";
+---
+
+<section class="px-4 py-16 md:py-24" aria-labelledby="whatsapp-title">
+  <div class="mx-auto max-w-5xl" data-reveal>
+    <p class="caption-3 text-primary flex items-center gap-2 tracking-wide uppercase">
+      <Icon name="ph:whatsapp-logo" class="size-5" aria-hidden="true" /> WhatsApp
+    </p>
+    <h2 id="whatsapp-title" class="heading-2 mt-3 max-w-[680px]">Pedidos y reservas que llegan solos por WhatsApp</h2>
+    <p class="body-3 text-muted mt-4 max-w-[680px] md:text-lg">
+      Un agente atiende a tus clientes en tu número, toma el pedido o la reserva y lo deja en el sistema. Tu equipo ve cada pedido en la cocina y
+      confirma o rechaza las reservas desde una sola pantalla.
+    </p>
+    <ul class="mt-8 grid gap-4 md:grid-cols-3">
+      <li class="bg-surface border-line rounded-2xl border p-6">
+        <Icon name="ph:chat-circle-text" class="text-primary size-8" aria-hidden="true" />
+        <h3 class="title-2 mt-3">Pedidos para llevar y domicilios</h3>
+        <p class="body-6 text-muted mt-2">El cliente escribe como siempre y el pedido entra a la cocina sin que nadie lo digite.</p>
+      </li>
+      <li class="bg-surface border-line rounded-2xl border p-6">
+        <Icon name="ph:calendar-check" class="text-primary size-8" aria-hidden="true" />
+        <h3 class="title-2 mt-3">Reservas con tu aprobación</h3>
+        <p class="body-6 text-muted mt-2">Cada reserva llega como solicitud. Tú la confirmas o la rechazas y el cliente recibe la respuesta.</p>
+      </li>
+      <li class="bg-surface border-line rounded-2xl border p-6">
+        <Icon name="ph:address-book" class="text-primary size-8" aria-hidden="true" />
+        <h3 class="title-2 mt-3">Tus clientes, guardados</h3>
+        <p class="body-6 text-muted mt-2">Cada conversación suma a una lista de contactos para que sepas quién te escribe y cuántas veces.</p>
+      </li>
+    </ul>
+    <ProductShot name="whatsapp" alt="Lista de reservas recibidas por WhatsApp con sus estados" class="mt-10" />
+  </div>
+</section>

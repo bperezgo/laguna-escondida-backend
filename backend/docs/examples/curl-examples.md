@@ -1593,3 +1593,55 @@ curl -X POST "$EDGE_URL/edge/update" \
   -H "Content-Type: application/json" \
   -d '{ "version": "v1.0.1" }'
 ```
+
+---
+
+## Leads (cloud only)
+
+See `docs/api/leads.md`. The public form posts without a credential; the platform routes need the admin API key.
+
+### Submit a Lead (public, no credential)
+
+```bash
+curl -X POST "$BASE_URL/public/leads" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Ana Ruiz",
+    "restaurant_name": "El Fogón",
+    "phone": "300 123 4567",
+    "consent": true,
+    "utm_source": "facebook",
+    "utm_campaign": "lanzamiento",
+    "fbclid": "IwAR0abc"
+  }'
+```
+
+### List Leads (optionally by status)
+
+```bash
+curl -X GET "$BASE_URL/platform/leads?status=new&page=1&page_size=20" \
+  -H "X-API-Key: $ADMIN_API_KEY"
+```
+
+### Get a Lead
+
+```bash
+curl -X GET "$BASE_URL/platform/leads/LEAD_ID" \
+  -H "X-API-Key: $ADMIN_API_KEY"
+```
+
+### Follow a Lead Up (only status and notes change)
+
+```bash
+curl -X PATCH "$BASE_URL/platform/leads/LEAD_ID" \
+  -H "X-API-Key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "status": "contacted", "notes": "Demo el jueves" }'
+```
+
+### Delete a Lead
+
+```bash
+curl -X DELETE "$BASE_URL/platform/leads/LEAD_ID" \
+  -H "X-API-Key: $ADMIN_API_KEY"
+```

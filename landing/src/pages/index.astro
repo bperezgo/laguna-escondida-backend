@@ -1,0 +1,30 @@
+---
+import BackOffice from "../components/sections/BackOffice.astro";
+import Delivery from "../components/sections/Delivery.astro";
+import Demo from "../components/sections/Demo.astro";
+import Dian from "../components/sections/Dian.astro";
+import Faq from "../components/sections/Faq.astro";
+import Hero from "../components/sections/Hero.astro";
+import HowItStarts from "../components/sections/HowItStarts.astro";
+import MobileBar from "../components/sections/MobileBar.astro";
+import Outage from "../components/sections/Outage.astro";
+import Whatsapp from "../components/sections/Whatsapp.astro";
+import Base from "../layouts/Base.astro";
+import { site } from "../config/site.ts";
+---
+
+<Base
+  title={`${site.productName}: el punto de venta que sigue vendiendo sin internet`}
+  description="Caja, cocina, pedidos y reservas por WhatsApp, domicilios y factura electrónica DIAN para restaurantes en Colombia. Pide una demo."
+>
+  <Hero />
+  <Outage />
+  <Whatsapp />
+  <Delivery />
+  <Dian />
+  <BackOffice />
+  <HowItStarts />
+  <Faq />
+  <Demo />
+  <MobileBar />
+</Base>

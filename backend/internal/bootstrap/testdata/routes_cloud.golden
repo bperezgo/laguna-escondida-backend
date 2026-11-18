@@ -63,6 +63,10 @@ GET /api/orders/closed/:id laguna-escondida/backend/internal/platform/handler.(*
 POST /api/orders/pay-order laguna-escondida/backend/internal/platform/handler.(*OrderHandler).PayOrderHandler-fm
 GET /api/organization/settings laguna-escondida/backend/internal/platform/handler.(*OrganizationSettingsHandler).GetSettingsHandler-fm
 PATCH /api/organization/settings laguna-escondida/backend/internal/platform/handler.(*OrganizationSettingsHandler).PatchSettingsHandler-fm
+GET /api/platform/leads laguna-escondida/backend/internal/platform/handler.(*LeadHandler).ListHandler-fm
+DELETE /api/platform/leads/:id laguna-escondida/backend/internal/platform/handler.(*LeadHandler).DeleteHandler-fm
+GET /api/platform/leads/:id laguna-escondida/backend/internal/platform/handler.(*LeadHandler).GetHandler-fm
+PATCH /api/platform/leads/:id laguna-escondida/backend/internal/platform/handler.(*LeadHandler).UpdateHandler-fm
 GET /api/platform/organizations laguna-escondida/backend/internal/platform/handler.(*OrganizationHandler).ListHandler-fm
 POST /api/platform/organizations laguna-escondida/backend/internal/platform/handler.(*OrganizationHandler).CreateHandler-fm
 GET /api/platform/organizations/:id laguna-escondida/backend/internal/platform/handler.(*OrganizationHandler).GetHandler-fm
@@ -89,6 +93,7 @@ PUT /api/products/:id/option-slots laguna-escondida/backend/internal/platform/ha
 GET /api/products/:id/suppliers laguna-escondida/backend/internal/platform/handler.(*SupplierHandler).GetProductSuppliersHandler-fm
 POST /api/products/bulk laguna-escondida/backend/internal/platform/handler.(*ProductHandler).BulkCreateProductsHandler-fm
 GET /api/products/categories laguna-escondida/backend/internal/platform/handler.(*ProductHandler).ListCategoriesHandler-fm
+POST /api/public/leads laguna-escondida/backend/internal/platform/handler.(*LeadHandler).SubmitHandler-fm
 GET /api/purchase-entries laguna-escondida/backend/internal/platform/handler.(*PurchaseEntryHandler).ListPurchaseEntriesHandler-fm
 POST /api/purchase-entries laguna-escondida/backend/internal/platform/handler.(*PurchaseEntryHandler).CreatePurchaseEntryHandler-fm
 GET /api/purchase-entries/:id laguna-escondida/backend/internal/platform/handler.(*PurchaseEntryHandler).GetPurchaseEntryByIDHandler-fm

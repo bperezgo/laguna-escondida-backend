@@ -1,11 +1,18 @@
 package bootstrap
 
 import (
+	"time"
+
 	"laguna-escondida/backend/internal/domain/permissions"
 	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/platform/handler"
 
 	"github.com/gin-gonic/gin"
+)
+
+const (
+	leadSubmissionsPerAddress = 5
+	leadSubmissionWindow      = time.Hour
 )
 
 // cloudHandlers back the cloud-only routes; telemetry is nil while the ingest is disabled.
@@ -15,6 +22,7 @@ type cloudHandlers struct {
 	sync            *handler.SyncHandler
 	telemetry       *handler.TelemetryHandler
 	organization    *handler.OrganizationHandler
+	lead            *handler.LeadHandler
 	apiKey          *handler.APIKeyHandler
 	deliveryZone    *handler.DeliveryZoneHandler
 	orgSettings     *handler.OrganizationSettingsHandler
@@ -43,6 +51,15 @@ func registerCloudRoutes(router *gin.Engine, adminAPIKey, nodeSyncKey string, jw
 	organizations.POST("/:id/api-keys", h.apiKey.IssueHandler)
 	organizations.GET("/:id/api-keys", h.apiKey.ListHandler)
 	organizations.DELETE("/:id/api-keys/:keyId", h.apiKey.RevokeHandler)
+
+	// Leads are platform data from the public marketing site: the form posts without a credential
+	// (limited per address), and the operator follows them up with the admin API key.
+	router.POST("/api/public/leads", handler.RateLimitMiddleware(leadSubmissionsPerAddress, leadSubmissionWindow), h.lead.SubmitHandler)
+	leads := router.Group("/api/platform/leads", handler.AdminAPIKeyMiddleware(adminAPIKey))
+	leads.GET("", h.lead.ListHandler)
+	leads.GET("/:id", h.lead.GetHandler)
+	leads.PATCH("/:id", h.lead.UpdateHandler)
+	leads.DELETE("/:id", h.lead.DeleteHandler)
 
 	// Invoice routes
 	router.POST("/api/invoices", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.InvoicesCreate), h.invoice.CreateElectronicInvoiceHandler)

@@ -1,0 +1,33 @@
+---
+import { Icon } from "astro-icon/components";
+
+import ProductShot from "../ProductShot.astro";
+
+const items = [
+  { icon: "ph:cooking-pot", title: "Pantalla de cocina", text: "Cada área ve solo lo que le toca preparar y marca cuando está listo." },
+  { icon: "ph:package", title: "Inventario", text: "Tu stock se calcula con lo que vendes y con lo que compras a proveedores." },
+  { icon: "ph:receipt", title: "Compras y gastos", text: "Registra facturas de proveedores y gastos con su soporte adjunto." },
+  { icon: "ph:calendar-dots", title: "Cierre del día", text: "Un resumen del día con tus ingresos, tus gastos y tus compras." },
+];
+---
+
+<section class="px-4 py-16 md:py-24" aria-labelledby="backoffice-title">
+  <div class="mx-auto max-w-5xl" data-reveal>
+    <p class="caption-3 text-primary flex items-center gap-2 tracking-wide uppercase">
+      <Icon name="ph:chef-hat" class="size-5" aria-hidden="true" /> Cocina y administración
+    </p>
+    <h2 id="backoffice-title" class="heading-2 mt-3 max-w-[680px]">La cocina y la administración en el mismo sistema</h2>
+    <ul class="mt-8 grid gap-4 sm:grid-cols-2">
+      {
+        items.map((item) => (
+          <li class="bg-surface border-line rounded-2xl border p-6">
+            <Icon name={item.icon} class="text-primary size-8" aria-hidden="true" />
+            <h3 class="title-2 mt-3">{item.title}</h3>
+            <p class="body-6 text-muted mt-2">{item.text}</p>
+          </li>
+        ))
+      }
+    </ul>
+    <ProductShot name="kitchen" alt="Pantalla de cocina con pedidos pendientes y listos" class="mt-10" />
+  </div>
+</section>

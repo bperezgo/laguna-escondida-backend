@@ -1,0 +1,102 @@
+---
+import "../styles/global.css";
+
+import Analytics from "../components/Analytics.astro";
+import { site, whatsappHref } from "../config/site.ts";
+
+interface Props {
+  title: string;
+  description: string;
+  path?: string;
+  ctaHref?: string;
+}
+
+const { title, description, path = "/", ctaHref = "#demo" } = Astro.props;
+const canonical = new URL(path.endsWith("/") ? path : `${path}/`, site.siteUrl).toString();
+const image = new URL("/og.png", site.siteUrl).toString();
+---
+
+<!doctype html>
+<html lang="es-CO">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta name="theme-color" content="#fbfaf7" />
+    <script is:inline>document.documentElement.classList.add("js");</script>
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="es_CO" />
+    <meta property="og:site_name" content={site.productName} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={image} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={`${site.productName}: el punto de venta que sigue vendiendo sin internet`} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={image} />
+  </head>
+  <body class="min-h-screen">
+    <a
+      href="#contenido"
+      class="body-5 bg-primary text-on-primary absolute top-2 left-2 z-50 -translate-y-20 rounded-lg px-3 py-2 focus:translate-y-0"
+    >
+      Saltar al contenido
+    </a>
+    <header class="fixed inset-x-0 top-2 z-40 px-4">
+      <nav
+        aria-label="Principal"
+        class="bg-surface/80 border-line mx-auto flex max-w-5xl items-center justify-between rounded-2xl border px-3 py-2 backdrop-blur-md"
+      >
+        <a href="/" class="title-3 flex items-center gap-2" aria-label={`${site.productName}, inicio`}>
+          <img src="/favicon.svg" alt="" width="32" height="32" class="size-8" />
+          {site.productName}
+        </a>
+        <a
+          href={ctaHref}
+          class="button-sm bg-primary text-on-primary hover:bg-primary-strong motion-weighted rounded-lg px-3 py-2 active:scale-[0.98]"
+        >
+          Pide una demo
+        </a>
+      </nav>
+    </header>
+    <main id="contenido">
+      <slot />
+    </main>
+    <footer class="border-line mt-24 border-t px-4 py-10">
+      <div class="body-6 text-muted mx-auto flex max-w-5xl flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <p>© {new Date().getFullYear()} {site.productName}</p>
+        <nav aria-label="Legal" class="flex flex-wrap gap-6">
+          <a href="/privacidad" class="hover:text-ink underline underline-offset-4">Política de privacidad</a>
+          {
+            whatsappHref && (
+              <a href={whatsappHref} class="hover:text-ink underline underline-offset-4" data-whatsapp>
+                Escríbenos por WhatsApp
+              </a>
+            )
+          }
+        </nav>
+      </div>
+    </footer>
+    <script>
+      import { browserStorage, capture, currentPage } from "../lib/attribution.ts";
+      import { initMobileBar, initReveals, initTagline } from "../lib/reveal.ts";
+      import { trackWhatsApp } from "../lib/track.ts";
+
+      capture(currentPage(), browserStorage());
+      initReveals();
+      initTagline();
+      initMobileBar();
+      document.addEventListener("click", (event) => {
+        if ((event.target as Element | null)?.closest("[data-whatsapp]")) trackWhatsApp();
+      });
+    </script>
+    <Analytics />
+  </body>
+</html>

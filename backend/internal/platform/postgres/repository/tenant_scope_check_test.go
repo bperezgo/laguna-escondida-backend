@@ -21,6 +21,7 @@ var globalTableFiles = map[string]bool{
 	"database.go":                       true,
 	"einvoicing_settings_repository.go": true,
 	"invoice_sequence.go":               true,
+	"lead_repository.go":                true,
 	"node_repository.go":                true,
 	"organization_repository.go":        true,
 	"role_repository.go":                true,

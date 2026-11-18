@@ -1,0 +1,25 @@
+---
+import { Icon } from "astro-icon/components";
+
+import { whatsappHref } from "../../config/site.ts";
+import LeadForm from "../LeadForm.astro";
+---
+
+<section id="demo" class="px-4 py-16 md:py-24" aria-labelledby="demo-title">
+  <div class="mx-auto grid max-w-5xl gap-10 md:grid-cols-2 md:items-start">
+    <div>
+      <h2 id="demo-title" class="heading-2">Mira cómo funcionaría en tu restaurante</h2>
+      <p class="body-3 text-muted mt-4 md:text-lg">Déjanos tus datos y te escribimos por WhatsApp para mostrarte el sistema.</p>
+      {
+        whatsappHref && (
+          <a href={whatsappHref} data-whatsapp class="button-md text-primary mt-6 inline-flex items-center gap-2 underline underline-offset-4">
+            <Icon name="ph:whatsapp-logo" class="size-6" aria-hidden="true" /> Prefiero escribir por WhatsApp
+          </a>
+        )
+      }
+    </div>
+    <div class="bg-surface border-line rounded-2xl border p-6">
+      <LeadForm />
+    </div>
+  </div>
+</section>
