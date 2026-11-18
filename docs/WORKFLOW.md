@@ -98,7 +98,7 @@ claude --model sonnet
 > Implement openspec change <change>, one section of tasks.md at a time, sections 0→N in order.
   For each section, spawn ONE general-purpose subagent with model sonnet and this brief:
    - "Run /opsx:apply <change> for section N only. Read design.md 'Implementation Map' first; read only listed files.
-      Run targeted tests while iterating; run make lint + go test ./... at the end, output piped through tail -40.
+      Run targeted tests while iterating; run make lint + go test ./... from backend/ at the end (and pnpm lint/test from frontend/ if it changed), output piped through tail -40.
       If a task needs changing an existing test assertion, or the spec is ambiguous, STOP and report it — don't decide.
       Reply with: tasks checked, files changed, test/lint result, blockers."
   After each subagent: verify the section's boxes are checked and go build/test/lint are green, then commit
@@ -132,7 +132,7 @@ These belong in each brief, or in `openspec/config.yaml` under
 - Run targeted tests (`go test ./internal/domain/service -run TestXxx`) while
   iterating. Run the full `make test` and `make lint` once per section, piped
   through `| tail -40`.
-- Don't read `docs/playbooks/ARCHITECTURE.md` unless the task touches DI
+- Don't read `backend/docs/playbooks/ARCHITECTURE.md` unless the task touches DI
   wiring or a new aggregate.
 - If the spec is ambiguous, stop and add the question to design.md "Open
   Questions". Never invent a decision; hand it back to Opus.
@@ -204,7 +204,7 @@ Treat findings as leads to verify, not verdicts.
 ## Guardrails that run on their own
 
 **Tests-green Stop hook** (`.claude/hooks/tests-green-gate.sh`):
-- Once non-test `.go` files have changed, it runs `go build ./... && go test
+- Once non-test `.go` files have changed, it runs (in `backend/`) `go build ./... && go test
   ./...` and blocks the turn from ending while the suite is red.
 - After 5 consecutive blocks it releases and tells the agent to escalate. In
   the legacy `/build`, dropping `.claude/.tdd-escalate` hands control back

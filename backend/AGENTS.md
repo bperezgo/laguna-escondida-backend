@@ -1,5 +1,7 @@
 # Laguna Escondida Backend — Agent Rules
 
+Applies to everything under `backend/`; paths below are relative to it, and every `make`/`go` command runs from here. Repo-wide rules: `../AGENTS.md`.
+
 Go backend, **Hexagonal Architecture (Ports & Adapters)**. This file is the always-loaded rule set: keep it short. For the full blueprint (stack, aggregates, event bus, DI wiring, conventions) read **`docs/playbooks/ARCHITECTURE.md`** on demand — don't duplicate it here.
 
 Stack: Gin (HTTP) · GORM + Postgres · Watermill (in-memory events) · shopspring `decimal` for money · mockery for port mocks · JWT + admin API key.

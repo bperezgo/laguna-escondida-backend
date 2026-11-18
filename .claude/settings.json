@@ -12,15 +12,22 @@
       "Bash(make test-ci *)",
       "Bash(make generate-mocks *)",
       "Bash(make regenerate-mocks *)",
-      "Bash(RUN_ACCEPTANCE_TESTS=true go test *)"
+      "Bash(RUN_ACCEPTANCE_TESTS=true go test *)",
+      "Bash(make -C backend lint *)",
+      "Bash(make -C backend test *)",
+      "Bash(make -C backend test-acceptance *)",
+      "Bash(make -C backend test-ci *)",
+      "Bash(make -C backend generate-mocks *)",
+      "Bash(make -C backend regenerate-mocks *)"
     ],
     "ask": [
       "Edit(**/*_test.go)"
     ],
     "deny": [
-      "Read(./.env)",
-      "Read(./.env.*)",
-      "Read(./pem/**)",
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(**/.env.local)",
+      "Read(./backend/pem/**)",
       "Bash(rm -rf *)",
       "Bash(rm -fr *)",
       "Bash(git push --force *)",

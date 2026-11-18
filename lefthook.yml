@@ -1,11 +1,12 @@
 # Git hooks, managed by lefthook (https://lefthook.dev).
 #
-#   Install once per clone:   make install-hooks       (installs lefthook if missing, then wires the hooks)
+#   Install once per clone:   make -C backend install-hooks       (installs lefthook if missing, then wires the hooks)
 #   Bypass in an emergency:   git commit --no-verify    /    git push --no-verify
 #
 # Split of work:
 #   - pre-commit: fast guardrails on every commit — secret scan, build, lint. No test suite.
 #   - pre-push:   the full test suite (race + coverage) plus a vulnerability scan.
+#   - Each app's jobs run from its own folder and only when that folder's files changed.
 #
 # Security scans (gitleaks, govulncheck) run BEST-EFFORT locally: if the tool isn't installed
 # the job prints a hint and passes, because CI enforces both hard. So a missing local tool
@@ -23,16 +24,24 @@ pre-commit:
           echo "   Install: brew install gitleaks"
         fi
     - name: build
+      root: backend/
+      glob: "backend/**"
       run: go build ./...
     - name: lint
+      root: backend/
+      glob: "backend/**"
       run: make lint
 
 pre-push:
   parallel: false
   jobs:
     - name: test
+      root: backend/
+      glob: "backend/**"
       run: make test
     - name: vuln-scan
+      root: backend/
+      glob: "backend/**"
       run: |
         if command -v govulncheck >/dev/null 2>&1; then
           govulncheck ./... || echo "⚠  govulncheck reported findings (advisory, non-blocking) — review above."

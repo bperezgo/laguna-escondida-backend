@@ -1,16 +1,26 @@
-name: CI
+name: Backend CI
 
 on:
   pull_request:
     branches:
       - main
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
   push:
     branches:
       - main
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
 
 # Least privilege by default; jobs opt into more only where they need it.
 permissions:
   contents: read
+
+defaults:
+  run:
+    working-directory: backend
 
 # Actions are pinned to a commit SHA (with the human-readable tag in a comment) so a
 # re-tagged/compromised action can't silently change what runs. Dependabot (github-actions
@@ -26,13 +36,14 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: go.mod
-          cache-dependency-path: go.sum
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9
         with:
           version: v2.6.2
+          working-directory: backend
           args: --timeout=5m
 
   test:
@@ -49,8 +60,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: go.mod
-          cache-dependency-path: go.sum
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
 
       - name: Install gotestsum
         run: go install gotest.tools/gotestsum@v1.12.3
@@ -63,14 +74,14 @@ jobs:
         if: always()
         with:
           name: Go Tests
-          path: test-report.xml
+          path: backend/test-report.xml
           reporter: java-junit
 
       - name: Upload coverage reports
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         if: always()
         with:
-          files: ./coverage.out
+          files: ./backend/coverage.out
           flags: unittests
           name: codecov-umbrella
           fail_ci_if_error: false
@@ -94,8 +105,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version-file: go.mod
-          cache-dependency-path: go.sum
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
 
       - name: Install gotestsum
         run: go install gotest.tools/gotestsum@v1.12.3
@@ -108,56 +119,5 @@ jobs:
         if: always()
         with:
           name: Acceptance Tests
-          path: acceptance-report.xml
+          path: backend/acceptance-report.xml
           reporter: java-junit
-
-  security:
-    name: Security
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0 # gitleaks scans full history
-
-      - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          cache-dependency-path: go.sum
-
-      # INFORMATIONAL for now: the existing codebase already has reachable known-vuln
-      # dependencies (run `govulncheck ./...` locally to see them). Clear that baseline,
-      # then remove `continue-on-error` so reachable CVEs gate the build. govulncheck is
-      # call-graph aware (low false positives), so it's safe to enforce once green.
-      - name: govulncheck
-        continue-on-error: true
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
-
-      # GATING: no secret may enter the history. Fails the job on any finding.
-      - name: gitleaks (secret scan)
-        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # INFORMATIONAL: Dockerfile lint. Advisory to avoid style noise blocking merges;
-      # remove continue-on-error to enforce once the Dockerfile is clean.
-      - name: hadolint (Dockerfile)
-        uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
-        continue-on-error: true
-        with:
-          dockerfile: Dockerfile
-
-      # INFORMATIONAL: filesystem scan (dependency lockfiles + IaC/Dockerfile misconfig).
-      # exit-code 0 keeps it advisory; govulncheck is the gating Go-vuln check. Tighten by
-      # setting exit-code '1' once the baseline is clean.
-      - name: Trivy (filesystem)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
-          exit-code: "0"

@@ -6,12 +6,12 @@
       "type": "go",
       "request": "launch",
       "mode": "auto",
-      "program": "${workspaceFolder}/cmd",
-      "envFile": "${workspaceFolder}/.env",
+      "program": "${workspaceFolder}/backend/cmd/cloud",
+      "envFile": "${workspaceFolder}/backend/.env",
       "args": [],
       "showLog": true,
       "trace": "verbose",
-      "cwd": "${workspaceFolder}"
+      "cwd": "${workspaceFolder}/backend"
     },
     {
       "name": "Attach to Process",
@@ -25,7 +25,7 @@
       "type": "go",
       "request": "launch",
       "mode": "test",
-      "program": "${workspaceFolder}/test/acceptance/sync",
+      "program": "${workspaceFolder}/backend/test/acceptance/sync",
       "env": {
         "RUN_ACCEPTANCE_TESTS": "true"
       },

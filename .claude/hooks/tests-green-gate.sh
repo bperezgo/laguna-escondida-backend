@@ -42,8 +42,8 @@ if [ -f "$esc" ]; then
   exit 0
 fi
 
-if go build ./... >/tmp/tdd_gate_build.log 2>&1 \
-  && go test ./... >/tmp/tdd_gate_test.log 2>&1; then
+if (cd backend && go build ./... >/tmp/tdd_gate_build.log 2>&1 \
+  && go test ./... >/tmp/tdd_gate_test.log 2>&1); then
   rm -f "$count_file"   # green — reset backstop and allow the stop
   exit 0
 fi

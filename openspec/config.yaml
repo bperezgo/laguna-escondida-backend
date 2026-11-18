@@ -30,6 +30,10 @@ schema: spec-driven
 #     archive:
 #       guidance:
 #         - Summarize the archive outcome before finishing
+context: |
+  Monorepo: backend/ (Go API, hexagonal — rules in backend/AGENTS.md), frontend/ (Next.js ops UI — rules in frontend/AGENTS.md), landing/ (product marketing site).
+  One change may span apps; run each app's commands from its own folder.
+
 rules:
   proposal:
     - Keep proposals under 500 words
@@ -38,8 +42,8 @@ operations:
   apply:
     guidance:
       - Read only files listed in design.md "Implementation map"; don't explore beyond them unless a build error points elsewhere
-      - Run targeted tests (go test ./internal/domain/service -run TestXxx) while iterating; full make test/lint once at section end, piped through | tail -40
-      - Don't read docs/playbooks/ARCHITECTURE.md unless the task touches DI wiring or a new aggregate
+      - Backend: from backend/, run targeted tests (go test ./internal/domain/service -run TestXxx) while iterating; full make test/lint once at section end, piped through | tail -40
+      - Don't read backend/docs/playbooks/ARCHITECTURE.md unless the task touches DI wiring or a new aggregate
       - If the spec is ambiguous, stop and append the question to design.md "Open questions" — never invent a decision
   archive:
     guidance:

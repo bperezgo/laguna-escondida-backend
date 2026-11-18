@@ -55,7 +55,7 @@ if [ -d "${hooks_dir}" ] && [ ! -f "${hooks_dir}/pre-commit" ]; then
 fi
 
 echo "[post-create] warming the module cache ..."
-go mod download || echo "[post-create] WARNING: go mod download failed" >&2
+(cd backend && go mod download) || echo "[post-create] WARNING: go mod download failed" >&2
 
 # --- report ------------------------------------------------------------------
 echo ""
