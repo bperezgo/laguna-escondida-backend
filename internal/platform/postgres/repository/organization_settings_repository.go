@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"laguna-escondida/backend/internal/domain/aggregate/reservation"
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
@@ -57,21 +58,24 @@ func (r *OrganizationSettingsRepository) get(ctx context.Context, tx *gorm.DB, l
 		return nil, fmt.Errorf("get organization settings: %w", err)
 	}
 	settings := r.decode(ctx, orgID, row.Settings)
-	return &dto.OrganizationSettingsView{Ordering: settings.Ordering, Feedback: settings.Feedback, Timezone: row.Timezone}, nil
+	return &dto.OrganizationSettingsView{
+		Ordering: settings.Ordering, Feedback: settings.Feedback, Reservations: settings.Reservations, Timezone: row.Timezone,
+	}, nil
 }
 
 // decode treats a hand-edited value that doesn't parse as unconfigured, so a typo opens ordering
-// rather than stopping every order.
+// rather than stopping every order. Decoding over the reservation defaults fills any field not saved.
 func (r *OrganizationSettingsRepository) decode(ctx context.Context, orgID string, raw []byte) dto.OrganizationSettings {
-	var settings dto.OrganizationSettings
+	settings := dto.OrganizationSettings{Reservations: reservation.DefaultSettings()}
 	if len(raw) == 0 {
 		return settings
 	}
 	if err := json.Unmarshal(raw, &settings); err != nil {
 		r.logger.ErrorContext(ctx, "organization settings are not valid JSON; reading them as unconfigured",
 			"organization_id", orgID, "error", err)
-		return dto.OrganizationSettings{}
+		return dto.OrganizationSettings{Reservations: reservation.DefaultSettings()}
 	}
+	settings.Reservations = reservation.NormalizeSettings(settings.Reservations)
 	return settings
 }
 
@@ -95,6 +99,18 @@ func (r *OrganizationSettingsRepository) UpdateFeedback(ctx context.Context, mer
 			return nil, err
 		}
 		current.Feedback = next
+		return json.Marshal(next)
+	})
+}
+
+// UpdateReservations replaces only the reservations key.
+func (r *OrganizationSettingsRepository) UpdateReservations(ctx context.Context, merge ports.ReservationsMerge) (*dto.OrganizationSettingsView, error) {
+	return r.updateSection(ctx, "reservations", func(current *dto.OrganizationSettingsView) ([]byte, error) {
+		next, err := merge(current.Reservations)
+		if err != nil {
+			return nil, err
+		}
+		current.Reservations = next
 		return json.Marshal(next)
 	})
 }

@@ -75,7 +75,8 @@ func (f *settingsFixture) stored(ordering dto.OrderingSettings, timezone string)
 	f.current = ordering
 	f.repo.EXPECT().Get(mock.Anything).
 		RunAndReturn(func(context.Context) (*dto.OrganizationSettingsView, error) {
-			return &dto.OrganizationSettingsView{Ordering: f.current, Timezone: f.timezone}, nil
+			// The repository reads an unsaved reservations section as its defaults.
+			return &dto.OrganizationSettingsView{Ordering: f.current, Reservations: reservationSettingsDefaults(), Timezone: f.timezone}, nil
 		}).Maybe()
 	f.repo.EXPECT().UpdateOrdering(mock.Anything, mock.Anything).
 		RunAndReturn(func(_ context.Context, merge ports.OrderingMerge) (*dto.OrganizationSettingsView, error) {
@@ -368,6 +369,10 @@ func TestOrganizationSettingsService_Get_NothingStoredReadsAsDefaults(t *testing
 			"takeaway": {"paused": false, "paused_reason": null, "schedule": []}
 		},
 		"feedback": {"review_link_enabled": false, "review_url": ""},
+		"reservations": {
+			"auto_confirm_enabled": false, "max_party_size": 8, "min_notice_minutes": 120,
+			"daily_guest_cap": null, "schedule": []
+		},
 		"availability": {
 			"delivery": {"available": true, "reason": null, "paused_reason": null, "closes_at": null, "next_opens_at": null},
 			"takeaway": {"available": true, "reason": null, "paused_reason": null, "closes_at": null, "next_opens_at": null}

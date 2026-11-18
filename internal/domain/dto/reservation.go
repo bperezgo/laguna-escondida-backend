@@ -29,19 +29,50 @@ const (
 	CancelledByStaff    ReservationCancelledBy = "staff"
 )
 
+// ReservationPendingReason names the first auto-confirm rule a WhatsApp request failed.
+type ReservationPendingReason string
+
+const (
+	PendingReasonDisabled        ReservationPendingReason = "disabled"
+	PendingReasonPartySize       ReservationPendingReason = "party_size"
+	PendingReasonNotice          ReservationPendingReason = "notice"
+	PendingReasonOutsideSchedule ReservationPendingReason = "outside_schedule"
+	PendingReasonDailyCap        ReservationPendingReason = "daily_cap"
+)
+
+// ReservationSettings is the auto-confirm policy for WhatsApp requests. An empty schedule means any time.
+type ReservationSettings struct {
+	AutoConfirmEnabled bool            `json:"auto_confirm_enabled"`
+	MaxPartySize       int             `json:"max_party_size"`
+	MinNoticeMinutes   int             `json:"min_notice_minutes"`
+	DailyGuestCap      *int            `json:"daily_guest_cap"`
+	Schedule           []OpeningWindow `json:"schedule"`
+}
+
+// ReservationSettingsPatch: a nil field is left unchanged; Schedule replaces the whole schedule.
+type ReservationSettingsPatch struct {
+	AutoConfirmEnabled *bool            `json:"auto_confirm_enabled"`
+	MaxPartySize       *int             `json:"max_party_size"`
+	MinNoticeMinutes   *int             `json:"min_notice_minutes"`
+	DailyGuestCap      *int             `json:"daily_guest_cap"`
+	Schedule           *[]OpeningWindow `json:"schedule"`
+}
+
 type Reservation struct {
-	ID            string                  `json:"id"`
-	ContactID     string                  `json:"contact_id"`
-	ContactPhone  string                  `json:"contact_phone"`
-	Name          string                  `json:"name"`
-	PartySize     int                     `json:"party_size"`
-	StartsAt      time.Time               `json:"starts_at"`
-	Notes         *string                 `json:"notes,omitempty"`
-	Source        ReservationSource       `json:"source"`
-	Status        ReservationStatus       `json:"status"`
-	DeclineReason *string                 `json:"decline_reason,omitempty"`
-	CancelledBy   *ReservationCancelledBy `json:"cancelled_by,omitempty"`
-	VisitedAt     *time.Time              `json:"visited_at,omitempty"`
+	ID           string            `json:"id"`
+	ContactID    string            `json:"contact_id"`
+	ContactPhone string            `json:"contact_phone"`
+	Name         string            `json:"name"`
+	PartySize    int               `json:"party_size"`
+	StartsAt     time.Time         `json:"starts_at"`
+	Notes        *string           `json:"notes,omitempty"`
+	Source       ReservationSource `json:"source"`
+	Status       ReservationStatus `json:"status"`
+	// PendingReason is set once, when a WhatsApp request is stored requested.
+	PendingReason *ReservationPendingReason `json:"pending_reason,omitempty"`
+	DeclineReason *string                   `json:"decline_reason,omitempty"`
+	CancelledBy   *ReservationCancelledBy   `json:"cancelled_by,omitempty"`
+	VisitedAt     *time.Time                `json:"visited_at,omitempty"`
 	// FeedbackRequested is read-only: set by the repository from feedback_requests.
 	FeedbackRequested bool      `json:"feedback_requested"`
 	Origin            Origin    `json:"origin"`

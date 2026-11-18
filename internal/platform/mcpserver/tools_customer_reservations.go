@@ -42,11 +42,12 @@ type recordMyFeedbackInput struct {
 }
 
 type reservationView struct {
-	ReservationID string                `json:"reservation_id"`
-	Name          string                `json:"name"`
-	PartySize     int                   `json:"party_size"`
-	StartsAt      time.Time             `json:"starts_at"`
-	Status        dto.ReservationStatus `json:"status"`
+	ReservationID string                        `json:"reservation_id"`
+	Name          string                        `json:"name"`
+	PartySize     int                           `json:"party_size"`
+	StartsAt      time.Time                     `json:"starts_at"`
+	Status        dto.ReservationStatus         `json:"status"`
+	PendingReason *dto.ReservationPendingReason `json:"pending_reason,omitempty"`
 }
 
 type myReservations struct {
@@ -58,8 +59,13 @@ type feedbackView struct {
 	ReviewURL *string `json:"review_url,omitempty"`
 }
 
+// viewReservation drops pending_reason once staff have answered: it only explains a wait.
 func viewReservation(r *dto.Reservation) reservationView {
-	return reservationView{ReservationID: r.ID, Name: r.Name, PartySize: r.PartySize, StartsAt: r.StartsAt, Status: r.Status}
+	view := reservationView{ReservationID: r.ID, Name: r.Name, PartySize: r.PartySize, StartsAt: r.StartsAt, Status: r.Status}
+	if r.Status == dto.ReservationStatusRequested {
+		view.PendingReason = r.PendingReason
+	}
+	return view
 }
 
 func decodeReservation(body []byte) (*dto.Reservation, error) {
@@ -73,9 +79,11 @@ func decodeReservation(body []byte) (*dto.Reservation, error) {
 func registerCustomerReservationTools(s *mcp.Server, c *Client) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "create_my_reservation",
-		Description: "Request a table for the customer in this chat. Confirm the name, party size, date and time with the customer first. " +
-			"The reservation is created as requested, not confirmed: tell the customer that the restaurant's staff will confirm it, " +
-			"and that they will be messaged once it is confirmed or declined.",
+		Description: "Book a table for the customer in this chat. Confirm the name, party size, date and time with the customer first. " +
+			"Read the result's status before answering. If it is confirmed, the table is booked: tell the customer it is confirmed; " +
+			"no further message will be sent about it. If it is requested, it is not confirmed yet: tell the customer that the " +
+			"restaurant's staff will confirm it, and that they will be messaged once it is confirmed or declined. " +
+			"pending_reason says why it waits for staff; it is for you, not a refusal.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in createMyReservationInput) (*mcp.CallToolResult, any, error) {
 		phone, err := customerPhone(req)
 		if err != nil {

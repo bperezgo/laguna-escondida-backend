@@ -7,6 +7,7 @@ import (
 
 	"laguna-escondida/backend/internal/domain/aggregate/feedback"
 	"laguna-escondida/backend/internal/domain/aggregate/ordering"
+	"laguna-escondida/backend/internal/domain/aggregate/reservation"
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/permissions"
 	"laguna-escondida/backend/internal/domain/ports"
@@ -30,14 +31,24 @@ func (s *OrganizationSettingsService) Get(ctx context.Context) (*dto.Organizatio
 }
 
 // Update merges under the repository's row lock, so a pause and a schedule edit saved together
-// don't overwrite each other. The feedback patch is checked first, so an invalid one changes nothing.
+// don't overwrite each other. The feedback and reservations patches are checked first, so an
+// invalid one changes nothing; the reservations check is repeated under the lock.
 func (s *OrganizationSettingsService) Update(ctx context.Context, req *dto.UpdateOrganizationSettingsRequest) (*dto.OrganizationSettingsResponse, error) {
 	if _, err := feedback.ApplySettingsPatch(dto.FeedbackSettings{}, req.Feedback); err != nil {
 		return nil, err
 	}
+	if req.Reservations != nil {
+		current, err := s.repo.Get(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("get organization settings: %w", err)
+		}
+		if _, err = reservation.ApplySettingsPatch(current.Reservations, req.Reservations); err != nil {
+			return nil, err
+		}
+	}
 	var saved *dto.OrganizationSettingsView
 	var err error
-	if req.Feedback == nil || req.Ordering != nil {
+	if (req.Feedback == nil && req.Reservations == nil) || req.Ordering != nil {
 		saved, err = s.repo.UpdateOrdering(ctx, func(current dto.OrderingSettings) (dto.OrderingSettings, error) {
 			return ordering.ApplyPatch(current, req.Ordering)
 		})
@@ -51,6 +62,14 @@ func (s *OrganizationSettingsService) Update(ctx context.Context, req *dto.Updat
 		})
 		if err != nil {
 			return nil, fmt.Errorf("update feedback settings: %w", err)
+		}
+	}
+	if req.Reservations != nil {
+		saved, err = s.repo.UpdateReservations(ctx, func(current dto.ReservationSettings) (dto.ReservationSettings, error) {
+			return reservation.ApplySettingsPatch(current, req.Reservations)
+		})
+		if err != nil {
+			return nil, fmt.Errorf("update reservation settings: %w", err)
 		}
 	}
 	return s.respond(saved)
@@ -68,6 +87,9 @@ func (s *OrganizationSettingsService) RequiredPermissions(req *dto.UpdateOrganiz
 	if feedback.TouchesSettings(req.Feedback) {
 		required = append(required, permissions.SettingsFeedbackUpdate)
 	}
+	if reservation.TouchesSettings(req.Reservations) {
+		required = append(required, permissions.SettingsReservationsUpdate)
+	}
 	return required
 }
 
@@ -77,7 +99,10 @@ func (s *OrganizationSettingsService) respond(view *dto.OrganizationSettingsView
 	if err != nil {
 		return nil, err
 	}
-	return &dto.OrganizationSettingsResponse{Ordering: settings, Feedback: view.Feedback, Availability: availability, Timezone: view.Timezone}, nil
+	return &dto.OrganizationSettingsResponse{
+		Ordering: settings, Feedback: view.Feedback, Reservations: reservation.NormalizeSettings(view.Reservations),
+		Availability: availability, Timezone: view.Timezone,
+	}, nil
 }
 
 // EvaluateOrderingAvailability is the one place availability is computed, for the settings read and the order gate.

@@ -224,7 +224,7 @@ func TestOrganizationHandler_Get_IncludesSettings(t *testing.T) {
 		Settings: dto.OrganizationSettings{Ordering: dto.OrderingSettings{
 			Delivery: dto.OrderTypeSettings{Paused: true, PausedReason: &reason, Schedule: []dto.OpeningWindow{}},
 			Takeaway: dto.OrderTypeSettings{Schedule: []dto.OpeningWindow{{Day: "mon", Opens: "11:30", Closes: "22:30"}}},
-		}},
+		}, Reservations: dto.ReservationSettings{MaxPartySize: 8, MinNoticeMinutes: 120, Schedule: []dto.OpeningWindow{}}},
 	}, nil)
 
 	rec := serveOrganization(router, http.MethodGet, "/api/platform/organizations/"+testOrganizationID, "")
@@ -233,5 +233,7 @@ func TestOrganizationHandler_Get_IncludesSettings(t *testing.T) {
 	assert.JSONEq(t, `{"ordering":{
 		"delivery":{"paused":true,"paused_reason":"cocina saturada","schedule":[]},
 		"takeaway":{"paused":false,"paused_reason":null,"schedule":[{"day":"mon","opens":"11:30","closes":"22:30"}]}
-	},"feedback":{"review_link_enabled":false,"review_url":""}}`, string(decodeBody(t, rec)["settings"]))
+	},"feedback":{"review_link_enabled":false,"review_url":""},
+	"reservations":{"auto_confirm_enabled":false,"max_party_size":8,"min_notice_minutes":120,"daily_guest_cap":null,"schedule":[]}}`,
+		string(decodeBody(t, rec)["settings"]))
 }

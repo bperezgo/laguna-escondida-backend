@@ -871,6 +871,19 @@ curl -X PATCH "$BASE_URL/organization/settings" \
   -d '{"ordering":{"takeaway":{"schedule":[]}}}'
 ```
 
+### Turn On Reservation Auto-confirm
+
+Needs `settings:reservations:update` (admin, manager). WhatsApp requests for at most 8 people, at least 2 hours ahead, are then confirmed at once while the day has fewer than 120 confirmed guests.
+
+```bash
+curl -X PATCH "$BASE_URL/organization/settings" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"reservations":{"auto_confirm_enabled":true,"daily_guest_cap":120}}'
+# 200 {..."reservations":{"auto_confirm_enabled":true,"max_party_size":8,"min_notice_minutes":120,"daily_guest_cap":120,"schedule":[]}...}
+# Without daily_guest_cap: 400 {"error":"invalid reservations.daily_guest_cap: is required while auto-confirm is enabled","code":"INVALID_SETTINGS","field":"reservations.daily_guest_cap"}
+```
+
 ---
 
 ## Reservations, Contacts and Feedback (cloud only)
@@ -893,7 +906,7 @@ curl -X POST "$BASE_URL/reservations" \
   }'
 ```
 
-### Request a Table as the Agent (stored as requested)
+### Request a Table as the Agent (confirmed or requested, as the policy decides)
 
 ```bash
 curl -X POST "$BASE_URL/reservations" \
@@ -911,6 +924,8 @@ curl -X POST "$BASE_URL/reservations" \
       "attribution": {"source": "meta_ctwa", "ad_id": "120210000000001", "clicked_at": "2026-11-08T14:00:00Z"}
     }
   }'
+# Policy off: 201 {..."status":"requested","pending_reason":"disabled"...}
+# Policy on with the defaults, 6 people tomorrow evening and room that day: 201 {..."status":"confirmed"...}
 ```
 
 ### Tonight's List (in time order, every status)

@@ -92,21 +92,26 @@ func overlaps(a, b window) bool {
 
 // ValidateSchedule checks a type's whole schedule; a past-midnight window counts against the next day's.
 func ValidateSchedule(orderType dto.OrderType, schedule []dto.OpeningWindow) error {
-	field := "ordering." + string(orderType) + ".schedule"
+	if invalid := ValidateWindows("ordering."+string(orderType)+".schedule", schedule); invalid != nil {
+		return &domainError.OrderingSettingsValidationError{Field: invalid.Field, Reason: invalid.Reason}
+	}
+	return nil
+}
+
+// ValidateWindows is ValidateSchedule for any settings field holding opening windows.
+func ValidateWindows(field string, schedule []dto.OpeningWindow) *domainError.ValidationError {
 	if len(schedule) > MaxWindowsPerType {
-		return &domainError.OrderingSettingsValidationError{
-			Field: field, Reason: fmt.Sprintf("at most %d windows", MaxWindowsPerType),
-		}
+		return &domainError.ValidationError{Field: field, Reason: fmt.Sprintf("at most %d windows", MaxWindowsPerType)}
 	}
 	parsed := make([]window, 0, len(schedule))
 	for i, w := range schedule {
 		pw, reason := parseWindow(w)
 		if reason != "" {
-			return &domainError.OrderingSettingsValidationError{Field: fmt.Sprintf("%s[%d]", field, i), Reason: reason}
+			return &domainError.ValidationError{Field: fmt.Sprintf("%s[%d]", field, i), Reason: reason}
 		}
 		for j, earlier := range parsed {
 			if overlaps(earlier, pw) {
-				return &domainError.OrderingSettingsValidationError{
+				return &domainError.ValidationError{
 					Field: fmt.Sprintf("%s[%d]", field, i), Reason: fmt.Sprintf("overlaps %s[%d]", field, j),
 				}
 			}

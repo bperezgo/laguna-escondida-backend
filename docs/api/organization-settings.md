@@ -1,6 +1,6 @@
 # Organization Settings API
 
-The calling organization's settings: its **ordering** settings (when it takes **delivery** and **takeaway** orders) and its **feedback** settings (whether guests get the review link, see [Feedback](#feedback)). Each type has an emergency **pause** switch and a weekly **schedule**. Creating a takeaway or delivery order while that type is unavailable is refused with `422` (see [Orders → Ordering availability](./orders.md#ordering-availability)). `dine_in` is never affected.
+The calling organization's settings: its **ordering** settings (when it takes **delivery** and **takeaway** orders), its **feedback** settings (whether guests get the review link, see [Feedback](#feedback)) and its **reservations** settings (the WhatsApp auto-confirm policy, see [Reservations](#reservations)). Each type has an emergency **pause** switch and a weekly **schedule**. Creating a takeaway or delivery order while that type is unavailable is refused with `422` (see [Orders → Ordering availability](./orders.md#ordering-availability)). `dine_in` is never affected.
 
 **Cloud only.** These routes exist only in the cloud binary; on the edge binary they return `404`. The box reads its own organization as unconfigured, so takeaway there is always open.
 
@@ -11,7 +11,7 @@ The calling organization's settings: its **ordering** settings (when it takes **
 | Method | Endpoint                     | Description                                         | Permission |
 | ------ | ---------------------------- | --------------------------------------------------- | ---------- |
 | GET    | `/api/organization/settings` | Stored settings plus availability right now         | `ordering:read` |
-| PATCH  | `/api/organization/settings` | Change the pause and/or the schedule of either type | `ordering:read`, plus per field (below) |
+| PATCH  | `/api/organization/settings` | Change the ordering, feedback or reservations sections | `ordering:read`, plus per field (below) |
 
 | Permission        | Granted to                          | Allows |
 | ----------------- | ----------------------------------- | ------ |
@@ -19,6 +19,7 @@ The calling organization's settings: its **ordering** settings (when it takes **
 | `ordering:pause`  | admin, manager                      | Changing `paused` and `paused_reason` |
 | `ordering:manage` | admin, manager                      | Changing `schedule` |
 | `settings:feedback:update` | admin, manager             | Changing the `feedback` section |
+| `settings:reservations:update` | admin, manager         | Changing the `reservations` section |
 
 The pause and the hours are separate permissions so a floor role can get the switch without the hours later. Today only admins and managers hold either.
 
@@ -98,6 +99,13 @@ Delivery paused during a rush; takeaway open until 22:30 on a Monday in Bogotá.
     "review_link_enabled": false,
     "review_url": ""
   },
+  "reservations": {
+    "auto_confirm_enabled": true,
+    "max_party_size": 8,
+    "min_notice_minutes": 120,
+    "daily_guest_cap": 120,
+    "schedule": []
+  },
   "availability": {
     "delivery": {
       "available": false,
@@ -118,7 +126,7 @@ Delivery paused during a rush; takeaway open until 22:30 on a Monday in Bogotá.
 }
 ```
 
-An organization that never saved settings reads as both types `paused: false`, `paused_reason: null`, `schedule: []`, both available, and `feedback` with the link off.
+An organization that never saved settings reads as both types `paused: false`, `paused_reason: null`, `schedule: []`, both available, `feedback` with the link off, and `reservations` with auto-confirm off: `{"auto_confirm_enabled": false, "max_party_size": 8, "min_notice_minutes": 120, "daily_guest_cap": null, "schedule": []}`.
 
 ### Error Responses
 
@@ -163,8 +171,13 @@ The response is `200` in the same shape as [Get Settings](#get-settings), alread
 | `ordering.<type>.schedule`         | array          | `ordering:manage` |
 | `feedback.review_link_enabled`     | boolean        | `settings:feedback:update` |
 | `feedback.review_url`              | string         | `settings:feedback:update` |
+| `reservations.auto_confirm_enabled` | boolean       | `settings:reservations:update` |
+| `reservations.max_party_size`      | integer        | `settings:reservations:update` |
+| `reservations.min_notice_minutes`  | integer        | `settings:reservations:update` |
+| `reservations.daily_guest_cap`     | integer        | `settings:reservations:update` |
+| `reservations.schedule`            | array          | `settings:reservations:update` |
 
-`<type>` is `delivery` or `takeaway`. An invalid `feedback` section is checked before anything is written, so a body that also touches `ordering` changes nothing.
+`<type>` is `delivery` or `takeaway`. Invalid `feedback` and `reservations` sections are checked before anything is written, so a body that also touches `ordering` changes nothing.
 
 ### Example Requests
 
@@ -267,5 +280,72 @@ Turn the link on:
 {
   "error": "Insufficient permissions",
   "required": "settings:feedback:update"
+}
+```
+
+---
+
+## Reservations
+
+The `reservations` section is the auto-confirm policy for reservations the WhatsApp agent creates. When it accepts a request, the reservation is stored `confirmed` at once; otherwise it is stored `requested` for staff, with a `pending_reason`. It never refuses a booking. The rules and their order are in [Reservations → Auto-confirm policy](./reservations.md#auto-confirm-policy). Staff reservations ignore it.
+
+| Field                  | Type            | Description |
+| ---------------------- | --------------- | ----------- |
+| `auto_confirm_enabled` | boolean         | Default `false`. Requires `daily_guest_cap` to be set. |
+| `max_party_size`       | integer         | 1–50. Default `8`. A larger party waits for staff. |
+| `min_notice_minutes`   | integer         | 0–10080 (one week). Default `120`. A booking starting sooner waits for staff. |
+| `daily_guest_cap`      | integer \| null | A positive number of guests, or `null` (default). The most guests that day's `confirmed` and `visited` reservations, of every source, may add up to. |
+| `schedule`             | array           | Opening windows, in the [ordering format and rules](#schedule-rules), read in the organization's timezone. Default `[]`, which means **any time**. A booking outside every window waits for staff. |
+
+A patch changes only the fields it contains; `schedule` replaces the whole schedule. `daily_guest_cap` can't be set back to `null` through a patch. Turn the policy off instead. Lowering the cap below what's already confirmed undoes nothing: later requests that day wait for staff.
+
+### Example Request
+
+Turn auto-confirm on with a cap of 120 guests a day, the other fields at their defaults:
+
+```json
+{ "reservations": { "auto_confirm_enabled": true, "daily_guest_cap": 120 } }
+```
+
+Only confirm lunch and dinner from Thursday to Saturday, with a Saturday window past midnight:
+
+```json
+{
+  "reservations": {
+    "schedule": [
+      { "day": "thu", "opens": "12:00", "closes": "22:00" },
+      { "day": "fri", "opens": "12:00", "closes": "23:00" },
+      { "day": "sat", "opens": "12:00", "closes": "01:00" }
+    ]
+  }
+}
+```
+
+### Error Responses
+
+**400 Bad Request** — enabling without a cap, or a field out of range; nothing is stored
+
+```json
+{
+  "error": "invalid reservations.daily_guest_cap: is required while auto-confirm is enabled",
+  "code": "INVALID_SETTINGS",
+  "field": "reservations.daily_guest_cap"
+}
+```
+
+| `field`                              | When |
+| ------------------------------------ | ---- |
+| `reservations.daily_guest_cap`       | Enabled with no cap saved or sent, or a cap below 1 |
+| `reservations.max_party_size`        | Outside 1–50 |
+| `reservations.min_notice_minutes`    | Outside 0–10080 |
+| `reservations.schedule[i]`           | Bad day code, bad `HH:MM`, equal times, or overlapping an earlier window |
+| `reservations.schedule`              | More than 21 windows |
+
+**403 Forbidden** — the caller lacks `settings:reservations:update`
+
+```json
+{
+  "error": "Insufficient permissions",
+  "required": "settings:reservations:update"
 }
 ```

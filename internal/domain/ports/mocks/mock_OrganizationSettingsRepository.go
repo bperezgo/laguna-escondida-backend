@@ -199,6 +199,65 @@ func (_c *MockOrganizationSettingsRepository_UpdateOrdering_Call) RunAndReturn(r
 	return _c
 }
 
+// UpdateReservations provides a mock function with given fields: ctx, merge
+func (_m *MockOrganizationSettingsRepository) UpdateReservations(ctx context.Context, merge ports.ReservationsMerge) (*dto.OrganizationSettingsView, error) {
+	ret := _m.Called(ctx, merge)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateReservations")
+	}
+
+	var r0 *dto.OrganizationSettingsView
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, ports.ReservationsMerge) (*dto.OrganizationSettingsView, error)); ok {
+		return rf(ctx, merge)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, ports.ReservationsMerge) *dto.OrganizationSettingsView); ok {
+		r0 = rf(ctx, merge)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*dto.OrganizationSettingsView)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, ports.ReservationsMerge) error); ok {
+		r1 = rf(ctx, merge)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrganizationSettingsRepository_UpdateReservations_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateReservations'
+type MockOrganizationSettingsRepository_UpdateReservations_Call struct {
+	*mock.Call
+}
+
+// UpdateReservations is a helper method to define mock.On call
+//   - ctx context.Context
+//   - merge ports.ReservationsMerge
+func (_e *MockOrganizationSettingsRepository_Expecter) UpdateReservations(ctx interface{}, merge interface{}) *MockOrganizationSettingsRepository_UpdateReservations_Call {
+	return &MockOrganizationSettingsRepository_UpdateReservations_Call{Call: _e.mock.On("UpdateReservations", ctx, merge)}
+}
+
+func (_c *MockOrganizationSettingsRepository_UpdateReservations_Call) Run(run func(ctx context.Context, merge ports.ReservationsMerge)) *MockOrganizationSettingsRepository_UpdateReservations_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(ports.ReservationsMerge))
+	})
+	return _c
+}
+
+func (_c *MockOrganizationSettingsRepository_UpdateReservations_Call) Return(_a0 *dto.OrganizationSettingsView, _a1 error) *MockOrganizationSettingsRepository_UpdateReservations_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrganizationSettingsRepository_UpdateReservations_Call) RunAndReturn(run func(context.Context, ports.ReservationsMerge) (*dto.OrganizationSettingsView, error)) *MockOrganizationSettingsRepository_UpdateReservations_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockOrganizationSettingsRepository creates a new instance of MockOrganizationSettingsRepository. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockOrganizationSettingsRepository(t interface {

@@ -139,7 +139,8 @@ const (
 
 // Settings permissions for sections other than ordering.
 const (
-	SettingsFeedbackUpdate Permission = "settings:feedback:update"
+	SettingsFeedbackUpdate     Permission = "settings:feedback:update"
+	SettingsReservationsUpdate Permission = "settings:reservations:update"
 )
 
 // Edge appliance permissions
@@ -193,6 +194,8 @@ func AllPermissions() []Permission {
 		ReservationsRead, ReservationsCreate, ReservationsManage,
 		// Feedback
 		FeedbackRead, FeedbackCreate, SettingsFeedbackUpdate,
+		// Reservation settings
+		SettingsReservationsUpdate,
 		// Edge appliance
 		EdgeUpdate,
 		// SSE

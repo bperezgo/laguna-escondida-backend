@@ -71,7 +71,7 @@ var RolePermissions = map[int][]Permission{
 		// Ordering - full access
 		OrderingRead, OrderingPause, OrderingManage,
 		// Reservations and feedback - manage, never create requests on the agent's behalf
-		ReservationsRead, ReservationsManage, FeedbackRead, SettingsFeedbackUpdate,
+		ReservationsRead, ReservationsManage, FeedbackRead, SettingsFeedbackUpdate, SettingsReservationsUpdate,
 		// Edge appliance - the box usually runs logged in as a manager
 		EdgeUpdate,
 		// SSE - can receive real-time updates

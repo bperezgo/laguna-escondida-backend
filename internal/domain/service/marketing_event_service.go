@@ -57,6 +57,13 @@ func (s *MarketingEventService) RecordReservation(ctx context.Context, reservati
 	return s.append(ctx, event)
 }
 
+func (s *MarketingEventService) RecordReservationCreated(ctx context.Context, reservation *dto.Reservation, at time.Time) error {
+	if reservation.Source == dto.ReservationSourceWhatsApp && reservation.Status == dto.ReservationStatusConfirmed {
+		return nil
+	}
+	return s.RecordReservation(ctx, reservation, at)
+}
+
 func (s *MarketingEventService) RecordFeedbackRequested(ctx context.Context, request *dto.FeedbackRequest, reservation *dto.Reservation) error {
 	if reservation.Origin.ChannelID == nil {
 		return nil

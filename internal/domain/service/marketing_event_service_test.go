@@ -225,3 +225,40 @@ func TestMarketingEventService_AnUnknownTimezoneFallsBackToUTC(t *testing.T) {
 	require.Len(t, events, 1)
 	assert.Contains(t, string(events[0].Body), `"occurred_at":"2026-11-09T01:30:00Z"`)
 }
+
+func TestMarketingEventService_RecordReservationCreated(t *testing.T) {
+	staffConfirmed := fixtureReservation(t, dto.ReservationStatusConfirmed)
+	staffConfirmed.Source = dto.ReservationSourcePhone
+
+	tests := []struct {
+		name        string
+		reservation *dto.Reservation
+		wantEvents  int
+	}{
+		{name: "the policy confirms a WhatsApp reservation", reservation: fixtureReservation(t, dto.ReservationStatusConfirmed)},
+		{name: "a WhatsApp request waits for staff", reservation: fixtureReservation(t, dto.ReservationStatusRequested)},
+		{name: "staff enter a confirmed reservation on a channel", reservation: staffConfirmed, wantEvents: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			outbox := &txOutbox{}
+
+			events := recordInTx(t, outbox, func(ctx context.Context, s *MarketingEventService) error {
+				return s.RecordReservationCreated(ctx, tt.reservation, crmAt(t, 8, 15, 0))
+			}, newRecordingEvents(t, outbox))
+
+			assert.Len(t, events, tt.wantEvents)
+		})
+	}
+}
+
+func TestMarketingEventService_StaffConfirmAWhatsAppReservation(t *testing.T) {
+	outbox := &txOutbox{}
+
+	events := recordInTx(t, outbox, func(ctx context.Context, s *MarketingEventService) error {
+		return s.RecordReservation(ctx, fixtureReservation(t, dto.ReservationStatusConfirmed), crmAt(t, 8, 15, 0))
+	}, newRecordingEvents(t, outbox))
+
+	require.Len(t, events, 1)
+	assert.Equal(t, dto.MarketingEventReservationConfirmed, events[0].Type)
+}

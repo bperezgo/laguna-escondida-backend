@@ -57,8 +57,8 @@ func NewReservationService(
 	}
 }
 
-// Create stores a WhatsApp reservation as requested and a staff-entered one as confirmed, and
-// creates or updates the guest's contact in the same transaction.
+// Create stores a WhatsApp reservation as the auto-confirm policy decides and a staff-entered one as
+// confirmed, and creates or updates the guest's contact in the same transaction.
 func (s *ReservationService) Create(ctx context.Context, req *dto.CreateReservationRequest) (*dto.Reservation, error) {
 	now := s.now()
 	phone, err := shared.NewPhone(req.CustomerPhone, s.phoneHomeRegion)
@@ -83,7 +83,14 @@ func (s *ReservationService) Create(ctx context.Context, req *dto.CreateReservat
 		if touchErr != nil {
 			return fmt.Errorf("%w: %w", domainError.ErrReservationOperation, touchErr)
 		}
-		aggregate, buildErr := reservation.NewFromCreateRequest(req, contact.ID, phone.Value(), origin, now)
+		var decided reservation.Decision
+		if req.Source == dto.ReservationSourceWhatsApp {
+			var decideErr error
+			if decided, decideErr = s.decide(ctx, req, now); decideErr != nil {
+				return decideErr
+			}
+		}
+		aggregate, buildErr := reservation.NewFromCreateRequest(req, contact.ID, phone.Value(), origin, decided, now)
 		if buildErr != nil {
 			return buildErr
 		}
@@ -91,13 +98,34 @@ func (s *ReservationService) Create(ctx context.Context, req *dto.CreateReservat
 		if createErr := s.reservations.Create(ctx, created); createErr != nil {
 			return fmt.Errorf("%w: create reservation: %w", domainError.ErrReservationOperation, createErr)
 		}
-		return s.events.RecordReservation(ctx, created, now)
+		return s.events.RecordReservationCreated(ctx, created, now)
 	})
 	if err != nil {
 		return nil, err
 	}
 	s.live.ReservationChanged(ctx, created)
 	return created, nil
+}
+
+// decide runs inside the create's unit of work, so the day's lock is held until the reservation is stored.
+func (s *ReservationService) decide(ctx context.Context, req *dto.CreateReservationRequest, now time.Time) (reservation.Decision, error) {
+	view, err := s.settings.Get(ctx)
+	if err != nil {
+		return reservation.Decision{}, fmt.Errorf("%w: read reservation settings: %w", domainError.ErrReservationOperation, err)
+	}
+	loc := time.UTC
+	if view.Reservations.AutoConfirmEnabled {
+		if loc, err = time.LoadLocation(view.Timezone); err != nil {
+			return reservation.Decision{}, fmt.Errorf("%w: load organization timezone %q: %w", domainError.ErrReservationOperation, view.Timezone, err)
+		}
+	}
+	return reservation.Decide(view.Reservations, req, now, loc, func(dayStart, dayEnd time.Time) (int, error) {
+		guests, countErr := s.reservations.LockDayAndCountGuests(ctx, dayStart, dayEnd)
+		if countErr != nil {
+			return 0, fmt.Errorf("%w: count confirmed guests: %w", domainError.ErrReservationOperation, countErr)
+		}
+		return guests, nil
+	})
 }
 
 func (s *ReservationService) Get(ctx context.Context, id string) (*dto.Reservation, error) {

@@ -307,6 +307,64 @@ func (_c *MockReservationRepository_ListConfirmedStartedBefore_Call) RunAndRetur
 	return _c
 }
 
+// LockDayAndCountGuests provides a mock function with given fields: ctx, dayStart, dayEnd
+func (_m *MockReservationRepository) LockDayAndCountGuests(ctx context.Context, dayStart time.Time, dayEnd time.Time) (int, error) {
+	ret := _m.Called(ctx, dayStart, dayEnd)
+
+	if len(ret) == 0 {
+		panic("no return value specified for LockDayAndCountGuests")
+	}
+
+	var r0 int
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time, time.Time) (int, error)); ok {
+		return rf(ctx, dayStart, dayEnd)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time, time.Time) int); ok {
+		r0 = rf(ctx, dayStart, dayEnd)
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, time.Time, time.Time) error); ok {
+		r1 = rf(ctx, dayStart, dayEnd)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockReservationRepository_LockDayAndCountGuests_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'LockDayAndCountGuests'
+type MockReservationRepository_LockDayAndCountGuests_Call struct {
+	*mock.Call
+}
+
+// LockDayAndCountGuests is a helper method to define mock.On call
+//   - ctx context.Context
+//   - dayStart time.Time
+//   - dayEnd time.Time
+func (_e *MockReservationRepository_Expecter) LockDayAndCountGuests(ctx interface{}, dayStart interface{}, dayEnd interface{}) *MockReservationRepository_LockDayAndCountGuests_Call {
+	return &MockReservationRepository_LockDayAndCountGuests_Call{Call: _e.mock.On("LockDayAndCountGuests", ctx, dayStart, dayEnd)}
+}
+
+func (_c *MockReservationRepository_LockDayAndCountGuests_Call) Run(run func(ctx context.Context, dayStart time.Time, dayEnd time.Time)) *MockReservationRepository_LockDayAndCountGuests_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(time.Time), args[2].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockReservationRepository_LockDayAndCountGuests_Call) Return(_a0 int, _a1 error) *MockReservationRepository_LockDayAndCountGuests_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockReservationRepository_LockDayAndCountGuests_Call) RunAndReturn(run func(context.Context, time.Time, time.Time) (int, error)) *MockReservationRepository_LockDayAndCountGuests_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Update provides a mock function with given fields: ctx, reservation, from
 func (_m *MockReservationRepository) Update(ctx context.Context, reservation *dto.Reservation, from dto.ReservationStatus) error {
 	ret := _m.Called(ctx, reservation, from)

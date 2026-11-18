@@ -168,6 +168,54 @@ func (_c *MockMarketingEventRecorder_RecordReservation_Call) RunAndReturn(run fu
 	return _c
 }
 
+// RecordReservationCreated provides a mock function with given fields: ctx, reservation, at
+func (_m *MockMarketingEventRecorder) RecordReservationCreated(ctx context.Context, reservation *dto.Reservation, at time.Time) error {
+	ret := _m.Called(ctx, reservation, at)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RecordReservationCreated")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *dto.Reservation, time.Time) error); ok {
+		r0 = rf(ctx, reservation, at)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockMarketingEventRecorder_RecordReservationCreated_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RecordReservationCreated'
+type MockMarketingEventRecorder_RecordReservationCreated_Call struct {
+	*mock.Call
+}
+
+// RecordReservationCreated is a helper method to define mock.On call
+//   - ctx context.Context
+//   - reservation *dto.Reservation
+//   - at time.Time
+func (_e *MockMarketingEventRecorder_Expecter) RecordReservationCreated(ctx interface{}, reservation interface{}, at interface{}) *MockMarketingEventRecorder_RecordReservationCreated_Call {
+	return &MockMarketingEventRecorder_RecordReservationCreated_Call{Call: _e.mock.On("RecordReservationCreated", ctx, reservation, at)}
+}
+
+func (_c *MockMarketingEventRecorder_RecordReservationCreated_Call) Run(run func(ctx context.Context, reservation *dto.Reservation, at time.Time)) *MockMarketingEventRecorder_RecordReservationCreated_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*dto.Reservation), args[2].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockMarketingEventRecorder_RecordReservationCreated_Call) Return(_a0 error) *MockMarketingEventRecorder_RecordReservationCreated_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockMarketingEventRecorder_RecordReservationCreated_Call) RunAndReturn(run func(context.Context, *dto.Reservation, time.Time) error) *MockMarketingEventRecorder_RecordReservationCreated_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockMarketingEventRecorder creates a new instance of MockMarketingEventRecorder. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockMarketingEventRecorder(t interface {

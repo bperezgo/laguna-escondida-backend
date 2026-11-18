@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"laguna-escondida/backend/internal/domain/dto"
@@ -31,6 +32,7 @@ type reservationModel struct {
 	Notes         *string    `gorm:"column:notes"`
 	Source        string     `gorm:"column:source"`
 	Status        string     `gorm:"column:status"`
+	PendingReason *string    `gorm:"column:pending_reason"`
 	DeclineReason *string    `gorm:"column:decline_reason"`
 	CancelledBy   *string    `gorm:"column:cancelled_by"`
 	VisitedAt     *time.Time `gorm:"column:visited_at"`
@@ -67,6 +69,7 @@ func (r *ReservationRepository) Create(ctx context.Context, reservation *dto.Res
 		Notes:         reservation.Notes,
 		Source:        string(reservation.Source),
 		Status:        string(reservation.Status),
+		PendingReason: (*string)(reservation.PendingReason),
 		DeclineReason: reservation.DeclineReason,
 		CancelledBy:   (*string)(reservation.CancelledBy),
 		VisitedAt:     reservation.VisitedAt,
@@ -153,6 +156,31 @@ func (r *ReservationRepository) ListAwaitingFeedback(ctx context.Context, visite
 	})
 }
 
+func (r *ReservationRepository) LockDayAndCountGuests(ctx context.Context, dayStart, dayEnd time.Time) (int, error) {
+	orgID, err := postgres.OrgID(ctx)
+	if err != nil {
+		return 0, err
+	}
+	lockKey := "reservations:" + orgID + ":" + dayStart.UTC().Format(time.RFC3339)
+	if err = postgres.GetTxOrDB(ctx, r.db).Exec("SELECT pg_advisory_xact_lock(hashtext(?))", lockKey).Error; err != nil {
+		return 0, fmt.Errorf("lock reservation day: %w", err)
+	}
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return 0, err
+	}
+	var guests int
+	err = db.Model(&reservationModel{}).
+		Select("COALESCE(SUM(party_size), 0)").
+		Where("status IN ? AND starts_at >= ? AND starts_at < ?",
+			[]string{string(dto.ReservationStatusConfirmed), string(dto.ReservationStatusVisited)}, dayStart, dayEnd).
+		Scan(&guests).Error
+	if err != nil {
+		return 0, fmt.Errorf("count the day's confirmed guests: %w", err)
+	}
+	return guests, nil
+}
+
 func (r *ReservationRepository) find(ctx context.Context, narrow func(*gorm.DB) *gorm.DB) ([]*dto.Reservation, error) {
 	db, err := postgres.TenantDB(ctx, r.db)
 	if err != nil {
@@ -183,6 +211,7 @@ func (row *reservationRow) toDTO() *dto.Reservation {
 		Notes:             m.Notes,
 		Source:            dto.ReservationSource(m.Source),
 		Status:            dto.ReservationStatus(m.Status),
+		PendingReason:     (*dto.ReservationPendingReason)(m.PendingReason),
 		DeclineReason:     m.DeclineReason,
 		CancelledBy:       (*dto.ReservationCancelledBy)(m.CancelledBy),
 		VisitedAt:         m.VisitedAt,
