@@ -32,6 +32,11 @@ pre-commit:
       glob: "backend/**"
       run: make lint
 
+    - name: frontend-typecheck
+      root: frontend/
+      glob: "frontend/**"
+      run: pnpm exec tsc --noEmit
+
 pre-push:
   parallel: false
   jobs:
@@ -49,3 +54,7 @@ pre-push:
           echo "⚠  govulncheck not installed — skipping local vuln scan (also run in CI)."
           echo "   Install: go install golang.org/x/vuln/cmd/govulncheck@latest"
         fi
+    - name: frontend-test
+      root: frontend/
+      glob: "frontend/**"
+      run: pnpm test
