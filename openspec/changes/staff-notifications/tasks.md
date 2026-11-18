@@ -22,9 +22,9 @@
 
 ## 4. Notifications: foundations
 
-- [ ] 4.1 Add `internal/domain/dto/staff_notification.go` (event and channel type constants, `NotificationConditions`, `ChannelSettings`/`DiscordSettings`, `NotificationSubject`, `StaffMessage`/`MessageField`, `SendOutcome`, notification row and status) and `internal/domain/ports/staff_notifications.go` (channel, rule and notification repositories, `StaffNotificationSender`, `StaffNotificationSenders`, `SecretCipher`). Run `make generate-mocks` and verify with `go build ./...`
-- [ ] 4.2 Add `internal/platform/crypto/aes_gcm_cipher.go` (format `0x01|nonce|ciphertext`). Verify with unit tests for round-trip, a tampered ciphertext, an unknown version and a bad key length
-- [ ] 4.3 Add `internal/platform/config/staff_notifications.go` for `NOTIFICATION_SECRETS_KEY` (missing means off, malformed is a startup error) and load it in `LoadCloud`. Verify with config tests for the three cases
+- [x] 4.1 Add `internal/domain/dto/staff_notification.go` (event and channel type constants, `NotificationConditions`, `ChannelSettings`/`DiscordSettings`, `NotificationSubject`, `StaffMessage`/`MessageField`, `SendOutcome`, notification row and status) and `internal/domain/ports/staff_notifications.go` (channel, rule and notification repositories, `StaffNotificationSender`, `StaffNotificationSenders`, `SecretCipher`). Run `make generate-mocks` and verify with `go build ./...`
+- [x] 4.2 Add `internal/platform/crypto/aes_gcm_cipher.go` (format `0x01|nonce|ciphertext`). Verify with unit tests for round-trip, a tampered ciphertext, an unknown version and a bad key length
+- [x] 4.3 Add `internal/platform/config/staff_notifications.go` for `NOTIFICATION_SECRETS_KEY` (missing means off, malformed is a startup error) and load it in `LoadCloud`. Verify with config tests for the three cases
 
 ## 5. Notifications: channels and rules
 

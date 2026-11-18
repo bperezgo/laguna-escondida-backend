@@ -28,6 +28,8 @@ type Cloud struct {
 
 	// MarketingEvents sends agent order and reservation events to marketing-app; off without its URL.
 	MarketingEvents MarketingEvents
+	// StaffNotifications is the key for encrypting channel secrets; notifications are off without it.
+	StaffNotifications StaffNotifications
 	// FeedbackRequestCron asks for feedback the morning after visits; ReservationVisitedCron marks
 	// confirmed reservations visited two hours after they start.
 	FeedbackRequestCron    string
@@ -81,6 +83,10 @@ func LoadCloud() (*Cloud, error) {
 	if err != nil {
 		return nil, err
 	}
+	staffNotifications, err := loadStaffNotifications()
+	if err != nil {
+		return nil, err
+	}
 	feedbackRequestCron := envOr("FEEDBACK_REQUEST_CRON", "5 * * * *")
 	if err = validateCronExpression("FEEDBACK_REQUEST_CRON", feedbackRequestCron); err != nil {
 		return nil, err
@@ -100,6 +106,7 @@ func LoadCloud() (*Cloud, error) {
 		TelemetryForwardURL:    telemetryForwardURL,
 		TelemetryTenantID:      telemetryTenantID,
 		MarketingEvents:        marketingEvents,
+		StaffNotifications:     staffNotifications,
 		FeedbackRequestCron:    feedbackRequestCron,
 		ReservationVisitedCron: reservationVisitedCron,
 	}, nil
