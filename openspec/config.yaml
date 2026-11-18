@@ -35,6 +35,12 @@ rules:
     - Keep proposals under 500 words
     
 operations:
+  apply:
+    guidance:
+      - Read only files listed in design.md "Implementation map"; don't explore beyond them unless a build error points elsewhere
+      - Run targeted tests (go test ./internal/domain/service -run TestXxx) while iterating; full make test/lint once at section end, piped through | tail -40
+      - Don't read docs/playbooks/ARCHITECTURE.md unless the task touches DI wiring or a new aggregate
+      - If the spec is ambiguous, stop and append the question to design.md "Open questions" — never invent a decision
   archive:
     guidance:
       - Summarize the archive outcome before finishing
