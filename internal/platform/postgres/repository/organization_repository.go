@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"laguna-escondida/backend/internal/domain/aggregate/ordering"
+	"laguna-escondida/backend/internal/domain/aggregate/reservation"
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
@@ -219,10 +220,11 @@ func organizationToDTO(m *organizationModel) *dto.Organization {
 
 // decodeOrganizationSettings reads NULL, and a hand-edited value that doesn't parse, as unconfigured.
 func decodeOrganizationSettings(raw []byte) dto.OrganizationSettings {
-	var settings dto.OrganizationSettings
+	settings := dto.OrganizationSettings{Reservations: reservation.DefaultSettings()}
 	if len(raw) > 0 && json.Unmarshal(raw, &settings) != nil {
-		settings = dto.OrganizationSettings{}
+		settings = dto.OrganizationSettings{Reservations: reservation.DefaultSettings()}
 	}
 	settings.Ordering = ordering.Normalize(settings.Ordering)
+	settings.Reservations = reservation.NormalizeSettings(settings.Reservations)
 	return settings
 }

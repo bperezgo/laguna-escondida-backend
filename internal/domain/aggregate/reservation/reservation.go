@@ -39,6 +39,7 @@ type Aggregate struct {
 	notes             *string
 	source            dto.ReservationSource
 	status            dto.ReservationStatus
+	pendingReason     *dto.ReservationPendingReason
 	declineReason     *string
 	cancelledBy       *dto.ReservationCancelledBy
 	visitedAt         *time.Time
@@ -48,9 +49,9 @@ type Aggregate struct {
 	updatedAt         time.Time
 }
 
-// NewFromCreateRequest validates a new reservation. A WhatsApp request waits for staff; anything
-// staff enter is already confirmed.
-func NewFromCreateRequest(req *dto.CreateReservationRequest, contactID, phone string, origin dto.Origin, now time.Time) (*Aggregate, error) {
+// NewFromCreateRequest validates a new reservation. A WhatsApp request is stored as decided (requested
+// when decided is zero); anything staff enter is already confirmed.
+func NewFromCreateRequest(req *dto.CreateReservationRequest, contactID, phone string, origin dto.Origin, decided Decision, now time.Time) (*Aggregate, error) {
 	name, err := validateName(req.Name)
 	if err != nil {
 		return nil, err
@@ -66,29 +67,30 @@ func NewFromCreateRequest(req *dto.CreateReservationRequest, contactID, phone st
 	if err != nil {
 		return nil, err
 	}
-	status, err := initialStatus(req.Source)
+	status, pendingReason, err := initialStatus(req.Source, decided)
 	if err != nil {
 		return nil, err
 	}
 	return &Aggregate{
-		id:           uuid.Must(uuid.NewV7()).String(),
-		contactID:    contactID,
-		contactPhone: phone,
-		name:         name,
-		partySize:    req.PartySize,
-		startsAt:     startsAt,
-		notes:        notes,
-		source:       req.Source,
-		status:       status,
-		origin:       origin,
-		createdAt:    now,
-		updatedAt:    now,
+		id:            uuid.Must(uuid.NewV7()).String(),
+		contactID:     contactID,
+		contactPhone:  phone,
+		name:          name,
+		partySize:     req.PartySize,
+		startsAt:      startsAt,
+		notes:         notes,
+		source:        req.Source,
+		status:        status,
+		pendingReason: pendingReason,
+		origin:        origin,
+		createdAt:     now,
+		updatedAt:     now,
 	}, nil
 }
 
 // ValidateRequest checks the request's own fields before any contact is written for it.
 func ValidateRequest(req *dto.CreateReservationRequest, now time.Time) error {
-	_, err := NewFromCreateRequest(req, "", "", dto.Origin{}, now)
+	_, err := NewFromCreateRequest(req, "", "", dto.Origin{}, Decision{}, now)
 	return err
 }
 
@@ -103,6 +105,7 @@ func FromDTO(r *dto.Reservation) *Aggregate {
 		notes:             r.Notes,
 		source:            r.Source,
 		status:            r.Status,
+		pendingReason:     r.PendingReason,
 		declineReason:     r.DeclineReason,
 		cancelledBy:       r.CancelledBy,
 		visitedAt:         r.VisitedAt,
@@ -200,6 +203,7 @@ func (a *Aggregate) ToDTO() *dto.Reservation {
 		Notes:             a.notes,
 		Source:            a.source,
 		Status:            a.status,
+		PendingReason:     a.pendingReason,
 		DeclineReason:     a.declineReason,
 		CancelledBy:       a.cancelledBy,
 		VisitedAt:         a.visitedAt,
@@ -210,14 +214,17 @@ func (a *Aggregate) ToDTO() *dto.Reservation {
 	}
 }
 
-func initialStatus(source dto.ReservationSource) (dto.ReservationStatus, error) {
+func initialStatus(source dto.ReservationSource, decided Decision) (dto.ReservationStatus, *dto.ReservationPendingReason, error) {
 	switch source {
 	case dto.ReservationSourceWhatsApp:
-		return dto.ReservationStatusRequested, nil
+		if decided.Status == dto.ReservationStatusConfirmed {
+			return dto.ReservationStatusConfirmed, nil, nil
+		}
+		return dto.ReservationStatusRequested, decided.PendingReason, nil
 	case dto.ReservationSourcePhone, dto.ReservationSourceWalkIn, dto.ReservationSourceStaff:
-		return dto.ReservationStatusConfirmed, nil
+		return dto.ReservationStatusConfirmed, nil, nil
 	}
-	return "", &domainError.ValidationError{Field: "source", Reason: "must be whatsapp, phone, walk_in or staff"}
+	return "", nil, &domainError.ValidationError{Field: "source", Reason: "must be whatsapp, phone, walk_in or staff"}
 }
 
 func validateName(raw string) (string, error) {

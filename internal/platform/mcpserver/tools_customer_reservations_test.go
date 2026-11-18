@@ -29,7 +29,8 @@ func callerHeaders(extra map[string]string) map[string]string {
 	return headers
 }
 
-// reservationBackend answers the reservation and feedback endpoints from a fixed store.
+// reservationBackend answers the reservation and feedback endpoints from a fixed store. A create for
+// at most 4 comes back confirmed, as a policy would; any other is requested with auto-confirm off.
 func reservationBackend(t *testing.T, stored []*dto.Reservation, feedback func(w http.ResponseWriter, b *fakeBackend)) *fakeBackend {
 	b := newFakeBackend(t)
 	b.override = func(w http.ResponseWriter, r *http.Request) bool {
@@ -42,10 +43,15 @@ func reservationBackend(t *testing.T, stored []*dto.Reservation, feedback func(w
 				return true
 			}
 			startsAt, _ := time.Parse(time.RFC3339, req.StartsAt)
-			b.writeJSON(w, http.StatusCreated, dto.Reservation{
+			created := dto.Reservation{
 				ID: testReservationID, ContactPhone: req.CustomerPhone, Name: req.Name, PartySize: req.PartySize, StartsAt: startsAt,
-				Source: req.Source, Status: dto.ReservationStatusRequested, Origin: dto.Origin{ChannelID: req.Origin.ChannelID},
-			})
+				Source: req.Source, Status: dto.ReservationStatusConfirmed, Origin: dto.Origin{ChannelID: req.Origin.ChannelID},
+			}
+			if req.PartySize > 4 {
+				disabled := dto.PendingReasonDisabled
+				created.Status, created.PendingReason = dto.ReservationStatusRequested, &disabled
+			}
+			b.writeJSON(w, http.StatusCreated, created)
 		case r.Method == http.MethodGet && r.URL.Path == "/api/reservations":
 			b.writeJSON(w, http.StatusOK, dto.ReservationListResponse{Reservations: stored, Total: len(stored)})
 		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/cancel"):
@@ -99,9 +105,25 @@ func TestCreateMyReservation_BookingForSixAtEight(t *testing.T) {
 	assert.Equal(t, "Ana", view["name"])
 	assert.EqualValues(t, 6, view["party_size"])
 	assert.Equal(t, "requested", view["status"])
+	assert.Equal(t, "disabled", view["pending_reason"])
 	for _, hidden := range []string{"ch_1", "conv_9", "meta_ctwa", "120210000000001", "origin"} {
 		assert.NotContains(t, text, hidden, "the model never sees the origin")
 	}
+}
+
+func TestCreateMyReservation_ATableThePolicyConfirms(t *testing.T) {
+	backend := reservationBackend(t, nil, nil)
+	cs := connectCustomer(t, backend, callerHeaders(map[string]string{channelIDHeader: "ch_1"}))
+	now := time.Now()
+	noon := time.Date(now.Year(), now.Month(), now.Day()+1, 12, 0, 0, 0, now.Location()).Format(time.RFC3339)
+
+	text, isErr := call(t, cs, "create_my_reservation", map[string]any{"name": "Ana", "party_size": 4, "starts_at": noon})
+
+	require.False(t, isErr, text)
+	var view map[string]any
+	require.NoError(t, json.Unmarshal([]byte(text), &view))
+	assert.Equal(t, "confirmed", view["status"])
+	assert.NotContains(t, view, "pending_reason")
 }
 
 func TestCreateMyReservation_NoChannelHeader(t *testing.T) {
@@ -129,6 +151,13 @@ func TestCreateMyReservation_DescriptionSaysStaffConfirm(t *testing.T) {
 	description := toolDescription(t, connectInMemory(t, NewMCPServer(testClient("http://backend.invalid"), ToolsetCustomer)), "create_my_reservation")
 
 	assert.Contains(t, description, "staff will confirm")
+	assert.Contains(t, description, "If it is confirmed, the table is booked")
+}
+
+func TestGetMyReservations_DropsThePendingReasonOnceAnswered(t *testing.T) {
+	partySize := dto.PendingReasonPartySize
+	assert.Nil(t, viewReservation(&dto.Reservation{Status: dto.ReservationStatusConfirmed, PendingReason: &partySize}).PendingReason)
+	assert.Equal(t, &partySize, viewReservation(&dto.Reservation{Status: dto.ReservationStatusRequested, PendingReason: &partySize}).PendingReason)
 }
 
 func TestGetMyReservations_OnlyTheCallersNewestFirst(t *testing.T) {

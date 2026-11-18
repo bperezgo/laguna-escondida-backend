@@ -20,6 +20,10 @@ type ReservationRepository interface {
 	List(ctx context.Context, filter dto.ReservationListFilter) ([]*dto.Reservation, error)
 	// ListConfirmedStartedBefore returns confirmed reservations whose starts_at is before cutoff.
 	ListConfirmedStartedBefore(ctx context.Context, cutoff time.Time) ([]*dto.Reservation, error)
+	// LockDayAndCountGuests must run inside a unit of work: it holds the organization's lock for the
+	// day [dayStart, dayEnd) until commit, then sums the party sizes of its confirmed and visited
+	// reservations, so two requests for the same day can't both read the same count.
+	LockDayAndCountGuests(ctx context.Context, dayStart, dayEnd time.Time) (int, error)
 	// ListAwaitingFeedback returns visited reservations with a channel and no feedback request,
 	// that became visited at or after visitedSince.
 	ListAwaitingFeedback(ctx context.Context, visitedSince time.Time) ([]*dto.Reservation, error)

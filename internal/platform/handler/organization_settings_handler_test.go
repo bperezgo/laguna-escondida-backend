@@ -57,7 +57,9 @@ func storeMerges(repo *mocks.MockOrganizationSettingsRepository) {
 
 func TestOrganizationSettingsHandler_Get_200(t *testing.T) {
 	repo := mocks.NewMockOrganizationSettingsRepository(t)
-	repo.EXPECT().Get(mock.Anything).Return(&dto.OrganizationSettingsView{Timezone: "America/Bogota"}, nil).Once()
+	repo.EXPECT().Get(mock.Anything).Return(&dto.OrganizationSettingsView{
+		Timezone: "America/Bogota", Reservations: dto.ReservationSettings{MaxPartySize: 8, MinNoticeMinutes: 120},
+	}, nil).Once()
 
 	rec := serve(settingsRouter(t, repo, permissions.RoleAgent), http.MethodGet, "")
 
@@ -68,6 +70,10 @@ func TestOrganizationSettingsHandler_Get_200(t *testing.T) {
 			"takeaway": {"paused": false, "paused_reason": null, "schedule": []}
 		},
 		"feedback": {"review_link_enabled": false, "review_url": ""},
+		"reservations": {
+			"auto_confirm_enabled": false, "max_party_size": 8, "min_notice_minutes": 120,
+			"daily_guest_cap": null, "schedule": []
+		},
 		"availability": {
 			"delivery": {"available": true, "reason": null, "paused_reason": null, "closes_at": null, "next_opens_at": null},
 			"takeaway": {"available": true, "reason": null, "paused_reason": null, "closes_at": null, "next_opens_at": null}
@@ -221,5 +227,59 @@ func TestOrganizationSettingsHandler_PatchFeedback_403WithoutThePermission(t *te
 		assert.Equal(t, http.StatusForbidden, rec.Code, "role %d", role)
 		assert.Contains(t, rec.Body.String(), "settings:feedback:update")
 		repo.AssertNotCalled(t, "UpdateFeedback", mock.Anything, mock.Anything)
+	}
+}
+
+func reservationDefaults() dto.ReservationSettings {
+	return dto.ReservationSettings{MaxPartySize: 8, MinNoticeMinutes: 120, Schedule: []dto.OpeningWindow{}}
+}
+
+// storeReservationMerges applies a reservations patch to the defaults the way the real repository does.
+func storeReservationMerges(repo *mocks.MockOrganizationSettingsRepository) {
+	repo.EXPECT().Get(mock.Anything).Return(&dto.OrganizationSettingsView{Timezone: "America/Bogota", Reservations: reservationDefaults()}, nil).Once()
+	repo.EXPECT().UpdateReservations(mock.Anything, mock.Anything).
+		RunAndReturn(func(_ context.Context, merge ports.ReservationsMerge) (*dto.OrganizationSettingsView, error) {
+			next, err := merge(reservationDefaults())
+			if err != nil {
+				return nil, err
+			}
+			return &dto.OrganizationSettingsView{Reservations: next, Timezone: "America/Bogota"}, nil
+		}).Maybe()
+}
+
+func TestOrganizationSettingsHandler_PatchReservations_TurningAutoConfirmOn(t *testing.T) {
+	repo := mocks.NewMockOrganizationSettingsRepository(t)
+	storeReservationMerges(repo)
+
+	rec := serve(settingsRouter(t, repo, permissions.RoleManager), http.MethodPatch,
+		`{"reservations":{"auto_confirm_enabled":true,"daily_guest_cap":120}}`)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(),
+		`"reservations":{"auto_confirm_enabled":true,"max_party_size":8,"min_notice_minutes":120,"daily_guest_cap":120,"schedule":[]}`)
+	repo.AssertNotCalled(t, "UpdateOrdering", mock.Anything, mock.Anything)
+}
+
+func TestOrganizationSettingsHandler_PatchReservations_EnabledWithoutACap(t *testing.T) {
+	repo := mocks.NewMockOrganizationSettingsRepository(t)
+	storeReservationMerges(repo)
+
+	rec := serve(settingsRouter(t, repo, permissions.RoleManager), http.MethodPatch, `{"reservations":{"auto_confirm_enabled":true}}`)
+
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+	assert.JSONEq(t, `{"error":"invalid reservations.daily_guest_cap: is required while auto-confirm is enabled",
+		"code":"INVALID_SETTINGS","field":"reservations.daily_guest_cap"}`, rec.Body.String())
+	repo.AssertNotCalled(t, "UpdateReservations", mock.Anything, mock.Anything)
+}
+
+func TestOrganizationSettingsHandler_PatchReservations_403WithoutThePermission(t *testing.T) {
+	for _, role := range []int{permissions.RoleAgent, permissions.RoleAccountant} {
+		repo := mocks.NewMockOrganizationSettingsRepository(t)
+
+		rec := serve(settingsRouter(t, repo, role), http.MethodPatch, `{"reservations":{"auto_confirm_enabled":true,"daily_guest_cap":120}}`)
+
+		assert.Equal(t, http.StatusForbidden, rec.Code, "role %d", role)
+		assert.Contains(t, rec.Body.String(), "settings:reservations:update")
+		repo.AssertNotCalled(t, "UpdateReservations", mock.Anything, mock.Anything)
 	}
 }

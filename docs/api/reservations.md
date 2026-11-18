@@ -1,13 +1,16 @@
 # Reservations API
 
-Table reservations, from a guest's WhatsApp request or entered by staff. v1 records reservations and lets staff answer them; there are no tables, time slots or capacity checks.
+Table reservations, from a guest's WhatsApp request or entered by staff. Staff answer requests, and an optional [auto-confirm policy](#auto-confirm-policy) confirms ordinary WhatsApp requests at once. There are no tables or time slots; the only capacity check is the policy's daily guest cap.
 
 **Cloud only.** These routes are not served on the box (edge); every one returns `404` there.
 
 ## Lifecycle
 
 ```
-            staff confirm             starts_at + 2h (job)
+  whatsapp, policy accepts ----------+
+  whatsapp, otherwise                |
+       |                             v
+       v    staff confirm             starts_at + 2h (job)
  requested -------------> confirmed ------------------------> visited
      |  \                   |   \                              |
      |   \ staff decline    |    \ staff no-show               | staff no-show,
@@ -20,7 +23,7 @@ Table reservations, from a guest's WhatsApp request or entered by staff. v1 reco
  cancelled (guest/staff)    cancelled (guest/staff)
 ```
 
-- A `whatsapp` reservation starts as `requested`; one entered by staff (`phone`, `walk_in`, `staff`) starts as `confirmed`.
+- A `whatsapp` reservation starts as `confirmed` when the organization's [auto-confirm policy](#auto-confirm-policy) accepts it, and as `requested` otherwise, with a `pending_reason`. One entered by staff (`phone`, `walk_in`, `staff`) starts as `confirmed`.
 - A cloud job runs every 15 minutes and moves each `confirmed` reservation to `visited` two hours after its `starts_at`.
 - A request nobody answered in time can still be closed: confirm it if the guest came (the job then moves it to `visited`), or mark a no-show.
 - Any other move answers `409 INVALID_RESERVATION_TRANSITION` and changes nothing.
@@ -31,7 +34,7 @@ Table reservations, from a guest's WhatsApp request or entered by staff. v1 reco
 | Status      | Meaning                                                 |
 | ----------- | ------------------------------------------------------- |
 | `requested` | Asked for through the WhatsApp agent; waiting for staff |
-| `confirmed` | Staff confirmed it, or entered it themselves            |
+| `confirmed` | Staff confirmed it or entered it themselves, or the auto-confirm policy accepted it |
 | `visited`   | Two hours past its start while confirmed                |
 | `declined`  | Staff turned the request down                           |
 | `cancelled` | Cancelled by the guest or by staff (`cancelled_by`)     |
@@ -39,7 +42,7 @@ Table reservations, from a guest's WhatsApp request or entered by staff. v1 reco
 
 | Source     | Who creates it                     | Starts as   |
 | ---------- | ---------------------------------- | ----------- |
-| `whatsapp` | The customer agent                 | `requested` |
+| `whatsapp` | The customer agent                 | `confirmed` or `requested`, as the [policy](#auto-confirm-policy) decides |
 | `phone`    | Staff, for a booking taken by phone | `confirmed` |
 | `walk_in`  | Staff, for a guest at the door     | `confirmed` |
 | `staff`    | Staff, any other way               | `confirmed` |
@@ -80,6 +83,7 @@ Table reservations, from a guest's WhatsApp request or entered by staff. v1 reco
 | notes                | string  | Optional                                                                 |
 | source               | string  | `whatsapp`, `phone`, `walk_in` or `staff`                                |
 | status               | string  | See [statuses](#statuses-and-sources)                                    |
+| pending_reason       | string  | Only on a `whatsapp` reservation created `requested`: the first [policy](#auto-confirm-policy) rule it failed. Set once and kept after staff answer it |
 | decline_reason       | string  | Set when declined with a reason                                          |
 | cancelled_by         | string  | `customer` or `staff`, set when cancelled                                |
 | visited_at           | string  | When it became `visited`                                                 |
@@ -152,6 +156,7 @@ To find every request still waiting for staff, whatever its day, ask for `status
       "starts_at": "2026-11-10T01:00:00Z",
       "source": "whatsapp",
       "status": "requested",
+      "pending_reason": "disabled",
       "feedback_requested": false,
       "origin": {
         "channel_id": "ch_1",
@@ -197,7 +202,7 @@ Returns one [reservation](#the-reservation-object).
 POST /api/reservations
 ```
 
-A `whatsapp` reservation needs `reservations:create` and is stored as `requested`. Any other source needs `reservations:manage` and is stored as `confirmed`. The guest's contact is created or updated in the same transaction.
+A `whatsapp` reservation needs `reservations:create` and is stored `confirmed` or `requested` as the [auto-confirm policy](#auto-confirm-policy) decides; the policy never refuses one. Any other source needs `reservations:manage` and is stored as `confirmed`. The guest's contact is created or updated in the same transaction.
 
 ### Request Body
 
@@ -244,6 +249,40 @@ A `whatsapp` reservation needs `reservations:create` and is stored as `requested
 }
 ```
 
+### Example Request (agent)
+
+```json
+{
+  "customer_phone": "573005551234",
+  "name": "Ana",
+  "party_size": 4,
+  "starts_at": "2026-11-09T12:00:00-05:00",
+  "source": "whatsapp",
+  "origin": { "channel_id": "ch_1", "conversation_id": "conv_9" }
+}
+```
+
+### Example Response (201 Created, the policy accepted it)
+
+```json
+{
+  "id": "019a5e1d-0c44-7a8e-b7d2-91f0a6c3e5b2",
+  "contact_id": "019a5e1d-0c43-7d15-8e6a-c2b7f4a19d03",
+  "contact_phone": "+573005551234",
+  "name": "Ana",
+  "party_size": 4,
+  "starts_at": "2026-11-09T17:00:00Z",
+  "source": "whatsapp",
+  "status": "confirmed",
+  "feedback_requested": false,
+  "origin": { "channel_id": "ch_1", "conversation_id": "conv_9" },
+  "created_at": "2026-11-08T20:10:40Z",
+  "updated_at": "2026-11-08T20:10:40Z"
+}
+```
+
+The same request for 10 people is stored `"status": "requested"` with `"pending_reason": "party_size"`.
+
 ### Errors
 
 | Status | Code               | When                                                         |
@@ -254,6 +293,26 @@ A `whatsapp` reservation needs `reservations:create` and is stored as `requested
 ```json
 { "error": "invalid party_size: must be between 1 and 50", "code": "VALIDATION_ERROR", "field": "party_size" }
 ```
+
+---
+
+## Auto-confirm policy
+
+Each organization's `reservations` settings decide whether a `whatsapp` request is confirmed at once. They are set through [`PATCH /api/organization/settings`](./organization-settings.md#reservations), and are off by default. Staff reservations ignore the policy.
+
+A `whatsapp` request is stored `confirmed` when every rule below holds. Otherwise it is stored `requested`, with `pending_reason` set to the first rule that failed, checked in this order:
+
+| `pending_reason`   | The rule that held for a confirmation |
+| ------------------ | ------------------------------------- |
+| `disabled`         | `auto_confirm_enabled` is `true` |
+| `party_size`       | `party_size` is at most `max_party_size` |
+| `notice`           | `starts_at` is at least `min_notice_minutes` after now |
+| `outside_schedule` | The schedule is empty, or `starts_at` falls inside one of its windows (organization timezone) |
+| `daily_cap`        | The `party_size` of that day's `confirmed` and `visited` reservations, from every source, plus this one, is at most `daily_guest_cap`. The day is the organization's calendar day of `starts_at` |
+
+Requests for the same organization and day are checked against the cap one at a time, so two concurrent requests never both take the last seats. A requested reservation then follows the [lifecycle](#lifecycle) like any other.
+
+A reservation the policy confirms records **no** `reservation.confirmed` marketing event: the agent has already told the guest in the chat. Staff screens still receive it on [`/api/sse/reservations`](#endpoints). When staff later confirm a `requested` one, the event is recorded as usual.
 
 ---
 

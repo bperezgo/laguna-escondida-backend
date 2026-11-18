@@ -76,6 +76,10 @@ func (r *CachedOrganizationSettingsRepository) UpdateFeedback(ctx context.Contex
 	return r.invalidateAfter(ctx, func() (*dto.OrganizationSettingsView, error) { return r.inner.UpdateFeedback(ctx, merge) })
 }
 
+func (r *CachedOrganizationSettingsRepository) UpdateReservations(ctx context.Context, merge ports.ReservationsMerge) (*dto.OrganizationSettingsView, error) {
+	return r.invalidateAfter(ctx, func() (*dto.OrganizationSettingsView, error) { return r.inner.UpdateReservations(ctx, merge) })
+}
+
 func (r *CachedOrganizationSettingsRepository) invalidateAfter(ctx context.Context, update func() (*dto.OrganizationSettingsView, error)) (*dto.OrganizationSettingsView, error) {
 	key, err := settingsKey(ctx)
 	if err != nil {
