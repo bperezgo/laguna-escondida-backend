@@ -38,9 +38,9 @@
 
 ## 7. Notifications: persistence and adapters
 
-- [ ] 7.1 Add cloud migrations `000082_create_notification_channels`, `000083_create_notification_rules` (cascade from the channel, partial index on `(organization_id, event)`) and `000084_create_staff_notifications` (unique `(rule_id, event_id)`), each with a down file and tenant isolation. Verify with `make migrate-up` and then `make migrate-down`
-- [ ] 7.2 Implement the channel, rule and notification repositories (org scoping, soft delete, `ON CONFLICT DO NOTHING`, a claim that returns rule and channel liveness plus the encrypted secret). Verify with acceptance tests for org isolation, a cascade on channel delete, and a duplicate insert storing one row
-- [ ] 7.3 Add `discord_webhook_client.go` (prefix in `content`, embed, `allowed_mentions`, `Retry-After`, allow-list re-check) and the sender registry. Verify with an `httptest` test for the body, 204, 404 and 429
+- [x] 7.1 Add cloud migrations `000082_create_notification_channels`, `000083_create_notification_rules` (cascade from the channel, partial index on `(organization_id, event)`) and `000084_create_staff_notifications` (unique `(rule_id, event_id)`), each with a down file and tenant isolation. Verify with `make migrate-up` and then `make migrate-down`
+- [x] 7.2 Implement the channel, rule and notification repositories (org scoping, soft delete, `ON CONFLICT DO NOTHING`, a claim that returns rule and channel liveness plus the encrypted secret). Verify with acceptance tests for org isolation, a cascade on channel delete, and a duplicate insert storing one row
+- [x] 7.3 Add `discord_webhook_client.go` (prefix in `content`, embed, `allowed_mentions`, `Retry-After`, allow-list re-check) and the sender registry. Verify with an `httptest` test for the body, 204, 404 and 429
 
 ## 8. API, wiring and docs
 
