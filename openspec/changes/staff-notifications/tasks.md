@@ -44,9 +44,9 @@
 
 ## 8. API, wiring and docs
 
-- [ ] 8.1 Add `NotificationChannelHandler` and `NotificationRuleHandler` (400, 404, 502 with `destination_status`, 503 `NOTIFICATIONS_DISABLED`) and the `notification-channels:read` and `:manage` permissions for admins and managers. Verify with handler tests for each mapping, a response with `webhook_url_hint` and no `webhook_url`, and the role-permission test (ask before changing existing expectations)
-- [ ] 8.2 Wire everything in `internal/bootstrap/cloud.go`: the publisher into both services, the registry with the staff-notifications consumer (only with the key) and the bridge (empty list), `EventRelayScheduler`, the cipher, senders and services, and `RegisterNotificationRoutes`. On edge the publisher is a no-op. Verify that `go build ./...` passes, `routes_cloud.golden` lists the new routes, and the edge does not serve `/api/notification-channels`
-- [ ] 8.3 Write `docs/api/notification-channels.md` (channels, rules, test, event catalogue, key-loss note) in the format of `docs/api/products.md`, plus curl examples in `docs/examples/curl-examples.md`. Verify that every endpoint in the spec is documented
+- [x] 8.1 Add `NotificationChannelHandler` and `NotificationRuleHandler` (400, 404, 502 with `destination_status`, 503 `NOTIFICATIONS_DISABLED`) and the `notification-channels:read` and `:manage` permissions for admins and managers. Verify with handler tests for each mapping, a response with `webhook_url_hint` and no `webhook_url`, and the role-permission test (ask before changing existing expectations)
+- [x] 8.2 Wire everything in `internal/bootstrap/cloud.go`: the publisher into both services, the registry with the staff-notifications consumer (only with the key) and the bridge (empty list), `EventRelayScheduler`, the cipher, senders and services, and `RegisterNotificationRoutes`. On edge the publisher is a no-op. Verify that `go build ./...` passes, `routes_cloud.golden` lists the new routes, and the edge does not serve `/api/notification-channels`
+- [x] 8.3 Write `docs/api/notification-channels.md` (channels, rules, test, event catalogue, key-loss note) in the format of `docs/api/products.md`, plus curl examples in `docs/examples/curl-examples.md`. Verify that every endpoint in the spec is documented
 
 ## 9. End-to-end
 

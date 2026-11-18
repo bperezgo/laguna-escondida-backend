@@ -36,6 +36,17 @@ GET /api/invoices laguna-escondida/backend/internal/platform/handler.(*InvoiceHa
 POST /api/invoices laguna-escondida/backend/internal/platform/handler.(*InvoiceHandler).CreateElectronicInvoiceHandler-fm
 GET /api/invoices/export laguna-escondida/backend/internal/platform/handler.(*InvoiceHandler).ExportInvoicesCSVHandler-fm
 POST /api/invoices/update-missing-document-urls laguna-escondida/backend/internal/platform/handler.(*InvoiceHandler).UpdateMissingDocumentURLsHandler-fm
+GET /api/notification-channels laguna-escondida/backend/internal/platform/handler.(*NotificationChannelHandler).ListHandler-fm
+POST /api/notification-channels laguna-escondida/backend/internal/platform/handler.(*NotificationChannelHandler).CreateHandler-fm
+DELETE /api/notification-channels/:id laguna-escondida/backend/internal/platform/handler.(*NotificationChannelHandler).DeleteHandler-fm
+GET /api/notification-channels/:id laguna-escondida/backend/internal/platform/handler.(*NotificationChannelHandler).GetHandler-fm
+PUT /api/notification-channels/:id laguna-escondida/backend/internal/platform/handler.(*NotificationChannelHandler).UpdateHandler-fm
+POST /api/notification-channels/:id/test laguna-escondida/backend/internal/platform/handler.(*NotificationChannelHandler).TestHandler-fm
+GET /api/notification-rules laguna-escondida/backend/internal/platform/handler.(*NotificationRuleHandler).ListHandler-fm
+POST /api/notification-rules laguna-escondida/backend/internal/platform/handler.(*NotificationRuleHandler).CreateHandler-fm
+DELETE /api/notification-rules/:id laguna-escondida/backend/internal/platform/handler.(*NotificationRuleHandler).DeleteHandler-fm
+GET /api/notification-rules/:id laguna-escondida/backend/internal/platform/handler.(*NotificationRuleHandler).GetHandler-fm
+PUT /api/notification-rules/:id laguna-escondida/backend/internal/platform/handler.(*NotificationRuleHandler).UpdateHandler-fm
 GET /api/open-bill-products/:area/completed laguna-escondida/backend/internal/platform/handler.(*SSEHandler).GetCompletedOpenBillProductsHandler-fm
 GET /api/open-bill-products/:area/pending laguna-escondida/backend/internal/platform/handler.(*SSEHandler).GetPendingOpenBillProductsHandler-fm
 GET /api/orders laguna-escondida/backend/internal/platform/handler.(*OrderHandler).GetAllActiveOpenBillsHandler-fm

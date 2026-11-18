@@ -119,7 +119,7 @@ func TestNewCloudAndNewEdge_StartNothingBeforeRun(t *testing.T) {
 		assemble   func(Infra) (*App, error)
 		schedulers []string
 	}{
-		{"cloud", cloudAssembly(testCloudConfig()), []string{"cron scheduler", "CRM scheduler"}},
+		{"cloud", cloudAssembly(testCloudConfig()), []string{"cron scheduler", "CRM scheduler", "event relay scheduler"}},
 		// The box never marks visits, asks for feedback or sends marketing events.
 		{"edge", edgeAssembly(testEdgeConfig()), []string{"edge sync scheduler"}},
 	}

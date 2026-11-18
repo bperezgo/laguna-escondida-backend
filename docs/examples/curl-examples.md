@@ -1509,6 +1509,71 @@ curl -X POST "$BASE_URL/stock/opening-balances" \
 
 ---
 
+## Notification Channels (cloud only)
+
+Needs `NOTIFICATION_SECRETS_KEY` on the cloud; without it every call returns `503 NOTIFICATIONS_DISABLED`.
+
+### Create a Discord channel
+
+```bash
+curl -X POST "$BASE_URL/notification-channels" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Domicilios",
+    "type": "discord",
+    "settings": { "webhook_url": "https://discord.com/api/webhooks/123/abcd1234" }
+  }'
+```
+
+### List, rename and delete channels
+
+```bash
+curl "$BASE_URL/notification-channels" -H "Authorization: Bearer $TOKEN"
+
+curl -X PUT "$BASE_URL/notification-channels/$CHANNEL_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "Cocina" }'
+
+curl -X DELETE "$BASE_URL/notification-channels/$CHANNEL_ID" -H "Authorization: Bearer $TOKEN"
+```
+
+### Send a test message (204, or 502 with destination_status)
+
+```bash
+curl -i -X POST "$BASE_URL/notification-channels/$CHANNEL_ID/test" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Notify on paid delivery orders
+
+```bash
+curl -X POST "$BASE_URL/notification-rules" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channel_id": "'"$CHANNEL_ID"'",
+    "event": "order.paid",
+    "conditions": { "order_types": ["delivery"] }
+  }'
+```
+
+### List, disable and delete rules
+
+```bash
+curl "$BASE_URL/notification-rules?channel_id=$CHANNEL_ID" -H "Authorization: Bearer $TOKEN"
+
+curl -X PUT "$BASE_URL/notification-rules/$RULE_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "enabled": false }'
+
+curl -X DELETE "$BASE_URL/notification-rules/$RULE_ID" -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
 ## Edge Update (edge node, admin)
 
 ### Get update state

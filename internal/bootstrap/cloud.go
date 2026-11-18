@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"laguna-escondida/backend/internal/domain/dto"
+	"laguna-escondida/backend/internal/domain/eventconsumer"
 	"laguna-escondida/backend/internal/domain/ports"
 	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/domain/tenant"
@@ -14,6 +15,8 @@ import (
 	"laguna-escondida/backend/internal/platform/cache/memory"
 	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/cron"
+	"laguna-escondida/backend/internal/platform/crypto"
+	platformeventbus "laguna-escondida/backend/internal/platform/eventbus"
 	"laguna-escondida/backend/internal/platform/handler"
 	"laguna-escondida/backend/internal/platform/httpclient"
 	"laguna-escondida/backend/internal/platform/postgres/repository"
@@ -49,6 +52,30 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 	contactService := service.NewContactService(contactRepo, reservationRepo, feedbackRepo)
 	marketingEvents := service.NewMarketingEventService(marketingOutbox, cloudOrganizations, cfg.MarketingEvents, cfg.MarketingEvents.Enabled())
 
+	// Durable events: without the key no staff-notification consumer is registered, so nothing is recorded.
+	// The bridge forwards nothing yet; it is registered so the relay can carry in-memory consumers later.
+	eventConsumers := []ports.EventConsumer{}
+	bridge, err := platformeventbus.NewInMemoryBridgeConsumer(infra.EventBus, []string{})
+	if err != nil {
+		return nil, err
+	}
+	eventConsumers = append(eventConsumers, bridge)
+	staffNotifications := cfg.StaffNotifications.Enabled()
+	notificationRuleRepo := repository.NewNotificationRuleRepository(db)
+	notificationChannelRepo := repository.NewNotificationChannelRepository(db)
+	staffNotificationOutbox := repository.NewStaffNotificationOutboxRepository(db)
+	if staffNotifications {
+		eventConsumers = append(eventConsumers, service.NewStaffNotificationConsumer(
+			notificationRuleRepo, staffNotificationOutbox, cloudOrganizations, repository.NewDeliveryZoneRepository(db), nil))
+	} else {
+		logger.Info("Staff notifications disabled: set NOTIFICATION_SECRETS_KEY (base64, 32 bytes) to enable them")
+	}
+	eventRegistry, err := eventconsumer.NewRegistry(eventConsumers...)
+	if err != nil {
+		return nil, err
+	}
+	domainEvents := repository.NewDomainEventRepository(db, eventRegistry)
+
 	// The cloud owns on-hand and the restaurant learns it back through the daily pull, so a
 	// cloud-origin stock op would never be delivered to anyone.
 	c, err := buildCore(&cfg.Shared, infra, ModeOptions{
@@ -68,6 +95,7 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		OrderOptions: []service.OrderServiceOption{
 			service.WithContactRecorder(contactService),
 			service.WithMarketingEvents(marketingEvents),
+			service.WithEventPublisher(domainEvents),
 		},
 	})
 	if err != nil {
@@ -122,6 +150,7 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 	c.app.sseHubs = append(c.app.sseHubs, reservationHub)
 	reservationService := service.NewReservationService(
 		reservationRepo, contactService, c.unitOfWork, c.orgSettingsRepo, marketingEvents, reservationHub, cfg.PhoneHomeRegion, logger, nil,
+		service.WithReservationEventPublisher(domainEvents),
 	)
 	feedbackService := service.NewFeedbackService(
 		feedbackRepo, reservationRepo, c.unitOfWork, c.orgSettingsRepo, marketingEvents, cfg.PhoneHomeRegion, nil,
@@ -141,6 +170,36 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 				c.organizationRunner, cloudOrganizations, cfg.MarketingEvents, crmJobs,
 				cfg.ReservationVisitedCron, cfg.FeedbackRequestCron, logger,
 			)
+		},
+	})
+
+	var notificationChannelService *service.NotificationChannelService
+	var notificationRuleService *service.NotificationRuleService
+	var staffDelivery *service.StaffNotificationDeliveryService
+	if staffNotifications {
+		cipher, cipherErr := crypto.NewAESGCMCipher(cfg.StaffNotifications.SecretsKey)
+		if cipherErr != nil {
+			return nil, cipherErr
+		}
+		senders := httpclient.NewStaffNotificationSenderRegistry(map[dto.NotificationChannelType]ports.StaffNotificationSender{
+			dto.NotificationChannelDiscord: httpclient.NewDiscordWebhookClient(infra.HTTPClient),
+		})
+		notificationChannelService = service.NewNotificationChannelService(notificationChannelRepo, cipher, senders)
+		notificationRuleService = service.NewNotificationRuleService(notificationRuleRepo, notificationChannelRepo)
+		staffDelivery = service.NewStaffNotificationDeliveryService(staffNotificationOutbox, senders, cipher, logger, nil)
+	}
+	eventRelayService := service.NewEventRelayService(domainEvents, eventRegistry, c.unitOfWork, logger, nil)
+	c.app.schedulers = append(c.app.schedulers, namedScheduler{
+		name: "event relay scheduler",
+		build: func() (scheduler, error) {
+			relayScheduler, err := cron.NewEventRelayScheduler(c.organizationRunner, eventRelayService, logger)
+			if err != nil {
+				return nil, err
+			}
+			if staffDelivery != nil {
+				relayScheduler.WithStaffNotifications(staffDelivery)
+			}
+			return relayScheduler, nil
 		},
 	})
 
@@ -194,6 +253,8 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		reservationLive: handler.NewReservationStreamHandler(reservationHub, logger),
 		contact:         handler.NewContactHandler(contactService),
 		feedback:        handler.NewFeedbackHandler(feedbackService),
+		notifChannel:    handler.NewNotificationChannelHandler(notificationChannelService),
+		notifRule:       handler.NewNotificationRuleHandler(notificationRuleService),
 		nodes:           service.NewNodeService(repository.NewNodeRepository(db)),
 	})
 

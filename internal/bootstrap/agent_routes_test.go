@@ -90,7 +90,8 @@ func fullRouter(mode config.Mode, jwtService *service.JWTService) *gin.Engine {
 			invoice: &handler.InvoiceHandler{}, supportDocument: &handler.SupportDocumentHandler{},
 			sync: &handler.SyncHandler{}, telemetry: &handler.TelemetryHandler{},
 			organization: &handler.OrganizationHandler{}, apiKey: &handler.APIKeyHandler{}, deliveryZone: &handler.DeliveryZoneHandler{},
-			orgSettings: &handler.OrganizationSettingsHandler{},
+			orgSettings:  &handler.OrganizationSettingsHandler{},
+			notifChannel: &handler.NotificationChannelHandler{}, notifRule: &handler.NotificationRuleHandler{},
 		})
 	case config.ModeEdge:
 		registerEdgeRoutes(router, jwtService, &handler.DeviceHandler{})

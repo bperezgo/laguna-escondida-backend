@@ -117,6 +117,12 @@ const (
 	DeliveryZonesManage Permission = "delivery-zones:manage"
 )
 
+// Notification channel permissions cover channels and their rules.
+const (
+	NotificationChannelsRead   Permission = "notification-channels:read"
+	NotificationChannelsManage Permission = "notification-channels:manage"
+)
+
 // Ordering permissions: the pause is split from the hours so a floor role can get the switch alone.
 const (
 	OrderingRead   Permission = "ordering:read"
@@ -188,6 +194,8 @@ func AllPermissions() []Permission {
 		UsersRead, UsersCreate, UsersUpdate, UsersDelete,
 		// Delivery Zones
 		DeliveryZonesRead, DeliveryZonesManage,
+		// Notification Channels
+		NotificationChannelsRead, NotificationChannelsManage,
 		// Ordering
 		OrderingRead, OrderingPause, OrderingManage,
 		// Reservations

@@ -68,6 +68,8 @@ var RolePermissions = map[int][]Permission{
 		UsersRead,
 		// Delivery Zones - full access
 		DeliveryZonesRead, DeliveryZonesManage,
+		// Notification Channels - full access
+		NotificationChannelsRead, NotificationChannelsManage,
 		// Ordering - full access
 		OrderingRead, OrderingPause, OrderingManage,
 		// Reservations and feedback - manage, never create requests on the agent's behalf

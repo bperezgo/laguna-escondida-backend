@@ -22,6 +22,8 @@ type cloudHandlers struct {
 	reservationLive *handler.ReservationStreamHandler
 	contact         *handler.ContactHandler
 	feedback        *handler.FeedbackHandler
+	notifChannel    *handler.NotificationChannelHandler
+	notifRule       *handler.NotificationRuleHandler
 	nodes           *service.NodeService
 }
 
@@ -66,6 +68,7 @@ func registerCloudRoutes(router *gin.Engine, adminAPIKey, nodeSyncKey string, jw
 	}
 
 	RegisterDeliveryZoneRoutes(router, h.deliveryZone, jwtService)
+	RegisterNotificationRoutes(router, h.notifChannel, h.notifRule, jwtService)
 	RegisterOrganizationSettingsRoutes(router, h.orgSettings, jwtService)
 	RegisterReservationRoutes(router, h.reservation, h.contact, h.feedback, jwtService)
 	// Staff screens only: the WhatsApp agent holds reservations:read but has no use for a live feed.
@@ -199,4 +202,22 @@ func registerCloudBackOfficeRoutes(router *gin.Engine, adminAPIKey string, jwtSe
 
 	// Reports routes
 	router.GET("/api/reports/daily-close", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.FinancialRead), h.financial.GetDailyCloseHandler)
+}
+
+// RegisterNotificationRoutes is cloud-only: staff notifications run from the durable events the cloud records.
+func RegisterNotificationRoutes(router *gin.Engine, channels *handler.NotificationChannelHandler, rules *handler.NotificationRuleHandler, jwtService *service.JWTService) {
+	c := router.Group("/api/notification-channels", handler.JWTAuthMiddleware(jwtService))
+	c.GET("", handler.RequirePermission(permissions.NotificationChannelsRead), channels.ListHandler)
+	c.GET("/:id", handler.RequirePermission(permissions.NotificationChannelsRead), channels.GetHandler)
+	c.POST("", handler.RequirePermission(permissions.NotificationChannelsManage), channels.CreateHandler)
+	c.PUT("/:id", handler.RequirePermission(permissions.NotificationChannelsManage), channels.UpdateHandler)
+	c.DELETE("/:id", handler.RequirePermission(permissions.NotificationChannelsManage), channels.DeleteHandler)
+	c.POST("/:id/test", handler.RequirePermission(permissions.NotificationChannelsManage), channels.TestHandler)
+
+	r := router.Group("/api/notification-rules", handler.JWTAuthMiddleware(jwtService))
+	r.GET("", handler.RequirePermission(permissions.NotificationChannelsRead), rules.ListHandler)
+	r.GET("/:id", handler.RequirePermission(permissions.NotificationChannelsRead), rules.GetHandler)
+	r.POST("", handler.RequirePermission(permissions.NotificationChannelsManage), rules.CreateHandler)
+	r.PUT("/:id", handler.RequirePermission(permissions.NotificationChannelsManage), rules.UpdateHandler)
+	r.DELETE("/:id", handler.RequirePermission(permissions.NotificationChannelsManage), rules.DeleteHandler)
 }
