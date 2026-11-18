@@ -22,9 +22,17 @@ type ReservationService struct {
 	settings        ports.OrganizationSettingsRepository
 	events          ports.MarketingEventRecorder
 	live            ports.ReservationNotifier
+	publisher       ports.EventPublisher
 	phoneHomeRegion string
 	logger          *slog.Logger
 	now             func() time.Time
+}
+
+type ReservationServiceOption func(*ReservationService)
+
+// WithReservationEventPublisher stores reservation events in the reservation's own transaction; nil publishes nothing.
+func WithReservationEventPublisher(publisher ports.EventPublisher) ReservationServiceOption {
+	return func(s *ReservationService) { s.publisher = publisher }
 }
 
 func NewReservationService(
@@ -37,6 +45,7 @@ func NewReservationService(
 	phoneHomeRegion string,
 	logger *slog.Logger,
 	now func() time.Time,
+	opts ...ReservationServiceOption,
 ) *ReservationService {
 	if now == nil {
 		now = time.Now
@@ -44,7 +53,7 @@ func NewReservationService(
 	if live == nil {
 		live = noReservationNotifier{}
 	}
-	return &ReservationService{
+	svc := &ReservationService{
 		reservations:    reservations,
 		contacts:        contacts,
 		unitOfWork:      unitOfWork,
@@ -55,6 +64,56 @@ func NewReservationService(
 		logger:          logger,
 		now:             now,
 	}
+	for _, opt := range opts {
+		opt(svc)
+	}
+	return svc
+}
+
+func (s *ReservationService) publishCreated(ctx context.Context, r *dto.Reservation, at time.Time) error {
+	if s.publisher == nil {
+		return nil
+	}
+	if r.Status == dto.ReservationStatusConfirmed {
+		by := dto.ConfirmedByAuto
+		if r.Source != dto.ReservationSourceWhatsApp {
+			by = dto.ConfirmedByStaff
+		}
+		return s.publishConfirmed(ctx, r, by, at)
+	}
+	meta, err := newDomainEventMeta(ctx, dto.DomainEventReservationRequested, r.ID, at)
+	if err != nil {
+		return err
+	}
+	return s.publisher.Publish(ctx, dto.ReservationRequested{
+		DomainEventMeta: meta,
+		GuestName:       r.Name,
+		GuestPhone:      r.ContactPhone,
+		PartySize:       r.PartySize,
+		StartsAt:        r.StartsAt,
+		Source:          r.Source,
+		PendingReason:   r.PendingReason,
+	})
+}
+
+func (s *ReservationService) publishConfirmed(ctx context.Context, r *dto.Reservation, by dto.ConfirmedBy, at time.Time) error {
+	if s.publisher == nil {
+		return nil
+	}
+	meta, err := newDomainEventMeta(ctx, dto.DomainEventReservationConfirmed, r.ID, at)
+	if err != nil {
+		return err
+	}
+	return s.publisher.Publish(ctx, dto.ReservationConfirmed{
+		DomainEventMeta: meta,
+		GuestName:       r.Name,
+		GuestPhone:      r.ContactPhone,
+		PartySize:       r.PartySize,
+		StartsAt:        r.StartsAt,
+		Source:          r.Source,
+		PendingReason:   r.PendingReason,
+		ConfirmedBy:     by,
+	})
 }
 
 // Create stores a WhatsApp reservation as the auto-confirm policy decides and a staff-entered one as
@@ -98,7 +157,10 @@ func (s *ReservationService) Create(ctx context.Context, req *dto.CreateReservat
 		if createErr := s.reservations.Create(ctx, created); createErr != nil {
 			return fmt.Errorf("%w: create reservation: %w", domainError.ErrReservationOperation, createErr)
 		}
-		return s.events.RecordReservationCreated(ctx, created, now)
+		if recordErr := s.events.RecordReservationCreated(ctx, created, now); recordErr != nil {
+			return recordErr
+		}
+		return s.publishCreated(ctx, created, now)
 	})
 	if err != nil {
 		return nil, err
@@ -185,6 +247,11 @@ func (s *ReservationService) transition(ctx context.Context, id string, apply fu
 				return &domainError.ReservationTransitionError{From: string(current.Status), To: string(updated.Status)}
 			}
 			return fmt.Errorf("%w: update reservation: %w", domainError.ErrReservationOperation, err)
+		}
+		if current.Status != dto.ReservationStatusConfirmed && updated.Status == dto.ReservationStatusConfirmed {
+			if err := s.publishConfirmed(ctx, updated, dto.ConfirmedByStaff, now); err != nil {
+				return err
+			}
 		}
 		if !aggregate.GuestIsNotified(now) {
 			return nil

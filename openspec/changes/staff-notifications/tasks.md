@@ -17,8 +17,8 @@
 
 ## 3. Publish from the services
 
-- [ ] 3.1 Add `WithEventPublisher` to `OrderService`, with nil as a no-op, and publish `OrderCreated` inside `CreateOrder`'s unit of work and `OrderPaid` inside `PayOrder`'s. Keep the in-memory publish after commit. Verify with order service tests that the publisher gets the right event for a delivery and a dine-in order, that a publish error rolls back the payment, and that the in-memory `order.created` is still published. Ask before changing any existing assertion
-- [ ] 3.2 Pass the publisher to `ReservationService`. Publish `ReservationRequested` or `ReservationConfirmed` (`auto` or `staff`) in `Create`, and `ReservationConfirmed{staff}` in `transition` on a change into `confirmed`, before the `GuestIsNotified` return. Verify with reservation service tests: auto-confirmed, requested with a reason, staff create, staff confirm, and a decline with no event. Ask before changing any existing assertion
+- [x] 3.1 Add `WithEventPublisher` to `OrderService`, with nil as a no-op, and publish `OrderCreated` inside `CreateOrder`'s unit of work and `OrderPaid` inside `PayOrder`'s. Keep the in-memory publish after commit. Verify with order service tests that the publisher gets the right event for a delivery and a dine-in order, that a publish error rolls back the payment, and that the in-memory `order.created` is still published. Ask before changing any existing assertion
+- [x] 3.2 Pass the publisher to `ReservationService`. Publish `ReservationRequested` or `ReservationConfirmed` (`auto` or `staff`) in `Create`, and `ReservationConfirmed{staff}` in `transition` on a change into `confirmed`, before the `GuestIsNotified` return. Verify with reservation service tests: auto-confirmed, requested with a reason, staff create, staff confirm, and a decline with no event. Ask before changing any existing assertion
 
 ## 4. Notifications: foundations
 

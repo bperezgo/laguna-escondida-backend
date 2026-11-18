@@ -56,6 +56,7 @@ type OrderService struct {
 	orderingSettings            ports.OrganizationSettingsRepository
 	contacts                    ports.ContactRecorder
 	marketingEvents             ports.MarketingEventRecorder
+	publisher                   ports.EventPublisher
 	now                         func() time.Time
 }
 
@@ -81,6 +82,11 @@ func WithContactRecorder(contacts ports.ContactRecorder) OrderServiceOption {
 // WithMarketingEvents records order.paid and order.cancelled for agent orders, in their transactions.
 func WithMarketingEvents(events ports.MarketingEventRecorder) OrderServiceOption {
 	return func(s *OrderService) { s.marketingEvents = events }
+}
+
+// WithEventPublisher stores order.created and order.paid in the order's own transaction; nil publishes nothing.
+func WithEventPublisher(publisher ports.EventPublisher) OrderServiceOption {
+	return func(s *OrderService) { s.publisher = publisher }
 }
 
 // WithOrderPlateOptionSlots resolves lines of plates with option slots from their choices.
@@ -329,6 +335,9 @@ func (s *OrderService) CreateOrder(
 		if err := s.touchAgentContact(ctx, user, openBillDTO.OrderFulfillment); err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
 		}
+		if err := s.publishOrderCreated(ctx, openBillDTO); err != nil {
+			return fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
+		}
 		return nil
 	}); err != nil {
 		return nil, err
@@ -352,6 +361,43 @@ func (s *OrderService) CreateOrder(
 	}
 
 	return openBillDTO, nil
+}
+
+func (s *OrderService) publishOrderCreated(ctx context.Context, order *dto.OpenBill) error {
+	if s.publisher == nil {
+		return nil
+	}
+	meta, err := newDomainEventMeta(ctx, dto.DomainEventOrderCreated, order.ID, order.CreatedAt)
+	if err != nil {
+		return err
+	}
+	return s.publisher.Publish(ctx, dto.OrderCreated{
+		DomainEventMeta: meta,
+		OrderType:       order.OrderType,
+		Total:           order.TotalAmount,
+		CustomerName:    order.CustomerName,
+		CustomerPhone:   order.CustomerPhone,
+		DeliveryZoneID:  order.DeliveryZoneID,
+	})
+}
+
+func (s *OrderService) publishOrderPaid(ctx context.Context, order *dto.OpenBill, amountPaid decimal.Decimal, paidAt time.Time) error {
+	if s.publisher == nil {
+		return nil
+	}
+	meta, err := newDomainEventMeta(ctx, dto.DomainEventOrderPaid, order.ID, paidAt)
+	if err != nil {
+		return err
+	}
+	return s.publisher.Publish(ctx, dto.OrderPaid{
+		DomainEventMeta: meta,
+		OrderType:       order.OrderType,
+		Total:           order.TotalAmount,
+		AmountPaid:      amountPaid,
+		CustomerName:    order.CustomerName,
+		CustomerPhone:   order.CustomerPhone,
+		DeliveryZoneID:  order.DeliveryZoneID,
+	})
 }
 
 // touchAgentContact keeps the guest's contact for an order the customer agent took.
@@ -832,6 +878,10 @@ func (s *OrderService) PayOrder(ctx context.Context, payOrderCommand command.Pay
 			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
 		}
 		if err := s.recordOrderEvent(txCtx, dto.MarketingEventOrderPaid, openBillAggregate.ID(), paidOpenBillDTO.OrderFulfillment, billDTO.PayAmount, paidAt); err != nil {
+			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
+		}
+
+		if err := s.publishOrderPaid(txCtx, paidOpenBillDTO, billDTO.PayAmount, paidAt); err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderPaymentFailed, err)
 		}
 
