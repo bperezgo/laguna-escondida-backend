@@ -28,8 +28,8 @@
 
 ## 5. Notifications: channels and rules
 
-- [ ] 5.1 Add `aggregate/notification_channel` (name 1–80, `discord` URL allow-list, hint) and `NotificationChannelService` (CRUD, keep the secret when settings are omitted, encrypt) plus `Test` (send a sample; non-2xx or transport error becomes `NotificationChannelUnreachable` with the destination status). Verify with service tests for every scenario in "Staff manage notification channels", "Channel secrets are encrypted and never returned" and "Staff can send a test message", with 90%+ coverage
-- [ ] 5.2 Add `aggregate/notification_rule` (allowed conditions per event, values, expiry 1–10080 with defaults of 60 and 720, prefix ≤ 100, `Matches`) and `NotificationRuleService` (CRUD, same-organization channel, `channel_id` filter). Verify with table-driven service tests for "Staff manage notification rules" and every condition in "The events and their conditions", with 90%+ coverage
+- [x] 5.1 Add `aggregate/notification_channel` (name 1–80, `discord` URL allow-list, hint) and `NotificationChannelService` (CRUD, keep the secret when settings are omitted, encrypt) plus `Test` (send a sample; non-2xx or transport error becomes `NotificationChannelUnreachable` with the destination status). Verify with service tests for every scenario in "Staff manage notification channels", "Channel secrets are encrypted and never returned" and "Staff can send a test message", with 90%+ coverage
+- [x] 5.2 Add `aggregate/notification_rule` (allowed conditions per event, values, expiry 1–10080 with defaults of 60 and 720, prefix ≤ 100, `Matches`) and `NotificationRuleService` (CRUD, same-organization channel, `channel_id` filter). Verify with table-driven service tests for "Staff manage notification rules" and every condition in "The events and their conditions", with 90%+ coverage
 
 ## 6. Notifications: consumer and sending
 
