@@ -924,9 +924,9 @@ curl -X POST "$BASE_URL/reservations" \
       "attribution": {"source": "meta_ctwa", "ad_id": "120210000000001", "clicked_at": "2026-11-08T14:00:00Z"}
     }
   }'
-```
 # Policy off: 201 {..."status":"requested","pending_reason":"disabled"...}
 # Policy on with the defaults, 6 people tomorrow evening and room that day: 201 {..."status":"confirmed"...}
+```
 
 ### Tonight's List (in time order, every status)
 

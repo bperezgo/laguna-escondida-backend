@@ -97,6 +97,8 @@ func TestReservationService_Create_AutoConfirmPolicy(t *testing.T) {
 			wantStatus: dto.ReservationStatusRequested, wantReason: dto.PendingReasonOutsideSchedule},
 		{name: "the day is full", policy: autoConfirmPolicy(), partySize: 4, startsAt: crmAt(t, 14, 20, 0),
 			guests: intPtr(118), countDay: 14, wantStatus: dto.ReservationStatusRequested, wantReason: dto.PendingReasonDailyCap},
+		{name: "one guest over the cap", policy: autoConfirmPolicy(), partySize: 4, startsAt: crmAt(t, 14, 20, 0),
+			guests: intPtr(117), countDay: 14, wantStatus: dto.ReservationStatusRequested, wantReason: dto.PendingReasonDailyCap},
 		{name: "the last seats exactly", policy: autoConfirmPolicy(), partySize: 4, startsAt: crmAt(t, 14, 20, 0),
 			guests: intPtr(116), countDay: 14, wantStatus: dto.ReservationStatusConfirmed},
 		{name: "auto-confirm is off", policy: disabled, partySize: 2, startsAt: crmAt(t, 9, 12, 0),
