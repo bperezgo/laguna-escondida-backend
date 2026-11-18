@@ -85,7 +85,7 @@ jobs:
       ASSET: edge-node-windows-amd64-${{ github.ref_name }}.zip
     steps:
       - name: Checkout code
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
@@ -138,7 +138,7 @@ jobs:
       ASSET: next-standalone-windows-${{ github.ref_name }}.zip
     steps:
       - name: Checkout code
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Build-time Node only (pnpm 11 needs >= 22.13). The box runs the bundle on its own
       # pinned Node (laguna-escondida-edge/versions.json), which only has to satisfy Next's
