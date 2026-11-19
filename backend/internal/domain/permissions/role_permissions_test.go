@@ -327,12 +327,15 @@ func TestHasCloudRole(t *testing.T) {
 	}
 }
 
-func TestGetPermissionsForRoles_NotificationChannelsManagedByAdminAndManager(t *testing.T) {
-	for _, role := range []int{RoleAdmin, RoleManager} {
-		perms := GetPermissionsForRoles([]int{role})
-		assert.Contains(t, perms, NotificationChannelsRead, "role %d", role)
-		assert.Contains(t, perms, NotificationChannelsManage, "role %d", role)
-	}
+func TestGetPermissionsForRoles_NotificationChannelsManagedByAdminReadByManager(t *testing.T) {
+	admin := GetPermissionsForRoles([]int{RoleAdmin})
+	assert.Contains(t, admin, NotificationChannelsRead)
+	assert.Contains(t, admin, NotificationChannelsManage)
+
+	manager := GetPermissionsForRoles([]int{RoleManager})
+	assert.Contains(t, manager, NotificationChannelsRead)
+	assert.NotContains(t, manager, NotificationChannelsManage)
+
 	for _, role := range []int{RoleServer, RoleCooker, RoleAccountant, RoleAgent} {
 		perms := GetPermissionsForRoles([]int{role})
 		assert.NotContains(t, perms, NotificationChannelsRead, "role %d", role)

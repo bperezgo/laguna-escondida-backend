@@ -98,6 +98,10 @@ export const PERMISSIONS = {
   INTEGRATIONS_READ: "integrations:read",
   INTEGRATIONS_MANAGE: "integrations:manage",
 
+  // Staff notifications (cloud only; managers read, admins manage)
+  NOTIFICATION_CHANNELS_READ: "notification-channels:read",
+  NOTIFICATION_CHANNELS_MANAGE: "notification-channels:manage",
+
   // Guest feedback (cloud only)
   FEEDBACK_READ: "feedback:read",
 

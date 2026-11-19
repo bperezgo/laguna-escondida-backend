@@ -27,3 +27,9 @@ test("the edge drops both integrations permissions", () => {
   assert.deepEqual(effectivePermissions(withIntegrations, false), withIntegrations);
   assert.deepEqual(effectivePermissions(withIntegrations, true), ["products:read", "users:read", "orders:create"]);
 });
+
+test("the edge drops both notification permissions", () => {
+  const withNotifications = [...admin, "notification-channels:read", "notification-channels:manage"];
+  assert.deepEqual(effectivePermissions(withNotifications, false), withNotifications);
+  assert.deepEqual(effectivePermissions(withNotifications, true), ["products:read", "users:read", "orders:create"]);
+});

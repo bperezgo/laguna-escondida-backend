@@ -22,7 +22,7 @@ Send a message to a staff chat (Discord) when something happens: an order is cre
 | PUT    | `/api/notification-rules/:id`           | Update a rule                         | `notification-channels:manage`  |
 | DELETE | `/api/notification-rules/:id`           | Delete a rule                         | `notification-channels:manage`  |
 
-Both permissions are granted to **admin** and **manager**. Every other role gets `403`. Everything is scoped to the caller's organization: another organization's channel or rule answers `404`.
+`notification-channels:read` is granted to **admin** and **manager**; `notification-channels:manage` only to **admin**, because a webhook is a credential and a rule decides who gets pinged. A manager gets `403` on every change and on test sends. Every other role gets `403` on all of them. Everything is scoped to the caller's organization: another organization's channel or rule answers `404`.
 
 ## Error shape
 

@@ -131,8 +131,8 @@ const navItems = [
   {
     href: "/ajustes",
     title: "Ajustes",
-    description: "Integraciones del restaurante, como las llaves de Wompi",
-    permission: PERMISSIONS.INTEGRATIONS_READ,
+    description: "Integraciones y notificaciones del restaurante",
+    permissions: [PERMISSIONS.INTEGRATIONS_READ, PERMISSIONS.NOTIFICATION_CHANNELS_READ],
     accent: "var(--color-secondary)",
     cloudOnly: true,
   },
