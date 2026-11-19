@@ -32,6 +32,7 @@ type cloudHandlers struct {
 	feedback        *handler.FeedbackHandler
 	notifChannel    *handler.NotificationChannelHandler
 	notifRule       *handler.NotificationRuleHandler
+	paymentWebhook  *handler.PaymentWebhookHandler
 	nodes           *service.NodeService
 }
 
@@ -54,6 +55,9 @@ func registerCloudRoutes(router *gin.Engine, adminAPIKey, nodeSyncKey string, jw
 
 	// Leads are platform data from the public marketing site: the form posts without a credential
 	// (limited per address), and the operator follows them up with the admin API key.
+	// Wompi signs its events with each organization's events secret; the path names the organization.
+	router.POST("/api/webhooks/wompi/:organization_id", h.paymentWebhook.WompiHandler)
+
 	router.POST("/api/public/leads", handler.RateLimitMiddleware(leadSubmissionsPerAddress, leadSubmissionWindow), h.lead.SubmitHandler)
 	leads := router.Group("/api/platform/leads", handler.AdminAPIKeyMiddleware(adminAPIKey))
 	leads.GET("", h.lead.ListHandler)

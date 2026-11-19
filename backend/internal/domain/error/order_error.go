@@ -27,6 +27,8 @@ var (
 var (
 	ErrAgentOrderTypeNotAllowed = errors.New("the agent can only take takeaway and delivery orders")
 	ErrOrderNotOwnedByAgent     = errors.New("the agent can only change takeaway and delivery orders it created")
+	// ErrPaymentLinksNotConfigured: an agent order is paid only through Wompi, so none is taken without it.
+	ErrPaymentLinksNotConfigured = errors.New("payment links are not configured for this organization")
 )
 
 var (

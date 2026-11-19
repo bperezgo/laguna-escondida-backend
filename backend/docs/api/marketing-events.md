@@ -35,14 +35,15 @@ keyed by the organization's signing secret. Verify it over the raw bytes before 
 
 | Event                   | When                                                                  | Path                      |
 | ----------------------- | --------------------------------------------------------------------- | ------------------------- |
-| `order.paid`            | An agent order is recorded as paid in the cloud, paid there or applied from the box | `/backend/events`        |
-| `order.cancelled`       | An agent order is voided                                               | `/backend/events`        |
+| `order.paid`            | An agent order is recorded as paid in the cloud: through its payment link, at the till in the cloud, or applied from the box | `/backend/events` **and** `/backend/notifications` |
+| `order.cancelled`       | An agent order is voided, including when it expires unpaid             | `/backend/events`        |
+| `order.expired`         | An agent order is voided because nobody paid its link in time          | `/backend/notifications` |
 | `reservation.confirmed` | Staff confirm a WhatsApp reservation before its `starts_at`             | `/backend/notifications` |
 | `reservation.declined`  | Staff decline it before its `starts_at`, with an optional `reason`      | `/backend/notifications` |
 | `reservation.cancelled` | The guest (through the agent) or staff cancel it before its `starts_at`; `cancelled_by` says which | `/backend/notifications` |
 | `feedback.requested`    | The morning-after job opens a feedback request                         | `/backend/notifications` |
 
-A request, a visit and a no-show produce no event.
+A request, a visit and a no-show produce no event. A payment records two events, and an expiry two (`order.cancelled` and `order.expired`), each with its own `event_id`.
 
 ## `POST <events URL>/backend/events`
 
@@ -100,6 +101,42 @@ New in this contract. Each event is a message marketing-app sends the guest, so 
 | `conversation_id` | string \| null | The marketing-app conversation, when known      |
 | `customer_phone`  | string         | E.164 digits without `+`                        |
 | `data`            | object         | Per type, below                                 |
+
+`data` for `order.paid`: `order_id`, `amount` (decimal string of the amount paid) and `currency` (the organization's ISO 4217 code). For `order.expired`: `order_id`.
+
+`order.paid`:
+
+```json
+{
+  "event_id": "019a5f13-1a2b-7c3d-8e4f-5a6b7c8d9e01",
+  "type": "order.paid",
+  "occurred_at": "2026-11-08T20:30:00-05:00",
+  "channel_id": "ch_1",
+  "conversation_id": "conv_9",
+  "customer_phone": "573005551234",
+  "data": {
+    "order_id": "019a0000-0000-7000-8000-0000000000d1",
+    "amount": "45000",
+    "currency": "COP"
+  }
+}
+```
+
+`order.expired`:
+
+```json
+{
+  "event_id": "019a5f13-1a2b-7c3d-8e4f-5a6b7c8d9e02",
+  "type": "order.expired",
+  "occurred_at": "2026-11-08T20:30:00-05:00",
+  "channel_id": "ch_1",
+  "conversation_id": "conv_9",
+  "customer_phone": "573005551234",
+  "data": {
+    "order_id": "019a0000-0000-7000-8000-0000000000d1"
+  }
+}
+```
 
 `data` for `reservation.*`: `reservation_id`, `name`, `party_size`, `starts_at`, `status`; plus `reason` when declined with one, and `cancelled_by` (`customer` or `staff`) when cancelled.
 

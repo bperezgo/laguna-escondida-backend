@@ -45,7 +45,10 @@ type fakeOrder struct {
 	CreatedAt time.Time
 	Voided    bool
 	Paid      bool
-	Lines     []dto.OpenBillProductDetail
+	// Expired is a void for lack of payment; PaymentURL is the active link of an open order.
+	Expired    bool
+	PaymentURL string
+	Lines      []dto.OpenBillProductDetail
 }
 
 type fakeBackend struct {
@@ -57,6 +60,8 @@ type fakeBackend struct {
 	slots    map[string][]dto.PlateOptionSlot
 	settings *dto.OrganizationSettingsResponse
 	create   http.HandlerFunc
+	// paymentURL is what create and update answer as the order's new link.
+	paymentURL string
 	// override answers a request before the routes above when it returns true.
 	override func(w http.ResponseWriter, r *http.Request) bool
 	server   *httptest.Server
@@ -160,11 +165,12 @@ func (b *fakeBackend) requestsTo(method, prefix string) []recordedRequest {
 func (b *fakeBackend) list(phone string, closed bool) dto.OpenBillListResponse {
 	var out []*dto.OpenBillWithCreator
 	for _, o := range b.orders {
-		isClosed := o.Paid || o.Voided
+		isClosed := o.Paid || o.Voided || o.Expired
 		if o.Phone != phone || isClosed != closed {
 			continue
 		}
 		item := &dto.OpenBillWithCreator{ID: o.ID, CreatedAt: o.CreatedAt}
+		item.VoidReason = o.voidReason()
 		if o.Paid {
 			paidAt := o.CreatedAt.Add(time.Minute)
 			item.PaidAt = &paidAt
@@ -176,11 +182,15 @@ func (b *fakeBackend) list(phone string, closed bool) dto.OpenBillListResponse {
 
 func (b *fakeBackend) writeDetail(w http.ResponseWriter, id string, closed bool) {
 	for _, o := range b.orders {
-		if o.ID != id || (o.Paid || o.Voided) != closed {
+		if o.ID != id || (o.Paid || o.Voided || o.Expired) != closed {
 			continue
 		}
 		detail := dto.OpenBillWithProducts{ID: o.ID, CreatedAt: o.CreatedAt, TotalAmount: decimal.NewFromInt(32000), Products: o.Lines}
 		detail.OrderType = o.Type
+		detail.VoidReason = o.voidReason()
+		if o.PaymentURL != "" && !closed {
+			detail.PaymentURL = &o.PaymentURL
+		}
 		if o.Paid {
 			paidAt := o.CreatedAt.Add(time.Minute)
 			detail.PaidAt = &paidAt
@@ -194,10 +204,22 @@ func (b *fakeBackend) writeDetail(w http.ResponseWriter, id string, closed bool)
 func (b *fakeBackend) echo(id string, orderType dto.OrderType, items []dto.OrderProductItem) dto.OpenBill {
 	order := dto.OpenBill{ID: id, TotalAmount: decimal.NewFromInt(32000)}
 	order.OrderType = orderType
+	if b.paymentURL != "" {
+		url := b.paymentURL
+		order.PaymentURL = &url
+	}
 	for _, item := range items {
 		order.Products = append(order.Products, dto.Product{ID: item.ProductID, Name: "Plato " + item.ProductID[:4]})
 	}
 	return order
+}
+
+func (o *fakeOrder) voidReason() *string {
+	if !o.Expired {
+		return nil
+	}
+	reason := dto.VoidReasonPaymentExpired
+	return &reason
 }
 
 func line(id, name string, qty int, status dto.CommandStatus) dto.OpenBillProductDetail {
@@ -876,4 +898,102 @@ func TestGetMyOrders_NoOrdersIsAnEmptyList(t *testing.T) {
 
 	require.False(t, isErr)
 	assert.JSONEq(t, `{"orders":[]}`, text)
+}
+
+// ---------------------------------------------------------------------------
+// Payment links
+// ---------------------------------------------------------------------------
+
+func TestCreateDeliveryOrder_ReturnsThePaymentLink(t *testing.T) {
+	backend := newFakeBackend(t)
+	backend.paymentURL = "https://checkout.wompi.co/l/wl_A"
+	cs := connectCustomer(t, backend, map[string]string{customerPhoneHeader: "573005551234"})
+
+	text, isErr := call(t, cs, "create_delivery_order", map[string]any{"order_type": "takeaway", "lines": []map[string]any{{"product_id": "prod-Bandeja", "quantity": 1}}})
+
+	require.False(t, isErr, text)
+	var view orderView
+	require.NoError(t, json.Unmarshal([]byte(text), &view))
+	assert.Equal(t, paymentAwaiting, view.PaymentState)
+	require.NotNil(t, view.PaymentURL)
+	assert.Equal(t, "https://checkout.wompi.co/l/wl_A", *view.PaymentURL)
+}
+
+func TestCreateDeliveryOrder_WithoutALinkHasNoPaymentURL(t *testing.T) {
+	backend := newFakeBackend(t)
+	cs := connectCustomer(t, backend, map[string]string{customerPhoneHeader: "573005551234"})
+
+	text, isErr := call(t, cs, "create_delivery_order", map[string]any{"order_type": "takeaway", "lines": []map[string]any{{"product_id": "prod-Bandeja", "quantity": 1}}})
+
+	require.False(t, isErr, text)
+	assert.NotContains(t, text, "payment_url")
+	assert.Contains(t, text, paymentAwaiting)
+}
+
+func TestCreateDeliveryOrder_NoPaymentLinksIsRefused(t *testing.T) {
+	backend := newFakeBackend(t)
+	backend.create = func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, _ = w.Write([]byte(`{"error":"Payment links are not configured for this organization","code":"PAYMENT_LINKS_NOT_CONFIGURED"}`))
+	}
+	cs := connectCustomer(t, backend, map[string]string{customerPhoneHeader: "573005551234"})
+
+	text, isErr := call(t, cs, "create_delivery_order", map[string]any{"order_type": "takeaway", "lines": []map[string]any{{"product_id": "prod-Bandeja", "quantity": 1}}})
+
+	assert.True(t, isErr)
+	assert.Equal(t, "the order was not created: payment links are not configured for this organization", text)
+}
+
+func TestUpdateMyOrder_ReturnsTheNewPaymentLink(t *testing.T) {
+	backend := newFakeBackend(t)
+	own, _, _ := ordersOfTwoCustomers(backend)
+	backend.paymentURL = "https://checkout.wompi.co/l/wl_B"
+	cs := connectCustomer(t, backend, map[string]string{customerPhoneHeader: "573005551234"})
+
+	text, isErr := call(t, cs, "update_my_order", map[string]any{"order_id": own, "lines": []map[string]any{{"product_id": "prod-Bandeja", "quantity": 2}}})
+
+	require.False(t, isErr, text)
+	assert.Contains(t, text, `"payment_url":"https://checkout.wompi.co/l/wl_B"`)
+}
+
+func TestGetMyOrders_PaymentLinksAndExpiredOrders(t *testing.T) {
+	backend := newFakeBackend(t)
+	now := time.Now().UTC()
+	awaiting, expired, cancelled := uuid.NewString(), uuid.NewString(), uuid.NewString()
+	backend.orders = []*fakeOrder{
+		{ID: awaiting, Phone: callerPhone, Type: dto.OrderTypeTakeaway, CreatedAt: now.Add(-5 * time.Minute), PaymentURL: "https://checkout.wompi.co/l/wl_B"},
+		{ID: expired, Phone: callerPhone, Type: dto.OrderTypeTakeaway, CreatedAt: now.Add(-time.Hour), Expired: true, PaymentURL: "https://checkout.wompi.co/l/wl_old"},
+		{ID: cancelled, Phone: callerPhone, Type: dto.OrderTypeTakeaway, CreatedAt: now.Add(-2 * time.Hour), Voided: true},
+	}
+	cs := connectCustomer(t, backend, map[string]string{customerPhoneHeader: "573005551234"})
+
+	text, isErr := call(t, cs, "get_my_orders", nil)
+
+	require.False(t, isErr, text)
+	var result myOrders
+	require.NoError(t, json.Unmarshal([]byte(text), &result))
+	require.Len(t, result.Orders, 2, "a cancelled order stays hidden")
+	assert.Equal(t, awaiting, result.Orders[0].OrderID)
+	require.NotNil(t, result.Orders[0].PaymentURL)
+	assert.Equal(t, "https://checkout.wompi.co/l/wl_B", *result.Orders[0].PaymentURL)
+	assert.Equal(t, expired, result.Orders[1].OrderID)
+	assert.Equal(t, paymentExpired, result.Orders[1].PaymentState)
+	assert.Nil(t, result.Orders[1].PaymentURL)
+}
+
+func TestCustomerTools_DescriptionsTellThePaymentRules(t *testing.T) {
+	backend := newFakeBackend(t)
+	cs := connectCustomer(t, backend, map[string]string{customerPhoneHeader: "573005551234"})
+	tools, err := cs.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+	descriptions := map[string]string{}
+	for _, tl := range tools.Tools {
+		descriptions[tl.Name] = tl.Description
+	}
+
+	assert.Contains(t, descriptions["create_delivery_order"], "payment_url, the only way to pay it")
+	assert.Contains(t, descriptions["create_delivery_order"], "cancelled if unpaid after 30 minutes")
+	assert.Contains(t, descriptions["update_my_order"], "Returns a new payment_url")
+	assert.Contains(t, descriptions["update_my_order"], "paid or expired")
+	assert.Contains(t, descriptions["get_my_orders"], "expired: cancelled for lack of payment")
 }

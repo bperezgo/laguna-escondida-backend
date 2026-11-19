@@ -22,6 +22,8 @@ type OpenBillRepository interface {
 	Update(ctx context.Context, aggregate *openBill.Aggregate) error
 	UpdateProductStatus(ctx context.Context, aggregate *openBill.Aggregate) error
 	Delete(ctx context.Context, openBillID string) error
+	// DeleteWithReason voids an open order as Delete does, recording why.
+	DeleteWithReason(ctx context.Context, openBillID, reason string) error
 	ClosePaid(ctx context.Context, openBillID string, paidAt time.Time) error
 	GetProductPreparationResponsibilities(ctx context.Context, productIDs []string) ([]dto.ProductPreparationResponsibilityWithProduct, error)
 	FindPendingByArea(ctx context.Context, area string) ([]*dto.OpenBillProductSSE, error)

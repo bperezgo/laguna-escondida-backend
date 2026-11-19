@@ -57,6 +57,7 @@ type OrderService struct {
 	contacts                    ports.ContactRecorder
 	marketingEvents             ports.MarketingEventRecorder
 	publisher                   ports.EventPublisher
+	paymentLinks                *PaymentLinkService
 	now                         func() time.Time
 }
 
@@ -87,6 +88,11 @@ func WithMarketingEvents(events ports.MarketingEventRecorder) OrderServiceOption
 // WithEventPublisher stores order.created and order.paid in the order's own transaction; nil publishes nothing.
 func WithEventPublisher(publisher ports.EventPublisher) OrderServiceOption {
 	return func(s *OrderService) { s.publisher = publisher }
+}
+
+// WithPaymentLinks gives agent orders a Wompi link, and refuses them where Wompi isn't configured.
+func WithPaymentLinks(links *PaymentLinkService) OrderServiceOption {
+	return func(s *OrderService) { s.paymentLinks = links }
 }
 
 // WithOrderPlateOptionSlots resolves lines of plates with option slots from their choices.
@@ -190,11 +196,12 @@ func (s *OrderService) CreateOrder(
 	req *dto.CreateOrderRequest,
 	user dto.UserDomain,
 ) (*dto.OpenBill, error) {
-	fulfillment, resolveErr := s.resolveFulfillment(ctx, req.OrderContactRequest)
+	agent := permissions.IsAgentOnly(user.RoleIDs)
+	fulfillment, resolveErr := s.resolveFulfillment(ctx, req.OrderContactRequest, agent)
 	if resolveErr != nil {
 		return nil, resolveErr
 	}
-	if permissions.IsAgentOnly(user.RoleIDs) && !fulfillment.OrderType().IsHeldUntilPaid() {
+	if agent && !fulfillment.OrderType().IsHeldUntilPaid() {
 		return nil, orderError.ErrAgentOrderTypeNotAllowed
 	}
 	origin, droppedOrigin, originErr := shared.NewOrigin(req.Origin, s.now())
@@ -360,6 +367,10 @@ func (s *OrderService) CreateOrder(
 		}
 	}
 
+	if agent && s.paymentLinks != nil {
+		openBillDTO.PaymentURL = s.paymentLinks.URL(s.paymentLinks.CreateForOrder(ctx, openBillDTO))
+	}
+
 	return openBillDTO, nil
 }
 
@@ -427,7 +438,7 @@ func (s *OrderService) recordOrderEvent(ctx context.Context, eventType dto.Marke
 
 // resolveFulfillment validates type, contact and location, and places a delivery in the oldest
 // active zone containing its pin. No active zone means no delivery (fail closed).
-func (s *OrderService) resolveFulfillment(ctx context.Context, req dto.OrderContactRequest) (openBill.Fulfillment, error) {
+func (s *OrderService) resolveFulfillment(ctx context.Context, req dto.OrderContactRequest, agent bool) (openBill.Fulfillment, error) {
 	fulfillment, err := openBill.NewFulfillment(req, s.phoneHomeRegion)
 	if err != nil {
 		return openBill.Fulfillment{}, err
@@ -438,6 +449,11 @@ func (s *OrderService) resolveFulfillment(ctx context.Context, req dto.OrderCont
 	// Before the zone check, so a paused delivery says paused rather than outside the zone.
 	if err = s.requireOrderingAvailable(ctx, fulfillment.OrderType()); err != nil {
 		return openBill.Fulfillment{}, err
+	}
+	if agent {
+		if err = s.requirePaymentLinks(ctx); err != nil {
+			return openBill.Fulfillment{}, err
+		}
 	}
 	if !fulfillment.IsDelivery() {
 		return fulfillment, nil
@@ -453,6 +469,21 @@ func (s *OrderService) resolveFulfillment(ctx context.Context, req dto.OrderCont
 		return openBill.Fulfillment{}, orderError.ErrOutsideDeliveryZone
 	}
 	return fulfillment.InZone(zone.ID), nil
+}
+
+// requirePaymentLinks: an agent order is paid only through its link, so none is taken without Wompi.
+func (s *OrderService) requirePaymentLinks(ctx context.Context) error {
+	if s.paymentLinks == nil {
+		return nil
+	}
+	configured, err := s.paymentLinks.Configured(ctx)
+	if err != nil {
+		return fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
+	}
+	if !configured {
+		return orderError.ErrPaymentLinksNotConfigured
+	}
+	return nil
 }
 
 // requireOrderingAvailable applies to staff orders too: a pause means the kitchen can't take more.
@@ -820,6 +851,10 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 		s.logger.ErrorContext(ctx, "failed to publish order updated event", slog.Any("error", err))
 	}
 
+	if s.paymentLinks != nil && existingBillAggregate.OrderType().IsHeldUntilPaid() {
+		updatedBill.PaymentURL = s.paymentLinks.URL(s.paymentLinks.ReplaceForOrder(ctx, updatedBill))
+	}
+
 	return updatedBill, nil
 }
 
@@ -1116,6 +1151,12 @@ func (s *OrderService) GetOpenBillWithProducts(ctx context.Context, openBillID s
 		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
 	}
 
+	if s.paymentLinks != nil && openBill.OrderType.IsHeldUntilPaid() && openBill.PaidAt == nil {
+		// The link only adds to the order; a failed read leaves it out rather than failing the read.
+		if openBill.PaymentURL, err = s.paymentLinks.ActiveURL(ctx, openBillID); err != nil {
+			s.logger.ErrorContext(ctx, "failed to read the order's payment link", slog.String("order_id", openBillID), slog.Any("error", err))
+		}
+	}
 	return openBill, nil
 }
 
@@ -1136,25 +1177,66 @@ func (s *OrderService) DeleteOrder(ctx context.Context, openBillID string, user 
 		if err := s.openBillRepo.Delete(ctx, openBillID); err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderDeletionFailed, err)
 		}
-		if err := s.appendOpenBillDeleteOutbox(ctx, openBillID); err != nil {
+		return s.recordVoid(ctx, existingOpenBill)
+	}); err != nil {
+		return err
+	}
+
+	s.publishOrderDeleted(ctx, existingOpenBill)
+	if s.paymentLinks != nil && existingOpenBill.OrderType.IsHeldUntilPaid() {
+		s.paymentLinks.Cancel(ctx, openBillID)
+	}
+	return nil
+}
+
+// ExpireOrder voids an agent order nobody paid in time, as staff voiding it does, with the void
+// reason payment_expired and its link marked expired in the same transaction.
+func (s *OrderService) ExpireOrder(ctx context.Context, link *dto.PaymentLink) error {
+	existingOpenBill, err := s.openBillRepo.FindByIDWithProducts(ctx, link.OrderID)
+	if err != nil {
+		return fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
+	}
+	if err := s.unitOfWork.Do(ctx, func(ctx context.Context) error {
+		if err := s.openBillRepo.DeleteWithReason(ctx, link.OrderID, dto.VoidReasonPaymentExpired); err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderDeletionFailed, err)
 		}
-		if err := s.recordOrderEvent(ctx, dto.MarketingEventOrderCancelled, openBillID, existingOpenBill.OrderFulfillment, decimal.Zero, s.now()); err != nil {
+		if err := s.recordVoid(ctx, existingOpenBill); err != nil {
+			return err
+		}
+		if err := s.recordOrderEvent(ctx, dto.MarketingEventOrderExpired, link.OrderID, existingOpenBill.OrderFulfillment, decimal.Zero, s.now()); err != nil {
+			return fmt.Errorf("%w: %w", orderError.ErrOrderDeletionFailed, err)
+		}
+		if err := s.paymentLinks.MarkExpired(ctx, link.ID); err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderDeletionFailed, err)
 		}
 		return nil
 	}); err != nil {
 		return err
 	}
+	s.publishOrderDeleted(ctx, existingOpenBill)
+	return nil
+}
 
+// recordVoid writes a voided order's tombstone and order.cancelled; it runs in the void's transaction.
+func (s *OrderService) recordVoid(ctx context.Context, order *dto.OpenBillWithProducts) error {
+	if err := s.appendOpenBillDeleteOutbox(ctx, order.ID); err != nil {
+		return fmt.Errorf("%w: %w", orderError.ErrOrderDeletionFailed, err)
+	}
+	if err := s.recordOrderEvent(ctx, dto.MarketingEventOrderCancelled, order.ID, order.OrderFulfillment, decimal.Zero, s.now()); err != nil {
+		return fmt.Errorf("%w: %w", orderError.ErrOrderDeletionFailed, err)
+	}
+	return nil
+}
+
+// publishOrderDeleted returns the order's stock; after the commit, so a rolled-back void returns none.
+func (s *OrderService) publishOrderDeleted(ctx context.Context, existingOpenBill *dto.OpenBillWithProducts) {
+	openBillID := existingOpenBill.ID
 	event := dto.NewOrderDeletedEvent(openBillID, existingOpenBill.Products)
 	event.OrderType = existingOpenBill.OrderType
 	event.OrganizationID, _ = tenant.OrgFrom(ctx)
 	if err := s.eventBus.Publish(ctx, event); err != nil {
 		s.logger.ErrorContext(ctx, "failed to publish order deleted event", slog.Any("error", err))
 	}
-
-	return nil
 }
 
 // persistAndSyncStatus persists an open_bill product-status transition and replicates

@@ -39,6 +39,8 @@ type OrderFulfillment struct {
 	DeliveryMapURL  *string          `json:"delivery_map_url,omitempty"`
 	// Origin is set on agent orders only, at creation, and never changes.
 	Origin *Origin `json:"origin,omitempty"`
+	// VoidReason is payment_expired for an agent order nobody paid in time; nil for any other order.
+	VoidReason *string `json:"void_reason,omitempty"`
 }
 
 type OpenBill struct {
@@ -53,6 +55,8 @@ type OpenBill struct {
 	UpdatedAt          time.Time       `json:"updated_at"`
 	ClosedAt           *time.Time      `json:"closed_at,omitempty"`
 	PaidAt             *time.Time      `json:"paid_at,omitempty"`
+	// PaymentURL is the order's active payment link; nil when it has none.
+	PaymentURL *string `json:"payment_url,omitempty"`
 	OrderFulfillment
 }
 
@@ -99,6 +103,7 @@ type OpenBillWithProducts struct {
 	CreatedAt          time.Time               `json:"created_at"`
 	UpdatedAt          time.Time               `json:"updated_at"`
 	PaidAt             *time.Time              `json:"paid_at,omitempty"`
+	PaymentURL         *string                 `json:"payment_url,omitempty"`
 	OrderFulfillment
 }
 

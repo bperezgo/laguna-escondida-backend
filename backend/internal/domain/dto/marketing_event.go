@@ -15,6 +15,13 @@ const (
 	MarketingEventReservationDeclined  MarketingEventType = "reservation.declined"
 	MarketingEventReservationCancelled MarketingEventType = "reservation.cancelled"
 	MarketingEventFeedbackRequested    MarketingEventType = "feedback.requested"
+	// MarketingEventOrderExpired is an agent order voided unpaid; it is sent only as a notification.
+	MarketingEventOrderExpired MarketingEventType = "order.expired"
+
+	// The outbox types of the order notifications, told apart from the /backend/events rows of
+	// the same change; their bodies carry the wire types order.paid and order.expired.
+	MarketingEventOrderPaidNotification    MarketingEventType = "order.paid.notification"
+	MarketingEventOrderExpiredNotification MarketingEventType = "order.expired.notification"
 )
 
 const (

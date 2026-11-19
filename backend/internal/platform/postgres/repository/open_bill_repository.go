@@ -7,6 +7,7 @@ import (
 
 	openBill "laguna-escondida/backend/internal/domain/aggregate/open_bill"
 	"laguna-escondida/backend/internal/domain/dto"
+	orderError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
 	"laguna-escondida/backend/internal/platform/postgres"
 
@@ -133,7 +134,8 @@ const fulfillmentColumns = `
 			open_bills.attribution_ad_id,
 			open_bills.attribution_clicked_at,
 			open_bills.attribution_campaign_id,
-			open_bills.attribution_campaign_name,`
+			open_bills.attribution_campaign_name,
+			open_bills.void_reason,`
 
 // fulfillmentRow is scanned into the header result structs via gorm:"embedded".
 type fulfillmentRow struct {
@@ -145,11 +147,12 @@ type fulfillmentRow struct {
 	DeliveryLat     *decimal.Decimal
 	DeliveryLng     *decimal.Decimal
 	DeliveryZoneID  *string
+	VoidReason      *string
 	OriginColumns   `gorm:"embedded"`
 }
 
 func (f fulfillmentRow) toDTO() dto.OrderFulfillment {
-	return openBill.RestoreFulfillment(dto.OrderFulfillment{
+	fulfillment := openBill.RestoreFulfillment(dto.OrderFulfillment{
 		OrderType:       dto.OrderType(f.OrderType),
 		CustomerName:    f.CustomerName,
 		CustomerPhone:   f.CustomerPhone,
@@ -159,6 +162,8 @@ func (f fulfillmentRow) toDTO() dto.OrderFulfillment {
 		DeliveryZoneID:  f.DeliveryZoneID,
 		Origin:          f.OriginColumns.toDTO(),
 	}).ToDTO()
+	fulfillment.VoidReason = f.VoidReason
+	return fulfillment
 }
 
 func applyOrderListFilter(query *gorm.DB, filter dto.OrderListFilter) *gorm.DB {
@@ -689,6 +694,24 @@ func (r *OpenBillRepository) Delete(ctx context.Context, openBillID string) erro
 	return db.Model(&openBillModel{}).
 		Where("id = ? AND deleted_at IS NULL", openBillID).
 		Update("deleted_at", now).Error
+}
+
+func (r *OpenBillRepository) DeleteWithReason(ctx context.Context, openBillID, reason string) error {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	// Zero rows means it was paid or voided meanwhile; the expiry must not count it as voided.
+	result := db.Model(&openBillModel{}).
+		Where("id = ? AND deleted_at IS NULL", openBillID).
+		Updates(map[string]any{"deleted_at": time.Now(), "void_reason": reason})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return orderError.ErrOrderNotFound
+	}
+	return nil
 }
 
 func (r *OpenBillRepository) ClosePaid(ctx context.Context, openBillID string, paidAt time.Time) error {

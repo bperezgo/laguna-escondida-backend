@@ -34,11 +34,24 @@ func (s *MarketingEventService) RecordOrder(ctx context.Context, eventType dto.M
 	if err != nil || !ok {
 		return err
 	}
-	event, err := marketingEvent.NewOrderEvent(eventType, subject, org.Currency, loc)
+	// order.expired is only a notification; order.paid goes to both, as each has its own consumer.
+	if eventType != dto.MarketingEventOrderExpired {
+		event, eventErr := marketingEvent.NewOrderEvent(eventType, subject, org.Currency, loc)
+		if eventErr != nil {
+			return fmt.Errorf("%w: %w", domainError.ErrMarketingEventRecordError, eventErr)
+		}
+		if eventErr = s.append(ctx, event); eventErr != nil {
+			return eventErr
+		}
+	}
+	if eventType != dto.MarketingEventOrderPaid && eventType != dto.MarketingEventOrderExpired {
+		return nil
+	}
+	notification, err := marketingEvent.NewOrderNotification(eventType, subject, org.Currency, loc)
 	if err != nil {
 		return fmt.Errorf("%w: %w", domainError.ErrMarketingEventRecordError, err)
 	}
-	return s.append(ctx, event)
+	return s.append(ctx, notification)
 }
 
 func (s *MarketingEventService) RecordReservation(ctx context.Context, reservation *dto.Reservation, at time.Time) error {

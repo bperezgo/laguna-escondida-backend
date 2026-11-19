@@ -11,8 +11,10 @@ import (
 
 	openBill "laguna-escondida/backend/internal/domain/aggregate/open_bill"
 	"laguna-escondida/backend/internal/domain/dto"
+	"laguna-escondida/backend/internal/domain/permissions"
 	"laguna-escondida/backend/internal/domain/ports/mocks"
 	"laguna-escondida/backend/internal/domain/service"
+	"laguna-escondida/backend/internal/domain/tenant"
 
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
@@ -150,4 +152,34 @@ func TestOrderHandler_CreateOrder_OverlongChannel_Returns400(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Equal(t, "VALIDATION_ERROR", resp["code"])
 	assert.Equal(t, "origin.channel_id", resp["field"])
+}
+
+func TestOrderHandler_CreateOrder_PaymentLinksNotConfigured_Returns422(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	const (
+		userID = "550e8400-e29b-41d4-a716-446655440020"
+		orgID  = "550e8400-e29b-41d4-a716-446655440030"
+	)
+	orgs := mocks.NewMockOrganizationRepository(t)
+	orgs.EXPECT().Get(mock.Anything, orgID).Return(&dto.Organization{ID: orgID, Slug: "restaurante-x"}, nil).Once()
+	config := mocks.NewMockPaymentLinkConfig(t)
+	config.EXPECT().ConfiguredFor("restaurante-x").Return(false).Once()
+	links := service.NewPaymentLinkService(nil, nil, config, orgs, 30*time.Minute, nil, nil)
+	// Nothing else is reached: the refusal comes before any duplicate check, zone or write.
+	orderService := service.NewOrderService(nil, nil, nil, nil, dto.PendingInvoiceStatusPending, nil, nil, nil, nil,
+		dto.SyncIdentity{}, nil, nil, "CO", service.WithPaymentLinks(links))
+
+	router := gin.New()
+	router.POST("/api/orders", func(c *gin.Context) {
+		c.Set("user_id", userID)
+		c.Set("role_ids", []int{permissions.RoleAgent})
+		c.Request = c.Request.WithContext(tenant.WithOrg(c.Request.Context(), orgID))
+	}, NewOrderHandler(orderService, nil).CreateOrderHandler)
+	body := `{"open_bill_id":"550e8400-e29b-41d4-a716-446655440010","temporal_identifier":"550e8400-e29b-41d4-a716-446655440011",
+		"products":[],"order_type":"takeaway","customer_phone":"+573005551234"}`
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/orders", bytes.NewBufferString(body)))
+
+	assert.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+	assert.JSONEq(t, `{"error":"Payment links are not configured for this organization","code":"PAYMENT_LINKS_NOT_CONFIGURED"}`, rec.Body.String())
 }

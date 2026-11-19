@@ -143,7 +143,7 @@ func newCloud(t *testing.T) *cloud {
 	cfg := &config.Cloud{Shared: config.Shared{
 		AdminAPIKey: adminAPIKey, JWTSecret: jwtSecret, NodeSyncKey: "accept-node-key", PhoneHomeRegion: "CO",
 		Observability: config.Observability{ServiceName: "laguna-backend", MetricsPort: "0"},
-	}}
+	}, PaymentLinks: testsupport.PaymentLinks(t)}
 	app, err := bootstrap.NewCloud(cfg, bootstrap.Infra{
 		DB:                cloudDB,
 		Logger:            logger,
@@ -213,7 +213,7 @@ func seedOrganization(t *testing.T) string {
 	t.Helper()
 	id := uuid.NewString()
 	require.NoError(t, cloudDB.Exec("INSERT INTO organizations (id, name, slug, status) VALUES (?, ?, ?, 'active')",
-		id, "Restaurant "+id[:8], "r-"+id[:8]).Error)
+		id, "Restaurant "+id[:8], testsupport.NextOrgSlug()).Error)
 	return id
 }
 

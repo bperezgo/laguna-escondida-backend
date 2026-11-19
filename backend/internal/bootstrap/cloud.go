@@ -55,6 +55,12 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 	contactService := service.NewContactService(contactRepo, reservationRepo, feedbackRepo)
 	marketingEvents := service.NewMarketingEventService(marketingOutbox, cloudOrganizations, cfg.MarketingEvents, cfg.MarketingEvents.Enabled())
 
+	// Payment links are cloud-only too: the box neither creates links nor receives Wompi's events.
+	paymentLinkRepo := repository.NewPaymentLinkRepository(db)
+	paymentTransactionRepo := repository.NewPaymentTransactionRepository(db)
+	paymentLinks := service.NewPaymentLinkService(paymentLinkRepo, httpclient.NewWompiClient(infra.HTTPClient, cfg.PaymentLinks.APIURL),
+		cfg.PaymentLinks, cloudOrganizations, cfg.PaymentLinks.TTL, logger, nil)
+
 	// Durable events: without the key no staff-notification consumer is registered, so nothing is recorded.
 	// The bridge forwards nothing yet; it is registered so the relay can carry in-memory consumers later.
 	eventConsumers := []ports.EventConsumer{}
@@ -99,6 +105,7 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 			service.WithContactRecorder(contactService),
 			service.WithMarketingEvents(marketingEvents),
 			service.WithEventPublisher(domainEvents),
+			service.WithPaymentLinks(paymentLinks),
 		},
 	})
 	if err != nil {
@@ -140,7 +147,8 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 	)
 
 	c.app.background = append(c.app.background,
-		newBackgroundLoop(func(ctx context.Context) { settingsCache.Sweep(ctx, time.Minute) }))
+		newBackgroundLoop(func(ctx context.Context) { settingsCache.Sweep(ctx, time.Minute) }),
+		newBackgroundLoop(func(ctx context.Context) { logPaymentLinks(ctx, logger, cloudOrganizations, cfg.PaymentLinks) }))
 	c.app.schedulers = append(c.app.schedulers, namedScheduler{
 		name: "cron scheduler",
 		build: func() (scheduler, error) {
@@ -149,6 +157,17 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 				cfg.InvoiceURLCron, cfg.SupportDocumentURLCron, cfg.InvoiceSubmitCron, cfg.StockReconcileCron,
 				logger,
 			)
+		},
+	})
+
+	paymentWebhooks := service.NewPaymentWebhookService(cloudOrganizations, c.organizationRunner, cfg.PaymentLinks,
+		paymentLinkRepo, paymentTransactionRepo, c.orderService, c.unitOfWork, logger)
+	paymentExpiry := service.NewPaymentExpiryService(c.organizationRunner, paymentLinkRepo, paymentTransactionRepo,
+		paymentLinks, c.orderService, logger, nil)
+	c.app.schedulers = append(c.app.schedulers, namedScheduler{
+		name: "payment expiry scheduler",
+		build: func() (scheduler, error) {
+			return cron.NewPaymentExpiryScheduler(paymentExpiry, logger)
 		},
 	})
 
@@ -277,10 +296,32 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		feedback:        handler.NewFeedbackHandler(feedbackService),
 		notifChannel:    handler.NewNotificationChannelHandler(notificationChannelService),
 		notifRule:       handler.NewNotificationRuleHandler(notificationRuleService),
+		paymentWebhook:  handler.NewPaymentWebhookHandler(paymentWebhooks, logger),
 		nodes:           service.NewNodeService(repository.NewNodeRepository(db)),
 	})
 
 	return c.app, nil
+}
+
+// logPaymentLinks says at startup which organizations take agent orders: one without both Wompi
+// keys refuses them. Informational only, so a failure to list is logged and startup goes on.
+func logPaymentLinks(ctx context.Context, logger *slog.Logger, orgs ports.OrganizationRepository, links config.PaymentLinks) {
+	list, err := orgs.List(ctx)
+	if err != nil {
+		logger.Warn("Could not list organizations to report payment links", slog.Any("error", err))
+		return
+	}
+	for _, org := range list {
+		if org.Status != dto.OrganizationStatusActive {
+			continue
+		}
+		if links.ConfiguredFor(org.Slug) {
+			logger.Info("Payment links configured", slog.String("organization", org.Slug), slog.String("wompi", links.APIURL))
+			continue
+		}
+		logger.Info("Payment links not configured: agent orders are refused; set WOMPI_PRIVATE_KEY_<SLUG> and WOMPI_EVENTS_SECRET_<SLUG>",
+			slog.String("organization", org.Slug))
+	}
 }
 
 // applyTrustedProxies limits who may set X-Forwarded-For. With none configured the router keeps
