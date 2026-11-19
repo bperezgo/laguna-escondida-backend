@@ -1,0 +1,29 @@
+---
+import { faqs } from "./faq-data.ts";
+
+const schema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqs.map((f) => ({ "@type": "Question", name: f.question, acceptedAnswer: { "@type": "Answer", text: f.answer } })),
+};
+---
+
+<section class="px-4 py-16 md:py-24" aria-labelledby="faq-title">
+  <div class="mx-auto max-w-3xl" data-reveal>
+    <h2 id="faq-title" class="heading-2">Preguntas frecuentes</h2>
+    <div class="mt-8 flex flex-col gap-3">
+      {
+        faqs.map((faq) => (
+          <details class="bg-surface border-line group rounded-2xl border p-4">
+            <summary class="title-2 flex cursor-pointer list-none items-center justify-between gap-4">
+              {faq.question}
+              <span class="text-primary motion-weighted transition-transform group-open:rotate-45" aria-hidden="true">+</span>
+            </summary>
+            <p class="body-3 text-muted mt-3">{faq.answer}</p>
+          </details>
+        ))
+      }
+    </div>
+  </div>
+  <script type="application/ld+json" set:html={JSON.stringify(schema)} />
+</section>

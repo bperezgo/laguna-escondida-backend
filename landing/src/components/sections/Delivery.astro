@@ -1,0 +1,19 @@
+---
+import { Icon } from "astro-icon/components";
+
+import ProductShot from "../ProductShot.astro";
+---
+
+<section class="px-4 py-16 md:py-24" aria-labelledby="delivery-title">
+  <div class="mx-auto max-w-5xl" data-reveal>
+    <p class="caption-3 text-primary flex items-center gap-2 tracking-wide uppercase">
+      <Icon name="ph:moped" class="size-5" aria-hidden="true" /> Domicilios y para llevar
+    </p>
+    <h2 id="delivery-title" class="heading-2 mt-3 max-w-[680px]">Dibuja tus zonas de domicilio en un mapa</h2>
+    <p class="body-3 text-muted mt-4 max-w-[680px] md:text-lg">
+      Marca hasta dónde llegas. Si la ubicación del cliente queda fuera de tus zonas, el sistema no acepta el domicilio. También
+      puedes pausar domicilios o pedidos para llevar y definir sus horarios cuando lo necesites.
+    </p>
+    <ProductShot name="delivery" alt="Mapa con las zonas de domicilio de un restaurante" class="mt-10" />
+  </div>
+</section>

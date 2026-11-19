@@ -27,6 +27,8 @@ var agentReachableRoutes = map[string]bool{
 	"GET /api/edge/status":  true,
 	"POST /api/auth/signin": true,
 	"GET /api/auth/context": true,
+	// The marketing site's lead form: no credential, so any caller reaches it.
+	"POST /api/public/leads": true,
 	// Any signed-in user.
 	"GET /api/auth/me": true,
 	// products:read
@@ -89,7 +91,7 @@ func fullRouter(mode config.Mode, jwtService *service.JWTService) *gin.Engine {
 		registerCloudRoutes(router, "admin-key", "node-key", jwtService, cloudHandlers{
 			invoice: &handler.InvoiceHandler{}, supportDocument: &handler.SupportDocumentHandler{},
 			sync: &handler.SyncHandler{}, telemetry: &handler.TelemetryHandler{},
-			organization: &handler.OrganizationHandler{}, apiKey: &handler.APIKeyHandler{}, deliveryZone: &handler.DeliveryZoneHandler{},
+			organization: &handler.OrganizationHandler{}, lead: &handler.LeadHandler{}, apiKey: &handler.APIKeyHandler{}, deliveryZone: &handler.DeliveryZoneHandler{},
 			orgSettings:  &handler.OrganizationSettingsHandler{},
 			notifChannel: &handler.NotificationChannelHandler{}, notifRule: &handler.NotificationRuleHandler{},
 		})

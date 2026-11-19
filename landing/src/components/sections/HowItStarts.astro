@@ -1,0 +1,24 @@
+---
+const steps = [
+  { title: "Pides una demo", text: "Nos dejas tus datos y te escribimos por WhatsApp para acordar el día." },
+  { title: "Lo configuramos contigo", text: "Instalamos el equipo en el local y dejamos listos tu menú, tus prefijos de facturación y tu canal de WhatsApp." },
+  { title: "Empiezas a vender", text: "Tu equipo cobra, la cocina recibe pedidos y la factura sale desde el primer día." },
+];
+---
+
+<section class="px-4 py-16 md:py-24" aria-labelledby="start-title">
+  <div class="mx-auto max-w-5xl" data-reveal>
+    <h2 id="start-title" class="heading-2 max-w-[680px]">Así empieza</h2>
+    <ol class="mt-8 grid gap-4 md:grid-cols-3">
+      {
+        steps.map((step, index) => (
+          <li class="bg-surface border-line rounded-2xl border p-6">
+            <span class="heading-4 text-primary" aria-hidden="true">{index + 1}</span>
+            <h3 class="title-2 mt-3">{step.title}</h3>
+            <p class="body-6 text-muted mt-2">{step.text}</p>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+</section>

@@ -1,0 +1,152 @@
+---
+import { Icon } from "astro-icon/components";
+
+import { site, whatsappHref } from "../config/site.ts";
+
+const input =
+  "body-3 border-line bg-surface text-ink placeholder:text-muted/70 focus-visible:border-primary mt-1 block w-full rounded-lg border px-3 py-3 aria-[invalid=true]:border-red-700";
+---
+
+<div id="lead-form-root" data-api={site.apiBaseUrl}>
+  <form id="lead-form" novalidate class="flex flex-col gap-4" aria-describedby="form-status">
+    <div>
+      <label for="lf-name" class="title-4">Tu nombre</label>
+      <input id="lf-name" name="name" type="text" autocomplete="name" maxlength="100" required class={input} aria-describedby="lf-name-error" />
+      <p id="lf-name-error" class="body-6 mt-1 text-red-700" role="alert" hidden></p>
+    </div>
+    <div>
+      <label for="lf-restaurant" class="title-4">Nombre del restaurante</label>
+      <input id="lf-restaurant" name="restaurant_name" type="text" autocomplete="organization" maxlength="120" required class={input} aria-describedby="lf-restaurant_name-error" />
+      <p id="lf-restaurant_name-error" class="body-6 mt-1 text-red-700" role="alert" hidden></p>
+    </div>
+    <div>
+      <label for="lf-phone" class="title-4">Número de WhatsApp</label>
+      <input id="lf-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="300 123 4567" required class={input} aria-describedby="lf-phone-error" />
+      <p id="lf-phone-error" class="body-6 mt-1 text-red-700" role="alert" hidden></p>
+    </div>
+
+    <div class="absolute -left-[9999px] h-0 w-0 overflow-hidden" aria-hidden="true">
+      <label for="lf-website">No llenes este campo</label>
+      <input id="lf-website" name="website" type="text" tabindex="-1" autocomplete="off" />
+    </div>
+
+    <div>
+      <div class="flex items-start gap-3">
+        <input id="lf-consent" name="consent" type="checkbox" class="accent-primary mt-1 size-5 shrink-0" aria-describedby="lf-consent-error" />
+        <label for="lf-consent" class="body-6 text-muted">
+          Acepto que me contacten por WhatsApp para la demo y la
+          <a href="/privacidad" class="text-primary underline underline-offset-4">política de privacidad</a>.
+        </label>
+      </div>
+      <p id="lf-consent-error" class="body-6 mt-1 text-red-700" role="alert" hidden></p>
+    </div>
+
+    <button
+      type="submit"
+      class="button-lg bg-primary text-on-primary hover:bg-primary-strong motion-weighted rounded-lg px-3 py-3 active:scale-[0.98] disabled:cursor-wait disabled:opacity-60"
+    >
+      Pide una demo
+    </button>
+
+    <div id="form-status" role="status" aria-live="polite" class="body-5 text-red-700" hidden>
+      <p>No pudimos enviar tus datos. Revisa tu conexión e inténtalo de nuevo.</p>
+      {
+        whatsappHref && (
+          <p class="text-ink mt-2">
+            También puedes escribirnos directo:
+            <a href={whatsappHref} data-whatsapp class="text-primary inline-flex items-center gap-1 underline underline-offset-4">
+              <Icon name="ph:whatsapp-logo" class="size-5" aria-hidden="true" /> Abrir WhatsApp
+            </a>
+          </p>
+        )
+      }
+    </div>
+  </form>
+
+  <div id="form-success" role="status" class="bg-surface border-line rounded-2xl border p-6" hidden tabindex="-1">
+    <Icon name="ph:check-circle" class="text-primary size-10" aria-hidden="true" />
+    <h3 class="heading-5 mt-3">Recibimos tu solicitud</h3>
+    <p class="body-3 text-muted mt-2">Te escribiremos por WhatsApp para acordar la demo.</p>
+  </div>
+</div>
+
+<script>
+  import { browserStorage, currentPage, read } from "../lib/attribution.ts";
+  import { buildRequest, FIELDS, submitLead, validate, type FieldName, type FormValues } from "../lib/lead-form.ts";
+  import { trackLead } from "../lib/track.ts";
+
+  const root = document.getElementById("lead-form-root");
+  const form = document.getElementById("lead-form") as HTMLFormElement | null;
+  const success = document.getElementById("form-success");
+  const status = document.getElementById("form-status");
+
+  const fieldId: Record<FieldName, string> = {
+    name: "lf-name",
+    restaurant_name: "lf-restaurant",
+    phone: "lf-phone",
+    consent: "lf-consent",
+  };
+
+  function showError(field: FieldName, message: string | undefined) {
+    const input = document.getElementById(fieldId[field]);
+    const error = document.getElementById(`lf-${field}-error`);
+    if (!input || !error) return;
+    error.textContent = message ?? "";
+    error.hidden = !message;
+    input.setAttribute("aria-invalid", message ? "true" : "false");
+  }
+
+  function values(f: HTMLFormElement): FormValues {
+    const data = new FormData(f);
+    return {
+      name: String(data.get("name") ?? ""),
+      restaurant_name: String(data.get("restaurant_name") ?? ""),
+      phone: String(data.get("phone") ?? ""),
+      consent: data.get("consent") === "on",
+      website: String(data.get("website") ?? ""),
+    };
+  }
+
+  let sending = false;
+
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (sending || !root) return;
+
+    const current = values(form);
+    const errors = validate(current);
+    FIELDS.forEach((field) => showError(field, errors[field]));
+    if (status) status.hidden = true;
+    const firstInvalid = FIELDS.find((field) => errors[field]);
+    if (firstInvalid) {
+      document.getElementById(fieldId[firstInvalid])?.focus();
+      return;
+    }
+
+    sending = true;
+    const button = form.querySelector<HTMLButtonElement>("button[type=submit]");
+    if (button) button.disabled = true;
+
+    const eventId = crypto.randomUUID();
+    const request = buildRequest(current, read(currentPage(), browserStorage()), eventId);
+    const result = await submitLead(root.dataset.api ?? "", request);
+
+    if (result.kind === "success") {
+      trackLead(eventId);
+      form.hidden = true;
+      if (success) {
+        success.hidden = false;
+        success.focus();
+      }
+      return;
+    }
+    sending = false;
+    if (button) button.disabled = false;
+    if (result.kind === "field") {
+      showError(result.field, result.message);
+      document.getElementById(fieldId[result.field])?.focus();
+    } else if (status) {
+      status.hidden = false;
+    }
+  });
+</script>

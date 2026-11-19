@@ -1,0 +1,27 @@
+---
+import { Image } from "astro:assets";
+
+interface Props {
+  name: string;
+  alt: string;
+  class?: string;
+}
+
+const { name, alt, class: className } = Astro.props;
+const shots = import.meta.glob<{ default: ImageMetadata }>("/src/assets/screens/*.{png,jpg,webp}", { eager: true });
+const shot = Object.entries(shots).find(([path]) => path.split("/").pop()?.startsWith(`${name}.`))?.[1].default;
+---
+
+{
+  shot && (
+    <figure class={className}>
+      <Image
+        src={shot}
+        alt={alt}
+        widths={[480, 800, 1200]}
+        sizes="(min-width: 768px) 48rem, 100vw"
+        class="border-line w-full rounded-2xl border bg-surface"
+      />
+    </figure>
+  )
+}

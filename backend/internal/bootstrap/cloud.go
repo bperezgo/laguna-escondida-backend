@@ -3,8 +3,11 @@ package bootstrap
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
+
+	"github.com/gin-gonic/gin"
 
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/eventconsumer"
@@ -99,6 +102,9 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		},
 	})
 	if err != nil {
+		return nil, err
+	}
+	if err = applyTrustedProxies(c.router, cfg.TrustedProxies); err != nil {
 		return nil, err
 	}
 
@@ -240,12 +246,28 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 	)
 	c.jwtService.AcceptAPIKeys(apiKeyService)
 
+	leadRepo := repository.NewLeadRepository(db)
+	leadService := service.NewLeadService(leadRepo, cfg.LeadAlerts.Enabled(), logger, nil)
+	if cfg.LeadAlerts.Enabled() {
+		leadAlerts := service.NewLeadAlertService(
+			leadRepo, httpclient.NewDiscordWebhookClient(infra.HTTPClient), cfg.LeadAlerts.DiscordWebhookURL, logger, nil)
+		c.app.schedulers = append(c.app.schedulers, namedScheduler{
+			name: "lead alert scheduler",
+			build: func() (scheduler, error) {
+				return cron.NewLeadAlertScheduler(leadAlerts, logger)
+			},
+		})
+	} else {
+		logger.Info("Lead alerts disabled: set LEAD_ALERT_DISCORD_WEBHOOK_URL to be told about new leads")
+	}
+
 	registerCloudRoutes(c.router, cfg.AdminAPIKey, cfg.NodeSyncKey, c.jwtService, cloudHandlers{
 		invoice:         handler.NewInvoiceHandler(invoiceService, documentURLMaintenance),
 		supportDocument: handler.NewSupportDocumentHandler(supportDocService, documentURLMaintenance),
 		sync:            handler.NewSyncHandler(syncService, syncReferenceService),
 		telemetry:       telemetryHandler,
 		organization:    handler.NewOrganizationHandler(c.organizationService),
+		lead:            handler.NewLeadHandler(leadService),
 		apiKey:          handler.NewAPIKeyHandler(apiKeyService),
 		deliveryZone:    handler.NewDeliveryZoneHandler(service.NewDeliveryZoneService(c.deliveryZoneRepo)),
 		orgSettings:     handler.NewOrganizationSettingsHandler(service.NewOrganizationSettingsService(c.orgSettingsRepo)),
@@ -259,4 +281,16 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 	})
 
 	return c.app, nil
+}
+
+// applyTrustedProxies limits who may set X-Forwarded-For. With none configured the router keeps
+// its default of trusting every peer, which is what the per-address limit is weakest under.
+func applyTrustedProxies(router *gin.Engine, proxies []string) error {
+	if len(proxies) == 0 {
+		return nil
+	}
+	if err := router.SetTrustedProxies(proxies); err != nil {
+		return fmt.Errorf("set trusted proxies: %w", err)
+	}
+	return nil
 }

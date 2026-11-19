@@ -1,0 +1,22 @@
+---
+import { Icon } from "astro-icon/components";
+
+const statement = "Se cae el internet y la caja sigue cobrando. La cocina sigue recibiendo pedidos. Cuando vuelve la conexión, todo se sincroniza.";
+const words = statement.split(" ");
+---
+
+<section class="bg-night text-on-night px-4 py-20 md:py-24" aria-labelledby="outage-title">
+  <div class="mx-auto max-w-5xl">
+    <p class="caption-3 text-accent flex items-center gap-2 tracking-wide uppercase">
+      <Icon name="ph:wifi-slash" class="size-5" aria-hidden="true" /> Sin conexión
+    </p>
+    <h2 id="outage-title" class="sr-only">Vendes también cuando no hay internet</h2>
+    <p data-tagline class="heading-3 mt-6 max-w-[680px]" aria-label={statement}>
+      {words.map((word) => <><span data-word aria-hidden="true">{word}</span>{" "}</>)}
+    </p>
+    <p class="body-3 mt-8 max-w-[680px] text-slate-300">
+      Cada restaurante trabaja con un equipo propio dentro del local. Si la conexión falla, el servicio no se detiene: los pedidos, los cobros y la cocina
+      siguen funcionando en tu red y se envían a la nube cuando regresa el internet.
+    </p>
+  </div>
+</section>

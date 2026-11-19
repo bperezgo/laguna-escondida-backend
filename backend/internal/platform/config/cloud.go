@@ -30,6 +30,10 @@ type Cloud struct {
 	MarketingEvents MarketingEvents
 	// StaffNotifications is the key for encrypting channel secrets; notifications are off without it.
 	StaffNotifications StaffNotifications
+	// LeadAlerts announces new leads from the marketing site; off without a webhook.
+	LeadAlerts LeadAlerts
+	// TrustedProxies are the peers allowed to set X-Forwarded-For; nil keeps the router's trust-all default.
+	TrustedProxies []string
 	// FeedbackRequestCron asks for feedback the morning after visits; ReservationVisitedCron marks
 	// confirmed reservations visited two hours after they start.
 	FeedbackRequestCron    string
@@ -87,6 +91,14 @@ func LoadCloud() (*Cloud, error) {
 	if err != nil {
 		return nil, err
 	}
+	leadAlerts, err := loadLeadAlerts()
+	if err != nil {
+		return nil, err
+	}
+	trustedProxies, err := loadTrustedProxies()
+	if err != nil {
+		return nil, err
+	}
 	feedbackRequestCron := envOr("FEEDBACK_REQUEST_CRON", "5 * * * *")
 	if err = validateCronExpression("FEEDBACK_REQUEST_CRON", feedbackRequestCron); err != nil {
 		return nil, err
@@ -107,6 +119,8 @@ func LoadCloud() (*Cloud, error) {
 		TelemetryTenantID:      telemetryTenantID,
 		MarketingEvents:        marketingEvents,
 		StaffNotifications:     staffNotifications,
+		LeadAlerts:             leadAlerts,
+		TrustedProxies:         trustedProxies,
 		FeedbackRequestCron:    feedbackRequestCron,
 		ReservationVisitedCron: reservationVisitedCron,
 	}, nil
