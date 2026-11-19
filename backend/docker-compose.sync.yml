@@ -26,10 +26,11 @@ name: laguna-sync
 # mode-specific values (DB_HOST, storage, sync target). The edge is Laguna's box
 # (ORGANIZATION_ID, NODE_ID); the cloud has no organization or node id of its own.
 #
-# App-level values use ${VAR:-default}: Compose auto-loads .env from the repo root
-# (or use `--env-file`, or a shell var, which wins over .env) and falls back to the
-# test default when unset — so you can point at a real invoice provider without
-# editing this file. DB creds and PORT are left literal on purpose: they are pinned
+# App-level values use ${VAR:-default}: Compose auto-loads .env from the project directory,
+# i.e. backend/.env next to this file, only to fill these placeholders; a variable not
+# named here never reaches a container. (Or use `--env-file`, or a shell var, which wins
+# over .env.) Each falls back to the test default when unset, so you can point at a
+# real invoice provider without editing this file. DB creds and PORT are left literal on purpose: they are pinned
 # to the postgres containers (POSTGRES_*) and the `ports:` mappings below, so
 # overriding only the app side would silently break connections.
 x-app-env: &app-env
@@ -90,6 +91,10 @@ services:
       STORAGE_SECRET: minioadmin
       STORAGE_BUCKET: laguna-escondida
       STORAGE_ENDPOINT: http://minio:9000
+      # Empty leaves organization integrations disabled (the Ajustes page says so).
+      INTEGRATION_SECRETS_KEY: "${INTEGRATION_SECRETS_KEY:-}"
+      NOTIFICATION_SECRETS_KEY: "${NOTIFICATION_SECRETS_KEY:-}"
+      WOMPI_API_URL: "${WOMPI_API_URL:-https://sandbox.wompi.co/v1}"
     ports:
       - "8080:8080"
     depends_on:
