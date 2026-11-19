@@ -68,8 +68,8 @@ var RolePermissions = map[int][]Permission{
 		UsersRead,
 		// Delivery Zones - full access
 		DeliveryZonesRead, DeliveryZonesManage,
-		// Notification Channels - full access
-		NotificationChannelsRead, NotificationChannelsManage,
+		// Notification Channels - read only; a webhook is a credential, so only admins change them
+		NotificationChannelsRead,
 		// Ordering - full access
 		OrderingRead, OrderingPause, OrderingManage,
 		// Reservations and feedback - manage, never create requests on the agent's behalf
