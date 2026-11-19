@@ -123,6 +123,12 @@ const (
 	NotificationChannelsManage Permission = "notification-channels:manage"
 )
 
+// Integration permissions guard an organization's provider credentials, so only admin holds them.
+const (
+	IntegrationsRead   Permission = "integrations:read"
+	IntegrationsManage Permission = "integrations:manage"
+)
+
 // Ordering permissions: the pause is split from the hours so a floor role can get the switch alone.
 const (
 	OrderingRead   Permission = "ordering:read"
@@ -196,6 +202,8 @@ func AllPermissions() []Permission {
 		DeliveryZonesRead, DeliveryZonesManage,
 		// Notification Channels
 		NotificationChannelsRead, NotificationChannelsManage,
+		// Integrations
+		IntegrationsRead, IntegrationsManage,
 		// Ordering
 		OrderingRead, OrderingPause, OrderingManage,
 		// Reservations

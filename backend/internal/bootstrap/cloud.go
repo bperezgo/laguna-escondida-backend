@@ -55,11 +55,25 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 	contactService := service.NewContactService(contactRepo, reservationRepo, feedbackRepo)
 	marketingEvents := service.NewMarketingEventService(marketingOutbox, cloudOrganizations, cfg.MarketingEvents, cfg.MarketingEvents.Enabled())
 
+	// Integrations hold each organization's provider credentials; without the key none is saved or read.
+	var integrationCipher ports.SecretCipher
+	if cfg.Integrations.Enabled() {
+		cipher, cipherErr := crypto.NewAESGCMCipher(cfg.Integrations.SecretsKey)
+		if cipherErr != nil {
+			return nil, cipherErr
+		}
+		integrationCipher = cipher
+	} else {
+		logger.Info("Organization integrations disabled: set INTEGRATION_SECRETS_KEY (base64, 32 bytes) to enable them; agent orders are refused")
+	}
+	integrations := service.NewOrganizationIntegrationService(repository.NewOrganizationIntegrationRepository(db),
+		cloudOrganizations, integrationCipher, cfg.PaymentLinks.APIURL, logger, nil)
+
 	// Payment links are cloud-only too: the box neither creates links nor receives Wompi's events.
 	paymentLinkRepo := repository.NewPaymentLinkRepository(db)
 	paymentTransactionRepo := repository.NewPaymentTransactionRepository(db)
 	paymentLinks := service.NewPaymentLinkService(paymentLinkRepo, httpclient.NewWompiClient(infra.HTTPClient, cfg.PaymentLinks.APIURL),
-		cfg.PaymentLinks, cloudOrganizations, cfg.PaymentLinks.TTL, logger, nil)
+		integrations, cloudOrganizations, cfg.PaymentLinks.TTL, logger, nil)
 
 	// Durable events: without the key no staff-notification consumer is registered, so nothing is recorded.
 	// The bridge forwards nothing yet; it is registered so the relay can carry in-memory consumers later.
@@ -148,7 +162,9 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 
 	c.app.background = append(c.app.background,
 		newBackgroundLoop(func(ctx context.Context) { settingsCache.Sweep(ctx, time.Minute) }),
-		newBackgroundLoop(func(ctx context.Context) { logPaymentLinks(ctx, logger, cloudOrganizations, cfg.PaymentLinks) }))
+		newBackgroundLoop(func(ctx context.Context) {
+			logPaymentLinks(ctx, logger, cloudOrganizations, integrations, cfg.PaymentLinks)
+		}))
 	c.app.schedulers = append(c.app.schedulers, namedScheduler{
 		name: "cron scheduler",
 		build: func() (scheduler, error) {
@@ -160,7 +176,7 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		},
 	})
 
-	paymentWebhooks := service.NewPaymentWebhookService(cloudOrganizations, c.organizationRunner, cfg.PaymentLinks,
+	paymentWebhooks := service.NewPaymentWebhookService(cloudOrganizations, c.organizationRunner, integrations,
 		paymentLinkRepo, paymentTransactionRepo, c.orderService, c.unitOfWork, logger)
 	paymentExpiry := service.NewPaymentExpiryService(c.organizationRunner, paymentLinkRepo, paymentTransactionRepo,
 		paymentLinks, c.orderService, logger, nil)
@@ -288,6 +304,7 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		organization:    handler.NewOrganizationHandler(c.organizationService),
 		lead:            handler.NewLeadHandler(leadService),
 		apiKey:          handler.NewAPIKeyHandler(apiKeyService),
+		integration:     handler.NewOrganizationIntegrationHandler(integrations),
 		deliveryZone:    handler.NewDeliveryZoneHandler(service.NewDeliveryZoneService(c.deliveryZoneRepo)),
 		orgSettings:     handler.NewOrganizationSettingsHandler(service.NewOrganizationSettingsService(c.orgSettingsRepo)),
 		reservation:     handler.NewReservationHandler(reservationService),
@@ -303,9 +320,13 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 	return c.app, nil
 }
 
-// logPaymentLinks says at startup which organizations take agent orders: one without both Wompi
-// keys refuses them. Informational only, so a failure to list is logged and startup goes on.
-func logPaymentLinks(ctx context.Context, logger *slog.Logger, orgs ports.OrganizationRepository, links config.PaymentLinks) {
+// logPaymentLinks says at startup which organizations take agent orders: one without a usable
+// Wompi integration refuses them. Informational only, so a failure to read is logged and startup goes on.
+func logPaymentLinks(ctx context.Context, logger *slog.Logger, orgs ports.OrganizationRepository, links ports.PaymentLinkConfig, settings config.PaymentLinks) {
+	for _, name := range settings.IgnoredEnv {
+		logger.Warn("Ignored: Wompi keys are read from each organization's Wompi integration, not the environment; unset it",
+			slog.String("variable", name))
+	}
 	list, err := orgs.List(ctx)
 	if err != nil {
 		logger.Warn("Could not list organizations to report payment links", slog.Any("error", err))
@@ -315,11 +336,16 @@ func logPaymentLinks(ctx context.Context, logger *slog.Logger, orgs ports.Organi
 		if org.Status != dto.OrganizationStatusActive {
 			continue
 		}
-		if links.ConfiguredFor(org.Slug) {
-			logger.Info("Payment links configured", slog.String("organization", org.Slug), slog.String("wompi", links.APIURL))
+		_, configured, err := links.For(ctx, org.ID)
+		if err != nil {
+			logger.Warn("Could not read the Wompi integration to report payment links", slog.String("organization", org.Slug), slog.Any("error", err))
 			continue
 		}
-		logger.Info("Payment links not configured: agent orders are refused; set WOMPI_PRIVATE_KEY_<SLUG> and WOMPI_EVENTS_SECRET_<SLUG>",
+		if configured {
+			logger.Info("Payment links configured", slog.String("organization", org.Slug), slog.String("wompi", settings.APIURL))
+			continue
+		}
+		logger.Info("Payment links not configured: agent orders are refused; put the keys with PUT /api/platform/organizations/:id/integrations/wompi",
 			slog.String("organization", org.Slug))
 	}
 }

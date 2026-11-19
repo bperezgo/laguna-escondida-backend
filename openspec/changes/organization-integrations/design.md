@@ -27,8 +27,10 @@ See proposal.md (Why). What exists today:
   invalidate.
 
 **Non-Goals:**
-- An ops-UI page, or letting an organization's own staff manage its integrations (later: a
-  permission like `notification_channels.manage` on the same service).
+- Managers changing keys: they get neither integration permission.
+- Other settings on the new Ajustes page (branding, ordering pause): it starts with integrations only.
+- A full webhook URL on the page: the backend doesn't know its public address, so the page shows the
+  path to copy.
 - Moving e-invoicing credentials (`ELECTRONIC_INVOICE_*`) into the table.
 - Wompi's public key and integrity secret: payment links and webhooks need neither.
 - Rotating `INTEGRATION_SECRETS_KEY` (re-encrypting rows). Losing it means putting the keys again.
@@ -103,6 +105,36 @@ At startup it scans `os.Environ()` for the two old prefixes and warns once per v
 is no fallback from environment to table: no production keys exist yet, so supporting both sources
 would only add a second source of truth.
 
+### D7. Staff routes on the same service
+
+A cloud-only group `/api/organization/integrations` behind `JWTAuthMiddleware`:
+`GET ""` and `GET /:provider` need `RequirePermission(integrations:read)`, `PUT /:provider` and
+`DELETE /:provider` need `integrations:manage`. The handler passes the token's organization
+(`tenant.RequireOrg`) to the existing service methods, so validation, encryption and errors are the
+platform routes' (including `503 INTEGRATIONS_UNAVAILABLE`). The admin role gets both permissions
+through `AllPermissions()`; no other role gets either, so an agent API key (agent role) is `403`.
+The platform routes keep the admin API key for onboarding.
+
+*Alternative:* staff-only routes. Onboarding would then need a restaurant admin to log in before the
+operator can test anything.
+
+### D8. The Ajustes page
+
+`app/(main)/ajustes` with an "Integraciones" section holding a Wompi card. Cloud-only: both
+permissions are in the frontend's `CLOUD_ONLY_PERMISSIONS`, so on the edge the nav entry and page are
+hidden. The card has three states:
+
+- **Unavailable** (`503 INTEGRATIONS_UNAVAILABLE`): "Las integraciones no están habilitadas en este servidor."
+- **Not configured**: a form with two `type="password"`, `autocomplete="off"` fields, never prefilled
+  and cleared after submit. A `400` with `field` is shown under that field; one without is shown as
+  the form's message (environment mismatch).
+- **Configured**: environment badge (Sandbox / Producción), hints as `••••wxyz`, last update, the
+  webhook path with a copy button, "Reemplazar llaves" (opens the form) and "Quitar" (in-page
+  confirmation, no `window.confirm`).
+
+Without `integrations:manage` the card is read-only. The Next proxy routes pass the body through and
+never log it.
+
 ## Risks / Trade-offs
 
 - [Key loss: `INTEGRATION_SECRETS_KEY` changed or lost] → Every organization stops taking agent
@@ -110,6 +142,8 @@ would only add a second source of truth.
   again. This is documented in `docs/api/organization-integrations.md`.
 - [Secrets in logs through the request logger] → Task 3.3 verifies the PUT body is not logged.
   The handler test asserts no response contains either secret.
+- [Keys typed in the browser] → Password fields, never echoed back by any response, never logged
+  by the Next proxy or the backend request logger; handler tests assert no response carries a secret.
 - [Wompi prefixes change or differ by account] → The prefix check is the only coupling to Wompi's
   key format. If sandbox keys don't match (task 1.1), relax D4 to a warning instead of guessing.
 - [Ordering with `wompi-payment-links`] → This change edits code that change added and replaces its
@@ -150,3 +184,9 @@ environment keys back.
 | `internal/platform/handler/organization_integration_handler.go` (+ test) | D3 |
 | `internal/bootstrap/cloud.go`, `routes_cloud.go`, `testdata/routes_cloud.golden` | wiring, routes, startup log |
 | `docs/api/organization-integrations.md`, `docs/api/wompi-webhook.md`, `docs/api/orders.md`, `docs/examples/curl-examples.md` | docs |
+| `internal/domain/permissions/permissions.go` (+ test) | D7 permissions |
+| `internal/platform/handler/organization_integration_handler.go` (+ test), `bootstrap/routes_cloud.go`, golden | D7 staff routes |
+| `frontend/types/organizationIntegrations.ts`, `frontend/lib/api/organizationIntegrations.ts` | D8 client |
+| `frontend/app/api/organization/integrations/route.ts`, `…/[provider]/route.ts` | D8 proxy |
+| `frontend/lib/permissions/constants.ts`, `edge.ts` (+ test), `frontend/app/home/page.tsx` | D8 permissions, nav |
+| `frontend/app/(main)/ajustes/page.tsx`, `frontend/components/settings/` | D8 page |

@@ -1,39 +1,36 @@
 package testsupport
 
 import (
+	"context"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"sync/atomic"
 	"testing"
 	"time"
 
+	"laguna-escondida/backend/internal/domain/dto"
+	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/platform/config"
+	"laguna-escondida/backend/internal/platform/crypto"
+	"laguna-escondida/backend/internal/platform/postgres/repository"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
-// orgSlugPool is how many organizations a suite can seed with payment links configured.
-const orgSlugPool = 500
+// integrationsKey encrypts every suite's organization integrations.
+var integrationsKey = []byte("acceptance-integrations-key-0032")
 
-var nextOrgSlug atomic.Int64
-
-// NextOrgSlug is the slug for the next seeded organization. Every one has payment links in
-// PaymentLinks, so an agent order is taken there as in a configured restaurant.
-func NextOrgSlug() string {
-	n := nextOrgSlug.Add(1)
-	if n > orgSlugPool {
-		panic("testsupport: more seeded organizations than the payment link slug pool")
-	}
-	return orgSlug(n)
+// Integrations is the cloud setting that lets a suite store organizations' Wompi keys.
+func Integrations() config.Integrations {
+	return config.Integrations{SecretsKey: integrationsKey}
 }
 
-func orgSlug(n int64) string {
-	return fmt.Sprintf("accept-org-%03d", n)
-}
-
-// PaymentLinks configures every NextOrgSlug organization against a fake Wompi that creates a
-// link for any key and deactivates any link, so suites that aren't about payments can take agent orders.
+// PaymentLinks points the cloud at a fake Wompi that creates a link for any key and deactivates
+// any link, so suites that aren't about payments can take agent orders.
 func PaymentLinks(t *testing.T) config.PaymentLinks {
 	t.Helper()
 	wompi := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -46,9 +43,22 @@ func PaymentLinks(t *testing.T) config.PaymentLinks {
 		_, _ = w.Write([]byte(`{"data":{"active":false}}`))
 	}))
 	t.Cleanup(wompi.Close)
-	keys, secrets := map[string]string{}, map[string]string{}
-	for n := int64(1); n <= orgSlugPool; n++ {
-		keys[orgSlug(n)], secrets[orgSlug(n)] = "prv_test_accept", "test_events_accept"
-	}
-	return config.NewPaymentLinks(wompi.URL+"/v1", 30*time.Minute, keys, secrets)
+	return config.NewPaymentLinks(wompi.URL+"/v1", 30*time.Minute)
+}
+
+// IntegrationService is the cloud's integration service on db, under Integrations' key.
+func IntegrationService(t *testing.T, db *gorm.DB, wompiAPIURL string) *service.OrganizationIntegrationService {
+	t.Helper()
+	cipher, err := crypto.NewAESGCMCipher(integrationsKey)
+	require.NoError(t, err)
+	return service.NewOrganizationIntegrationService(repository.NewOrganizationIntegrationRepository(db),
+		repository.NewOrganizationRepository(db), cipher, wompiAPIURL, slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
+}
+
+// ConfigureWompi gives the organization a Wompi integration, as a restaurant with payment links has.
+func ConfigureWompi(t *testing.T, db *gorm.DB, orgID string) {
+	t.Helper()
+	_, err := IntegrationService(t, db, "http://127.0.0.1/v1").SetWompi(context.Background(), orgID,
+		dto.WompiCredentials{PrivateKey: "prv_test_accept", EventsSecret: "test_events_accept"})
+	require.NoError(t, err)
 }

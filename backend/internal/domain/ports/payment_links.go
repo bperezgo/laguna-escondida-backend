@@ -15,12 +15,10 @@ type PaymentLinkProvider interface {
 	CheckoutURL(linkID string) string
 }
 
-// PaymentLinkConfig holds each organization's Wompi keys, by slug.
+// PaymentLinkConfig is each organization's Wompi keys, read on every use so a change applies at once.
 type PaymentLinkConfig interface {
-	// ConfiguredFor is true only when both the private key and the events secret are set.
-	ConfiguredFor(slug string) bool
-	PrivateKeyFor(slug string) (string, bool)
-	EventsSecretFor(slug string) (string, bool)
+	// For reports configured=false when the organization has no usable Wompi integration.
+	For(ctx context.Context, organizationID string) (creds dto.WompiCredentials, configured bool, err error)
 }
 
 // PaymentLinkRepository stores an order's links, for the context's organization.

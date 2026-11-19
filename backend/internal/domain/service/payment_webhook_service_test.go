@@ -53,8 +53,7 @@ func newWebhookFixture(t *testing.T) *webhookFixture {
 		transactions: mocks.NewMockPaymentTransactionRepository(t),
 		payer:        &fakePayer{},
 	}
-	f.config.EXPECT().EventsSecretFor(crmOrgSlug).Return(webhookSecret, true).Maybe()
-	f.config.EXPECT().ConfiguredFor(crmOrgSlug).Return(true).Maybe()
+	f.config.EXPECT().For(mock.Anything, crmOrgID).Return(dto.WompiCredentials{PrivateKey: "prv_test_laguna", EventsSecret: webhookSecret}, true, nil).Maybe()
 	f.transactions.EXPECT().Save(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, tx *dto.PaymentTransaction) error {
 		f.saved = append(f.saved, tx)
 		return nil
@@ -230,7 +229,7 @@ func TestPaymentWebhookService_Handle_Refused(t *testing.T) {
 	t.Run("an organization without payment links", func(t *testing.T) {
 		f := newWebhookFixture(t)
 		config := mocks.NewMockPaymentLinkConfig(t)
-		config.EXPECT().EventsSecretFor(crmOrgSlug).Return("", false).Once()
+		config.EXPECT().For(mock.Anything, crmOrgID).Return(dto.WompiCredentials{}, false, nil).Once()
 		f.service.config = config
 
 		assert.Equal(t, dto.PaymentWebhookRefused, f.handle(t, wompiEvent("APPROVED", 4500000, "CARD", webhookSecret)))
@@ -280,4 +279,24 @@ func TestValidChecksum_WompiDocumentedConcatenation(t *testing.T) {
 
 	assert.True(t, validChecksum(parsed, "prod_events_OcHnIzeBl5socpwByQ4hA52Em3USQ93Z"))
 	assert.False(t, validChecksum(parsed, "another_secret"))
+}
+
+func TestPaymentWebhookService_Handle_VerifiesWithTheSecretOfTheMomentAfterARotation(t *testing.T) {
+	f := newWebhookFixture(t)
+	config := mocks.NewMockPaymentLinkConfig(t)
+	config.EXPECT().For(mock.Anything, crmOrgID).Return(dto.WompiCredentials{PrivateKey: "prv_test_new", EventsSecret: "test_events_new"}, true, nil).Once()
+	f.service.config = config
+
+	assert.Equal(t, dto.PaymentWebhookRefused, f.handle(t, wompiEvent("APPROVED", 4500000, "CARD", webhookSecret)), "the old secret no longer verifies")
+}
+
+func TestPaymentWebhookService_Handle_IntegrationReadFailureIsRetried(t *testing.T) {
+	f := newWebhookFixture(t)
+	config := mocks.NewMockPaymentLinkConfig(t)
+	config.EXPECT().For(mock.Anything, crmOrgID).Return(dto.WompiCredentials{}, false, errors.New("db down")).Once()
+	f.service.config = config
+
+	_, err := f.service.Handle(context.Background(), crmOrgID, []byte(wompiEvent("APPROVED", 4500000, "CARD", webhookSecret)))
+
+	require.Error(t, err)
 }

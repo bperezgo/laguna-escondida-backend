@@ -66,11 +66,15 @@ func (s *PaymentWebhookService) Handle(ctx context.Context, orgID string, body [
 	if err != nil {
 		return "", fmt.Errorf("read organization: %w", err)
 	}
-	secret, ok := s.config.EventsSecretFor(org.Slug)
-	if !ok || !s.config.ConfiguredFor(org.Slug) {
+	creds, configured, err := s.config.For(ctx, org.ID)
+	if err != nil {
+		return "", fmt.Errorf("read wompi integration: %w", err)
+	}
+	if !configured {
 		log.WarnContext(ctx, "Wompi event for an organization without payment links", slog.String("organization", org.Slug))
 		return dto.PaymentWebhookRefused, nil
 	}
+	secret := creds.EventsSecret
 
 	var event dto.WompiEvent
 	if err := json.Unmarshal(body, &event); err != nil {

@@ -2,6 +2,7 @@ import { PERMISSIONS } from "./constants.ts";
 
 // The box (edge) only pulls the catalog and users from the cloud: it serves their reads, and
 // a write there returns 404, so on the edge the user never holds these permissions.
+// Integrations aren't served on the box at all.
 export const CLOUD_ONLY_PERMISSIONS: readonly string[] = [
   PERMISSIONS.PRODUCTS_CREATE,
   PERMISSIONS.PRODUCTS_UPDATE,
@@ -9,6 +10,8 @@ export const CLOUD_ONLY_PERMISSIONS: readonly string[] = [
   PERMISSIONS.USERS_CREATE,
   PERMISSIONS.USERS_UPDATE,
   PERMISSIONS.USERS_DELETE,
+  PERMISSIONS.INTEGRATIONS_READ,
+  PERMISSIONS.INTEGRATIONS_MANAGE,
 ];
 
 export function effectivePermissions(permissions: string[], isEdge: boolean): string[] {

@@ -32,7 +32,9 @@ type Cloud struct {
 	StaffNotifications StaffNotifications
 	// LeadAlerts announces new leads from the marketing site; off without a webhook.
 	LeadAlerts LeadAlerts
-	// PaymentLinks are the Wompi keys per organization; one without them takes no agent orders.
+	// Integrations is the key for encrypting organizations' provider credentials; off without it.
+	Integrations Integrations
+	// PaymentLinks is the Wompi API and link lifetime shared by every organization.
 	PaymentLinks PaymentLinks
 	// TrustedProxies are the peers allowed to set X-Forwarded-For; nil keeps the router's trust-all default.
 	TrustedProxies []string
@@ -97,6 +99,10 @@ func LoadCloud() (*Cloud, error) {
 	if err != nil {
 		return nil, err
 	}
+	integrations, err := loadIntegrations()
+	if err != nil {
+		return nil, err
+	}
 	paymentLinks, err := loadPaymentLinks()
 	if err != nil {
 		return nil, err
@@ -126,6 +132,7 @@ func LoadCloud() (*Cloud, error) {
 		MarketingEvents:        marketingEvents,
 		StaffNotifications:     staffNotifications,
 		LeadAlerts:             leadAlerts,
+		Integrations:           integrations,
 		PaymentLinks:           paymentLinks,
 		TrustedProxies:         trustedProxies,
 		FeedbackRequestCron:    feedbackRequestCron,

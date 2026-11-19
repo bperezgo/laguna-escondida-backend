@@ -102,8 +102,10 @@ Every transaction received is kept in `payment_link_transactions`, with the raw 
 | Env var                         | Required          | Description |
 | ------------------------------- | ----------------- | ----------- |
 | `WOMPI_API_URL`                 | No                | `https://sandbox.wompi.co/v1` or `https://production.wompi.co/v1` (default) |
-| `WOMPI_PRIVATE_KEY_<SLUG>`      | Per organization  | Creates and deactivates the organization's links. `<SLUG>` is the slug upper-cased with `-` as `_` |
-| `WOMPI_EVENTS_SECRET_<SLUG>`    | Per organization  | Verifies the organization's events (*Secretos para integración técnica* in Wompi's dashboard) |
 | `PAYMENT_LINK_TTL`              | No                | How long a link lives, default `30m`. Shortened only for tests |
 
-An organization has payment links configured only with **both** its key and its secret; without them its agent orders are refused with `422 PAYMENT_LINKS_NOT_CONFIGURED`. At startup the cloud logs, for each active organization, whether it has them.
+Each organization's private key and events secret are its **Wompi integration**, put by the platform operator with `PUT /api/platform/organizations/:id/integrations/wompi` (see [Organization Integrations](organization-integrations.md)). The keys are read on every link and event, so replacing them takes effect without a restart. The integration's `webhook_path` is the URL to set in Wompi's dashboard.
+
+An organization has payment links configured only with a Wompi integration the cloud can decrypt; without one its agent orders are refused with `422 PAYMENT_LINKS_NOT_CONFIGURED` and its events are refused. At startup the cloud logs, for each active organization, whether it has payment links configured.
+
+`WOMPI_PRIVATE_KEY_<SLUG>` and `WOMPI_EVENTS_SECRET_<SLUG>` are no longer read: startup warns, by name, for each one still set.

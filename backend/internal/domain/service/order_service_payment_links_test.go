@@ -8,6 +8,7 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 	orderError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/permissions"
+	"laguna-escondida/backend/internal/domain/ports/mocks"
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -19,7 +20,11 @@ import (
 // them configured or not.
 func newLinkedOrderFixture(t *testing.T, configured bool, opts ...OrderServiceOption) (*deliveryOrderFixture, *linkFixture) {
 	links := newLinkFixture(t)
-	links.config.EXPECT().ConfiguredFor(crmOrgSlug).Return(configured).Maybe()
+	if !configured {
+		links.config = mocks.NewMockPaymentLinkConfig(t)
+		links.config.EXPECT().For(mock.Anything, crmOrgID).Return(dto.WompiCredentials{}, false, nil).Maybe()
+		links.service.config = links.config
+	}
 	f := newDeliveryOrderFixture(t, append(opts, WithPaymentLinks(links.service))...)
 	return f, links
 }
@@ -68,7 +73,7 @@ func TestOrderService_CreateOrder_StaffTakeawayNeedsNoPaymentLinks(t *testing.T)
 
 	require.NoError(t, err)
 	assert.Nil(t, result.PaymentURL, "a till order gets no link")
-	links.config.AssertNotCalled(t, "ConfiguredFor", mock.Anything)
+	links.config.AssertNotCalled(t, "For", mock.Anything, mock.Anything)
 	links.provider.AssertNotCalled(t, "CreateLink", mock.Anything, mock.Anything, mock.Anything)
 }
 
@@ -79,7 +84,7 @@ func TestOrderService_CreateOrder_ThePaymentLinkCheckComesAfterAvailability(t *t
 	_, err := f.service.CreateOrder(crmContext(), contactRequest(deliveryContact(insideCentroLat, insideCentroLng)), agentUser(userID1))
 
 	require.ErrorIs(t, err, orderError.ErrOrderingPaused, "paused says paused, not unconfigured")
-	links.config.AssertNotCalled(t, "ConfiguredFor", mock.Anything)
+	links.config.AssertNotCalled(t, "For", mock.Anything, mock.Anything)
 }
 
 func TestOrderService_CreateOrder_ThePaymentLinkCheckComesBeforeTheZone(t *testing.T) {

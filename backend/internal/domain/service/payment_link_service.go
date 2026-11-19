@@ -44,11 +44,15 @@ func NewPaymentLinkService(
 
 // Configured reports whether the context's organization can take agent orders.
 func (s *PaymentLinkService) Configured(ctx context.Context) (bool, error) {
-	org, err := s.organization(ctx)
+	orgID, err := tenant.RequireOrg(ctx)
 	if err != nil {
 		return false, err
 	}
-	return s.config.ConfiguredFor(org.Slug), nil
+	_, configured, err := s.config.For(ctx, orgID)
+	if err != nil {
+		return false, fmt.Errorf("read payment link configuration: %w", err)
+	}
+	return configured, nil
 }
 
 // CreateForOrder makes the order's first link, expiring the TTL after the order was created.
@@ -131,11 +135,16 @@ func (s *PaymentLinkService) create(ctx context.Context, order *dto.OpenBill, ex
 		log.ErrorContext(ctx, "payment link not created: read the organization", slog.Any("error", err))
 		return nil
 	}
-	privateKey, ok := s.config.PrivateKeyFor(org.Slug)
-	if !ok {
-		log.ErrorContext(ctx, "payment link not created: the organization has no Wompi private key", slog.String("organization", org.Slug))
+	creds, configured, err := s.config.For(ctx, org.ID)
+	if err != nil {
+		log.ErrorContext(ctx, "payment link not created: read the Wompi integration", slog.Any("error", err))
 		return nil
 	}
+	if !configured {
+		log.ErrorContext(ctx, "payment link not created: the organization has no Wompi integration", slog.String("organization", org.Slug))
+		return nil
+	}
+	privateKey := creds.PrivateKey
 	amount := amountInCents(order.TotalAmount)
 	req := dto.PaymentLinkRequest{
 		Name:          restaurantName(org),
@@ -169,17 +178,21 @@ func (s *PaymentLinkService) create(ctx context.Context, order *dto.OpenBill, ex
 }
 
 func (s *PaymentLinkService) deactivateAtProvider(ctx context.Context, link *dto.PaymentLink) {
-	org, err := s.organization(ctx)
+	orgID, err := tenant.RequireOrg(ctx)
 	if err != nil {
-		s.logger.ErrorContext(ctx, "payment link not deactivated at Wompi: read the organization", slog.String("wompi_link_id", link.WompiLinkID), slog.Any("error", err))
+		s.logger.ErrorContext(ctx, "payment link not deactivated at Wompi: no organization", slog.String("wompi_link_id", link.WompiLinkID), slog.Any("error", err))
 		return
 	}
-	privateKey, ok := s.config.PrivateKeyFor(org.Slug)
-	if !ok {
-		s.logger.ErrorContext(ctx, "payment link not deactivated at Wompi: no private key", slog.String("wompi_link_id", link.WompiLinkID))
+	creds, configured, err := s.config.For(ctx, orgID)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "payment link not deactivated at Wompi: read the Wompi integration", slog.String("wompi_link_id", link.WompiLinkID), slog.Any("error", err))
 		return
 	}
-	s.deactivateWith(ctx, privateKey, link.WompiLinkID)
+	if !configured {
+		s.logger.ErrorContext(ctx, "payment link not deactivated at Wompi: no Wompi integration", slog.String("wompi_link_id", link.WompiLinkID))
+		return
+	}
+	s.deactivateWith(ctx, creds.PrivateKey, link.WompiLinkID)
 }
 
 func (s *PaymentLinkService) deactivateWith(ctx context.Context, privateKey, wompiLinkID string) {

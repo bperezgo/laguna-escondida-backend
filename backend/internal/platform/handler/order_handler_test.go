@@ -161,9 +161,8 @@ func TestOrderHandler_CreateOrder_PaymentLinksNotConfigured_Returns422(t *testin
 		orgID  = "550e8400-e29b-41d4-a716-446655440030"
 	)
 	orgs := mocks.NewMockOrganizationRepository(t)
-	orgs.EXPECT().Get(mock.Anything, orgID).Return(&dto.Organization{ID: orgID, Slug: "restaurante-x"}, nil).Once()
 	config := mocks.NewMockPaymentLinkConfig(t)
-	config.EXPECT().ConfiguredFor("restaurante-x").Return(false).Once()
+	config.EXPECT().For(mock.Anything, orgID).Return(dto.WompiCredentials{}, false, nil).Once()
 	links := service.NewPaymentLinkService(nil, nil, config, orgs, 30*time.Minute, nil, nil)
 	// Nothing else is reached: the refusal comes before any duplicate check, zone or write.
 	orderService := service.NewOrderService(nil, nil, nil, nil, dto.PendingInvoiceStatusPending, nil, nil, nil, nil,

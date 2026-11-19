@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -8,38 +9,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLoadCloud_PaymentLinksBothKeys(t *testing.T) {
+func TestLoadCloud_PaymentLinksSharedSettings(t *testing.T) {
 	setCloudEnv(t)
 	t.Setenv("WOMPI_API_URL", "https://sandbox.wompi.co/v1/")
-	t.Setenv("WOMPI_PRIVATE_KEY_LAGUNA_ESCONDIDA", "prv_test_x")
-	t.Setenv("WOMPI_EVENTS_SECRET_LAGUNA_ESCONDIDA", "test_events_x")
 
 	cfg, err := LoadCloud()
 
 	require.NoError(t, err)
 	assert.Equal(t, "https://sandbox.wompi.co/v1", cfg.PaymentLinks.APIURL)
-	assert.True(t, cfg.PaymentLinks.ConfiguredFor("laguna-escondida"))
-	key, ok := cfg.PaymentLinks.PrivateKeyFor("laguna-escondida")
-	assert.True(t, ok)
-	assert.Equal(t, "prv_test_x", key)
-	secret, ok := cfg.PaymentLinks.EventsSecretFor("laguna-escondida")
-	assert.True(t, ok)
-	assert.Equal(t, "test_events_x", secret)
 	assert.Equal(t, 30*time.Minute, cfg.PaymentLinks.TTL)
 }
 
-func TestLoadCloud_PaymentLinksOneKeyIsNotConfigured(t *testing.T) {
-	setCloudEnv(t)
-	t.Setenv("WOMPI_PRIVATE_KEY_RESTAURANTE_X", "prv_test_x")
-	t.Setenv("WOMPI_EVENTS_SECRET_RESTAURANTE_X", "")
-
-	cfg, err := LoadCloud()
-
-	require.NoError(t, err)
-	assert.False(t, cfg.PaymentLinks.ConfiguredFor("restaurante-x"))
-}
-
-func TestLoadCloud_PaymentLinksNone(t *testing.T) {
+func TestLoadCloud_PaymentLinksDefaultAPI(t *testing.T) {
 	setCloudEnv(t)
 	t.Setenv("WOMPI_API_URL", "")
 
@@ -47,7 +28,19 @@ func TestLoadCloud_PaymentLinksNone(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "https://production.wompi.co/v1", cfg.PaymentLinks.APIURL)
-	assert.False(t, cfg.PaymentLinks.ConfiguredFor("laguna-escondida"))
+}
+
+func TestLoadCloud_PaymentLinksListsLeftoverKeysByNameOnly(t *testing.T) {
+	setCloudEnv(t)
+	t.Setenv("WOMPI_PRIVATE_KEY_LAGUNA_ESCONDIDA", "prv_test_leftover")
+	t.Setenv("WOMPI_EVENTS_SECRET_LAGUNA_ESCONDIDA", "test_events_leftover")
+	t.Setenv("WOMPI_PRIVATE_KEY_RESTAURANTE_X", "")
+
+	cfg, err := LoadCloud()
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"WOMPI_EVENTS_SECRET_LAGUNA_ESCONDIDA", "WOMPI_PRIVATE_KEY_LAGUNA_ESCONDIDA"}, cfg.PaymentLinks.IgnoredEnv)
+	assert.NotContains(t, strings.Join(cfg.PaymentLinks.IgnoredEnv, " "), "leftover")
 }
 
 func TestLoadCloud_PaymentLinkTTL(t *testing.T) {

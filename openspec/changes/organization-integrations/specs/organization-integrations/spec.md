@@ -103,15 +103,72 @@ have payment links configured. Payment links already created SHALL be left as th
 - **WHEN** the operator deletes Laguna's Wompi integration
 - **THEN** the response is `204`, and Laguna's next agent order is refused with `PAYMENT_LINKS_NOT_CONFIGURED`
 
-### Requirement: Integration routes need the admin API key
+### Requirement: Platform integration routes need the admin API key
 
 Every `/api/platform/organizations/:id/integrations` route SHALL require the admin API key, as the
-other platform organization routes do. A staff JWT or an organization's API key SHALL be refused.
+other platform organization routes do. A staff JWT or an organization's API key SHALL be refused on
+these routes; staff use the organization routes below.
 
 #### Scenario: An agent key is refused
 
 - **WHEN** a request to `GET /api/platform/organizations/:id/integrations` carries an organization's API key
 - **THEN** it is refused and nothing is returned
+
+### Requirement: The organization's admin manages its integrations
+
+`GET /api/organization/integrations` and `GET|PUT|DELETE /api/organization/integrations/wompi` SHALL
+behave as the platform routes do (same validation, responses and errors) for the organization of the
+caller's token. Reads SHALL need `integrations:read` and changes SHALL need `integrations:manage`.
+Both permissions SHALL be held only by the admin role. The routes SHALL NOT exist on an edge box.
+
+#### Scenario: An admin puts Laguna's sandbox keys
+
+- **WHEN** Laguna's admin, on a cloud using Wompi's sandbox, puts `prv_test_…wxyz` and `test_events_…9876`
+- **THEN** the response is `200` with `environment: sandbox` and the hints, and Laguna has payment links configured
+
+#### Scenario: A manager is refused
+
+- **WHEN** Laguna's manager puts or deletes the Wompi integration
+- **THEN** the response is `403` and nothing changes
+
+#### Scenario: The agent's API key is refused
+
+- **WHEN** a request to `GET /api/organization/integrations` carries Laguna's agent API key
+- **THEN** the response is `403` and nothing is returned
+
+### Requirement: The Ajustes page shows and sets the Wompi integration without exposing it
+
+The ops UI SHALL have an Ajustes page whose Integraciones section shows whether Wompi is configured,
+its environment, the secret hints, when it was last updated and the webhook path. It SHALL let a
+user with `integrations:manage` put, replace and remove the keys, and SHALL be read-only without it.
+It SHALL never display a stored secret, SHALL clear the entered values after saving, and SHALL show
+a refused save's reason next to the named field (or as the form's message when no field is named).
+It SHALL be hidden on an edge box and for users without `integrations:read`.
+
+#### Scenario: Configuring Wompi from scratch
+
+- **WHEN** Laguna's admin opens Ajustes with no Wompi integration and saves sandbox keys
+- **THEN** the card shows Sandbox, `••••wxyz`, `••••9876`, the update time and the webhook path, and the inputs are empty
+
+#### Scenario: Production keys on the sandbox
+
+- **WHEN** the admin saves production keys on a cloud using Wompi's sandbox
+- **THEN** the form shows that the keys are for production and the cloud uses the sandbox, and the card still shows the previous state
+
+#### Scenario: Removing Wompi
+
+- **WHEN** the admin chooses Quitar and confirms in the page
+- **THEN** the card shows Wompi as not configured
+
+#### Scenario: Server without an encryption key
+
+- **WHEN** the cloud runs without an integrations encryption key
+- **THEN** the section says integrations are not enabled on this server and offers no form
+
+#### Scenario: Hidden on the edge
+
+- **WHEN** an admin signs in on an edge box
+- **THEN** Ajustes is not in the navigation and its page is not shown
 
 ### Requirement: Integration secrets are encrypted at rest
 

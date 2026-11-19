@@ -18,6 +18,11 @@ environment and need moving later.
   `PUT|GET|DELETE /api/platform/organizations/:id/integrations/wompi` and
   `GET /api/platform/organizations/:id/integrations`. Secrets are write-only: reads return a hint
   (the last characters), the Wompi environment and when the integration was last changed.
+- The organization's own **admin** can set, replace and remove its Wompi integration from a new
+  cloud-only **Ajustes** page in the ops UI, through staff routes `GET /api/organization/integrations`
+  and `GET|PUT|DELETE /api/organization/integrations/:provider` (the organization comes from the
+  token). New permissions `integrations:read` and `integrations:manage`, granted to the admin role
+  only. The platform routes stay for onboarding by curl or MCP; both call the same service.
 - A Wompi private key and events secret are validated on save: their `test`/`prod` prefixes must
   agree with each other and with the cloud's `WOMPI_API_URL` (sandbox or production).
 - Payment links read the organization's credentials from the table, keyed by organization id
@@ -34,7 +39,8 @@ environment and need moving later.
 
 ### New Capabilities
 - `organization-integrations`: per-organization credentials for third-party providers, stored
-  encrypted, set and removed by the platform operator, never returned in plaintext.
+  encrypted, set and removed by the platform operator or the organization's admin, never returned
+  in plaintext.
 
 ### Modified Capabilities
 - `payment-links` (introduced by `wompi-payment-links`, not yet archived): the requirement
@@ -49,8 +55,12 @@ environment and need moving later.
   `ports.PaymentLinkConfig` reshaped (by organization id, with a context and an error),
   `PaymentLinkService` and `PaymentWebhookService` updated, `config/payment_links.go` reduced to
   the shared settings, bootstrap wiring and routes, and the startup log.
+- Backend (staff access): the two permissions, a staff route group on the same handler and service.
+- Frontend: an `/ajustes` page with an Integraciones section, Next API proxy routes, a `lib/api`
+  client and types, the two permissions in the constants and in the edge's cloud-only list, and a
+  home-nav entry. Backend and frontend ship as one PR (repo rule).
 - Docs: `docs/api/wompi-webhook.md` (configuration), `docs/api/orders.md`, a new
-  `docs/api/organization-integrations.md`, and the curl examples.
-- Not affected: the edge box (cloud only), the frontend (no UI in this change), and
+  `docs/api/organization-integrations.md` (platform and staff routes), and the curl examples.
+- Not affected: the edge box (cloud only; the page is hidden there), and
   marketing-app (it never sees Wompi keys; its L2 contract setup moves from env vars to the new
   endpoint).

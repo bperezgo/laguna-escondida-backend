@@ -35,7 +35,7 @@ func newLinkFixture(t *testing.T) *linkFixture {
 		config:   mocks.NewMockPaymentLinkConfig(t),
 		now:      time.Date(2026, 11, 18, 17, 10, 0, 0, time.UTC),
 	}
-	f.config.EXPECT().PrivateKeyFor(crmOrgSlug).Return(linkPrivateKey, true).Maybe()
+	f.config.EXPECT().For(mock.Anything, crmOrgID).Return(dto.WompiCredentials{PrivateKey: linkPrivateKey, EventsSecret: "test_events_laguna"}, true, nil).Maybe()
 	f.provider.EXPECT().CheckoutURL(mock.Anything).RunAndReturn(func(id string) string { return "https://checkout.wompi.co/l/" + id }).Maybe()
 	f.service = NewPaymentLinkService(f.links, f.provider, f.config, crmOrganizations(t), 30*time.Minute,
 		slog.New(slog.DiscardHandler), func() time.Time { return f.now })
@@ -89,10 +89,10 @@ func TestPaymentLinkService_CreateForOrder_AStoreFailureDeactivatesTheWompiLink(
 	assert.Nil(t, f.service.CreateForOrder(crmContext(), linkOrder("45000", f.now)))
 }
 
-func TestPaymentLinkService_CreateForOrder_NoPrivateKey(t *testing.T) {
+func TestPaymentLinkService_CreateForOrder_NoWompiIntegration(t *testing.T) {
 	f := newLinkFixture(t)
 	config := mocks.NewMockPaymentLinkConfig(t)
-	config.EXPECT().PrivateKeyFor(crmOrgSlug).Return("", false).Once()
+	config.EXPECT().For(mock.Anything, crmOrgID).Return(dto.WompiCredentials{}, false, nil).Once()
 	f.service.config = config
 
 	assert.Nil(t, f.service.CreateForOrder(crmContext(), linkOrder("45000", f.now)))
@@ -163,12 +163,36 @@ func TestPaymentLinkService_Cancel(t *testing.T) {
 
 func TestPaymentLinkService_Configured(t *testing.T) {
 	f := newLinkFixture(t)
-	f.config.EXPECT().ConfiguredFor(crmOrgSlug).Return(true).Once()
 
 	configured, err := f.service.Configured(crmContext())
 
 	require.NoError(t, err)
 	assert.True(t, configured)
+}
+
+func TestPaymentLinkService_Configured_ReadFailure(t *testing.T) {
+	f := newLinkFixture(t)
+	config := mocks.NewMockPaymentLinkConfig(t)
+	config.EXPECT().For(mock.Anything, crmOrgID).Return(dto.WompiCredentials{}, false, errors.New("db down")).Once()
+	f.service.config = config
+
+	_, err := f.service.Configured(crmContext())
+
+	require.Error(t, err)
+}
+
+func TestPaymentLinkService_CreateForOrder_UsesTheKeysOfTheMomentAfterARotation(t *testing.T) {
+	f := newLinkFixture(t)
+	config := mocks.NewMockPaymentLinkConfig(t)
+	config.EXPECT().For(mock.Anything, crmOrgID).Return(dto.WompiCredentials{PrivateKey: "prv_test_old", EventsSecret: "test_events_old"}, true, nil).Once()
+	config.EXPECT().For(mock.Anything, crmOrgID).Return(dto.WompiCredentials{PrivateKey: "prv_test_new", EventsSecret: "test_events_new"}, true, nil).Once()
+	f.service.config = config
+	f.provider.EXPECT().CreateLink(mock.Anything, "prv_test_old", mock.Anything).Return("wl_A", nil).Once()
+	f.provider.EXPECT().CreateLink(mock.Anything, "prv_test_new", mock.Anything).Return("wl_B", nil).Once()
+	f.links.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Twice()
+
+	require.NotNil(t, f.service.CreateForOrder(crmContext(), linkOrder("45000", f.now)))
+	require.NotNil(t, f.service.CreateForOrder(crmContext(), linkOrder("45000", f.now)))
 }
 
 func TestPaymentLinkService_ActiveURL(t *testing.T) {

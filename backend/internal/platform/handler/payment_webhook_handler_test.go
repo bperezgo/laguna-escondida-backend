@@ -58,8 +58,7 @@ func TestPaymentWebhookHandler_Wompi(t *testing.T) {
 		orgs := mocks.NewMockOrganizationRepository(t)
 		orgs.EXPECT().Get(mock.Anything, webhookOrgID).Return(&dto.Organization{ID: webhookOrgID, Slug: "laguna-escondida"}, nil).Once()
 		config := mocks.NewMockPaymentLinkConfig(t)
-		config.EXPECT().EventsSecretFor("laguna-escondida").Return("another-secret", true).Once()
-		config.EXPECT().ConfiguredFor("laguna-escondida").Return(true).Once()
+		config.EXPECT().For(mock.Anything, webhookOrgID).Return(dto.WompiCredentials{PrivateKey: "prv_test_x", EventsSecret: "another-secret"}, true, nil).Once()
 
 		rec := postWompi(webhookRouter(t, orgs, config), webhookOrgID, signedOther)
 
@@ -69,8 +68,7 @@ func TestPaymentWebhookHandler_Wompi(t *testing.T) {
 		orgs := mocks.NewMockOrganizationRepository(t)
 		orgs.EXPECT().Get(mock.Anything, webhookOrgID).Return(&dto.Organization{ID: webhookOrgID, Slug: "laguna-escondida"}, nil).Once()
 		config := mocks.NewMockPaymentLinkConfig(t)
-		config.EXPECT().EventsSecretFor("laguna-escondida").Return("s3cret", true).Once()
-		config.EXPECT().ConfiguredFor("laguna-escondida").Return(true).Once()
+		config.EXPECT().For(mock.Anything, webhookOrgID).Return(dto.WompiCredentials{PrivateKey: "prv_test_x", EventsSecret: "s3cret"}, true, nil).Once()
 
 		rec := postWompi(webhookRouter(t, orgs, config), webhookOrgID, signedOther)
 

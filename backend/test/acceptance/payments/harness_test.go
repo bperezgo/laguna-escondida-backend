@@ -141,15 +141,16 @@ type fakeWompi struct {
 	created     []string
 	deactivated []string
 	fail        bool
+	key         string
 	server      *httptest.Server
 }
 
 func newFakeWompi(t *testing.T) *fakeWompi {
-	f := &fakeWompi{}
+	f := &fakeWompi{key: privateKey}
 	f.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
-		if r.Header.Get("Authorization") != "Bearer "+privateKey || f.fail {
+		if r.Header.Get("Authorization") != "Bearer "+f.key || f.fail {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -166,6 +167,13 @@ func newFakeWompi(t *testing.T) *fakeWompi {
 	}))
 	t.Cleanup(f.server.Close)
 	return f
+}
+
+// acceptOnly makes Wompi refuse every private key but this one, as after a rotation.
+func (f *fakeWompi) acceptOnly(key string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.key = key
 }
 
 func (f *fakeWompi) wasDeactivated(id string) bool {
@@ -236,11 +244,7 @@ func newCloud(t *testing.T, ttl time.Duration, configured ...*restaurant) *cloud
 	skipUnlessEnabled(t)
 	gin.SetMode(gin.TestMode)
 	wompi := newFakeWompi(t)
-	keys, secrets := map[string]string{}, map[string]string{}
-	for _, r := range configured {
-		keys[r.slug], secrets[r.slug] = privateKey, eventsSecret
-	}
-	links := config.NewPaymentLinks(wompi.server.URL+"/v1", ttl, keys, secrets)
+	links := config.NewPaymentLinks(wompi.server.URL+"/v1", ttl)
 	logger := slog.New(slog.NewTextHandler(logOutput(), &slog.HandlerOptions{Level: slog.LevelError}))
 	bus := eventbus.NewGoChannelEventBus(watermill.NopLogger{})
 	t.Cleanup(func() { _ = bus.Close() })
@@ -250,6 +254,7 @@ func newCloud(t *testing.T, ttl time.Duration, configured ...*restaurant) *cloud
 			Observability: config.Observability{ServiceName: "laguna-backend", MetricsPort: "0"},
 		},
 		PaymentLinks: links,
+		Integrations: testsupport.Integrations(),
 	}
 	app, err := bootstrap.NewCloud(cfg, bootstrap.Infra{
 		DB: cloudDB, Logger: logger, HTTPClient: httpclient.NewClient(logger),
@@ -258,7 +263,19 @@ func newCloud(t *testing.T, ttl time.Duration, configured ...*restaurant) *cloud
 	require.NoError(t, err)
 	server := httptest.NewServer(app.Router)
 	t.Cleanup(server.Close)
-	return &cloud{t: t, server: server, wompi: wompi, links: links, logger: logger}
+	c := &cloud{t: t, server: server, wompi: wompi, links: links, logger: logger}
+	for _, r := range configured {
+		c.putWompi(r, privateKey, eventsSecret)
+	}
+	return c
+}
+
+// putWompi sets the restaurant's Wompi keys the way the operator does, through the platform route.
+func (c *cloud) putWompi(r *restaurant, key, secret string) {
+	c.t.Helper()
+	resp := c.call(http.MethodPut, "/api/platform/organizations/"+r.orgID+"/integrations/wompi",
+		map[string]string{"X-API-Key": adminAPIKey}, map[string]string{"private_key": key, "events_secret": secret})
+	require.Equal(c.t, http.StatusOK, resp.status, string(resp.body))
 }
 
 // join gives the restaurant its agent's key and a manager's token on this cloud.
@@ -352,7 +369,7 @@ func (c *cloud) expireDue() {
 	linkRepo := repository.NewPaymentLinkRepository(db)
 	txRepo := repository.NewPaymentTransactionRepository(db)
 	links := service.NewPaymentLinkService(linkRepo, httpclient.NewWompiClient(httpclient.NewClient(c.logger), c.links.APIURL),
-		c.links, orgs, c.links.TTL, c.logger, nil)
+		testsupport.IntegrationService(c.t, db, c.links.APIURL), orgs, c.links.TTL, c.logger, nil)
 	bus := eventbus.NewGoChannelEventBus(watermill.NopLogger{})
 	defer func() { _ = bus.Close() }()
 	orders := service.NewOrderServiceWithSSE(c.logger, repository.NewOpenBillRepository(db), repository.NewProductRepository(db),
