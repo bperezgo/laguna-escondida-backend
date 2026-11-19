@@ -79,6 +79,10 @@ func (h *OrderHandler) CreateOrderHandler(c *gin.Context) {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "The delivery location is outside every delivery zone", "code": "OUTSIDE_DELIVERY_ZONE"})
 			return
 		}
+		if errors.Is(err, orderError.ErrPaymentLinksNotConfigured) {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Payment links are not configured for this organization", "code": "PAYMENT_LINKS_NOT_CONFIGURED"})
+			return
+		}
 		if respondOrderingUnavailable(c, err) {
 			return
 		}

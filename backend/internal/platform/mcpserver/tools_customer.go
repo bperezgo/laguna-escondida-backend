@@ -42,7 +42,12 @@ const (
 
 	paymentAwaiting = "awaiting_payment"
 	paymentPaid     = "paid"
+	// paymentExpired is an order voided because nobody paid its link in time.
+	paymentExpired = "expired"
 )
+
+// errNoPaymentLinks is marketing-app's contract wording: it matches on "payment links are not configured".
+var errNoPaymentLinks = errors.New("the order was not created: payment links are not configured for this organization")
 
 // errOrderNotFound is the same for another customer's order and a paid or voided one, so the
 // tool never reveals whether an id exists.
@@ -298,7 +303,9 @@ type orderView struct {
 	Total        decimal.Decimal `json:"total"`
 	ZoneID       *string         `json:"zone_id,omitempty"`
 	PaymentState string          `json:"payment_state"`
-	Lines        []orderLineView `json:"lines"`
+	// PaymentURL is the only way to pay an order awaiting payment; absent once paid or expired.
+	PaymentURL *string         `json:"payment_url,omitempty"`
+	Lines      []orderLineView `json:"lines"`
 }
 
 type myOrders struct {
@@ -417,6 +424,7 @@ func writtenOrderView(order *dto.OpenBill, items []dto.OrderProductItem, choices
 		Total:        order.TotalAmount,
 		ZoneID:       order.DeliveryZoneID,
 		PaymentState: paymentAwaiting,
+		PaymentURL:   order.PaymentURL,
 		Lines:        make([]orderLineView, 0, len(items)),
 	}
 	for _, item := range items {
@@ -438,8 +446,13 @@ func detailOrderView(order *dto.OpenBillWithProducts) orderView {
 		PaymentState: paymentAwaiting,
 		Lines:        make([]orderLineView, 0, len(order.Products)),
 	}
-	if order.PaidAt != nil {
+	switch {
+	case order.PaidAt != nil:
 		view.PaymentState = paymentPaid
+	case isExpired(order.VoidReason):
+		view.PaymentState = paymentExpired
+	default:
+		view.PaymentURL = order.PaymentURL
 	}
 	for _, p := range order.Products {
 		view.Lines = append(view.Lines, orderLineView{
@@ -447,6 +460,10 @@ func detailOrderView(order *dto.OpenBillWithProducts) orderView {
 		})
 	}
 	return view
+}
+
+func isExpired(voidReason *string) bool {
+	return voidReason != nil && *voidReason == dto.VoidReasonPaymentExpired
 }
 
 func (c *Client) ordersOfPhone(ctx context.Context, path, phone string) ([]*dto.OpenBillWithCreator, error) {
@@ -511,8 +528,8 @@ func (c *Client) myOrders(ctx context.Context, phone string) ([]orderView, error
 		views = append(views, detailOrderView(detail))
 	}
 	for _, o := range closed {
-		// A closed order without paid_at was voided.
-		if o.PaidAt == nil || containsOrder(views, o.ID) {
+		// A closed order without paid_at was voided; only an expiry is the customer's to hear about.
+		if (o.PaidAt == nil && !isExpired(o.VoidReason)) || containsOrder(views, o.ID) {
 			continue
 		}
 		detail, err := c.orderDetail(ctx, "/api/orders/closed/"+url.PathEscape(o.ID))
@@ -539,6 +556,22 @@ type orderingAvailability struct {
 	Delivery dto.Availability `json:"delivery"`
 	Takeaway dto.Availability `json:"takeaway"`
 	Timezone string           `json:"timezone"`
+}
+
+// createRefusal words the backend's 422 for the agent: ordering unavailable, payment links not
+// configured, or (any other 422) outside the delivery zone.
+func createRefusal(apiErr *APIError) error {
+	var body struct {
+		Code string `json:"code"`
+	}
+	_ = json.Unmarshal(apiErr.Body, &body)
+	if body.Code == "PAYMENT_LINKS_NOT_CONFIGURED" {
+		return errNoPaymentLinks
+	}
+	if unavailable := orderingUnavailable(apiErr); unavailable != nil {
+		return unavailable
+	}
+	return errors.New("outside delivery zone: the shared location is not inside the delivery area; offer takeaway instead")
 }
 
 // orderingUnavailable words the backend's ordering refusal for the agent, or nil for any other 422.
@@ -644,7 +677,8 @@ func registerCustomerTools(s *mcp.Server, c *Client) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "create_delivery_order",
 		Description: "Create a takeaway or delivery order for the customer in this chat. A delivery goes to the location the customer shared " +
-			"and needs the address reference for the rider. The order is awaiting payment; the kitchen starts it once it is paid. " +
+			"and needs the address reference for the rider. The order is awaiting payment and comes with payment_url, the only way to pay it; " +
+			"the kitchen starts it once it is paid, and it is cancelled if unpaid after 30 minutes. " +
 			"For a plate with slots send choices only when the customer asked for a change; each line comes back " +
 			"with the choice every slot resolved to. If a choice is refused, call get_side_dish_options again and ask the customer.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in createDeliveryOrderInput) (*mcp.CallToolResult, any, error) {
@@ -681,10 +715,7 @@ func registerCustomerTools(s *mcp.Server, c *Client) {
 		})
 		var apiErr *APIError
 		if errors.As(err, &apiErr) && apiErr.Status == http.StatusUnprocessableEntity {
-			if unavailable := orderingUnavailable(apiErr); unavailable != nil {
-				return toolError(unavailable)
-			}
-			return toolError(errors.New("outside delivery zone: the shared location is not inside the delivery area; offer takeaway instead"))
+			return toolError(createRefusal(apiErr))
 		}
 		if err != nil {
 			return backendFailure("the order was not created", err)
@@ -698,7 +729,8 @@ func registerCustomerTools(s *mcp.Server, c *Client) {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "update_my_order",
-		Description: "Replace the lines of one of this customer's unpaid orders. The order type, contact and location do not change. Fails with order not found once the order is paid. " +
+		Description: "Replace the lines of one of this customer's unpaid orders. The order type, contact and location do not change. " +
+			"Returns a new payment_url; the earlier link no longer works. Fails with order not found once the order is paid or expired. " +
 			"Lines take the same shape as in create_delivery_order, choices included; resend a plate's choices or it goes back to its defaults.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in updateMyOrderInput) (*mcp.CallToolResult, any, error) {
 		if err := validateLines(in.Lines); err != nil {
@@ -758,7 +790,8 @@ func registerCustomerTools(s *mcp.Server, c *Client) {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "get_my_orders",
-		Description: "List this customer's orders, newest first: unpaid ones and those paid today, with payment state (awaiting_payment or paid) " +
+		Description: "List this customer's orders, newest first: unpaid ones and those paid or expired today, with payment state (awaiting_payment, paid, " +
+			"or expired: cancelled for lack of payment), the payment_url of one awaiting payment, " +
 			"and each line's kitchen state (created, in_progress, completed, cancelled). Cancelled orders are not listed.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, _ noInput) (*mcp.CallToolResult, any, error) {
 		phone, err := customerPhone(req)

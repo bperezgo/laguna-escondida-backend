@@ -24,6 +24,7 @@ type cloudHandlers struct {
 	organization    *handler.OrganizationHandler
 	lead            *handler.LeadHandler
 	apiKey          *handler.APIKeyHandler
+	integration     *handler.OrganizationIntegrationHandler
 	deliveryZone    *handler.DeliveryZoneHandler
 	orgSettings     *handler.OrganizationSettingsHandler
 	reservation     *handler.ReservationHandler
@@ -32,6 +33,7 @@ type cloudHandlers struct {
 	feedback        *handler.FeedbackHandler
 	notifChannel    *handler.NotificationChannelHandler
 	notifRule       *handler.NotificationRuleHandler
+	paymentWebhook  *handler.PaymentWebhookHandler
 	nodes           *service.NodeService
 }
 
@@ -51,9 +53,17 @@ func registerCloudRoutes(router *gin.Engine, adminAPIKey, nodeSyncKey string, jw
 	organizations.POST("/:id/api-keys", h.apiKey.IssueHandler)
 	organizations.GET("/:id/api-keys", h.apiKey.ListHandler)
 	organizations.DELETE("/:id/api-keys/:keyId", h.apiKey.RevokeHandler)
+	// Provider credentials are write-only: reads return hints, never the secrets.
+	organizations.GET("/:id/integrations", h.integration.ListHandler)
+	organizations.GET("/:id/integrations/:provider", h.integration.GetHandler)
+	organizations.PUT("/:id/integrations/:provider", h.integration.PutHandler)
+	organizations.DELETE("/:id/integrations/:provider", h.integration.DeleteHandler)
 
 	// Leads are platform data from the public marketing site: the form posts without a credential
 	// (limited per address), and the operator follows them up with the admin API key.
+	// Wompi signs its events with each organization's events secret; the path names the organization.
+	router.POST("/api/webhooks/wompi/:organization_id", h.paymentWebhook.WompiHandler)
+
 	router.POST("/api/public/leads", handler.RateLimitMiddleware(leadSubmissionsPerAddress, leadSubmissionWindow), h.lead.SubmitHandler)
 	leads := router.Group("/api/platform/leads", handler.AdminAPIKeyMiddleware(adminAPIKey))
 	leads.GET("", h.lead.ListHandler)
@@ -87,6 +97,7 @@ func registerCloudRoutes(router *gin.Engine, adminAPIKey, nodeSyncKey string, jw
 	RegisterDeliveryZoneRoutes(router, h.deliveryZone, jwtService)
 	RegisterNotificationRoutes(router, h.notifChannel, h.notifRule, jwtService)
 	RegisterOrganizationSettingsRoutes(router, h.orgSettings, jwtService)
+	RegisterOrganizationIntegrationRoutes(router, h.integration, jwtService)
 	RegisterReservationRoutes(router, h.reservation, h.contact, h.feedback, jwtService)
 	// Staff screens only: the WhatsApp agent holds reservations:read but has no use for a live feed.
 	router.GET("/api/sse/reservations", handler.SSEMiddleware(), handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ReservationsManage), h.reservationLive.StreamHandler)
@@ -121,6 +132,16 @@ func RegisterOrganizationSettingsRoutes(router *gin.Engine, settingsHandler *han
 		handler.RequirePermission(permissions.OrderingRead))
 	settings.GET("", settingsHandler.GetSettingsHandler)
 	settings.PATCH("", settingsHandler.PatchSettingsHandler)
+}
+
+// RegisterOrganizationIntegrationRoutes is cloud-only: provider credentials never reach a box.
+// They act on the token's organization; only admin holds the integrations permissions.
+func RegisterOrganizationIntegrationRoutes(router *gin.Engine, integrations *handler.OrganizationIntegrationHandler, jwtService *service.JWTService) {
+	g := router.Group("/api/organization/integrations", handler.JWTAuthMiddleware(jwtService))
+	g.GET("", handler.RequirePermission(permissions.IntegrationsRead), integrations.OwnListHandler)
+	g.GET("/:provider", handler.RequirePermission(permissions.IntegrationsRead), integrations.OwnGetHandler)
+	g.PUT("/:provider", handler.RequirePermission(permissions.IntegrationsManage), integrations.OwnPutHandler)
+	g.DELETE("/:provider", handler.RequirePermission(permissions.IntegrationsManage), integrations.OwnDeleteHandler)
 }
 
 // RegisterDeliveryZoneRoutes is cloud-only: deliveries are taken in the cloud, and the edge's

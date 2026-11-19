@@ -39,6 +39,17 @@ A user whose **only** role is `agent` (the WhatsApp agent's service user) is fur
 
 A user with a staff role besides `agent` is not limited.
 
+### Payment links (agent orders)
+
+An order the agent-only user creates is an **agent order**: it is paid through a Wompi payment link, or by staff at the till. Cloud only; staff-created and `dine_in` orders get no link and behave as before.
+
+- **Refused without Wompi.** In an organization without payment links configured (no [Wompi integration](organization-integrations.md), or the cloud has no `INTEGRATION_SECRETS_KEY`), an agent order is refused with `422 PAYMENT_LINKS_NOT_CONFIGURED` and nothing is created. The check runs after validation and the [ordering availability](#ordering-availability) check, before the zone check.
+- **One active link per order.** After the order is created, a single-use link for its total is made, expiring `PAYMENT_LINK_TTL` (30 minutes) after the order was created. Its URL is `payment_url` on the create response and on `GET /api/orders/:id` while the order is unpaid. If Wompi fails, the order is still created, without `payment_url`; such an order never expires, and staff pay or void it.
+- **A change replaces the link.** `PUT /api/orders/:id` on an order with a link deactivates it and returns a new `payment_url` for the new total, with the **same** expiry. A payment on the old link pays nothing (see [Wompi webhook](./wompi-webhook.md)).
+- **Paid by Wompi.** An approved Wompi transaction for the active link and its exact amount pays the order exactly as `pay-order` does: bill, e-invoice, release to the kitchen, `order.paid`.
+- **Voiding deactivates the link** (`DELETE /api/orders/:id`).
+- **Unpaid orders expire.** A cloud job, every 15 seconds, voids an agent order whose link has expired unpaid, as `DELETE` does (stock returned, `order.cancelled`), with `void_reason: "payment_expired"`, and records `order.expired` for marketing-app. A payment still pending at Wompi holds the order until it resolves.
+
 ## Order types: dine-in, takeaway and delivery
 
 Every order has an `order_type`:
@@ -183,6 +194,19 @@ The rule is the same for staff and the agent. A change the configuration does no
 
 The second line is a tilapia with "Papas": it is served with Arroz blanco (default), Papas and Ensalada (default).
 
+An agent order's response also carries `payment_url`, the link that pays it, when Wompi made one:
+
+```json
+{
+  "id": "019a1f3c-5b2e-7c41-9a8d-3e6f1b2c4d50",
+  "total_amount": "45000",
+  "status": "created",
+  "order_type": "takeaway",
+  "customer_phone": "+573005551234",
+  "payment_url": "https://checkout.wompi.co/l/3Z0Cfi"
+}
+```
+
 ### Example Response (201 Created)
 
 ```json
@@ -288,6 +312,15 @@ The second line is a tilapia with "Papas": it is served with Arroz blanco (defau
 {
   "error": "Deliveries are taken in the cloud",
   "code": "DELIVERY_CLOUD_ONLY"
+}
+```
+
+**422 Unprocessable Entity** — an agent order in an organization without payment links configured (see [Payment links](#payment-links-agent-orders))
+
+```json
+{
+  "error": "Payment links are not configured for this organization",
+  "code": "PAYMENT_LINKS_NOT_CONFIGURED"
 }
 ```
 
@@ -481,7 +514,7 @@ When both are given an order must match both. An invalid value returns `400` (`O
 
 Returns the orders created during the current business day (America/Bogota) that are closed, paid or voided, most recently closed first. Accepts the same `order_type` and `customer_phone` filters as the active list.
 
-Each item has `paid_at` when it was paid; a voided order has none.
+Each item has `paid_at` when it was paid; a voided order has none. An agent order voided because nobody paid its link in time has `"void_reason": "payment_expired"`; any other void has no `void_reason`.
 
 ### Example Response (200 OK)
 
@@ -512,7 +545,7 @@ Each item has `paid_at` when it was paid; a voided order has none.
 }
 ```
 
-`GET /api/orders/closed/:id` returns one closed order with its products (same shape as [Get Order With Products](#get-order-with-products), plus `paid_at`).
+`GET /api/orders/closed/:id` returns one closed order with its products (same shape as [Get Order With Products](#get-order-with-products), plus `paid_at` and `void_reason`).
 
 ---
 
@@ -585,6 +618,8 @@ Returns a specific order with its product details.
 }
 ```
 
+An unpaid agent order with an active payment link also carries `"payment_url": "https://checkout.wompi.co/l/…"`.
+
 A line of a plate with slots carries `choices`, one per slot, with the names it was taken with (or last changed with); renaming or removing a choice afterwards does not change them. The closed-order reads and the kitchen feed (`GET /api/open-bill-products/:area/pending` and `/completed`, and the `open_bill_product.created`/`.updated` SSE events) carry the same `choices` array. A line replicated from a node that predates plate choices has none.
 
 ---
@@ -593,7 +628,7 @@ A line of a plate with slots carries `choices`, one per slot, with the names it 
 
 `DELETE /api/orders/:id`
 
-Voids an open (unpaid) order: it leaves the active list and its stock is returned. An agent order with an `origin.channel_id` reports `order.cancelled` to marketing-app in the same transaction.
+Voids an open (unpaid) order: it leaves the active list and its stock is returned. An agent order with an `origin.channel_id` reports `order.cancelled` to marketing-app in the same transaction, and its payment link is deactivated.
 
 ### Path Parameters
 

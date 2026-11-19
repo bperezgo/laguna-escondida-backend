@@ -61,6 +61,10 @@ PATCH /api/orders/:id/products/:open_bill_product_id/uncomplete laguna-escondida
 GET /api/orders/closed laguna-escondida/backend/internal/platform/handler.(*OrderHandler).GetClosedOpenBillsTodayHandler-fm
 GET /api/orders/closed/:id laguna-escondida/backend/internal/platform/handler.(*OrderHandler).GetClosedOpenBillWithProductsHandler-fm
 POST /api/orders/pay-order laguna-escondida/backend/internal/platform/handler.(*OrderHandler).PayOrderHandler-fm
+GET /api/organization/integrations laguna-escondida/backend/internal/platform/handler.(*OrganizationIntegrationHandler).OwnListHandler-fm
+DELETE /api/organization/integrations/:provider laguna-escondida/backend/internal/platform/handler.(*OrganizationIntegrationHandler).OwnDeleteHandler-fm
+GET /api/organization/integrations/:provider laguna-escondida/backend/internal/platform/handler.(*OrganizationIntegrationHandler).OwnGetHandler-fm
+PUT /api/organization/integrations/:provider laguna-escondida/backend/internal/platform/handler.(*OrganizationIntegrationHandler).OwnPutHandler-fm
 GET /api/organization/settings laguna-escondida/backend/internal/platform/handler.(*OrganizationSettingsHandler).GetSettingsHandler-fm
 PATCH /api/organization/settings laguna-escondida/backend/internal/platform/handler.(*OrganizationSettingsHandler).PatchSettingsHandler-fm
 GET /api/platform/leads laguna-escondida/backend/internal/platform/handler.(*LeadHandler).ListHandler-fm
@@ -75,6 +79,10 @@ GET /api/platform/organizations/:id/api-keys laguna-escondida/backend/internal/p
 POST /api/platform/organizations/:id/api-keys laguna-escondida/backend/internal/platform/handler.(*APIKeyHandler).IssueHandler-fm
 DELETE /api/platform/organizations/:id/api-keys/:keyId laguna-escondida/backend/internal/platform/handler.(*APIKeyHandler).RevokeHandler-fm
 PUT /api/platform/organizations/:id/einvoicing laguna-escondida/backend/internal/platform/handler.(*OrganizationHandler).SetEInvoicingHandler-fm
+GET /api/platform/organizations/:id/integrations laguna-escondida/backend/internal/platform/handler.(*OrganizationIntegrationHandler).ListHandler-fm
+DELETE /api/platform/organizations/:id/integrations/:provider laguna-escondida/backend/internal/platform/handler.(*OrganizationIntegrationHandler).DeleteHandler-fm
+GET /api/platform/organizations/:id/integrations/:provider laguna-escondida/backend/internal/platform/handler.(*OrganizationIntegrationHandler).GetHandler-fm
+PUT /api/platform/organizations/:id/integrations/:provider laguna-escondida/backend/internal/platform/handler.(*OrganizationIntegrationHandler).PutHandler-fm
 POST /api/product-responsibilities laguna-escondida/backend/internal/platform/handler.(*ProductHandler).CreateProductResponsibilityHandler-fm
 DELETE /api/product-responsibilities/:id laguna-escondida/backend/internal/platform/handler.(*ProductHandler).DeleteProductResponsibilityHandler-fm
 GET /api/product-responsibilities/:id laguna-escondida/backend/internal/platform/handler.(*ProductHandler).GetProductResponsibilityByIDHandler-fm
@@ -138,3 +146,4 @@ POST /api/telemetry/v1/logs laguna-escondida/backend/internal/platform/handler.(
 POST /api/telemetry/v1/metrics laguna-escondida/backend/internal/platform/handler.(*TelemetryHandler).IngestMetricsHandler-fm
 POST /api/telemetry/v1/traces laguna-escondida/backend/internal/platform/handler.(*TelemetryHandler).IngestTracesHandler-fm
 POST /api/users laguna-escondida/backend/internal/platform/handler.(*UserHandler).CreateUserHandler-fm
+POST /api/webhooks/wompi/:organization_id laguna-escondida/backend/internal/platform/handler.(*PaymentWebhookHandler).WompiHandler-fm

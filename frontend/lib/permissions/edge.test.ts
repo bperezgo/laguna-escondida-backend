@@ -21,3 +21,9 @@ test("the cloud keeps every permission", () => {
 test("the edge drops the catalog and user writes, and keeps the reads", () => {
   assert.deepEqual(effectivePermissions(admin, true), ["products:read", "users:read", "orders:create"]);
 });
+
+test("the edge drops both integrations permissions", () => {
+  const withIntegrations = [...admin, "integrations:read", "integrations:manage"];
+  assert.deepEqual(effectivePermissions(withIntegrations, false), withIntegrations);
+  assert.deepEqual(effectivePermissions(withIntegrations, true), ["products:read", "users:read", "orders:create"]);
+});

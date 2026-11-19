@@ -35,6 +35,16 @@ type notificationBody struct {
 	Data           json.RawMessage `json:"data"`
 }
 
+type orderPaidData struct {
+	OrderID  string `json:"order_id"`
+	Amount   string `json:"amount"`
+	Currency string `json:"currency"`
+}
+
+type orderExpiredData struct {
+	OrderID string `json:"order_id"`
+}
+
 type reservationData struct {
 	ReservationID string  `json:"reservation_id"`
 	Name          string  `json:"name"`
@@ -72,6 +82,42 @@ func NewOrderEvent(eventType dto.MarketingEventType, subject dto.MarketingOrderS
 		body.Amount, body.Currency = &amount, &currency
 	}
 	return newEvent(eventID, eventType, dto.MarketingEventsPathOrders, body, subject.OccurredAt)
+}
+
+// NewOrderNotification is the customer-facing order.paid or order.expired, for /backend/notifications.
+func NewOrderNotification(eventType dto.MarketingEventType, subject dto.MarketingOrderSubject, currency string, loc *time.Location) (*dto.MarketingEvent, error) {
+	if subject.Origin == nil || subject.Origin.ChannelID == nil || subject.CustomerPhone == nil {
+		return nil, fmt.Errorf("order %s has no channel or phone to notify", subject.OrderID)
+	}
+	var (
+		rawData    []byte
+		err        error
+		outboxType dto.MarketingEventType
+	)
+	switch eventType {
+	case dto.MarketingEventOrderPaid:
+		outboxType = dto.MarketingEventOrderPaidNotification
+		rawData, err = json.Marshal(orderPaidData{OrderID: subject.OrderID, Amount: subject.Amount.String(), Currency: currency})
+	case dto.MarketingEventOrderExpired:
+		outboxType = dto.MarketingEventOrderExpiredNotification
+		rawData, err = json.Marshal(orderExpiredData{OrderID: subject.OrderID})
+	default:
+		return nil, fmt.Errorf("%s is not an order notification", eventType)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("encode %s data: %w", eventType, err)
+	}
+	eventID := uuid.Must(uuid.NewV7()).String()
+	body := notificationBody{
+		EventID:        eventID,
+		Type:           string(eventType),
+		OccurredAt:     formatTime(subject.OccurredAt, loc),
+		ChannelID:      *subject.Origin.ChannelID,
+		ConversationID: subject.Origin.ConversationID,
+		CustomerPhone:  phoneDigits(*subject.CustomerPhone),
+		Data:           rawData,
+	}
+	return newEvent(eventID, outboxType, dto.MarketingEventsPathNotifications, body, subject.OccurredAt)
 }
 
 // NewReservationEvent reports the status the reservation just entered.

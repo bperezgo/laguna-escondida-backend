@@ -67,7 +67,10 @@ func TestOrderService_PayOrder_AnAgentOrderRecordsOrderPaid(t *testing.T) {
 	require.NoError(t, f.pay(dto.ElectronicInvoicePaymentCodeCash))
 
 	events := f.outbox.events()
-	require.Len(t, events, 1)
+	require.Len(t, events, 2, "order.paid on /backend/events and its notification")
+	assert.Equal(t, dto.MarketingEventOrderPaidNotification, events[1].Type)
+	assert.Equal(t, dto.MarketingEventsPathNotifications, events[1].Path)
+	assert.Contains(t, string(events[1].Body), `"amount":"`+f.payAmount.String()+`"`)
 	assert.Equal(t, dto.MarketingEventOrderPaid, events[0].Type)
 	assert.Equal(t, dto.MarketingEventsPathOrders, events[0].Path)
 	var body map[string]string
@@ -266,7 +269,9 @@ func TestMarketingPaymentSyncApplier_AnEdgePaymentOfAnAgentOrder(t *testing.T) {
 	require.NoError(t, f.apply(t, op))
 
 	events := f.outbox.events()
-	require.Len(t, events, 1)
+	require.Len(t, events, 2, "order.paid on /backend/events and its notification")
+	assert.Equal(t, dto.MarketingEventOrderPaidNotification, events[1].Type)
+	assert.Contains(t, string(events[1].Body), `"amount":"45000"`)
 	assert.Equal(t, dto.MarketingEventOrderPaid, events[0].Type)
 	assert.Contains(t, string(events[0].Body), `"amount":"45000"`)
 	assert.Contains(t, string(events[0].Body), `"occurred_at":"2026-11-08T20:30:00-05:00"`)

@@ -128,6 +128,14 @@ const navItems = [
     permission: PERMISSIONS.USERS_READ,
     accent: "var(--color-primary)",
   },
+  {
+    href: "/ajustes",
+    title: "Ajustes",
+    description: "Integraciones del restaurante, como las llaves de Wompi",
+    permission: PERMISSIONS.INTEGRATIONS_READ,
+    accent: "var(--color-secondary)",
+    cloudOnly: true,
+  },
 ];
 
 export default function HomePage() {

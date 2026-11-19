@@ -339,3 +339,14 @@ func TestGetPermissionsForRoles_NotificationChannelsManagedByAdminAndManager(t *
 		assert.NotContains(t, perms, NotificationChannelsManage, "role %d", role)
 	}
 }
+
+func TestGetPermissionsForRoles_IntegrationsOnlyForAdmin(t *testing.T) {
+	admin := GetPermissionsForRoles([]int{RoleAdmin})
+	assert.Contains(t, admin, IntegrationsRead)
+	assert.Contains(t, admin, IntegrationsManage)
+	for _, role := range []int{RoleManager, RoleServer, RoleCooker, RoleAccountant, RoleAgent} {
+		perms := GetPermissionsForRoles([]int{role})
+		assert.NotContains(t, perms, IntegrationsRead, "role %d", role)
+		assert.NotContains(t, perms, IntegrationsManage, "role %d", role)
+	}
+}

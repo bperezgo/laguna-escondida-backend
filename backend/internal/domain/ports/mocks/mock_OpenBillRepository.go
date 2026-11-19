@@ -167,6 +167,54 @@ func (_c *MockOpenBillRepository_Delete_Call) RunAndReturn(run func(context.Cont
 	return _c
 }
 
+// DeleteWithReason provides a mock function with given fields: ctx, openBillID, reason
+func (_m *MockOpenBillRepository) DeleteWithReason(ctx context.Context, openBillID string, reason string) error {
+	ret := _m.Called(ctx, openBillID, reason)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteWithReason")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) error); ok {
+		r0 = rf(ctx, openBillID, reason)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockOpenBillRepository_DeleteWithReason_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteWithReason'
+type MockOpenBillRepository_DeleteWithReason_Call struct {
+	*mock.Call
+}
+
+// DeleteWithReason is a helper method to define mock.On call
+//   - ctx context.Context
+//   - openBillID string
+//   - reason string
+func (_e *MockOpenBillRepository_Expecter) DeleteWithReason(ctx interface{}, openBillID interface{}, reason interface{}) *MockOpenBillRepository_DeleteWithReason_Call {
+	return &MockOpenBillRepository_DeleteWithReason_Call{Call: _e.mock.On("DeleteWithReason", ctx, openBillID, reason)}
+}
+
+func (_c *MockOpenBillRepository_DeleteWithReason_Call) Run(run func(ctx context.Context, openBillID string, reason string)) *MockOpenBillRepository_DeleteWithReason_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockOpenBillRepository_DeleteWithReason_Call) Return(_a0 error) *MockOpenBillRepository_DeleteWithReason_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockOpenBillRepository_DeleteWithReason_Call) RunAndReturn(run func(context.Context, string, string) error) *MockOpenBillRepository_DeleteWithReason_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ExistsActiveByTemporalIdentifier provides a mock function with given fields: ctx, temporalIdentifier
 func (_m *MockOpenBillRepository) ExistsActiveByTemporalIdentifier(ctx context.Context, temporalIdentifier string) (bool, error) {
 	ret := _m.Called(ctx, temporalIdentifier)

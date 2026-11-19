@@ -72,9 +72,17 @@ func TestMarketingEventService_EventBodiesMatchTheContract(t *testing.T) {
 		path     string
 		wantType dto.MarketingEventType
 		record   recordFunc
+		// recorded is how many rows the change writes, and index the one under test; 0 means one.
+		recorded, index int
 	}{
-		{fixture: "order_paid.json", path: "/backend/events", wantType: dto.MarketingEventOrderPaid, record: func(ctx context.Context, s *MarketingEventService) error {
+		{fixture: "order_paid.json", path: "/backend/events", wantType: dto.MarketingEventOrderPaid, recorded: 2, record: func(ctx context.Context, s *MarketingEventService) error {
 			return s.RecordOrder(ctx, dto.MarketingEventOrderPaid, orderSubject(t))
+		}},
+		{fixture: "order_paid_notification.json", path: "/backend/notifications", wantType: dto.MarketingEventOrderPaidNotification, recorded: 2, index: 1, record: func(ctx context.Context, s *MarketingEventService) error {
+			return s.RecordOrder(ctx, dto.MarketingEventOrderPaid, orderSubject(t))
+		}},
+		{fixture: "order_expired_notification.json", path: "/backend/notifications", wantType: dto.MarketingEventOrderExpiredNotification, record: func(ctx context.Context, s *MarketingEventService) error {
+			return s.RecordOrder(ctx, dto.MarketingEventOrderExpired, orderSubject(t))
 		}},
 		{fixture: "order_cancelled.json", path: "/backend/events", wantType: dto.MarketingEventOrderCancelled, record: func(ctx context.Context, s *MarketingEventService) error {
 			return s.RecordOrder(ctx, dto.MarketingEventOrderCancelled, orderSubject(t))
@@ -93,15 +101,16 @@ func TestMarketingEventService_EventBodiesMatchTheContract(t *testing.T) {
 		}},
 	}
 	for _, tt := range tests {
-		t.Run(string(tt.wantType), func(t *testing.T) {
+		t.Run(tt.fixture, func(t *testing.T) {
 			outbox := &txOutbox{}
 			events := recordInTx(t, outbox, tt.record, newRecordingEvents(t, outbox))
 
-			require.Len(t, events, 1)
-			assert.Equal(t, tt.wantType, events[0].Type)
-			assert.Equal(t, tt.path, events[0].Path)
-			assert.Equal(t, dto.MarketingEventPending, events[0].Status)
-			requireFixture(t, tt.fixture, events[0])
+			require.Len(t, events, max(tt.recorded, 1))
+			event := events[tt.index]
+			assert.Equal(t, tt.wantType, event.Type)
+			assert.Equal(t, tt.path, event.Path)
+			assert.Equal(t, dto.MarketingEventPending, event.Status)
+			requireFixture(t, tt.fixture, event)
 		})
 	}
 }
@@ -222,8 +231,10 @@ func TestMarketingEventService_AnUnknownTimezoneFallsBackToUTC(t *testing.T) {
 		return s.RecordOrder(ctx, dto.MarketingEventOrderPaid, orderSubject(t))
 	}, NewMarketingEventService(outbox, orgs, staticSecrets{crmOrgSlug: crmSecret}, true))
 
-	require.Len(t, events, 1)
-	assert.Contains(t, string(events[0].Body), `"occurred_at":"2026-11-09T01:30:00Z"`)
+	require.Len(t, events, 2, "order.paid and its notification")
+	for _, event := range events {
+		assert.Contains(t, string(event.Body), `"occurred_at":"2026-11-09T01:30:00Z"`)
+	}
 }
 
 func TestMarketingEventService_RecordReservationCreated(t *testing.T) {
@@ -261,4 +272,35 @@ func TestMarketingEventService_StaffConfirmAWhatsAppReservation(t *testing.T) {
 
 	require.Len(t, events, 1)
 	assert.Equal(t, dto.MarketingEventReservationConfirmed, events[0].Type)
+}
+
+func TestMarketingEventService_RecordOrder_PaidNotificationHasItsOwnEventID(t *testing.T) {
+	outbox := &txOutbox{}
+	events := recordInTx(t, outbox, func(ctx context.Context, s *MarketingEventService) error {
+		return s.RecordOrder(ctx, dto.MarketingEventOrderPaid, orderSubject(t))
+	}, newRecordingEvents(t, outbox))
+
+	require.Len(t, events, 2)
+	assert.NotEqual(t, events[0].EventID, events[1].EventID)
+	assert.Contains(t, string(events[1].Body), `"event_id":"`+events[1].EventID+`"`)
+}
+
+func TestMarketingEventService_RecordOrder_ExpiredIsOnlyANotification(t *testing.T) {
+	outbox := &txOutbox{}
+	events := recordInTx(t, outbox, func(ctx context.Context, s *MarketingEventService) error {
+		return s.RecordOrder(ctx, dto.MarketingEventOrderExpired, orderSubject(t))
+	}, newRecordingEvents(t, outbox))
+
+	require.Len(t, events, 1)
+	assert.Equal(t, dto.MarketingEventsPathNotifications, events[0].Path)
+}
+
+func TestMarketingEventService_RecordOrder_CancelledHasNoNotification(t *testing.T) {
+	outbox := &txOutbox{}
+	events := recordInTx(t, outbox, func(ctx context.Context, s *MarketingEventService) error {
+		return s.RecordOrder(ctx, dto.MarketingEventOrderCancelled, orderSubject(t))
+	}, newRecordingEvents(t, outbox))
+
+	require.Len(t, events, 1)
+	assert.Equal(t, dto.MarketingEventsPathOrders, events[0].Path)
 }

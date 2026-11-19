@@ -94,6 +94,10 @@ export const PERMISSIONS = {
   RESERVATIONS_MANAGE: "reservations:manage",
   SETTINGS_RESERVATIONS_UPDATE: "settings:reservations:update",
 
+  // Provider credentials (cloud only, admin only)
+  INTEGRATIONS_READ: "integrations:read",
+  INTEGRATIONS_MANAGE: "integrations:manage",
+
   // Guest feedback (cloud only)
   FEEDBACK_READ: "feedback:read",
 

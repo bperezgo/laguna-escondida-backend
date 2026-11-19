@@ -1645,3 +1645,60 @@ curl -X PATCH "$BASE_URL/platform/leads/LEAD_ID" \
 curl -X DELETE "$BASE_URL/platform/leads/LEAD_ID" \
   -H "X-API-Key: $ADMIN_API_KEY"
 ```
+
+---
+
+## Payment Links and the Wompi Webhook (cloud only)
+
+First give the organization its Wompi keys (see `docs/api/organization-integrations.md`). The cloud needs `INTEGRATION_SECRETS_KEY`; against `https://sandbox.wompi.co/v1` only `test` keys are accepted.
+
+```bash
+curl -X PUT "$BASE_URL/platform/organizations/ORG_ID/integrations/wompi" \
+  -H "X-API-Key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "private_key": "prv_test_your_private_key", "events_secret": "test_events_your_secret" }'
+
+# Read it back: hints and the webhook path, never the secrets
+curl -X GET "$BASE_URL/platform/organizations/ORG_ID/integrations" \
+  -H "X-API-Key: $ADMIN_API_KEY"
+
+# Turn Wompi off for the organization (its agent orders are refused from then on)
+curl -X DELETE "$BASE_URL/platform/organizations/ORG_ID/integrations/wompi" \
+  -H "X-API-Key: $ADMIN_API_KEY"
+```
+
+The organization's admin can do the same for their own organization with a sign-in token (`integrations:read` / `integrations:manage`, admin only):
+
+```bash
+curl -X PUT "$BASE_URL/organization/integrations/wompi" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "private_key": "prv_test_your_private_key", "events_secret": "test_events_your_secret" }'
+
+curl -X GET "$BASE_URL/organization/integrations" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+An agent order comes back with `payment_url` (see [Orders → Payment links](../api/orders.md#payment-links-agent-orders)). To play Wompi locally, sign a `transaction.updated` for that link with the events secret you put above and post it. `LINK_ID` is the part of `payment_url` after `/l/`, and `AMOUNT_IN_CENTS` the order's total × 100.
+
+```bash
+export ORG_ID="bb0cad3e-be13-4bad-9a37-bba9525bfece"
+export EVENTS_SECRET="test_events_your_secret"
+export LINK_ID="3Z0Cfi"
+export AMOUNT_IN_CENTS=4500000
+export TX_ID="local-$(date +%s)"
+export TS=$(date +%s)
+CHECKSUM=$(printf '%s%s%s%s%s' "$TX_ID" "APPROVED" "$AMOUNT_IN_CENTS" "$TS" "$EVENTS_SECRET" | shasum -a 256 | cut -d' ' -f1)
+
+curl -s -X POST "$BASE_URL/webhooks/wompi/$ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event": "transaction.updated",
+    "data": {"transaction": {"id": "'"$TX_ID"'", "amount_in_cents": '"$AMOUNT_IN_CENTS"', "currency": "COP",
+      "payment_method_type": "CARD", "status": "APPROVED", "payment_link_id": "'"$LINK_ID"'"}},
+    "environment": "test",
+    "signature": {"properties": ["transaction.id", "transaction.status", "transaction.amount_in_cents"], "checksum": "'"$CHECKSUM"'"},
+    "timestamp": '"$TS"'
+  }'
+# {"status":"ok"} — the order is paid and released to the kitchen. A wrong checksum is 401.
+```

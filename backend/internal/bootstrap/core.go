@@ -73,6 +73,7 @@ type core struct {
 	stockReconciliationService *service.StockReconciliationService
 	organizationService        *service.OrganizationService
 	organizationRunner         *service.OrganizationRunner
+	orderService               *service.OrderService
 	syncStatusTracker          *syncstatus.Tracker
 
 	app *App
@@ -248,6 +249,7 @@ func buildCore(cfg *config.Shared, infra Infra, opts ModeOptions) (*core, error)
 		stockReconciliationService: stockReconciliationService,
 		organizationService:        organizationService,
 		organizationRunner:         organizationRunner,
+		orderService:               orderService,
 		syncStatusTracker:          syncStatusTracker,
 		app: &App{
 			Router:      router,
