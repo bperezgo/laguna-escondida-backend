@@ -1739,3 +1739,35 @@ To check what marketing-app receives, recompute the signature over the exact bod
 ```bash
 printf '%s' "$RAW_BODY" | openssl dgst -sha256 -hmac "$SIGNING_SECRET" | sed 's/^.* /sha256=/'
 ```
+
+## Deliveries (cloud only)
+
+See `docs/api/deliveries.md`. `$TOKEN` is a manager's sign-in token; `$COURIER_TOKEN` a courier's.
+
+```bash
+# Dashboard: everything not delivered, plus today's deliveries; filter by status or type
+curl -X GET "$BASE_URL/deliveries/orders" -H "Authorization: Bearer $TOKEN"
+curl -X GET "$BASE_URL/deliveries/orders?status=out_for_delivery&order_type=delivery" -H "Authorization: Bearer $TOKEN"
+
+# Couriers to assign, and an order's history
+curl -X GET "$BASE_URL/deliveries/couriers" -H "Authorization: Bearer $TOKEN"
+curl -X GET "$BASE_URL/deliveries/orders/ORDER_ID/history" -H "Authorization: Bearer $TOKEN"
+
+# Dispatch to a courier user, or to a third party by name
+curl -X POST "$BASE_URL/deliveries/orders/ORDER_ID/dispatch" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{ "courier_user_id": "COURIER_USER_ID" }'
+curl -X POST "$BASE_URL/deliveries/orders/ORDER_ID/dispatch" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{ "courier_name": "Mensajeros Ya" }'
+
+# A takeaway picked up, or a delivery handed over
+curl -X POST "$BASE_URL/deliveries/orders/ORDER_ID/deliver" -H "Authorization: Bearer $TOKEN"
+
+# The courier: what to claim and what they carry; claim (no body = themselves); report
+curl -X GET "$BASE_URL/deliveries/mine" -H "Authorization: Bearer $COURIER_TOKEN"
+curl -X POST "$BASE_URL/deliveries/orders/ORDER_ID/dispatch" -H "Authorization: Bearer $COURIER_TOKEN"
+curl -X POST "$BASE_URL/deliveries/orders/ORDER_ID/fail" \
+  -H "Authorization: Bearer $COURIER_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "reason": "customer_unreachable", "note": "portería no deja subir, no contesta" }'
+```

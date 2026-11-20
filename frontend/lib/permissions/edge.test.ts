@@ -33,3 +33,9 @@ test("the edge drops both notification permissions", () => {
   assert.deepEqual(effectivePermissions(withNotifications, false), withNotifications);
   assert.deepEqual(effectivePermissions(withNotifications, true), ["products:read", "users:read", "orders:create"]);
 });
+
+test("the edge drops the delivery tracking permissions", () => {
+  const withDeliveries = [...admin, "deliveries:read", "deliveries:manage", "deliveries:carry"];
+  assert.deepEqual(effectivePermissions(withDeliveries, false), withDeliveries);
+  assert.deepEqual(effectivePermissions(withDeliveries, true), ["products:read", "users:read", "orders:create"]);
+});

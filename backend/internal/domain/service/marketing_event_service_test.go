@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -313,4 +314,77 @@ func TestMarketingEventService_RecordOrder_CancelledHasNoNotification(t *testing
 
 	require.Len(t, events, 1)
 	assert.Equal(t, dto.MarketingEventsPathOrders, events[0].Path)
+}
+
+func TestMarketingEventService_RecordDelivery_BodiesMatchTheContract(t *testing.T) {
+	reason := dto.DeliveryFailureWrongAddress
+	tests := []struct {
+		fixture   string
+		eventType dto.MarketingEventType
+		progress  dto.MarketingDeliveryProgress
+	}{
+		{"order_ready_notification.json", dto.MarketingEventOrderReady, dto.MarketingDeliveryProgress{OrderType: dto.OrderTypeTakeaway}},
+		{"order_out_for_delivery_notification.json", dto.MarketingEventOrderOutForDelivery, dto.MarketingDeliveryProgress{OrderType: dto.OrderTypeDelivery, CourierName: strPtr("Juan")}},
+		{"order_delivered_notification.json", dto.MarketingEventOrderDelivered, dto.MarketingDeliveryProgress{OrderType: dto.OrderTypeTakeaway}},
+		{"order_delivery_failed_notification.json", dto.MarketingEventOrderDeliveryFailed, dto.MarketingDeliveryProgress{OrderType: dto.OrderTypeDelivery, Reason: &reason}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.fixture, func(t *testing.T) {
+			outbox := &txOutbox{}
+			events := recordInTx(t, outbox, func(ctx context.Context, s *MarketingEventService) error {
+				return s.RecordDelivery(ctx, tt.eventType, orderSubject(t), tt.progress)
+			}, newRecordingEvents(t, outbox))
+
+			require.Len(t, events, 1, "a notification only, nothing on /backend/events")
+			assert.Equal(t, tt.eventType+".notification", events[0].Type)
+			assert.Equal(t, dto.MarketingEventsPathNotifications, events[0].Path)
+			requireFixture(t, tt.fixture, events[0])
+		})
+	}
+}
+
+func TestMarketingEventService_RecordDelivery_FailedCarriesNoNote(t *testing.T) {
+	reason := dto.DeliveryFailureCustomerUnreachable
+	outbox := &txOutbox{}
+	events := recordInTx(t, outbox, func(ctx context.Context, s *MarketingEventService) error {
+		return s.RecordDelivery(ctx, dto.MarketingEventOrderDeliveryFailed, orderSubject(t),
+			dto.MarketingDeliveryProgress{OrderType: dto.OrderTypeDelivery, Reason: &reason, CourierName: strPtr("Juan")})
+	}, newRecordingEvents(t, outbox))
+
+	require.Len(t, events, 1)
+	var body struct {
+		Data map[string]string `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(events[0].Body, &body))
+	assert.Equal(t, map[string]string{"order_id": marketingOrderID, "order_type": "delivery", "reason": "customer_unreachable"}, body.Data)
+}
+
+func TestMarketingEventService_RecordDelivery_RecordsNothingForATillOrder(t *testing.T) {
+	outbox := &txOutbox{}
+	events := recordInTx(t, outbox, func(ctx context.Context, s *MarketingEventService) error {
+		return s.RecordDelivery(ctx, dto.MarketingEventOrderDelivered,
+			dto.MarketingOrderSubject{OrderID: marketingOrderID, CustomerPhone: strPtr(crmPhone)},
+			dto.MarketingDeliveryProgress{OrderType: dto.OrderTypeDelivery})
+	}, newRecordingEvents(t, outbox))
+
+	assert.Empty(t, events)
+}
+
+func TestMarketingEventService_RecordDelivery_RefusesIncompleteProgress(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		eventType dto.MarketingEventType
+	}{
+		{"out for delivery without a courier", dto.MarketingEventOrderOutForDelivery},
+		{"failed without a reason", dto.MarketingEventOrderDeliveryFailed},
+		{"not a delivery type", dto.MarketingEventOrderPaid},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			outbox := &txOutbox{}
+			err := outbox.Do(crmContext(), func(ctx context.Context) error {
+				return newRecordingEvents(t, outbox).RecordDelivery(ctx, tc.eventType, orderSubject(t), dto.MarketingDeliveryProgress{OrderType: dto.OrderTypeDelivery})
+			})
+			require.ErrorIs(t, err, domainError.ErrMarketingEventRecordError)
+		})
+	}
 }

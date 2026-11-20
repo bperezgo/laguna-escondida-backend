@@ -58,6 +58,7 @@ type OrderService struct {
 	marketingEvents             ports.MarketingEventRecorder
 	publisher                   ports.EventPublisher
 	paymentLinks                *PaymentLinkService
+	deliveries                  ports.DeliveryRepository
 	now                         func() time.Time
 }
 
@@ -98,6 +99,11 @@ func WithPaymentLinks(links *PaymentLinkService) OrderServiceOption {
 // WithOrderPlateOptionSlots resolves lines of plates with option slots from their choices.
 func WithOrderPlateOptionSlots(repo ports.PlateOptionSlotRepository) OrderServiceOption {
 	return func(s *OrderService) { s.plateOptionSlotRepo = repo }
+}
+
+// WithDeliveryTracking stamps when a paid takeaway or delivery order becomes ready (cloud only).
+func WithDeliveryTracking(repo ports.DeliveryRepository) OrderServiceOption {
+	return func(s *OrderService) { s.deliveries = repo }
 }
 
 func WithClock(now func() time.Time) OrderServiceOption {
@@ -1242,7 +1248,8 @@ func (s *OrderService) publishOrderDeleted(ctx context.Context, existingOpenBill
 // persistAndSyncStatus persists an open_bill product-status transition and replicates
 // it to peers in one transaction (Option A): the local status write and the sync_outbox
 // snapshot commit together, so kitchen completions/cancellations never stay local.
-func (s *OrderService) persistAndSyncStatus(ctx context.Context, aggregate *openBill.Aggregate) error {
+// finished is TryComplete's answer: every line is now done.
+func (s *OrderService) persistAndSyncStatus(ctx context.Context, aggregate *openBill.Aggregate, finished bool) error {
 	openBillDTO := aggregate.ToDTO()
 	openBillDTO.CreatedByID = aggregate.CreatedByID()
 
@@ -1253,8 +1260,38 @@ func (s *OrderService) persistAndSyncStatus(ctx context.Context, aggregate *open
 		if err := s.appendOpenBillOutbox(ctx, openBillDTO, aggregate.CreatedByID(), openBillSyncProducts(aggregate), dto.SyncOperationUpdate); err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
 		}
+		if finished {
+			return s.markReady(ctx, aggregate)
+		}
 		return nil
 	})
+}
+
+// markReady stamps ready_at once per order, so a kitchen undo and re-complete notifies once.
+// Only a takeaway's customer is told; a delivery's hears when it goes out.
+func (s *OrderService) markReady(ctx context.Context, aggregate *openBill.Aggregate) error {
+	if s.deliveries == nil || !aggregate.IsPaid() || !aggregate.OrderType().IsHeldUntilPaid() {
+		return nil
+	}
+	now := s.now()
+	marked, err := s.deliveries.MarkReady(ctx, aggregate.ID(), now)
+	if err != nil {
+		return fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
+	}
+	if !marked || aggregate.OrderType() != dto.OrderTypeTakeaway || s.marketingEvents == nil {
+		return nil
+	}
+	fulfillment := aggregate.Fulfillment().ToDTO()
+	if fulfillment.Origin == nil {
+		return nil
+	}
+	subject := dto.MarketingOrderSubject{
+		OrderID: aggregate.ID(), CustomerPhone: fulfillment.CustomerPhone, Origin: fulfillment.Origin, Amount: decimal.Zero, OccurredAt: now,
+	}
+	if err := s.marketingEvents.RecordDelivery(ctx, dto.MarketingEventOrderReady, subject, dto.MarketingDeliveryProgress{OrderType: dto.OrderTypeTakeaway}); err != nil {
+		return fmt.Errorf("%w: %w", orderError.ErrOrderUpdateFailed, err)
+	}
+	return nil
 }
 
 // CompleteOpenBillProduct marks a product as completed and updates open_bill status if all products are finalized
@@ -1268,15 +1305,16 @@ func (s *OrderService) CompleteOpenBillProduct(ctx context.Context, openBillID, 
 		return err
 	}
 
-	if _, err := aggregate.TryComplete(); err != nil {
-		return err
+	finished, completeErr := aggregate.TryComplete()
+	if completeErr != nil {
+		return completeErr
 	}
 
 	if _, err := aggregate.TryCancel(); err != nil {
 		return err
 	}
 
-	return s.persistAndSyncStatus(ctx, aggregate)
+	return s.persistAndSyncStatus(ctx, aggregate, finished)
 }
 
 // UncompleteOpenBillProduct reverts a completed product back to "created" (undo a
@@ -1291,7 +1329,7 @@ func (s *OrderService) UncompleteOpenBillProduct(ctx context.Context, openBillID
 		return err
 	}
 
-	return s.persistAndSyncStatus(ctx, aggregate)
+	return s.persistAndSyncStatus(ctx, aggregate, false)
 }
 
 // SetOpenBillProductInProgress marks a product as in_progress (fails if product is cancelled)
@@ -1305,7 +1343,7 @@ func (s *OrderService) SetOpenBillProductInProgress(ctx context.Context, openBil
 		return err
 	}
 
-	return s.persistAndSyncStatus(ctx, aggregate)
+	return s.persistAndSyncStatus(ctx, aggregate, false)
 }
 
 // CancelOpenBillProduct marks a product as cancelled and updates open_bill status if all products are cancelled
@@ -1322,15 +1360,16 @@ func (s *OrderService) CancelOpenBillProduct(ctx context.Context, openBillID, op
 		return err
 	}
 
-	if _, err := aggregate.TryComplete(); err != nil {
-		return err
+	finished, completeErr := aggregate.TryComplete()
+	if completeErr != nil {
+		return completeErr
 	}
 
 	if _, err := aggregate.TryCancel(); err != nil {
 		return err
 	}
 
-	return s.persistAndSyncStatus(ctx, aggregate)
+	return s.persistAndSyncStatus(ctx, aggregate, finished)
 }
 
 // resolveSideDishNames fetches, in one query per order, the display name for every ingredient

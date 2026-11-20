@@ -39,7 +39,7 @@ This is the bootstrap path, authenticated by the admin API key alone, so it name
 | organization | string   | Cloud: Yes; Edge: No | Slug of the organization the user belongs to. On an edge box it may be omitted (the box's organization is used); when sent it must be the box's. |
 | username     | string   | Yes                  | Username, unique within the organization (3–255 chars)            |
 | name         | string   | Yes                  | Display name of the user (1–255 chars)                             |
-| email        | string   | With a cloud role    | Up to 255 chars. Required when `role_ids` holds a cloud role (admin, manager, accountant, agent); optional for floor staff. Stored trimmed and lowercased, and unique across **all** organizations, case-insensitively. Cloud users sign in with it |
+| email        | string   | With a cloud role    | Up to 255 chars. Required when `role_ids` holds a cloud role (admin, manager, accountant, agent, courier); optional for floor staff. Stored trimmed and lowercased, and unique across **all** organizations, case-insensitively. Cloud users sign in with it |
 | password     | string   | Yes                  | Plain-text password (min 6 chars). Hashed before storage           |
 | role_ids     | number[] | Yes                  | At least one valid role ID. Every ID must exist (see Roles below)  |
 
@@ -55,8 +55,9 @@ This is the bootstrap path, authenticated by the admin API key alone, so it name
 | 4  | cooker    |
 | 5  | accountant |
 | 6  | agent     |
+| 7  | courier   |
 
-Cloud roles: admin, manager, accountant, agent. Floor roles: server, cooker.
+Cloud roles: admin, manager, accountant, agent, courier. Floor roles: server, cooker. A courier ("Repartidor") signs in to the cloud to claim and report deliveries (see [deliveries.md](deliveries.md)); it holds only `deliveries:carry`. Couriers are pulled to the box like every user but hold no permission there.
 
 ### Example Request
 

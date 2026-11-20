@@ -839,6 +839,7 @@ func TestUserService_CreateUser_Email(t *testing.T) {
 		{name: "floor staff without an email", roleIDs: []int{permissions.RoleServer}},
 		{name: "floor staff with an email", email: "cook@example.com", roleIDs: []int{permissions.RoleCooker}, wantEmail: strPtr("cook@example.com")},
 		{name: "cloud role without an email", roleIDs: []int{permissions.RoleServer, permissions.RoleAccountant}, noCreate: true, wantErr: domainError.ErrEmailRequired},
+		{name: "courier without an email", roleIDs: []int{permissions.RoleCourier}, noCreate: true, wantErr: domainError.ErrEmailRequired},
 		{name: "email taken in another organization", email: "ANA@example.com", roleIDs: []int{permissions.RoleManager}, createErr: domainError.ErrUserEmailTaken, wantErr: domainError.ErrUserEmailTaken},
 	}
 	for _, tc := range cases {

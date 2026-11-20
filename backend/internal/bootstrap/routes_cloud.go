@@ -34,6 +34,7 @@ type cloudHandlers struct {
 	notifChannel    *handler.NotificationChannelHandler
 	notifRule       *handler.NotificationRuleHandler
 	paymentWebhook  *handler.PaymentWebhookHandler
+	delivery        *handler.DeliveryHandler
 	nodes           *service.NodeService
 }
 
@@ -100,8 +101,24 @@ func registerCloudRoutes(router *gin.Engine, adminAPIKey, nodeSyncKey string, jw
 	RegisterOrganizationSettingsRoutes(router, h.orgSettings, jwtService)
 	RegisterOrganizationIntegrationRoutes(router, h.integration, jwtService)
 	RegisterReservationRoutes(router, h.reservation, h.contact, h.feedback, jwtService)
+	RegisterDeliveryRoutes(router, h.delivery, jwtService)
 	// Staff screens only: the WhatsApp agent holds reservations:read but has no use for a live feed.
 	router.GET("/api/sse/reservations", handler.SSEMiddleware(), handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ReservationsManage), h.reservationLive.StreamHandler)
+}
+
+// RegisterDeliveryRoutes is cloud-only: the agent's takeaway and delivery orders live in the cloud,
+// and the box's till orders reach it as dine-in. A transition lets manage or carry through; the
+// service narrows what a courier's carry may do.
+func RegisterDeliveryRoutes(router *gin.Engine, deliveries *handler.DeliveryHandler, jwtService *service.JWTService) {
+	d := router.Group("/api/deliveries", handler.JWTAuthMiddleware(jwtService))
+	change := handler.RequireAnyPermission(permissions.DeliveriesManage, permissions.DeliveriesCarry)
+	d.GET("/orders", handler.RequirePermission(permissions.DeliveriesRead), deliveries.ListHandler)
+	d.GET("/orders/:id/history", handler.RequirePermission(permissions.DeliveriesRead), deliveries.HistoryHandler)
+	d.GET("/couriers", handler.RequirePermission(permissions.DeliveriesManage), deliveries.CouriersHandler)
+	d.GET("/mine", handler.RequirePermission(permissions.DeliveriesCarry), deliveries.MineHandler)
+	d.POST("/orders/:id/dispatch", change, deliveries.DispatchHandler)
+	d.POST("/orders/:id/deliver", change, deliveries.DeliverHandler)
+	d.POST("/orders/:id/fail", change, deliveries.FailHandler)
 }
 
 // RegisterReservationRoutes is cloud-only: reservations, contacts and feedback live in the cloud,

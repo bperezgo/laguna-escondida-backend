@@ -47,7 +47,7 @@ async function loadZones(): Promise<{ zones: DeliveryZone[]; error: string }> {
 }
 
 function parseTab(tab: string | undefined): DeliveriesTab | null {
-  return tab === "estado" || tab === "horarios" || tab === "zonas" ? tab : null;
+  return tab === "pedidos" || tab === "estado" || tab === "horarios" || tab === "zonas" ? tab : null;
 }
 
 export default async function DeliveriesPage({ searchParams }: DeliveriesPageProps) {

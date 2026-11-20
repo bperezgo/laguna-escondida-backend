@@ -198,6 +198,8 @@ func TestRoleConstants(t *testing.T) {
 	assert.Equal(t, 3, RoleManager)
 	assert.Equal(t, 4, RoleCooker)
 	assert.Equal(t, 5, RoleAccountant)
+	assert.Equal(t, 6, RoleAgent)
+	assert.Equal(t, 7, RoleCourier)
 }
 
 // TestOrdersCompleteProductPermission verifies the kitchen preparation flow:
@@ -313,6 +315,7 @@ func TestHasCloudRole(t *testing.T) {
 		{name: "manager", roleIDs: []int{RoleManager}, want: true},
 		{name: "accountant", roleIDs: []int{RoleAccountant}, want: true},
 		{name: "agent", roleIDs: []int{RoleAgent}, want: true},
+		{name: "courier", roleIDs: []int{RoleCourier}, want: true},
 		{name: "server", roleIDs: []int{RoleServer}, want: false},
 		{name: "cooker", roleIDs: []int{RoleCooker}, want: false},
 		{name: "floor roles only", roleIDs: []int{RoleServer, RoleCooker}, want: false},
@@ -352,4 +355,23 @@ func TestGetPermissionsForRoles_IntegrationsOnlyForAdmin(t *testing.T) {
 		assert.NotContains(t, perms, IntegrationsRead, "role %d", role)
 		assert.NotContains(t, perms, IntegrationsManage, "role %d", role)
 	}
+}
+
+func TestGetPermissionsForRoles_DeliveryGrants(t *testing.T) {
+	for _, role := range []int{RoleAdmin, RoleManager} {
+		perms := GetPermissionsForRoles([]int{role})
+		assert.Contains(t, perms, DeliveriesRead, "role %d", role)
+		assert.Contains(t, perms, DeliveriesManage, "role %d", role)
+	}
+	assert.NotContains(t, GetPermissionsForRoles([]int{RoleManager}), DeliveriesCarry)
+	for _, role := range []int{RoleServer, RoleCooker, RoleAccountant, RoleAgent} {
+		perms := GetPermissionsForRoles([]int{role})
+		for _, p := range []Permission{DeliveriesRead, DeliveriesManage, DeliveriesCarry} {
+			assert.NotContains(t, perms, p, "role %d", role)
+		}
+	}
+}
+
+func TestGetPermissionsForRoles_CourierOnlyCarries(t *testing.T) {
+	assert.ElementsMatch(t, []Permission{DeliveriesCarry}, GetPermissionsForRoles([]int{RoleCourier}))
 }
