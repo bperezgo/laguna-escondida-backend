@@ -11,7 +11,12 @@ import { isOrderActionPinRequired } from "@/lib/orders/actionPin";
 import type { OpenBillWithProducts } from "@/types/order";
 import type { PaymentType, PayOrderRequest } from "@/types/billOwner";
 import { Button, Input, Modal, PinConfirmModal, Select } from "@/components/ui";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatMoney, formatNumber } from "@/lib/format";
+import {
+  computeCashChange,
+  parseReceivedAmount,
+  suggestCashAmounts,
+} from "@/lib/orders/cashChange";
 
 // Card payment types require internet (cleared by the bank in real time).
 const CARD_PAYMENT_TYPES: PaymentType[] = ["credit_card", "debit_card"];
@@ -72,9 +77,18 @@ export default function PaymentModal({
     }
   }, [isOffline, paymentType]);
 
+  const [receivedInput, setReceivedInput] = useState("");
+
   const consolidated = groupBillProducts(openBill);
   const { subtotal, totalVAT, totalICO, total } =
     calculateReceiptTotals(openBill);
+
+  const isCash = paymentType === "cash";
+  const cashChange = computeCashChange(
+    total,
+    isCash ? parseReceivedAmount(receivedInput) : null,
+  );
+  const isCashShort = cashChange.kind === "short";
 
   const handleSearchCustomer = async () => {
     if (!customerId.trim()) {
@@ -120,6 +134,12 @@ export default function PaymentModal({
     if (isOffline && isCardPaymentType(paymentType)) {
       setError(
         "No se puede pagar con tarjeta sin conexión. Selecciona efectivo o transferencia.",
+      );
+      return;
+    }
+    if (isCashShort) {
+      setError(
+        `El efectivo recibido no alcanza: faltan ${formatMoney(cashChange.missing)}.`,
       );
       return;
     }
@@ -224,7 +244,7 @@ export default function PaymentModal({
           >
             {isPrinting ? "Imprimiendo..." : "Imprimir Cuenta"}
           </Button>
-          <Button onClick={requestPayment} disabled={isPaying}>
+          <Button onClick={requestPayment} disabled={isPaying || isCashShort}>
             {isPaying ? "Procesando..." : "Pagar y Cerrar Cuenta"}
           </Button>
         </>
@@ -279,7 +299,11 @@ export default function PaymentModal({
         <Select
           label="Tipo de Pago *"
           value={paymentType}
-          onChange={(e) => setPaymentType(e.target.value as PaymentType | "")}
+          onChange={(e) => {
+            const next = e.target.value as PaymentType | "";
+            setPaymentType(next);
+            if (next !== "cash") setReceivedInput("");
+          }}
           disabled={isPaying}
         >
           <option value="" disabled>
@@ -315,6 +339,92 @@ export default function PaymentModal({
           </p>
         )}
       </div>
+
+      {isCash && (
+        <div style={{ ...sectionCard, marginBottom: "1.5rem" }}>
+          <Input
+            label="Recibido (opcional)"
+            inputMode="numeric"
+            value={receivedInput}
+            onChange={(e) => setReceivedInput(e.target.value)}
+            placeholder="Monto que entrega el cliente..."
+            disabled={isPaying}
+          />
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "0.5rem",
+              marginTop: "0.75rem",
+            }}
+          >
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setReceivedInput(formatNumber(Math.round(total)))}
+              disabled={isPaying}
+            >
+              Exacto
+            </Button>
+            {suggestCashAmounts(total).map((amount) => (
+              <Button
+                key={amount}
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setReceivedInput(formatNumber(amount))}
+                disabled={isPaying}
+              >
+                {formatMoney(amount)}
+              </Button>
+            ))}
+          </div>
+          {cashChange.kind === "change" && (
+            <div
+              style={{
+                marginTop: "1rem",
+                padding: "0.75rem 1rem",
+                borderRadius: "var(--radius-md)",
+                backgroundColor: "var(--color-success-bg)",
+                color: "var(--color-success-text)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "baseline",
+                flexWrap: "wrap",
+                gap: "0.5rem",
+              }}
+            >
+              <span style={{ fontWeight: 600 }}>Cambio</span>
+              <span
+                style={{
+                  fontSize: "1.75rem",
+                  fontWeight: "bold",
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                {formatMoney(cashChange.amount)}
+              </span>
+            </div>
+          )}
+          {cashChange.kind === "short" && (
+            <div
+              style={{
+                marginTop: "1rem",
+                padding: "0.75rem 1rem",
+                borderRadius: "var(--radius-md)",
+                backgroundColor: "var(--color-danger-light)",
+                border: "1px solid var(--color-danger)",
+                color: "var(--color-danger)",
+                fontWeight: "bold",
+                fontSize: "1.25rem",
+              }}
+            >
+              Faltan {formatMoney(cashChange.missing)}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Customer Search */}
       <div
@@ -567,7 +677,11 @@ export default function PaymentModal({
       confirmLabel="Pagar y Cerrar"
       message={`Vas a cerrar la cuenta "${openBill.temporal_identifier}" por un total de $${total.toFixed(
         2,
-      )}. Esta acción no se puede deshacer.`}
+      )}.${
+        cashChange.kind === "change"
+          ? ` Cambio: ${formatMoney(cashChange.amount)}.`
+          : ""
+      } Esta acción no se puede deshacer.`}
     />
     </>
   );
