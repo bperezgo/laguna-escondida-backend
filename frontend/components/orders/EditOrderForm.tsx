@@ -480,8 +480,13 @@ export default function EditOrderForm({
   // Has the waitress changed anything since load / last save? Drives the update
   // button colour: gray when nothing's changed, green once there are edits.
   const currentSignature = useMemo(
-    () => orderSignature(temporalIdentifier, descriptor, selectedProductsArray),
-    [temporalIdentifier, descriptor, selectedProductsArray],
+    () =>
+      orderSignature(
+        temporalIdentifier,
+        descriptor,
+        Array.from(selectedProducts.values()),
+      ),
+    [temporalIdentifier, descriptor, selectedProducts],
   );
   const isDirty =
     baselineSignature !== null && currentSignature !== baselineSignature;
