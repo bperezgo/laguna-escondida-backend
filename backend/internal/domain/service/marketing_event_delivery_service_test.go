@@ -27,7 +27,7 @@ type deliveryFixture struct {
 func newDeliveryFixture(t *testing.T, secrets staticSecrets) *deliveryFixture {
 	now := crmAt(t, 8, 20, 0)
 	f := &deliveryFixture{store: mocks.NewMockMarketingEventStore(t), transport: mocks.NewMockMarketingEventTransport(t), now: now}
-	f.service = NewMarketingEventDeliveryService(f.store, f.transport, crmOrganizations(t), secrets, discardLogger(), fixedClock(now))
+	f.service = NewMarketingEventDeliveryService(f.store, f.transport, secrets, discardLogger(), fixedClock(now))
 	return f
 }
 
@@ -64,10 +64,10 @@ func TestMarketingEventDeliveryService_ReceiverAnswers(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := newDeliveryFixture(t, staticSecrets{crmOrgSlug: crmSecret})
+			f := newDeliveryFixture(t, staticSecrets{crmOrgID: crmSecret})
 			event := dueEvent(tt.attempts, f.now.Add(-time.Hour))
 			f.claims(event)
-			f.transport.EXPECT().Send(mock.Anything, "/backend/events", event.Body, mock.Anything).Return(tt.status, tt.sendErr).Once()
+			f.transport.EXPECT().Send(mock.Anything, "/backend/events", mock.Anything, event.Body, mock.Anything).Return(tt.status, tt.sendErr).Once()
 			if tt.wantSent {
 				f.store.EXPECT().MarkSent(mock.Anything, "e1", f.now).Return(nil).Once()
 			} else {
@@ -83,12 +83,12 @@ func TestMarketingEventDeliveryService_ReceiverAnswers(t *testing.T) {
 }
 
 func TestMarketingEventDeliveryService_SignsTheExactBytes(t *testing.T) {
-	f := newDeliveryFixture(t, staticSecrets{crmOrgSlug: crmSecret})
+	f := newDeliveryFixture(t, staticSecrets{crmOrgID: crmSecret})
 	event := dueEvent(1, f.now)
 	f.claims(event)
 	var signature string
-	f.transport.EXPECT().Send(mock.Anything, mock.Anything, event.Body, mock.Anything).
-		Run(func(_ context.Context, _ string, _ []byte, s string) { signature = s }).Return(200, nil).Once()
+	f.transport.EXPECT().Send(mock.Anything, mock.Anything, mock.Anything, event.Body, mock.Anything).
+		Run(func(_ context.Context, _, _ string, _ []byte, s string) { signature = s }).Return(200, nil).Once()
 	f.store.EXPECT().MarkSent(mock.Anything, "e1", mock.Anything).Return(nil).Once()
 
 	_, err := f.service.DeliverDue(crmContext())
@@ -100,7 +100,7 @@ func TestMarketingEventDeliveryService_SignsTheExactBytes(t *testing.T) {
 }
 
 func TestMarketingEventDeliveryService_ExpiresAfter72Hours(t *testing.T) {
-	f := newDeliveryFixture(t, staticSecrets{crmOrgSlug: crmSecret})
+	f := newDeliveryFixture(t, staticSecrets{crmOrgID: crmSecret})
 	f.claims(dueEvent(40, f.now.Add(-73*time.Hour)))
 	f.store.EXPECT().MarkFailed(mock.Anything, "e1", dto.MarketingEventExpired, f.now, mock.Anything).Return(nil).Once()
 
@@ -108,7 +108,7 @@ func TestMarketingEventDeliveryService_ExpiresAfter72Hours(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Zero(t, delivered)
-	f.transport.AssertNotCalled(t, "Send", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	f.transport.AssertNotCalled(t, "Send", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestMarketingEventDeliveryService_NoSecretSendsNothing(t *testing.T) {
@@ -123,29 +123,67 @@ func TestMarketingEventDeliveryService_NoSecretSendsNothing(t *testing.T) {
 
 func TestMarketingEventDeliveryService_Failures(t *testing.T) {
 	t.Run("claim", func(t *testing.T) {
-		f := newDeliveryFixture(t, staticSecrets{crmOrgSlug: crmSecret})
+		f := newDeliveryFixture(t, staticSecrets{crmOrgID: crmSecret})
 		f.store.EXPECT().ClaimDue(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("db down")).Once()
 		_, err := f.service.DeliverDue(crmContext())
 		require.ErrorContains(t, err, "db down")
 	})
 	t.Run("settle", func(t *testing.T) {
-		f := newDeliveryFixture(t, staticSecrets{crmOrgSlug: crmSecret})
+		f := newDeliveryFixture(t, staticSecrets{crmOrgID: crmSecret})
 		f.claims(dueEvent(1, f.now), dueEvent(1, f.now))
-		f.transport.EXPECT().Send(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(200, nil).Once()
+		f.transport.EXPECT().Send(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(200, nil).Once()
 		f.store.EXPECT().MarkSent(mock.Anything, mock.Anything, mock.Anything).Return(errors.New("db down")).Once()
 		_, err := f.service.DeliverDue(crmContext())
 		require.ErrorContains(t, err, "db down")
 	})
-	t.Run("organization", func(t *testing.T) {
-		orgs := mocks.NewMockOrganizationRepository(t)
-		orgs.EXPECT().Get(mock.Anything, crmOrgID).Return(nil, errors.New("db down")).Once()
-		svc := NewMarketingEventDeliveryService(mocks.NewMockMarketingEventStore(t), mocks.NewMockMarketingEventTransport(t), orgs, staticSecrets{}, discardLogger(), nil)
+	t.Run("signing secret", func(t *testing.T) {
+		svc := NewMarketingEventDeliveryService(mocks.NewMockMarketingEventStore(t), mocks.NewMockMarketingEventTransport(t), failingSecrets{}, discardLogger(), nil)
 		_, err := svc.DeliverDue(crmContext())
 		require.ErrorContains(t, err, "db down")
 	})
 	t.Run("no organization", func(t *testing.T) {
-		svc := NewMarketingEventDeliveryService(mocks.NewMockMarketingEventStore(t), mocks.NewMockMarketingEventTransport(t), mocks.NewMockOrganizationRepository(t), staticSecrets{}, discardLogger(), nil)
+		svc := NewMarketingEventDeliveryService(mocks.NewMockMarketingEventStore(t), mocks.NewMockMarketingEventTransport(t), staticSecrets{}, discardLogger(), nil)
 		_, err := svc.DeliverDue(t.Context())
 		require.Error(t, err)
 	})
+}
+
+func TestMarketingEventDeliveryService_NamesTheChannel(t *testing.T) {
+	f := newDeliveryFixture(t, staticSecrets{crmOrgID: crmSecret})
+	event := dueEvent(1, f.now)
+	event.Body = []byte(`{"event_id":"e1","channel_id":"ch_123"}`)
+	f.claims(event)
+	f.transport.EXPECT().Send(mock.Anything, mock.Anything, "ch_123", event.Body, mock.Anything).Return(200, nil).Once()
+	f.store.EXPECT().MarkSent(mock.Anything, "e1", mock.Anything).Return(nil).Once()
+
+	_, err := f.service.DeliverDue(crmContext())
+
+	require.NoError(t, err)
+}
+
+func TestMarketingEventDeliveryService_RotatedBeforeSendingSignsWithTheNewSecret(t *testing.T) {
+	secrets := staticSecrets{crmOrgID: "old-secret"}
+	f := newDeliveryFixture(t, secrets)
+	event := dueEvent(1, f.now)
+	secrets[crmOrgID] = "new-secret"
+	f.claims(event)
+	f.transport.EXPECT().Send(mock.Anything, mock.Anything, mock.Anything, event.Body, SignMarketingEvent("new-secret", event.Body)).Return(200, nil).Once()
+	f.store.EXPECT().MarkSent(mock.Anything, "e1", mock.Anything).Return(nil).Once()
+
+	_, err := f.service.DeliverDue(crmContext())
+
+	require.NoError(t, err)
+}
+
+func TestMarketingEventDeliveryService_SecretRemovedLeavesEventsPending(t *testing.T) {
+	secrets := staticSecrets{crmOrgID: crmSecret}
+	f := newDeliveryFixture(t, secrets)
+	delete(secrets, crmOrgID)
+
+	delivered, err := f.service.DeliverDue(crmContext())
+
+	require.NoError(t, err)
+	assert.Zero(t, delivered)
+	f.store.AssertNotCalled(t, "ClaimDue", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	f.store.AssertNotCalled(t, "MarkFailed", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }

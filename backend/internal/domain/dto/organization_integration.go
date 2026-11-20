@@ -4,10 +4,13 @@ import "time"
 
 type IntegrationProvider string
 
-const IntegrationProviderWompi IntegrationProvider = "wompi"
+const (
+	IntegrationProviderWompi        IntegrationProvider = "wompi"
+	IntegrationProviderMarketingApp IntegrationProvider = "marketing_app"
+)
 
 // IntegrationProviders is every provider an organization can be connected to, in list order.
-var IntegrationProviders = []IntegrationProvider{IntegrationProviderWompi}
+var IntegrationProviders = []IntegrationProvider{IntegrationProviderMarketingApp, IntegrationProviderWompi}
 
 type IntegrationEnvironment string
 
@@ -18,13 +21,14 @@ const (
 
 // OrganizationIntegration is an integration as it is read: hints of its secrets, never the secrets.
 type OrganizationIntegration struct {
-	Provider         IntegrationProvider    `json:"provider"`
-	Environment      IntegrationEnvironment `json:"environment,omitempty"`
-	PrivateKeyHint   string                 `json:"private_key_hint,omitempty"`
-	EventsSecretHint string                 `json:"events_secret_hint,omitempty"`
-	WebhookPath      string                 `json:"webhook_path,omitempty"`
-	CreatedAt        time.Time              `json:"created_at"`
-	UpdatedAt        time.Time              `json:"updated_at"`
+	Provider          IntegrationProvider    `json:"provider"`
+	Environment       IntegrationEnvironment `json:"environment,omitempty"`
+	PrivateKeyHint    string                 `json:"private_key_hint,omitempty"`
+	EventsSecretHint  string                 `json:"events_secret_hint,omitempty"`
+	SigningSecretHint string                 `json:"signing_secret_hint,omitempty"`
+	WebhookPath       string                 `json:"webhook_path,omitempty"`
+	CreatedAt         time.Time              `json:"created_at"`
+	UpdatedAt         time.Time              `json:"updated_at"`
 }
 
 type OrganizationIntegrationListResponse struct {
@@ -49,4 +53,15 @@ type OrganizationIntegrationRecord struct {
 type WompiCredentials struct {
 	PrivateKey   string `json:"private_key"`
 	EventsSecret string `json:"events_secret"`
+}
+
+// MarketingAppCredentials is the PUT body of a marketing-app integration, and the plaintext of its Secrets.
+type MarketingAppCredentials struct {
+	SigningSecret string `json:"signing_secret"`
+}
+
+// GeneratedMarketingAppSecret is the only response that carries a secret: the one just generated.
+type GeneratedMarketingAppSecret struct {
+	*OrganizationIntegration
+	SigningSecret string `json:"signing_secret"`
 }

@@ -21,9 +21,9 @@ func (_m *MockMarketingEventTransport) EXPECT() *MockMarketingEventTransport_Exp
 	return &MockMarketingEventTransport_Expecter{mock: &_m.Mock}
 }
 
-// Send provides a mock function with given fields: ctx, path, body, signature
-func (_m *MockMarketingEventTransport) Send(ctx context.Context, path string, body []byte, signature string) (int, error) {
-	ret := _m.Called(ctx, path, body, signature)
+// Send provides a mock function with given fields: ctx, path, channelID, body, signature
+func (_m *MockMarketingEventTransport) Send(ctx context.Context, path string, channelID string, body []byte, signature string) (int, error) {
+	ret := _m.Called(ctx, path, channelID, body, signature)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Send")
@@ -31,17 +31,17 @@ func (_m *MockMarketingEventTransport) Send(ctx context.Context, path string, bo
 
 	var r0 int
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, []byte, string) (int, error)); ok {
-		return rf(ctx, path, body, signature)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, []byte, string) (int, error)); ok {
+		return rf(ctx, path, channelID, body, signature)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, []byte, string) int); ok {
-		r0 = rf(ctx, path, body, signature)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, []byte, string) int); ok {
+		r0 = rf(ctx, path, channelID, body, signature)
 	} else {
 		r0 = ret.Get(0).(int)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, []byte, string) error); ok {
-		r1 = rf(ctx, path, body, signature)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, []byte, string) error); ok {
+		r1 = rf(ctx, path, channelID, body, signature)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -57,15 +57,16 @@ type MockMarketingEventTransport_Send_Call struct {
 // Send is a helper method to define mock.On call
 //   - ctx context.Context
 //   - path string
+//   - channelID string
 //   - body []byte
 //   - signature string
-func (_e *MockMarketingEventTransport_Expecter) Send(ctx interface{}, path interface{}, body interface{}, signature interface{}) *MockMarketingEventTransport_Send_Call {
-	return &MockMarketingEventTransport_Send_Call{Call: _e.mock.On("Send", ctx, path, body, signature)}
+func (_e *MockMarketingEventTransport_Expecter) Send(ctx interface{}, path interface{}, channelID interface{}, body interface{}, signature interface{}) *MockMarketingEventTransport_Send_Call {
+	return &MockMarketingEventTransport_Send_Call{Call: _e.mock.On("Send", ctx, path, channelID, body, signature)}
 }
 
-func (_c *MockMarketingEventTransport_Send_Call) Run(run func(ctx context.Context, path string, body []byte, signature string)) *MockMarketingEventTransport_Send_Call {
+func (_c *MockMarketingEventTransport_Send_Call) Run(run func(ctx context.Context, path string, channelID string, body []byte, signature string)) *MockMarketingEventTransport_Send_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].([]byte), args[3].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].([]byte), args[4].(string))
 	})
 	return _c
 }
@@ -75,7 +76,7 @@ func (_c *MockMarketingEventTransport_Send_Call) Return(_a0 int, _a1 error) *Moc
 	return _c
 }
 
-func (_c *MockMarketingEventTransport_Send_Call) RunAndReturn(run func(context.Context, string, []byte, string) (int, error)) *MockMarketingEventTransport_Send_Call {
+func (_c *MockMarketingEventTransport_Send_Call) RunAndReturn(run func(context.Context, string, string, []byte, string) (int, error)) *MockMarketingEventTransport_Send_Call {
 	_c.Call.Return(run)
 	return _c
 }

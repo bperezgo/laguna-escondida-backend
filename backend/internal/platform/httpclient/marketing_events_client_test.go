@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -14,25 +15,22 @@ import (
 	"time"
 
 	"laguna-escondida/backend/internal/domain/dto"
-	"laguna-escondida/backend/internal/domain/ports/mocks"
 	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/domain/tenant"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
 const (
 	testMarketingOrg    = "019a0000-0000-7000-8000-0000000000c1"
-	testMarketingSlug   = "laguna-escondida"
 	testMarketingSecret = "s3cret"
 )
 
 type marketingSecrets struct{}
 
-func (marketingSecrets) SecretFor(slug string) (string, bool) {
-	return testMarketingSecret, slug == testMarketingSlug
+func (marketingSecrets) SecretFor(_ context.Context, organizationID string) (string, bool, error) {
+	return testMarketingSecret, organizationID == testMarketingOrg, nil
 }
 
 // memoryStore is the outbox as the sender sees it: one pending event, due whenever its next attempt has come.
@@ -77,6 +75,7 @@ type received struct {
 	path      string
 	body      []byte
 	signature string
+	channelID string
 }
 
 // receiver answers with statuses in turn (the last one repeats) and records every request.
@@ -86,7 +85,7 @@ func receiver(t *testing.T, delay time.Duration, statuses ...int) (*httptest.Ser
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		mu.Lock()
-		got = append(got, received{path: r.URL.Path, body: body, signature: r.Header.Get("X-Signature-256")})
+		got = append(got, received{path: r.URL.Path, body: body, signature: r.Header.Get("X-Signature-256"), channelID: r.Header.Get("X-Channel-Id")})
 		status := statuses[min(len(got), len(statuses))-1]
 		mu.Unlock()
 		if delay > 0 {
@@ -113,15 +112,13 @@ func newDeliveryRig(t *testing.T, baseURL string) *deliveryRig {
 	rig := &deliveryRig{
 		store: &memoryStore{event: dto.MarketingEvent{
 			EventID: "019a0000-0000-7000-8000-0000000000e1", Type: dto.MarketingEventOrderPaid, Path: dto.MarketingEventsPathOrders,
-			Body:   []byte(`{"event_id":"019a0000-0000-7000-8000-0000000000e1","type":"order.paid","amount":"45000"}`),
+			Body:   []byte(`{"event_id":"019a0000-0000-7000-8000-0000000000e1","type":"order.paid","channel_id":"ch_123","amount":"45000"}`),
 			Status: dto.MarketingEventPending, NextAttemptAt: start, CreatedAt: start,
 		}},
 		now: &start,
 	}
-	orgs := mocks.NewMockOrganizationRepository(t)
-	orgs.EXPECT().Get(mock.Anything, testMarketingOrg).Return(&dto.Organization{ID: testMarketingOrg, Slug: testMarketingSlug}, nil).Maybe()
 	transport := NewMarketingEventsClient(NewClient(slog.New(slog.DiscardHandler)), baseURL+"/")
-	rig.service = service.NewMarketingEventDeliveryService(rig.store, transport, orgs, marketingSecrets{}, slog.New(slog.DiscardHandler),
+	rig.service = service.NewMarketingEventDeliveryService(rig.store, transport, marketingSecrets{}, slog.New(slog.DiscardHandler),
 		func() time.Time { return *rig.now })
 	return rig
 }
@@ -216,4 +213,21 @@ func TestMarketingEventsDelivery_TheSignatureMatchesTheBytes(t *testing.T) {
 	mac.Write(r.body)
 	assert.Equal(t, "sha256="+hex.EncodeToString(mac.Sum(nil)), r.signature)
 	assert.Equal(t, rig.store.snapshot().Body, r.body)
+}
+
+func TestMarketingEventsDelivery_TheChannelIsNamedInAHeader(t *testing.T) {
+	server, requests := receiver(t, 0, 200)
+	rig := newDeliveryRig(t, server.URL)
+
+	rig.run(t, t.Context())
+
+	require.Len(t, requests(), 1)
+	r := requests()[0]
+	var body struct {
+		ChannelID string `json:"channel_id"`
+	}
+	require.NoError(t, json.Unmarshal(r.body, &body))
+	assert.Equal(t, "ch_123", r.channelID)
+	assert.Equal(t, body.ChannelID, r.channelID)
+	assert.Equal(t, service.SignMarketingEvent(testMarketingSecret, r.body), r.signature, "the signature covers only the body")
 }

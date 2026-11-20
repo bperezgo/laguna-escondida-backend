@@ -111,8 +111,14 @@ func (s *CRMScheduler) warnOrganizationsWithoutSecret(ctx context.Context) {
 		if org.Status != dto.OrganizationStatusActive {
 			continue
 		}
-		if _, ok := s.secrets.SecretFor(org.Slug); !ok {
-			s.logger.WarnContext(ctx, "Organization has no marketing event signing secret; its agent orders and reservations record no events",
+		_, configured, err := s.secrets.SecretFor(tenant.WithOrg(ctx, org.ID), org.ID)
+		if err != nil {
+			s.logger.ErrorContext(ctx, "Could not read an organization's marketing event signing secret",
+				slog.String("organization_id", org.ID), slog.String("slug", org.Slug), slog.Any("error", err))
+			continue
+		}
+		if !configured {
+			s.logger.WarnContext(ctx, "Organization has no marketing event signing secret; its agent orders and reservations record no events until its admin generates one",
 				slog.String("organization_id", org.ID), slog.String("slug", org.Slug))
 		}
 	}

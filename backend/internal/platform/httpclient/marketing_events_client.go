@@ -25,7 +25,7 @@ func NewMarketingEventsClient(client *Client, baseURL string) ports.MarketingEve
 	return &MarketingEventsClient{client: client, baseURL: strings.TrimRight(baseURL, "/")}
 }
 
-func (c *MarketingEventsClient) Send(ctx context.Context, path string, body []byte, signature string) (int, error) {
+func (c *MarketingEventsClient) Send(ctx context.Context, path, channelID string, body []byte, signature string) (int, error) {
 	ctx, cancel := context.WithTimeout(ctx, marketingEventsTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+path, bytes.NewReader(body))
@@ -34,6 +34,8 @@ func (c *MarketingEventsClient) Send(ctx context.Context, path string, body []by
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Signature-256", signature)
+	// Unsigned: marketing-app uses it only to pick the channel's secret, then checks it against the signed body.
+	req.Header.Set("X-Channel-Id", channelID)
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return 0, fmt.Errorf("send marketing event: %w", err)

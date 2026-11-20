@@ -88,11 +88,18 @@ func (o *txOutbox) events() []*dto.MarketingEvent {
 	return append([]*dto.MarketingEvent(nil), o.committed...)
 }
 
+// staticSecrets is each organization's signing secret by id; changing the map rotates or removes it.
 type staticSecrets map[string]string
 
-func (s staticSecrets) SecretFor(slug string) (string, bool) {
-	secret, ok := s[slug]
-	return secret, ok
+func (s staticSecrets) SecretFor(_ context.Context, organizationID string) (string, bool, error) {
+	secret, ok := s[organizationID]
+	return secret, ok, nil
+}
+
+type failingSecrets struct{}
+
+func (failingSecrets) SecretFor(context.Context, string) (string, bool, error) {
+	return "", false, errors.New("db down")
 }
 
 // crmOrganizations answers Get for the test organization, in Bogotá and in COP.
@@ -106,7 +113,7 @@ func crmOrganizations(t *testing.T) *mocks.MockOrganizationRepository {
 
 // newRecordingEvents is the real recorder over outbox, enabled with the test organization's secret.
 func newRecordingEvents(t *testing.T, outbox *txOutbox) *MarketingEventService {
-	return NewMarketingEventService(outbox, crmOrganizations(t), staticSecrets{crmOrgSlug: crmSecret}, true)
+	return NewMarketingEventService(outbox, crmOrganizations(t), staticSecrets{crmOrgID: crmSecret}, true)
 }
 
 func crmSettings(t *testing.T, feedback dto.FeedbackSettings) *mocks.MockOrganizationSettingsRepository {

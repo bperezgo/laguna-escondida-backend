@@ -2,12 +2,15 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/url"
 	"strings"
 	"time"
+	"unicode"
 
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
@@ -21,6 +24,10 @@ const (
 	wompiPrivateKeyField   = "private_key"
 	wompiEventsSecretField = "events_secret"
 	secretHintLength       = 4
+
+	marketingAppSigningSecretField     = "signing_secret"
+	marketingAppSigningSecretMinLength = 32
+	generatedSecretBytes               = 32
 )
 
 // Wompi's key prefixes carry the environment a key belongs to.
@@ -89,27 +96,99 @@ func (s *OrganizationIntegrationService) SetWompi(ctx context.Context, orgID str
 	if err != nil {
 		return nil, fmt.Errorf("encode wompi credentials: %w", err)
 	}
+	return s.store(ctx, orgID, dto.IntegrationProviderWompi, environment, plaintext, map[string]string{
+		wompiPrivateKeyField:   secretHint(creds.PrivateKey),
+		wompiEventsSecretField: secretHint(creds.EventsSecret),
+	})
+}
+
+// SetMarketingApp creates or replaces the organization's marketing-app integration with a secret
+// it already has, so moving it over needs no change in marketing-app.
+func (s *OrganizationIntegrationService) SetMarketingApp(ctx context.Context, orgID string, creds dto.MarketingAppCredentials) (*dto.OrganizationIntegration, error) {
+	if s.cipher == nil {
+		return nil, domainError.ErrIntegrationsUnavailable
+	}
+	creds.SigningSecret = strings.TrimSpace(creds.SigningSecret)
+	if err := validateMarketingAppSecret(creds.SigningSecret); err != nil {
+		return nil, err
+	}
+	if err := s.requireOrganization(ctx, orgID); err != nil {
+		return nil, err
+	}
+	return s.storeMarketingApp(ctx, orgID, creds)
+}
+
+// GenerateMarketingAppSecret creates or replaces the marketing-app integration with a random secret,
+// returned this once. Only marketing_app has a generated secret; any other provider is unknown here.
+func (s *OrganizationIntegrationService) GenerateMarketingAppSecret(ctx context.Context, orgID, provider string) (*dto.GeneratedMarketingAppSecret, error) {
+	p, err := s.provider(provider)
+	if err != nil {
+		return nil, err
+	}
+	if p != dto.IntegrationProviderMarketingApp {
+		return nil, domainError.ErrIntegrationProviderUnknown
+	}
+	if err = s.requireOrganization(ctx, orgID); err != nil {
+		return nil, err
+	}
+	raw := make([]byte, generatedSecretBytes)
+	if _, err = rand.Read(raw); err != nil {
+		return nil, fmt.Errorf("generate marketing-app secret: %w", err)
+	}
+	creds := dto.MarketingAppCredentials{SigningSecret: base64.RawURLEncoding.EncodeToString(raw)}
+	integration, err := s.storeMarketingApp(ctx, orgID, creds)
+	if err != nil {
+		return nil, err
+	}
+	return &dto.GeneratedMarketingAppSecret{OrganizationIntegration: integration, SigningSecret: creds.SigningSecret}, nil
+}
+
+func (s *OrganizationIntegrationService) storeMarketingApp(ctx context.Context, orgID string, creds dto.MarketingAppCredentials) (*dto.OrganizationIntegration, error) {
+	plaintext, err := json.Marshal(creds)
+	if err != nil {
+		return nil, fmt.Errorf("encode marketing-app credentials: %w", err)
+	}
+	return s.store(ctx, orgID, dto.IntegrationProviderMarketingApp, "", plaintext, map[string]string{
+		marketingAppSigningSecretField: secretHint(creds.SigningSecret),
+	})
+}
+
+func (s *OrganizationIntegrationService) store(
+	ctx context.Context, orgID string, provider dto.IntegrationProvider, environment dto.IntegrationEnvironment,
+	plaintext []byte, hints map[string]string,
+) (*dto.OrganizationIntegration, error) {
 	secrets, err := s.cipher.Encrypt(plaintext)
 	if err != nil {
-		return nil, fmt.Errorf("encrypt wompi credentials: %w", err)
+		return nil, fmt.Errorf("encrypt %s credentials: %w", provider, err)
 	}
 	now := s.now()
 	stored, err := s.integrations.Upsert(tenant.WithOrg(ctx, orgID), &dto.OrganizationIntegrationRecord{
 		ID:          uuid.Must(uuid.NewV7()).String(),
-		Provider:    dto.IntegrationProviderWompi,
+		Provider:    provider,
 		Environment: environment,
 		Secrets:     secrets,
-		SecretHints: map[string]string{
-			wompiPrivateKeyField:   secretHint(creds.PrivateKey),
-			wompiEventsSecretField: secretHint(creds.EventsSecret),
-		},
-		CreatedAt: now,
-		UpdatedAt: now,
+		SecretHints: hints,
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("store wompi integration: %w", err)
+		return nil, fmt.Errorf("store %s integration: %w", provider, err)
 	}
 	return toIntegration(stored), nil
+}
+
+func validateMarketingAppSecret(secret string) error {
+	switch {
+	case secret == "":
+		return &domainError.IntegrationValidationError{Field: marketingAppSigningSecretField, Reason: "is required"}
+	case strings.ContainsFunc(secret, unicode.IsSpace):
+		return &domainError.IntegrationValidationError{Field: marketingAppSigningSecretField, Reason: "must not contain whitespace"}
+	case len(secret) < marketingAppSigningSecretMinLength:
+		return &domainError.IntegrationValidationError{
+			Field: marketingAppSigningSecretField, Reason: fmt.Sprintf("must be at least %d characters", marketingAppSigningSecretMinLength),
+		}
+	}
+	return nil
 }
 
 func (s *OrganizationIntegrationService) Get(ctx context.Context, orgID, provider string) (*dto.OrganizationIntegration, error) {
@@ -198,6 +277,46 @@ func (s *OrganizationIntegrationService) decryptWompi(record *dto.OrganizationIn
 	return creds, creds.PrivateKey != "" && creds.EventsSecret != ""
 }
 
+// MarketingAppSecret is ports.MarketingEventSecrets (through MarketingAppSecrets), read on every
+// call so a secret put, generated or removed takes effect on the next event.
+func (s *OrganizationIntegrationService) MarketingAppSecret(ctx context.Context, organizationID string) (string, bool, error) {
+	if s.cipher == nil {
+		return "", false, nil
+	}
+	record, found, err := s.integrations.Get(tenant.WithOrg(ctx, organizationID), dto.IntegrationProviderMarketingApp)
+	if err != nil {
+		return "", false, fmt.Errorf("read marketing-app integration: %w", err)
+	}
+	if !found {
+		return "", false, nil
+	}
+	secret, ok := s.decryptMarketingApp(record)
+	if !ok {
+		s.logger.ErrorContext(ctx, "integration secrets unreadable: treated as not configured; put or generate the secret again",
+			slog.String("organization_id", organizationID), slog.String("provider", string(dto.IntegrationProviderMarketingApp)))
+		return "", false, nil
+	}
+	return secret, true, nil
+}
+
+func (s *OrganizationIntegrationService) decryptMarketingApp(record *dto.OrganizationIntegrationRecord) (string, bool) {
+	var creds dto.MarketingAppCredentials
+	plaintext, err := s.cipher.Decrypt(record.Secrets)
+	if err != nil || json.Unmarshal(plaintext, &creds) != nil {
+		return "", false
+	}
+	return creds.SigningSecret, creds.SigningSecret != ""
+}
+
+// MarketingAppSecrets adapts the service to ports.MarketingEventSecrets; For is already PaymentLinkConfig's.
+type MarketingAppSecrets struct {
+	Integrations *OrganizationIntegrationService
+}
+
+func (a MarketingAppSecrets) SecretFor(ctx context.Context, organizationID string) (string, bool, error) {
+	return a.Integrations.MarketingAppSecret(ctx, organizationID)
+}
+
 func (s *OrganizationIntegrationService) validateWompi(creds dto.WompiCredentials) (dto.IntegrationEnvironment, error) {
 	keyEnv, err := environmentFromPrefix(wompiPrivateKeyField, creds.PrivateKey, wompiPrivateKeyPrefixes, "prv_test_ or prv_prod_")
 	if err != nil {
@@ -261,10 +380,13 @@ func toIntegration(record *dto.OrganizationIntegrationRecord) *dto.OrganizationI
 		CreatedAt:   record.CreatedAt,
 		UpdatedAt:   record.UpdatedAt,
 	}
-	if record.Provider == dto.IntegrationProviderWompi {
+	switch record.Provider {
+	case dto.IntegrationProviderWompi:
 		integration.PrivateKeyHint = record.SecretHints[wompiPrivateKeyField]
 		integration.EventsSecretHint = record.SecretHints[wompiEventsSecretField]
 		integration.WebhookPath = "/api/webhooks/wompi/" + record.OrganizationID
+	case dto.IntegrationProviderMarketingApp:
+		integration.SigningSecretHint = record.SecretHints[marketingAppSigningSecretField]
 	}
 	return integration
 }

@@ -1,8 +1,9 @@
 import type {
+  GeneratedMarketingAppSecret,
   IntegrationProvider,
-  OrganizationIntegration,
   OrganizationIntegrationListResponse,
   WompiCredentialsRequest,
+  WompiIntegration,
 } from "@/types/organizationIntegrations";
 
 /** Keeps the backend's status, code and field, e.g. 503 INTEGRATIONS_UNAVAILABLE or 400 on private_key. */
@@ -46,8 +47,13 @@ export const organizationIntegrationsApi = {
     return request("");
   },
 
-  putWompi(credentials: WompiCredentialsRequest): Promise<OrganizationIntegration> {
+  putWompi(credentials: WompiCredentialsRequest): Promise<WompiIntegration> {
     return request("/wompi", { method: "PUT", body: JSON.stringify(credentials) });
+  },
+
+  /** Creates or replaces the signing secret; the response is the only time it is returned. */
+  generateMarketingAppSecret(): Promise<GeneratedMarketingAppSecret> {
+    return request("/marketing_app/secret", { method: "POST" });
   },
 
   remove(provider: IntegrationProvider): Promise<void> {

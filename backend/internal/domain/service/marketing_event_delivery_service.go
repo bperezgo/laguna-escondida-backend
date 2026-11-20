@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -28,18 +29,16 @@ const (
 // MarketingEventDeliveryService sends one organization's due events, signed with its secret, and
 // stores what the receiver answered. Delivery is at least once and in no particular order.
 type MarketingEventDeliveryService struct {
-	store         ports.MarketingEventStore
-	transport     ports.MarketingEventTransport
-	organizations ports.OrganizationRepository
-	secrets       ports.MarketingEventSecrets
-	logger        *slog.Logger
-	now           func() time.Time
+	store     ports.MarketingEventStore
+	transport ports.MarketingEventTransport
+	secrets   ports.MarketingEventSecrets
+	logger    *slog.Logger
+	now       func() time.Time
 }
 
 func NewMarketingEventDeliveryService(
 	store ports.MarketingEventStore,
 	transport ports.MarketingEventTransport,
-	organizations ports.OrganizationRepository,
 	secrets ports.MarketingEventSecrets,
 	logger *slog.Logger,
 	now func() time.Time,
@@ -48,7 +47,7 @@ func NewMarketingEventDeliveryService(
 		now = time.Now
 	}
 	return &MarketingEventDeliveryService{
-		store: store, transport: transport, organizations: organizations, secrets: secrets, logger: logger, now: now,
+		store: store, transport: transport, secrets: secrets, logger: logger, now: now,
 	}
 }
 
@@ -58,12 +57,12 @@ func (s *MarketingEventDeliveryService) DeliverDue(ctx context.Context) (int, er
 	if err != nil {
 		return 0, err
 	}
-	org, err := s.organizations.Get(ctx, orgID)
+	// Read per run, not cached: a secret rotated while events wait signs their next attempt.
+	secret, configured, err := s.secrets.SecretFor(ctx, orgID)
 	if err != nil {
-		return 0, fmt.Errorf("read organization: %w", err)
+		return 0, fmt.Errorf("read signing secret: %w", err)
 	}
-	secret, ok := s.secrets.SecretFor(org.Slug)
-	if !ok {
+	if !configured {
 		return 0, nil
 	}
 	now := s.now()
@@ -92,7 +91,7 @@ func (s *MarketingEventDeliveryService) deliver(ctx context.Context, event *dto.
 		return false, s.store.MarkFailed(ctx, event.EventID, dto.MarketingEventExpired, now, "not delivered within 72h")
 	}
 
-	status, sendErr := s.transport.Send(ctx, event.Path, event.Body, SignMarketingEvent(secret, event.Body))
+	status, sendErr := s.transport.Send(ctx, event.Path, marketingEventChannel(event.Body), event.Body, SignMarketingEvent(secret, event.Body))
 	now = s.now()
 	switch {
 	case sendErr == nil && status >= 200 && status < 300:
@@ -111,6 +110,15 @@ func (s *MarketingEventDeliveryService) deliver(ctx context.Context, event *dto.
 	}
 	log.WarnContext(ctx, "marketing event delivery failed; retrying", slog.String("reason", reason))
 	return false, s.store.MarkFailed(ctx, event.EventID, dto.MarketingEventPending, now.Add(marketingRetryDelay(event.Attempts)), reason)
+}
+
+// marketingEventChannel is the body's channel_id; the body is ours, so reading it before marketing-app verifies is safe.
+func marketingEventChannel(body []byte) string {
+	var envelope struct {
+		ChannelID string `json:"channel_id"`
+	}
+	_ = json.Unmarshal(body, &envelope)
+	return envelope.ChannelID
 }
 
 // marketingRetryDelay doubles from 10s per attempt made, capped at 30 minutes.

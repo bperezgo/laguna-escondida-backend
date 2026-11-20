@@ -53,7 +53,6 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 	marketingOutbox := repository.NewMarketingEventOutboxRepository(db)
 	cloudOrganizations := repository.NewOrganizationRepository(db)
 	contactService := service.NewContactService(contactRepo, reservationRepo, feedbackRepo)
-	marketingEvents := service.NewMarketingEventService(marketingOutbox, cloudOrganizations, cfg.MarketingEvents, cfg.MarketingEvents.Enabled())
 
 	// Integrations hold each organization's provider credentials; without the key none is saved or read.
 	var integrationCipher ports.SecretCipher
@@ -64,10 +63,14 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		}
 		integrationCipher = cipher
 	} else {
-		logger.Info("Organization integrations disabled: set INTEGRATION_SECRETS_KEY (base64, 32 bytes) to enable them; agent orders are refused")
+		logger.Info("Organization integrations disabled: set INTEGRATION_SECRETS_KEY (base64, 32 bytes) to enable them; agent orders are refused and no marketing events are recorded")
 	}
 	integrations := service.NewOrganizationIntegrationService(repository.NewOrganizationIntegrationRepository(db),
 		cloudOrganizations, integrationCipher, cfg.PaymentLinks.APIURL, logger, nil)
+	// Each organization's signing secret is its marketing_app integration, read on every event.
+	marketingSecrets := service.MarketingAppSecrets{Integrations: integrations}
+	marketingEvents := service.NewMarketingEventService(marketingOutbox, cloudOrganizations, marketingSecrets, cfg.MarketingEvents.Enabled())
+	logIgnoredMarketingEventsEnv(logger, cfg.MarketingEvents)
 
 	// Payment links are cloud-only too: the box neither creates links nor receives Wompi's events.
 	paymentLinkRepo := repository.NewPaymentLinkRepository(db)
@@ -200,7 +203,7 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 	if cfg.MarketingEvents.Enabled() {
 		crmJobs.Delivery = service.NewMarketingEventDeliveryService(
 			marketingOutbox, httpclient.NewMarketingEventsClient(infra.HTTPClient, cfg.MarketingEvents.URL),
-			cloudOrganizations, cfg.MarketingEvents, logger, nil,
+			marketingSecrets, logger, nil,
 		)
 		logger.Info("Marketing events enabled", slog.String("url", cfg.MarketingEvents.URL))
 	}
@@ -208,7 +211,7 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		name: "CRM scheduler",
 		build: func() (scheduler, error) {
 			return cron.NewCRMScheduler(
-				c.organizationRunner, cloudOrganizations, cfg.MarketingEvents, crmJobs,
+				c.organizationRunner, cloudOrganizations, marketingSecrets, crmJobs,
 				cfg.ReservationVisitedCron, cfg.FeedbackRequestCron, logger,
 			)
 		},
@@ -318,6 +321,13 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 	})
 
 	return c.app, nil
+}
+
+func logIgnoredMarketingEventsEnv(logger *slog.Logger, settings config.MarketingEvents) {
+	for _, name := range settings.IgnoredEnv {
+		logger.Warn("Ignored: marketing event signing secrets are read from each organization's marketing_app integration, not the environment; unset it",
+			slog.String("variable", name))
+	}
 }
 
 // logPaymentLinks says at startup which organizations take agent orders: one without a usable

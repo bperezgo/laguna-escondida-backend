@@ -130,7 +130,12 @@ func TestMarketingEventService_RecordsNothingWhen(t *testing.T) {
 		{name: "an origin without a channel", events: newRecordingEvents, subject: noChannel},
 		{name: "no phone to tell", events: newRecordingEvents, subject: noPhone},
 		{name: "the events URL is unset", subject: orderSubject(t), events: func(t *testing.T, outbox *txOutbox) *MarketingEventService {
-			return NewMarketingEventService(outbox, mocks.NewMockOrganizationRepository(t), staticSecrets{crmOrgSlug: crmSecret}, false)
+			return NewMarketingEventService(outbox, mocks.NewMockOrganizationRepository(t), staticSecrets{crmOrgID: crmSecret}, false)
+		}},
+		{name: "the integration was removed", subject: orderSubject(t), events: func(t *testing.T, outbox *txOutbox) *MarketingEventService {
+			secrets := staticSecrets{crmOrgID: crmSecret}
+			delete(secrets, crmOrgID)
+			return NewMarketingEventService(outbox, crmOrganizations(t), secrets, true)
 		}},
 		{name: "a restaurant not yet onboarded", subject: orderSubject(t), events: func(t *testing.T, outbox *txOutbox) *MarketingEventService {
 			return NewMarketingEventService(outbox, crmOrganizations(t), staticSecrets{"restaurante-x": crmSecret}, true)
@@ -181,6 +186,11 @@ func TestMarketingEventService_Failures(t *testing.T) {
 		err := svc.RecordOrder(crmContext(), dto.MarketingEventOrderPaid, orderSubject(t))
 		require.ErrorIs(t, err, domainError.ErrMarketingEventRecordError)
 	})
+	t.Run("signing secret", func(t *testing.T) {
+		svc := NewMarketingEventService(&txOutbox{}, crmOrganizations(t), failingSecrets{}, true)
+		err := svc.RecordOrder(crmContext(), dto.MarketingEventOrderPaid, orderSubject(t))
+		require.ErrorIs(t, err, domainError.ErrMarketingEventRecordError)
+	})
 	t.Run("no organization in context", func(t *testing.T) {
 		svc := NewMarketingEventService(&txOutbox{}, mocks.NewMockOrganizationRepository(t), staticSecrets{}, true)
 		err := svc.RecordOrder(t.Context(), dto.MarketingEventOrderPaid, orderSubject(t))
@@ -213,7 +223,7 @@ func TestMarketingEventService_OrganizationFailuresFailEveryRecord(t *testing.T)
 			outbox := &txOutbox{}
 
 			err := outbox.Do(crmContext(), func(ctx context.Context) error {
-				return record(ctx, NewMarketingEventService(outbox, orgs, staticSecrets{crmOrgSlug: crmSecret}, true))
+				return record(ctx, NewMarketingEventService(outbox, orgs, staticSecrets{crmOrgID: crmSecret}, true))
 			})
 
 			require.ErrorIs(t, err, domainError.ErrMarketingEventRecordError)
@@ -229,7 +239,7 @@ func TestMarketingEventService_AnUnknownTimezoneFallsBackToUTC(t *testing.T) {
 
 	events := recordInTx(t, outbox, func(ctx context.Context, s *MarketingEventService) error {
 		return s.RecordOrder(ctx, dto.MarketingEventOrderPaid, orderSubject(t))
-	}, NewMarketingEventService(outbox, orgs, staticSecrets{crmOrgSlug: crmSecret}, true))
+	}, NewMarketingEventService(outbox, orgs, staticSecrets{crmOrgID: crmSecret}, true))
 
 	require.Len(t, events, 2, "order.paid and its notification")
 	for _, event := range events {

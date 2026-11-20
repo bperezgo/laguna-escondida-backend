@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,24 +19,28 @@ func TestLoadCloud_MarketingEventsOffWithoutURL(t *testing.T) {
 	assert.False(t, cfg.MarketingEvents.Enabled())
 }
 
-func TestLoadCloud_MarketingEventsSecretsBySlug(t *testing.T) {
+func TestLoadCloud_MarketingEventsURL(t *testing.T) {
 	setCloudEnv(t)
 	t.Setenv("MARKETING_APP_EVENTS_URL", "https://marketing.example.com/")
-	t.Setenv("MARKETING_APP_EVENTS_SECRET_LAGUNA_ESCONDIDA", "s3cret")
-	t.Setenv("MARKETING_APP_EVENTS_SECRET_EMPTY_ONE", "")
 
 	cfg, err := LoadCloud()
 
 	require.NoError(t, err)
 	assert.True(t, cfg.MarketingEvents.Enabled())
 	assert.Equal(t, "https://marketing.example.com", cfg.MarketingEvents.URL)
-	secret, ok := cfg.MarketingEvents.SecretFor("laguna-escondida")
-	assert.True(t, ok)
-	assert.Equal(t, "s3cret", secret)
-	_, ok = cfg.MarketingEvents.SecretFor("restaurante-x")
-	assert.False(t, ok, "an organization without a secret records no events")
-	_, ok = cfg.MarketingEvents.SecretFor("empty-one")
-	assert.False(t, ok, "an empty secret is no secret")
+}
+
+func TestLoadCloud_MarketingEventsLeftoverSecretsNamedNotRead(t *testing.T) {
+	setCloudEnv(t)
+	t.Setenv("MARKETING_APP_EVENTS_URL", "https://marketing.example.com")
+	t.Setenv("MARKETING_APP_EVENTS_SECRET_LAGUNA_ESCONDIDA", "leftover-value")
+	t.Setenv("MARKETING_APP_EVENTS_SECRET_EMPTY_ONE", "")
+
+	cfg, err := LoadCloud()
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"MARKETING_APP_EVENTS_SECRET_LAGUNA_ESCONDIDA"}, cfg.MarketingEvents.IgnoredEnv)
+	assert.NotContains(t, strings.Join(cfg.MarketingEvents.IgnoredEnv, " "), "leftover-value")
 }
 
 func TestLoadCloud_MarketingEventsURLMustBeAbsolute(t *testing.T) {

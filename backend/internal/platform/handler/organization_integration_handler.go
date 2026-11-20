@@ -28,6 +28,9 @@ func (h *OrganizationIntegrationHandler) ListHandler(c *gin.Context)   { h.list(
 func (h *OrganizationIntegrationHandler) GetHandler(c *gin.Context)    { h.get(c, c.Param("id")) }
 func (h *OrganizationIntegrationHandler) PutHandler(c *gin.Context)    { h.put(c, c.Param("id")) }
 func (h *OrganizationIntegrationHandler) DeleteHandler(c *gin.Context) { h.delete(c, c.Param("id")) }
+func (h *OrganizationIntegrationHandler) GenerateSecretHandler(c *gin.Context) {
+	h.generateSecret(c, c.Param("id"))
+}
 
 func (h *OrganizationIntegrationHandler) OwnListHandler(c *gin.Context) {
 	if orgID, ok := tokenOrganization(c); ok {
@@ -50,6 +53,12 @@ func (h *OrganizationIntegrationHandler) OwnPutHandler(c *gin.Context) {
 func (h *OrganizationIntegrationHandler) OwnDeleteHandler(c *gin.Context) {
 	if orgID, ok := tokenOrganization(c); ok {
 		h.delete(c, orgID)
+	}
+}
+
+func (h *OrganizationIntegrationHandler) OwnGenerateSecretHandler(c *gin.Context) {
+	if orgID, ok := tokenOrganization(c); ok {
+		h.generateSecret(c, orgID)
 	}
 }
 
@@ -81,21 +90,50 @@ func (h *OrganizationIntegrationHandler) get(c *gin.Context, orgID string) {
 }
 
 func (h *OrganizationIntegrationHandler) put(c *gin.Context, orgID string) {
-	if c.Param("provider") != string(dto.IntegrationProviderWompi) {
-		respondIntegrationError(c, "setting integration", domainError.ErrIntegrationProviderUnknown)
-		return
+	var (
+		integration *dto.OrganizationIntegration
+		err         error
+	)
+	switch c.Param("provider") {
+	case string(dto.IntegrationProviderWompi):
+		var creds dto.WompiCredentials
+		if !bindIntegrationBody(c, &creds) {
+			return
+		}
+		integration, err = h.integrations.SetWompi(c.Request.Context(), orgID, creds)
+	case string(dto.IntegrationProviderMarketingApp):
+		var creds dto.MarketingAppCredentials
+		if !bindIntegrationBody(c, &creds) {
+			return
+		}
+		integration, err = h.integrations.SetMarketingApp(c.Request.Context(), orgID, creds)
+	default:
+		err = domainError.ErrIntegrationProviderUnknown
 	}
-	var creds dto.WompiCredentials
-	if err := c.ShouldBindJSON(&creds); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-		return
-	}
-	integration, err := h.integrations.SetWompi(c.Request.Context(), orgID, creds)
 	if err != nil {
 		respondIntegrationError(c, "setting integration", err)
 		return
 	}
 	c.JSON(http.StatusOK, integration)
+}
+
+func bindIntegrationBody[T dto.WompiCredentials | dto.MarketingAppCredentials](c *gin.Context, creds *T) bool {
+	if err := c.ShouldBindJSON(creds); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return false
+	}
+	return true
+}
+
+// generateSecret answers with the new secret this once; no other response carries it.
+func (h *OrganizationIntegrationHandler) generateSecret(c *gin.Context, orgID string) {
+	generated, err := h.integrations.GenerateMarketingAppSecret(c.Request.Context(), orgID, c.Param("provider"))
+	if err != nil {
+		respondIntegrationError(c, "generating integration secret", err)
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	c.JSON(http.StatusOK, generated)
 }
 
 func (h *OrganizationIntegrationHandler) delete(c *gin.Context, orgID string) {

@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -157,6 +158,29 @@ func TestOrganizationIntegrationRoutes_AdminManagesItsOwnOrganization(t *testing
 	}
 }
 
+func TestOrganizationIntegrationRoutes_AdminGeneratesTheMarketingAppSecret(t *testing.T) {
+	s := newStaffIntegrations(t, true)
+	admin := s.token(t, permissions.RoleAdmin)
+
+	generated := s.serve(http.MethodPost, staffIntegrationsPath+"/marketing_app/secret", admin, "")
+	require.Equal(t, http.StatusOK, generated.Code, generated.Body.String())
+	var body struct {
+		Provider      string `json:"provider"`
+		SigningSecret string `json:"signing_secret"`
+	}
+	require.NoError(t, json.Unmarshal(generated.Body.Bytes(), &body))
+	assert.Equal(t, "marketing_app", body.Provider)
+	assert.Len(t, body.SigningSecret, 43)
+
+	get := s.serve(http.MethodGet, staffIntegrationsPath+"/marketing_app", admin, "")
+	require.Equal(t, http.StatusOK, get.Code)
+	assert.NotContains(t, get.Body.String(), body.SigningSecret)
+	assert.Equal(t, http.StatusNotFound, s.serve(http.MethodPost, staffIntegrationsPath+"/wompi/secret", admin, "").Code)
+	for _, org := range s.orgs {
+		assert.Equal(t, testOrgID, org)
+	}
+}
+
 func TestOrganizationIntegrationRoutes_OnlyAdminGetsIn(t *testing.T) {
 	s := newStaffIntegrations(t, true)
 	callers := map[string]string{
@@ -171,6 +195,8 @@ func TestOrganizationIntegrationRoutes_OnlyAdminGetsIn(t *testing.T) {
 			{http.MethodGet, staffIntegrationsPath + "/wompi", ""},
 			{http.MethodPut, staffIntegrationsPath + "/wompi", staffWompiBody},
 			{http.MethodDelete, staffIntegrationsPath + "/wompi", ""},
+			{http.MethodPost, staffIntegrationsPath + "/marketing_app/secret", ""},
+			{http.MethodPut, staffIntegrationsPath + "/marketing_app", `{"signing_secret":"s3cret-marketing-signing-secret-48-chars-long-zz9"}`}, // gitleaks:allow (test fixture)
 		} {
 			rec := s.serve(req[0], req[1], bearer, req[2])
 			assert.Equal(t, http.StatusForbidden, rec.Code, "%s %s %s", name, req[0], req[1])
@@ -190,6 +216,7 @@ func TestOrganizationIntegrationRoutes_NoEncryptionKey(t *testing.T) {
 		{http.MethodGet, staffIntegrationsPath + "/wompi", ""},
 		{http.MethodPut, staffIntegrationsPath + "/wompi", staffWompiBody},
 		{http.MethodDelete, staffIntegrationsPath + "/wompi", ""},
+		{http.MethodPost, staffIntegrationsPath + "/marketing_app/secret", ""},
 	} {
 		rec := s.serve(req[0], req[1], admin, req[2])
 		assert.Equal(t, http.StatusServiceUnavailable, rec.Code, req[0]+" "+req[1])
