@@ -45,6 +45,13 @@ type orderExpiredData struct {
 	OrderID string `json:"order_id"`
 }
 
+type orderDeliveryData struct {
+	OrderID     string  `json:"order_id"`
+	OrderType   string  `json:"order_type"`
+	CourierName *string `json:"courier_name,omitempty"`
+	Reason      *string `json:"reason,omitempty"`
+}
+
 type reservationData struct {
 	ReservationID string  `json:"reservation_id"`
 	Name          string  `json:"name"`
@@ -118,6 +125,46 @@ func NewOrderNotification(eventType dto.MarketingEventType, subject dto.Marketin
 		Data:           rawData,
 	}
 	return newEvent(eventID, outboxType, dto.MarketingEventsPathNotifications, body, subject.OccurredAt)
+}
+
+// NewDeliveryNotification is order.ready, order.out_for_delivery, order.delivered or
+// order.delivery_failed; only out_for_delivery names the courier and only delivery_failed the reason.
+func NewDeliveryNotification(eventType dto.MarketingEventType, subject dto.MarketingOrderSubject, progress dto.MarketingDeliveryProgress, loc *time.Location) (*dto.MarketingEvent, error) {
+	if subject.Origin == nil || subject.Origin.ChannelID == nil || subject.CustomerPhone == nil {
+		return nil, fmt.Errorf("order %s has no channel or phone to notify", subject.OrderID)
+	}
+	data := orderDeliveryData{OrderID: subject.OrderID, OrderType: string(progress.OrderType)}
+	switch eventType {
+	case dto.MarketingEventOrderReady, dto.MarketingEventOrderDelivered:
+	case dto.MarketingEventOrderOutForDelivery:
+		if progress.CourierName == nil {
+			return nil, fmt.Errorf("%s needs the courier's name", eventType)
+		}
+		data.CourierName = progress.CourierName
+	case dto.MarketingEventOrderDeliveryFailed:
+		if progress.Reason == nil {
+			return nil, fmt.Errorf("%s needs the reason", eventType)
+		}
+		reason := string(*progress.Reason)
+		data.Reason = &reason
+	default:
+		return nil, fmt.Errorf("%s is not a delivery notification", eventType)
+	}
+	rawData, err := json.Marshal(data)
+	if err != nil {
+		return nil, fmt.Errorf("encode %s data: %w", eventType, err)
+	}
+	eventID := uuid.Must(uuid.NewV7()).String()
+	body := notificationBody{
+		EventID:        eventID,
+		Type:           string(eventType),
+		OccurredAt:     formatTime(subject.OccurredAt, loc),
+		ChannelID:      *subject.Origin.ChannelID,
+		ConversationID: subject.Origin.ConversationID,
+		CustomerPhone:  phoneDigits(*subject.CustomerPhone),
+		Data:           rawData,
+	}
+	return newEvent(eventID, eventType+".notification", dto.MarketingEventsPathNotifications, body, subject.OccurredAt)
 }
 
 // NewReservationEvent reports the status the reservation just entered.

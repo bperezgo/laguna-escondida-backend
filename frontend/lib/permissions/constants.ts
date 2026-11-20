@@ -84,6 +84,11 @@ export const PERMISSIONS = {
   DELIVERY_ZONES_READ: "delivery-zones:read",
   DELIVERY_ZONES_MANAGE: "delivery-zones:manage",
 
+  // Delivery tracking (cloud only): the dashboard, every transition, and the courier's own
+  DELIVERIES_READ: "deliveries:read",
+  DELIVERIES_MANAGE: "deliveries:manage",
+  DELIVERIES_CARRY: "deliveries:carry",
+
   // Ordering availability (cloud only): pause switch and hours are granted apart
   ORDERING_READ: "ordering:read",
   ORDERING_PAUSE: "ordering:pause",

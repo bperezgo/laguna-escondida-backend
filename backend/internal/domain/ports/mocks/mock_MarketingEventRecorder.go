@@ -24,6 +24,55 @@ func (_m *MockMarketingEventRecorder) EXPECT() *MockMarketingEventRecorder_Expec
 	return &MockMarketingEventRecorder_Expecter{mock: &_m.Mock}
 }
 
+// RecordDelivery provides a mock function with given fields: ctx, eventType, subject, progress
+func (_m *MockMarketingEventRecorder) RecordDelivery(ctx context.Context, eventType dto.MarketingEventType, subject dto.MarketingOrderSubject, progress dto.MarketingDeliveryProgress) error {
+	ret := _m.Called(ctx, eventType, subject, progress)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RecordDelivery")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, dto.MarketingEventType, dto.MarketingOrderSubject, dto.MarketingDeliveryProgress) error); ok {
+		r0 = rf(ctx, eventType, subject, progress)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockMarketingEventRecorder_RecordDelivery_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RecordDelivery'
+type MockMarketingEventRecorder_RecordDelivery_Call struct {
+	*mock.Call
+}
+
+// RecordDelivery is a helper method to define mock.On call
+//   - ctx context.Context
+//   - eventType dto.MarketingEventType
+//   - subject dto.MarketingOrderSubject
+//   - progress dto.MarketingDeliveryProgress
+func (_e *MockMarketingEventRecorder_Expecter) RecordDelivery(ctx interface{}, eventType interface{}, subject interface{}, progress interface{}) *MockMarketingEventRecorder_RecordDelivery_Call {
+	return &MockMarketingEventRecorder_RecordDelivery_Call{Call: _e.mock.On("RecordDelivery", ctx, eventType, subject, progress)}
+}
+
+func (_c *MockMarketingEventRecorder_RecordDelivery_Call) Run(run func(ctx context.Context, eventType dto.MarketingEventType, subject dto.MarketingOrderSubject, progress dto.MarketingDeliveryProgress)) *MockMarketingEventRecorder_RecordDelivery_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(dto.MarketingEventType), args[2].(dto.MarketingOrderSubject), args[3].(dto.MarketingDeliveryProgress))
+	})
+	return _c
+}
+
+func (_c *MockMarketingEventRecorder_RecordDelivery_Call) Return(_a0 error) *MockMarketingEventRecorder_RecordDelivery_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockMarketingEventRecorder_RecordDelivery_Call) RunAndReturn(run func(context.Context, dto.MarketingEventType, dto.MarketingOrderSubject, dto.MarketingDeliveryProgress) error) *MockMarketingEventRecorder_RecordDelivery_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // RecordFeedbackRequested provides a mock function with given fields: ctx, request, reservation
 func (_m *MockMarketingEventRecorder) RecordFeedbackRequested(ctx context.Context, request *dto.FeedbackRequest, reservation *dto.Reservation) error {
 	ret := _m.Called(ctx, request, reservation)

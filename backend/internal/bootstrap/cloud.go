@@ -102,6 +102,8 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 	}
 	domainEvents := repository.NewDomainEventRepository(db, eventRegistry)
 
+	deliveryRepo := repository.NewDeliveryRepository(db)
+
 	// The cloud owns on-hand and the restaurant learns it back through the daily pull, so a
 	// cloud-origin stock op would never be delivered to anyone.
 	c, err := buildCore(&cfg.Shared, infra, ModeOptions{
@@ -123,6 +125,7 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 			service.WithMarketingEvents(marketingEvents),
 			service.WithEventPublisher(domainEvents),
 			service.WithPaymentLinks(paymentLinks),
+			service.WithDeliveryTracking(deliveryRepo),
 		},
 	})
 	if err != nil {
@@ -317,6 +320,7 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		notifChannel:    handler.NewNotificationChannelHandler(notificationChannelService),
 		notifRule:       handler.NewNotificationRuleHandler(notificationRuleService),
 		paymentWebhook:  handler.NewPaymentWebhookHandler(paymentWebhooks, logger),
+		delivery:        handler.NewDeliveryHandler(service.NewDeliveryService(deliveryRepo, c.unitOfWork, marketingEvents, nil)),
 		nodes:           service.NewNodeService(repository.NewNodeRepository(db)),
 	})
 

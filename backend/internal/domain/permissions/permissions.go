@@ -129,6 +129,13 @@ const (
 	IntegrationsManage Permission = "integrations:manage"
 )
 
+// Delivery tracking permissions: carry is the courier's narrow claim-and-report right.
+const (
+	DeliveriesRead   Permission = "deliveries:read"
+	DeliveriesManage Permission = "deliveries:manage"
+	DeliveriesCarry  Permission = "deliveries:carry"
+)
+
 // Ordering permissions: the pause is split from the hours so a floor role can get the switch alone.
 const (
 	OrderingRead   Permission = "ordering:read"
@@ -200,6 +207,8 @@ func AllPermissions() []Permission {
 		UsersRead, UsersCreate, UsersUpdate, UsersDelete,
 		// Delivery Zones
 		DeliveryZonesRead, DeliveryZonesManage,
+		// Deliveries
+		DeliveriesRead, DeliveriesManage, DeliveriesCarry,
 		// Notification Channels
 		NotificationChannelsRead, NotificationChannelsManage,
 		// Integrations

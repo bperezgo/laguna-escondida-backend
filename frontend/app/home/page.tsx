@@ -99,10 +99,18 @@ const navItems = [
   {
     href: "/deliveries",
     title: "Domicilios",
-    description: "Pausas, horarios y zonas de domicilios y pedidos para llevar",
+    description: "Pedidos en camino, pausas, horarios y zonas de domicilios y pedidos para llevar",
     // Any of them: an accountant sees the hours, a zone-only role the zones.
-    permissions: [PERMISSIONS.ORDERING_READ, PERMISSIONS.DELIVERY_ZONES_READ],
+    permissions: [PERMISSIONS.DELIVERIES_READ, PERMISSIONS.ORDERING_READ, PERMISSIONS.DELIVERY_ZONES_READ],
     accent: "var(--color-secondary)",
+    cloudOnly: true,
+  },
+  {
+    href: "/my-deliveries",
+    title: "Mis entregas",
+    description: "Pedidos listos para llevar y los que tienes en camino",
+    permissions: [PERMISSIONS.DELIVERIES_CARRY],
+    accent: "var(--color-primary)",
     cloudOnly: true,
   },
   {

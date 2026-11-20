@@ -4,12 +4,14 @@ import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { DeliveryZone } from "@/types/deliveryZone";
 import type { OrganizationSettingsResponse } from "@/types/organizationSettings";
-import { PERMISSIONS, usePermissions } from "@/lib/permissions";
+import { usePermissions } from "@/lib/permissions";
+import { deliveriesTabs, type DeliveriesTab } from "@/lib/deliveries/board";
 import DeliveryZonesPageClient from "@/components/delivery-zones/DeliveryZonesPageClient";
 import OrderingStatusTab from "./OrderingStatusTab";
 import OrderingHoursTab from "./OrderingHoursTab";
+import DeliveryOrdersTab from "./DeliveryOrdersTab";
 
-export type DeliveriesTab = "estado" | "horarios" | "zonas";
+export type { DeliveriesTab };
 
 interface DeliveriesPageClientProps {
   requestedTab: DeliveriesTab | null;
@@ -20,6 +22,7 @@ interface DeliveriesPageClientProps {
 }
 
 const TAB_LABELS: Record<DeliveriesTab, string> = {
+  pedidos: "Pedidos",
   estado: "Estado",
   horarios: "Horarios",
   zonas: "Zonas",
@@ -37,10 +40,7 @@ export default function DeliveriesPageClient({
   const { hasPermission, isLoading } = usePermissions();
   const [settings, setSettings] = useState(initialSettings);
 
-  const tabs: DeliveriesTab[] = [
-    ...(hasPermission(PERMISSIONS.ORDERING_READ) ? (["estado", "horarios"] as const) : []),
-    ...(hasPermission(PERMISSIONS.DELIVERY_ZONES_READ) ? (["zonas"] as const) : []),
-  ];
+  const tabs = deliveriesTabs(hasPermission);
   const [selected, setSelected] = useState<DeliveriesTab | null>(requestedTab);
   const current = selected && tabs.includes(selected) ? selected : (tabs[0] ?? null);
 
@@ -69,7 +69,7 @@ export default function DeliveriesPageClient({
             fontSize: "1rem",
           }}
         >
-          Cuándo se reciben domicilios y pedidos para llevar, y dónde se entregan.
+          Los pedidos para llevar y domicilios en curso, cuándo se reciben y dónde se entregan.
         </p>
 
         <div
@@ -118,6 +118,7 @@ export default function DeliveriesPageClient({
             No tienes permiso para ver esta sección.
           </p>
         )}
+        {current === "pedidos" && <DeliveryOrdersTab />}
         {current === "estado" && (
           <OrderingStatusTab settings={settings} loadError={settingsError} onSaved={setSettings} />
         )}

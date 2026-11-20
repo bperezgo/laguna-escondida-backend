@@ -11,6 +11,13 @@ POST /api/auth/signin laguna-escondida/backend/internal/platform/handler.(*UserH
 GET /api/bill-owners/:id laguna-escondida/backend/internal/platform/handler.(*BillOwnerHandler).GetByIDHandler-fm
 GET /api/contacts laguna-escondida/backend/internal/platform/handler.(*ContactHandler).ListHandler-fm
 GET /api/contacts/:id laguna-escondida/backend/internal/platform/handler.(*ContactHandler).GetHandler-fm
+GET /api/deliveries/couriers laguna-escondida/backend/internal/platform/handler.(*DeliveryHandler).CouriersHandler-fm
+GET /api/deliveries/mine laguna-escondida/backend/internal/platform/handler.(*DeliveryHandler).MineHandler-fm
+GET /api/deliveries/orders laguna-escondida/backend/internal/platform/handler.(*DeliveryHandler).ListHandler-fm
+POST /api/deliveries/orders/:id/deliver laguna-escondida/backend/internal/platform/handler.(*DeliveryHandler).DeliverHandler-fm
+POST /api/deliveries/orders/:id/dispatch laguna-escondida/backend/internal/platform/handler.(*DeliveryHandler).DispatchHandler-fm
+POST /api/deliveries/orders/:id/fail laguna-escondida/backend/internal/platform/handler.(*DeliveryHandler).FailHandler-fm
+GET /api/deliveries/orders/:id/history laguna-escondida/backend/internal/platform/handler.(*DeliveryHandler).HistoryHandler-fm
 GET /api/delivery-zones laguna-escondida/backend/internal/platform/handler.(*DeliveryZoneHandler).ListHandler-fm
 POST /api/delivery-zones laguna-escondida/backend/internal/platform/handler.(*DeliveryZoneHandler).CreateHandler-fm
 DELETE /api/delivery-zones/:id laguna-escondida/backend/internal/platform/handler.(*DeliveryZoneHandler).DeleteHandler-fm

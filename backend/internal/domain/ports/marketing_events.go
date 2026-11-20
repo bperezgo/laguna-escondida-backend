@@ -38,6 +38,7 @@ type MarketingEventSecrets interface {
 // MarketingEventRecorder writes the event a change produces, when it should produce one.
 type MarketingEventRecorder interface {
 	RecordOrder(ctx context.Context, eventType dto.MarketingEventType, subject dto.MarketingOrderSubject) error
+	RecordDelivery(ctx context.Context, eventType dto.MarketingEventType, subject dto.MarketingOrderSubject, progress dto.MarketingDeliveryProgress) error
 	// RecordReservation records the event for the status the reservation just entered, if any.
 	RecordReservation(ctx context.Context, reservation *dto.Reservation, at time.Time) error
 	// RecordReservationCreated is RecordReservation for a new reservation; one the agent's request

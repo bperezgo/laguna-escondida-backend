@@ -22,6 +22,12 @@ const (
 	// the same change; their bodies carry the wire types order.paid and order.expired.
 	MarketingEventOrderPaidNotification    MarketingEventType = "order.paid.notification"
 	MarketingEventOrderExpiredNotification MarketingEventType = "order.expired.notification"
+
+	// Delivery progress of an agent order; notifications only, recorded as <type>.notification.
+	MarketingEventOrderReady          MarketingEventType = "order.ready"
+	MarketingEventOrderOutForDelivery MarketingEventType = "order.out_for_delivery"
+	MarketingEventOrderDelivered      MarketingEventType = "order.delivered"
+	MarketingEventOrderDeliveryFailed MarketingEventType = "order.delivery_failed"
 )
 
 const (
@@ -59,6 +65,14 @@ type MarketingOrderSubject struct {
 	Origin        *Origin
 	Amount        decimal.Decimal
 	OccurredAt    time.Time
+}
+
+// MarketingDeliveryProgress is what a delivery notification tells the customer. It has no note:
+// the failure note is for staff only.
+type MarketingDeliveryProgress struct {
+	OrderType   OrderType
+	CourierName *string
+	Reason      *DeliveryFailureReason
 }
 
 // MarketingDeliveryOutcome is how the receiver answered one attempt; Status is 0 when no answer came.

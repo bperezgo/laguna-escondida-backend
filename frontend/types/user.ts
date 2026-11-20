@@ -55,10 +55,11 @@ export const ROLE_LABELS: Record<string, string> = {
   cooker: "Cocina",
   accountant: "Contador",
   agent: "Agente",
+  courier: "Repartidor",
 };
 
 /** Roles that sign in to the cloud, by email; a user holding one must have an email. */
-export const CLOUD_ROLE_NAMES = ["admin", "manager", "accountant", "agent"];
+export const CLOUD_ROLE_NAMES = ["admin", "manager", "accountant", "agent", "courier"];
 
 export function hasCloudRole(roleNames: string[]): boolean {
   return roleNames.some((name) => CLOUD_ROLE_NAMES.includes(name));
@@ -67,7 +68,7 @@ export function hasCloudRole(roleNames: string[]): boolean {
 const USER_ERROR_MESSAGES: Record<string, string> = {
   "Email is already in use": "Ese correo ya lo usa otro usuario",
   "email is required for a user with a cloud role":
-    "El correo es obligatorio para Administrador, Gerente, Contador y Agente",
+    "El correo es obligatorio para Administrador, Gerente, Contador, Agente y Repartidor",
   "email is not a valid address": "El correo no es válido",
 };
 

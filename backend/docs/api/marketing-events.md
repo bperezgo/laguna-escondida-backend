@@ -51,8 +51,12 @@ An organization has **one** secret: paste the same value on each of its channels
 | `reservation.declined`  | Staff decline it before its `starts_at`, with an optional `reason`      | `/backend/notifications` |
 | `reservation.cancelled` | The guest (through the agent) or staff cancel it before its `starts_at`; `cancelled_by` says which | `/backend/notifications` |
 | `feedback.requested`    | The morning-after job opens a feedback request                         | `/backend/notifications` |
+| `order.ready`           | The kitchen finishes the last line of a paid agent **takeaway** order (once per order, even after an undo) | `/backend/notifications` |
+| `order.out_for_delivery`| An agent delivery order is set out for delivery: a courier claims it, or staff dispatch or re-dispatch it | `/backend/notifications` |
+| `order.delivered`       | An agent order is set delivered (a delivery handed over, or a takeaway picked up) | `/backend/notifications` |
+| `order.delivery_failed` | An agent delivery order is set failed, with a reason                   | `/backend/notifications` |
 
-A request, a visit and a no-show produce no event. A payment records two events, and an expiry two (`order.cancelled` and `order.expired`), each with its own `event_id`.
+A request, a visit and a no-show produce no event. A delivery order becoming ready produces none: its customer hears when it goes out. The four delivery events are recorded in the same transaction as the [delivery change](deliveries.md) they report. A payment records two events, and an expiry two (`order.cancelled` and `order.expired`), each with its own `event_id`.
 
 ## `POST <events URL>/backend/events`
 
@@ -146,6 +150,46 @@ New in this contract. Each event is a message marketing-app sends the guest, so 
   }
 }
 ```
+
+`data` for the delivery events: `order_id` and `order_type` (`takeaway` or `delivery`); plus `courier_name` for `order.out_for_delivery` (the courier user's display name, or the third party's name), and `reason` for `order.delivery_failed` (`customer_unreachable`, `wrong_address`, `refused` or `other`). The failure's internal note is never sent.
+
+`order.out_for_delivery`:
+
+```json
+{
+  "event_id": "019a5f13-1a2b-7c3d-8e4f-5a6b7c8d9e03",
+  "type": "order.out_for_delivery",
+  "occurred_at": "2026-11-08T20:30:00-05:00",
+  "channel_id": "ch_1",
+  "conversation_id": "conv_9",
+  "customer_phone": "573005551234",
+  "data": {
+    "order_id": "019a0000-0000-7000-8000-0000000000d1",
+    "order_type": "delivery",
+    "courier_name": "Juan"
+  }
+}
+```
+
+`order.delivery_failed`:
+
+```json
+{
+  "event_id": "019a5f13-1a2b-7c3d-8e4f-5a6b7c8d9e04",
+  "type": "order.delivery_failed",
+  "occurred_at": "2026-11-08T20:30:00-05:00",
+  "channel_id": "ch_1",
+  "conversation_id": "conv_9",
+  "customer_phone": "573005551234",
+  "data": {
+    "order_id": "019a0000-0000-7000-8000-0000000000d1",
+    "order_type": "delivery",
+    "reason": "wrong_address"
+  }
+}
+```
+
+`order.ready` and `order.delivered` carry only `order_id` and `order_type`.
 
 `data` for `reservation.*`: `reservation_id`, `name`, `party_size`, `starts_at`, `status`; plus `reason` when declined with one, and `cancelled_by` (`customer` or `staff`) when cancelled.
 

@@ -9,11 +9,13 @@ const (
 	RoleAccountant = 5
 	// RoleAgent is the customer-facing WhatsApp agent's service user (migration 000063).
 	RoleAgent = 6
+	// RoleCourier carries delivery orders: claims ready ones and reports its own (migration 000089).
+	RoleCourier = 7
 )
 
 // CloudRoles are the roles that may sign in to the cloud; floor roles sign in only on an edge
 // box. Agent is here only for the integration stopgap (service users on email + password).
-var CloudRoles = []int{RoleAdmin, RoleManager, RoleAccountant, RoleAgent}
+var CloudRoles = []int{RoleAdmin, RoleManager, RoleAccountant, RoleAgent, RoleCourier}
 
 func HasCloudRole(roleIDs []int) bool {
 	for _, roleID := range roleIDs {
@@ -68,6 +70,8 @@ var RolePermissions = map[int][]Permission{
 		UsersRead,
 		// Delivery Zones - full access
 		DeliveryZonesRead, DeliveryZonesManage,
+		// Deliveries - the dashboard and every transition, never carrying as a courier
+		DeliveriesRead, DeliveriesManage,
 		// Notification Channels - read only; a webhook is a credential, so only admins change them
 		NotificationChannelsRead,
 		// Ordering - full access
@@ -109,6 +113,7 @@ var RolePermissions = map[int][]Permission{
 		ProductsRead, OrdersRead, OrdersCreate, OrdersUpdate, OrdersDelete, OrderingRead,
 		ReservationsRead, ReservationsCreate, FeedbackCreate,
 	},
+	RoleCourier: {DeliveriesCarry},
 }
 
 // GetPermissionsForRoles returns unique permissions for given role IDs

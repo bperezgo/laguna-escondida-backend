@@ -118,7 +118,7 @@ export default function UserForm({
 
     if (needsEmail && !email.trim()) {
       next.email =
-        "El correo es obligatorio para Administrador, Gerente, Contador y Agente";
+        "El correo es obligatorio para Administrador, Gerente, Contador, Agente y Repartidor";
     } else if (email.trim() && !EMAIL_PATTERN.test(email.trim())) {
       next.email = "Ingresa un correo válido";
     }
@@ -207,7 +207,7 @@ export default function UserForm({
           placeholder="correo@ejemplo.com"
           maxLength={255}
           autoComplete="off"
-          helper="Obligatorio para Administrador, Gerente, Contador y Agente: con él inician sesión en la nube."
+          helper="Obligatorio para Administrador, Gerente, Contador, Agente y Repartidor: con él inician sesión en la nube."
         />
 
         {!isEdit && (

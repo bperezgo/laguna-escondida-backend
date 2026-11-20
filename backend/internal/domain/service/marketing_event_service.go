@@ -54,6 +54,22 @@ func (s *MarketingEventService) RecordOrder(ctx context.Context, eventType dto.M
 	return s.append(ctx, notification)
 }
 
+// RecordDelivery records one delivery-progress notification; nothing goes to /backend/events.
+func (s *MarketingEventService) RecordDelivery(ctx context.Context, eventType dto.MarketingEventType, subject dto.MarketingOrderSubject, progress dto.MarketingDeliveryProgress) error {
+	if subject.Origin == nil || subject.Origin.ChannelID == nil || subject.CustomerPhone == nil {
+		return nil
+	}
+	_, loc, ok, err := s.organization(ctx)
+	if err != nil || !ok {
+		return err
+	}
+	notification, err := marketingEvent.NewDeliveryNotification(eventType, subject, progress, loc)
+	if err != nil {
+		return fmt.Errorf("%w: %w", domainError.ErrMarketingEventRecordError, err)
+	}
+	return s.append(ctx, notification)
+}
+
 func (s *MarketingEventService) RecordReservation(ctx context.Context, reservation *dto.Reservation, at time.Time) error {
 	eventType, reported := marketingEvent.ReservationEventType(reservation.Status)
 	if !reported || reservation.Origin.ChannelID == nil {
