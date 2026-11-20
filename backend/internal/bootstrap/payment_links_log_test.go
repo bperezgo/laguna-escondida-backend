@@ -38,3 +38,17 @@ func TestLogPaymentLinks_ReportsEachActiveOrganizationAndLeftoverEnv(t *testing.
 	assert.NotContains(t, out, "suspendido")
 	assert.NotContains(t, out, "prv_test_value")
 }
+
+func TestLogIgnoredMarketingEventsEnv_NamesTheVariableNotItsValue(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+
+	logIgnoredMarketingEventsEnv(logger, config.MarketingEvents{
+		URL: "https://marketing.example.com", IgnoredEnv: []string{"MARKETING_APP_EVENTS_SECRET_LAGUNA_ESCONDIDA"},
+	})
+
+	out := logs.String()
+	assert.Contains(t, out, "level=WARN")
+	assert.Contains(t, out, "Ignored: marketing event signing secrets")
+	assert.Contains(t, out, "variable=MARKETING_APP_EVENTS_SECRET_LAGUNA_ESCONDIDA")
+}

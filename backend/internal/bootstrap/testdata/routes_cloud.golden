@@ -65,6 +65,7 @@ GET /api/organization/integrations laguna-escondida/backend/internal/platform/ha
 DELETE /api/organization/integrations/:provider laguna-escondida/backend/internal/platform/handler.(*OrganizationIntegrationHandler).OwnDeleteHandler-fm
 GET /api/organization/integrations/:provider laguna-escondida/backend/internal/platform/handler.(*OrganizationIntegrationHandler).OwnGetHandler-fm
 PUT /api/organization/integrations/:provider laguna-escondida/backend/internal/platform/handler.(*OrganizationIntegrationHandler).OwnPutHandler-fm
+POST /api/organization/integrations/:provider/secret laguna-escondida/backend/internal/platform/handler.(*OrganizationIntegrationHandler).OwnGenerateSecretHandler-fm
 GET /api/organization/settings laguna-escondida/backend/internal/platform/handler.(*OrganizationSettingsHandler).GetSettingsHandler-fm
 PATCH /api/organization/settings laguna-escondida/backend/internal/platform/handler.(*OrganizationSettingsHandler).PatchSettingsHandler-fm
 GET /api/platform/leads laguna-escondida/backend/internal/platform/handler.(*LeadHandler).ListHandler-fm
@@ -83,6 +84,7 @@ GET /api/platform/organizations/:id/integrations laguna-escondida/backend/intern
 DELETE /api/platform/organizations/:id/integrations/:provider laguna-escondida/backend/internal/platform/handler.(*OrganizationIntegrationHandler).DeleteHandler-fm
 GET /api/platform/organizations/:id/integrations/:provider laguna-escondida/backend/internal/platform/handler.(*OrganizationIntegrationHandler).GetHandler-fm
 PUT /api/platform/organizations/:id/integrations/:provider laguna-escondida/backend/internal/platform/handler.(*OrganizationIntegrationHandler).PutHandler-fm
+POST /api/platform/organizations/:id/integrations/:provider/secret laguna-escondida/backend/internal/platform/handler.(*OrganizationIntegrationHandler).GenerateSecretHandler-fm
 POST /api/product-responsibilities laguna-escondida/backend/internal/platform/handler.(*ProductHandler).CreateProductResponsibilityHandler-fm
 DELETE /api/product-responsibilities/:id laguna-escondida/backend/internal/platform/handler.(*ProductHandler).DeleteProductResponsibilityHandler-fm
 GET /api/product-responsibilities/:id laguna-escondida/backend/internal/platform/handler.(*ProductHandler).GetProductResponsibilityByIDHandler-fm

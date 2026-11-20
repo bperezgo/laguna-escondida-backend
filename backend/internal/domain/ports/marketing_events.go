@@ -23,15 +23,16 @@ type MarketingEventStore interface {
 	MarkFailed(ctx context.Context, eventID string, status dto.MarketingEventStatus, nextAttemptAt time.Time, lastError string) error
 }
 
-// MarketingEventTransport POSTs signed bytes to marketing-app. A status of 0 with an error means
-// no answer came (timeout, connection error).
+// MarketingEventTransport POSTs signed bytes to marketing-app, naming the channel so it can pick the
+// secret to verify with. A status of 0 with an error means no answer came (timeout, connection error).
 type MarketingEventTransport interface {
-	Send(ctx context.Context, path string, body []byte, signature string) (int, error)
+	Send(ctx context.Context, path, channelID string, body []byte, signature string) (int, error)
 }
 
-// MarketingEventSecrets holds each organization's signing secret, by slug.
+// MarketingEventSecrets is each organization's signing secret, read on every call.
 type MarketingEventSecrets interface {
-	SecretFor(slug string) (string, bool)
+	// SecretFor reports configured=false when the organization has no usable marketing-app integration.
+	SecretFor(ctx context.Context, organizationID string) (secret string, configured bool, err error)
 }
 
 // MarketingEventRecorder writes the event a change produces, when it should produce one.

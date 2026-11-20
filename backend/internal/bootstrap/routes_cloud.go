@@ -58,6 +58,7 @@ func registerCloudRoutes(router *gin.Engine, adminAPIKey, nodeSyncKey string, jw
 	organizations.GET("/:id/integrations/:provider", h.integration.GetHandler)
 	organizations.PUT("/:id/integrations/:provider", h.integration.PutHandler)
 	organizations.DELETE("/:id/integrations/:provider", h.integration.DeleteHandler)
+	organizations.POST("/:id/integrations/:provider/secret", h.integration.GenerateSecretHandler)
 
 	// Leads are platform data from the public marketing site: the form posts without a credential
 	// (limited per address), and the operator follows them up with the admin API key.
@@ -142,6 +143,7 @@ func RegisterOrganizationIntegrationRoutes(router *gin.Engine, integrations *han
 	g.GET("/:provider", handler.RequirePermission(permissions.IntegrationsRead), integrations.OwnGetHandler)
 	g.PUT("/:provider", handler.RequirePermission(permissions.IntegrationsManage), integrations.OwnPutHandler)
 	g.DELETE("/:provider", handler.RequirePermission(permissions.IntegrationsManage), integrations.OwnDeleteHandler)
+	g.POST("/:provider/secret", handler.RequirePermission(permissions.IntegrationsManage), integrations.OwnGenerateSecretHandler)
 }
 
 // RegisterDeliveryZoneRoutes is cloud-only: deliveries are taken in the cloud, and the edge's

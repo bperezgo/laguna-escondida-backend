@@ -1702,3 +1702,40 @@ curl -s -X POST "$BASE_URL/webhooks/wompi/$ORG_ID" \
   }'
 # {"status":"ok"} — the order is paid and released to the kitchen. A wrong checksum is 401.
 ```
+
+## Marketing-App Signing Secret (cloud only)
+
+Each organization's marketing events are signed with its `marketing_app` integration (see `docs/api/organization-integrations.md` and `docs/api/marketing-events.md`). The cloud needs `INTEGRATION_SECRETS_KEY`.
+
+```bash
+# Move an existing secret over (at least 32 characters, no whitespace); marketing-app keeps working unchanged
+curl -X PUT "$BASE_URL/platform/organizations/ORG_ID/integrations/marketing_app" \
+  -H "X-API-Key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "signing_secret": "the-secret-marketing-app-already-holds-for-laguna" }'
+
+# Or generate a new one: the response is the only time it is returned. Paste it on every channel in marketing-app.
+curl -X POST "$BASE_URL/platform/organizations/ORG_ID/integrations/marketing_app/secret" \
+  -H "X-API-Key: $ADMIN_API_KEY"
+
+# Read it back: the hint, never the secret
+curl -X GET "$BASE_URL/platform/organizations/ORG_ID/integrations/marketing_app" \
+  -H "X-API-Key: $ADMIN_API_KEY"
+
+# Stop recording events for the organization
+curl -X DELETE "$BASE_URL/platform/organizations/ORG_ID/integrations/marketing_app" \
+  -H "X-API-Key: $ADMIN_API_KEY"
+```
+
+The organization's admin can generate (or rotate) its own with a sign-in token (`integrations:manage`):
+
+```bash
+curl -X POST "$BASE_URL/organization/integrations/marketing_app/secret" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+To check what marketing-app receives, recompute the signature over the exact body it got with the secret, and compare it with `X-Signature-256`; `X-Channel-Id` equals the body's `channel_id`:
+
+```bash
+printf '%s' "$RAW_BODY" | openssl dgst -sha256 -hmac "$SIGNING_SECRET" | sed 's/^.* /sha256=/'
+```

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import type { OrganizationIntegration } from "@/types/organizationIntegrations";
+import type { WompiIntegration } from "@/types/organizationIntegrations";
 import {
   OrganizationIntegrationError,
   organizationIntegrationsApi,
@@ -167,7 +167,7 @@ export default function WompiIntegrationCard({ initialState, canManage }: WompiI
       </>
     );
   } else {
-    const integration: OrganizationIntegration = state.integration;
+    const integration: WompiIntegration = state.integration;
     body = (
       <>
         <dl

@@ -1,6 +1,6 @@
 import { serverApiRequest } from "@/lib/api/server";
 import type { OrganizationIntegrationListResponse } from "@/types/organizationIntegrations";
-import { wompiCardState, type IntegrationsLoad } from "@/lib/settings/integrations";
+import { marketingAppCardState, wompiCardState, type IntegrationsLoad } from "@/lib/settings/integrations";
 import IntegrationsPageClient from "@/components/settings/IntegrationsPageClient";
 
 async function loadIntegrations(): Promise<IntegrationsLoad> {
@@ -16,5 +16,5 @@ async function loadIntegrations(): Promise<IntegrationsLoad> {
 
 export default async function IntegrationsPage() {
   const load = await loadIntegrations();
-  return <IntegrationsPageClient wompi={wompiCardState(load)} />;
+  return <IntegrationsPageClient wompi={wompiCardState(load)} marketingApp={marketingAppCardState(load)} />;
 }

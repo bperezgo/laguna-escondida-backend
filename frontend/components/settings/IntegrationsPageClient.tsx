@@ -1,16 +1,18 @@
 "use client";
 
 import { PERMISSIONS, usePermissions } from "@/lib/permissions";
-import type { WompiCardState } from "@/lib/settings/integrations";
+import type { MarketingAppCardState, WompiCardState } from "@/lib/settings/integrations";
 import { ErrorBanner, NoticeBanner } from "@/components/deliveries/Banners";
 import SettingsSectionShell from "./SettingsSectionShell";
+import MarketingAppIntegrationCard from "./MarketingAppIntegrationCard";
 import WompiIntegrationCard from "./WompiIntegrationCard";
 
 interface IntegrationsPageClientProps {
   wompi: WompiCardState;
+  marketingApp: MarketingAppCardState;
 }
 
-export default function IntegrationsPageClient({ wompi }: IntegrationsPageClientProps) {
+export default function IntegrationsPageClient({ wompi, marketingApp }: IntegrationsPageClientProps) {
   const { hasPermission, isLoading } = usePermissions();
   const canRead = hasPermission(PERMISSIONS.INTEGRATIONS_READ);
   const canManage = hasPermission(PERMISSIONS.INTEGRATIONS_MANAGE);
@@ -24,12 +26,13 @@ export default function IntegrationsPageClient({ wompi }: IntegrationsPageClient
   } else {
     content = (
       <>
-        {!canManage && <NoticeBanner message="Solo puedes ver el estado. Cambiar las llaves requiere ser administrador." />}
+        {!canManage && <NoticeBanner message="Solo puedes ver el estado. Cambiar las llaves o secretos requiere ser administrador." />}
         <p style={{ margin: 0, color: "var(--color-text-secondary)" }}>
           Servicios externos conectados al restaurante. Las llaves se guardan cifradas y nunca se vuelven a mostrar:
           solo sus últimos 4 caracteres.
         </p>
         <WompiIntegrationCard initialState={wompi} canManage={canManage} />
+        <MarketingAppIntegrationCard initialState={marketingApp} canManage={canManage} />
       </>
     );
   }

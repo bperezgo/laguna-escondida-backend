@@ -4,16 +4,20 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 )
 
-const marketingEventsSecretPrefix = "MARKETING_APP_EVENTS_SECRET_" //nolint:gosec // G101: an env var name, not a secret
+// ignoredMarketingEventsSecretPrefix held per-organization secrets before they moved to the
+// marketing_app organization integration.
+const ignoredMarketingEventsSecretPrefix = "MARKETING_APP_EVENTS_SECRET_" //nolint:gosec // G101: an env var name, not a secret
 
-// MarketingEvents is where events for marketing-app go, and each organization's signing secret,
-// from MARKETING_APP_EVENTS_SECRET_<SLUG> (slug upper-cased, "-" as "_").
+// MarketingEvents is where events for marketing-app go. Each organization's signing secret is
+// its marketing_app integration.
 type MarketingEvents struct {
-	URL     string
-	secrets map[string]string
+	URL string
+	// IgnoredEnv names leftover per-organization secret variables, for a startup warning. Never values.
+	IgnoredEnv []string
 }
 
 // Enabled: without the URL nothing is recorded or sent.
@@ -21,17 +25,8 @@ func (m MarketingEvents) Enabled() bool {
 	return m.URL != ""
 }
 
-func (m MarketingEvents) SecretFor(slug string) (string, bool) {
-	secret, ok := m.secrets[marketingEventsSecretKey(slug)]
-	return secret, ok && secret != ""
-}
-
-func marketingEventsSecretKey(slug string) string {
-	return strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(slug), "-", "_"))
-}
-
 func loadMarketingEvents() (MarketingEvents, error) {
-	events := MarketingEvents{URL: strings.TrimRight(strings.TrimSpace(os.Getenv("MARKETING_APP_EVENTS_URL")), "/"), secrets: map[string]string{}}
+	events := MarketingEvents{URL: strings.TrimRight(strings.TrimSpace(os.Getenv("MARKETING_APP_EVENTS_URL")), "/")}
 	if events.URL != "" {
 		parsed, err := url.Parse(events.URL)
 		if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" {
@@ -40,10 +35,10 @@ func loadMarketingEvents() (MarketingEvents, error) {
 	}
 	for _, entry := range os.Environ() {
 		name, value, found := strings.Cut(entry, "=")
-		if !found || !strings.HasPrefix(name, marketingEventsSecretPrefix) || value == "" {
-			continue
+		if found && value != "" && strings.HasPrefix(name, ignoredMarketingEventsSecretPrefix) {
+			events.IgnoredEnv = append(events.IgnoredEnv, name)
 		}
-		events.secrets[strings.TrimPrefix(name, marketingEventsSecretPrefix)] = value
 	}
+	sort.Strings(events.IgnoredEnv)
 	return events, nil
 }

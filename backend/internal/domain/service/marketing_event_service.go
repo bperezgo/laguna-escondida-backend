@@ -105,7 +105,11 @@ func (s *MarketingEventService) organization(ctx context.Context) (*dto.Organiza
 	if err != nil {
 		return nil, nil, false, fmt.Errorf("%w: read organization: %w", domainError.ErrMarketingEventRecordError, err)
 	}
-	if _, ok := s.secrets.SecretFor(org.Slug); !ok {
+	_, configured, err := s.secrets.SecretFor(ctx, orgID)
+	if err != nil {
+		return nil, nil, false, fmt.Errorf("%w: read signing secret: %w", domainError.ErrMarketingEventRecordError, err)
+	}
+	if !configured {
 		return nil, nil, false, nil
 	}
 	loc, err := time.LoadLocation(org.Timezone)

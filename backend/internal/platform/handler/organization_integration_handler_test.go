@@ -70,6 +70,7 @@ func newIntegrationRouter(t *testing.T, withKey bool) *integrationRouter {
 	r.router.GET("/api/platform/organizations/:id/integrations/:provider", h.GetHandler)
 	r.router.PUT("/api/platform/organizations/:id/integrations/:provider", h.PutHandler)
 	r.router.DELETE("/api/platform/organizations/:id/integrations/:provider", h.DeleteHandler)
+	r.router.POST("/api/platform/organizations/:id/integrations/:provider/secret", h.GenerateSecretHandler)
 	return r
 }
 

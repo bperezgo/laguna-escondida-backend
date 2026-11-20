@@ -2,6 +2,8 @@ package cron
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"log/slog"
 	"testing"
 
@@ -14,11 +16,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type slugSecrets map[string]string
+const cronOrgFailing = "019a0000-0000-7000-8000-0000000000ff"
 
-func (s slugSecrets) SecretFor(slug string) (string, bool) {
-	secret, ok := s[slug]
-	return secret, ok
+type orgSecrets map[string]string
+
+func (s orgSecrets) SecretFor(_ context.Context, organizationID string) (string, bool, error) {
+	if organizationID == cronOrgFailing {
+		return "", false, errors.New("db down")
+	}
+	secret, ok := s[organizationID]
+	return secret, ok, nil
 }
 
 func newCRMScheduler(t *testing.T, delivery bool, visitedCron string) (*CRMScheduler, *bytes.Buffer) {
@@ -30,12 +37,13 @@ func newCRMScheduler(t *testing.T, delivery bool, visitedCron string) (*CRMSched
 		{ID: cronOrgA, Slug: "laguna-escondida", Status: dto.OrganizationStatusActive},
 		{ID: cronOrgB, Slug: "restaurante-x", Status: dto.OrganizationStatusActive},
 		{ID: cronOrgSuspended, Slug: "cerrado", Status: dto.OrganizationStatusSuspended},
+		{ID: cronOrgFailing, Slug: "sin-lectura", Status: dto.OrganizationStatusActive},
 	}, nil).Maybe()
 	jobs := CRMJobs{}
 	if delivery {
 		jobs.Delivery = &service.MarketingEventDeliveryService{}
 	}
-	scheduler, err := NewCRMScheduler(cronOrganizations(t), orgs, slugSecrets{"laguna-escondida": "s3cret"}, jobs,
+	scheduler, err := NewCRMScheduler(cronOrganizations(t), orgs, orgSecrets{cronOrgA: "s3cret"}, jobs,
 		visitedCron, "5 * * * *", logger)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = scheduler.Stop() })
@@ -72,6 +80,8 @@ func TestCRMScheduler_WarnsForEachActiveOrganizationWithoutASecret(t *testing.T)
 	assert.Contains(t, logs.String(), "slug=restaurante-x")
 	assert.NotContains(t, logs.String(), "slug=laguna-escondida")
 	assert.NotContains(t, logs.String(), "slug=cerrado", "a suspended organization is not warned about")
+	assert.Contains(t, logs.String(), "Could not read an organization's marketing event signing secret")
+	assert.NotContains(t, logs.String(), "s3cret")
 }
 
 func TestCRMScheduler_RejectsAnInvalidCron(t *testing.T) {
