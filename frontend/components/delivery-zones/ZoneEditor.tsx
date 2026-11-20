@@ -9,17 +9,21 @@ import {
   geojsonIoUrl,
   parseBoundaryText,
 } from "@/lib/deliveryZones/geojson";
+import { parseDeliveryFeeInput } from "@/lib/deliveryZones/fee";
 
 interface ZoneEditorProps {
   isNew: boolean;
   name: string;
   active: boolean;
+  deliveryFee: string;
   boundary: ZoneBoundary | null;
   onNameChange: (name: string) => void;
+  onDeliveryFeeChange: (fee: string) => void;
   onActiveChange: (active: boolean) => void;
   /** A boundary that came from outside the map (pasted GeoJSON). */
   onBoundaryImport: (boundary: ZoneBoundary) => void;
-  onSave: () => void;
+  /** Receives the fee as the API wants it. */
+  onSave: (deliveryFee: string) => void;
   onCancel: () => void;
   isSaving: boolean;
 }
@@ -28,8 +32,10 @@ export default function ZoneEditor({
   isNew,
   name,
   active,
+  deliveryFee,
   boundary,
   onNameChange,
+  onDeliveryFeeChange,
   onActiveChange,
   onBoundaryImport,
   onSave,
@@ -42,6 +48,7 @@ export default function ZoneEditor({
   const geojsonText = typedText ?? (boundary ? formatBoundary(boundary) : "");
   const [importError, setImportError] = useState("");
   const [nameError, setNameError] = useState("");
+  const [feeError, setFeeError] = useState("");
 
   const handleImport = () => {
     const result = parseBoundaryText(geojsonText);
@@ -65,7 +72,13 @@ export default function ZoneEditor({
       return;
     }
     setNameError("");
-    onSave();
+    const fee = parseDeliveryFeeInput(deliveryFee);
+    if (!fee.ok) {
+      setFeeError(fee.error);
+      return;
+    }
+    setFeeError("");
+    onSave(fee.value);
   };
 
   return (
@@ -93,6 +106,19 @@ export default function ZoneEditor({
             error={nameError}
             placeholder="Ej: Centro"
             maxLength={100}
+          />
+
+          <Input
+            label="Tarifa de domicilio (COP)"
+            value={deliveryFee}
+            onChange={(e) => {
+              onDeliveryFeeChange(e.target.value);
+              if (feeError) setFeeError("");
+            }}
+            error={feeError}
+            helper="Precio final, incluye impoconsumo (8%). Vacío o 0 = domicilio gratis. Solo aplica a las órdenes nuevas."
+            placeholder="Ej: 5000"
+            inputMode="decimal"
           />
 
           <label

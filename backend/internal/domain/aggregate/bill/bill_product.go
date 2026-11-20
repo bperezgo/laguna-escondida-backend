@@ -3,6 +3,7 @@ package bill
 import (
 	"time"
 
+	"laguna-escondida/backend/internal/domain/aggregate/shared"
 	"laguna-escondida/backend/internal/domain/dto"
 
 	"github.com/shopspring/decimal"
@@ -124,4 +125,20 @@ func (bp *BillProduct) Category() string {
 
 func (bp *BillProduct) Code() string {
 	return bp.code
+}
+
+const (
+	deliveryFeeItemName = "Domicilio"
+	deliveryFeeItemCode = "DOMICILIO"
+)
+
+// DeliveryFeeItem is the invoice line for a bill's delivery fee: no product behind it, the
+// stored base as unit price and the stored ICO, so nothing is rounded again.
+func DeliveryFeeItem(b *dto.Bill) (dto.BillProduct, bool) {
+	if b.DeliveryFee == nil || !b.DeliveryFee.IsPositive() || b.DeliveryFeeBase == nil || b.DeliveryFeeICO == nil {
+		return dto.BillProduct{}, false
+	}
+	name := deliveryFeeItemName
+	return NewBillProduct("", 1, *b.DeliveryFeeBase, name, &name, name, deliveryFeeItemCode, []dto.InvoiceAllowance{},
+		decimal.Zero, decimal.Zero, shared.DeliveryFeeICORate, *b.DeliveryFeeICO).ToDTO(), true
 }

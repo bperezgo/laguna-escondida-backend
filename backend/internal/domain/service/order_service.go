@@ -474,7 +474,7 @@ func (s *OrderService) resolveFulfillment(ctx context.Context, req dto.OrderCont
 	if !ok {
 		return openBill.Fulfillment{}, orderError.ErrOutsideDeliveryZone
 	}
-	return fulfillment.InZone(zone.ID), nil
+	return fulfillment.InZone(zone.ID, zone.DeliveryFeeAmounts), nil
 }
 
 // requirePaymentLinks: an agent order is paid only through its link, so none is taken without Wompi.

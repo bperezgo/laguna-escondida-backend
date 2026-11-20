@@ -9,9 +9,11 @@ import (
 	"unicode/utf8"
 
 	zoneError "laguna-escondida/backend/internal/domain/aggregate/delivery_zone/error"
+	"laguna-escondida/backend/internal/domain/aggregate/shared"
 	"laguna-escondida/backend/internal/domain/dto"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 const (
@@ -19,6 +21,7 @@ const (
 	geoJSONMultiPolygon = "MultiPolygon"
 	maxNameLength       = 100
 	minRingPositions    = 4
+	maxFeeDecimals      = 2
 )
 
 type ring [][]float64
@@ -32,6 +35,7 @@ type Aggregate struct {
 	boundary  json.RawMessage
 	polygons  []polygon
 	active    bool
+	fee       dto.DeliveryFeeAmounts
 	createdAt time.Time
 	updatedAt time.Time
 }
@@ -49,6 +53,12 @@ func NewAggregateFromCreateRequest(req *dto.CreateDeliveryZoneRequest) (*Aggrega
 	if req.Active != nil {
 		active = *req.Active
 	}
+	fee := dto.DeliveryFeeAmounts{}
+	if req.DeliveryFee != nil {
+		if fee, err = parseFee(*req.DeliveryFee); err != nil {
+			return nil, err
+		}
+	}
 	now := time.Now()
 	return &Aggregate{
 		id:        uuid.Must(uuid.NewV7()).String(),
@@ -56,6 +66,7 @@ func NewAggregateFromCreateRequest(req *dto.CreateDeliveryZoneRequest) (*Aggrega
 		boundary:  req.Boundary,
 		polygons:  polygons,
 		active:    active,
+		fee:       fee,
 		createdAt: now,
 		updatedAt: now,
 	}, nil
@@ -73,6 +84,7 @@ func NewAggregateFromDTO(zone *dto.DeliveryZone) (*Aggregate, error) {
 		boundary:  zone.Boundary,
 		polygons:  polygons,
 		active:    zone.Active,
+		fee:       zone.DeliveryFeeAmounts,
 		createdAt: zone.CreatedAt,
 		updatedAt: zone.UpdatedAt,
 	}, nil
@@ -96,6 +108,13 @@ func (a *Aggregate) Update(req *dto.UpdateDeliveryZoneRequest) error {
 	if req.Active != nil {
 		a.active = *req.Active
 	}
+	if req.DeliveryFee != nil {
+		fee, err := parseFee(*req.DeliveryFee)
+		if err != nil {
+			return err
+		}
+		a.fee = fee
+	}
 	a.updatedAt = time.Now()
 	return nil
 }
@@ -106,6 +125,10 @@ func (a *Aggregate) ID() string {
 
 func (a *Aggregate) Name() string {
 	return a.name
+}
+
+func (a *Aggregate) Fee() dto.DeliveryFeeAmounts {
+	return a.fee
 }
 
 func (a *Aggregate) IsActive() bool {
@@ -137,12 +160,13 @@ func (a *Aggregate) Contains(lat, lng float64) bool {
 
 func (a *Aggregate) ToDTO() *dto.DeliveryZone {
 	return &dto.DeliveryZone{
-		ID:        a.id,
-		Name:      a.name,
-		Boundary:  a.boundary,
-		Active:    a.active,
-		CreatedAt: a.createdAt,
-		UpdatedAt: a.updatedAt,
+		ID:                 a.id,
+		Name:               a.name,
+		Boundary:           a.boundary,
+		Active:             a.active,
+		DeliveryFeeAmounts: a.fee,
+		CreatedAt:          a.createdAt,
+		UpdatedAt:          a.updatedAt,
 	}
 }
 
@@ -165,6 +189,16 @@ func (r ring) contains(x, y float64) bool {
 		}
 	}
 	return inside
+}
+
+// parseFee derives base and ICO like a product price with VAT 0; rounding happens here once.
+func parseFee(raw string) (dto.DeliveryFeeAmounts, error) {
+	fee, err := decimal.NewFromString(strings.TrimSpace(raw))
+	if err != nil || fee.IsNegative() || !fee.Equal(fee.Round(maxFeeDecimals)) {
+		return dto.DeliveryFeeAmounts{}, zoneError.NewInvalidFeeError(raw)
+	}
+	base := fee.Div(decimal.NewFromInt(1).Add(shared.DeliveryFeeICORate)).Round(maxFeeDecimals)
+	return dto.DeliveryFeeAmounts{DeliveryFee: fee, DeliveryFeeBase: base, DeliveryFeeICO: fee.Sub(base)}, nil
 }
 
 func validateName(raw string) (string, error) {

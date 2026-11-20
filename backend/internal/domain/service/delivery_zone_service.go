@@ -81,11 +81,12 @@ func (s *DeliveryZoneService) Check(ctx context.Context, lat, lng float64) (*dto
 	if !ok {
 		return &dto.DeliveryZoneCheckResult{Deliverable: false}, nil
 	}
-	return &dto.DeliveryZoneCheckResult{Deliverable: true, ZoneID: &zone.ID, ZoneName: &zone.Name}, nil
+	fee := zone.DeliveryFee
+	return &dto.DeliveryZoneCheckResult{Deliverable: true, ZoneID: &zone.ID, ZoneName: &zone.Name, DeliveryFee: &fee}, nil
 }
 
 // findContainingZone returns the oldest active zone containing the point. Oldest wins on
-// overlap so the choice is deterministic; it matters once zones carry fees.
+// overlap so the choice is deterministic: the check and the order must quote the same fee.
 func findContainingZone(zones []*dto.DeliveryZone, lat, lng float64) (*dto.DeliveryZone, bool) {
 	ordered := make([]*dto.DeliveryZone, len(zones))
 	copy(ordered, zones)

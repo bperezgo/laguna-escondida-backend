@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"time"
 
+	"laguna-escondida/backend/internal/domain/aggregate/bill"
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
@@ -160,6 +161,9 @@ func (s *InvoiceSubmissionService) buildRequestPayload(ctx context.Context, sett
 	if len(billForInvoice.Products) == 0 {
 		return fmt.Errorf("no products found for bill %s: products may not yet be synced to cloud", pending.BillID)
 	}
+	if item, ok := bill.DeliveryFeeItem(billForInvoice); ok {
+		billForInvoice.Products = append(billForInvoice.Products, item)
+	}
 
 	if pending.Consecutive != nil {
 		prefix := pending.Prefix
@@ -206,12 +210,12 @@ func (s *InvoiceSubmissionService) buildRequestPayload(ctx context.Context, sett
 	return nil
 }
 
-func invoiceRequestPayload(prefix string, consecutive int, pending *dto.PendingInvoice, bill *dto.Bill) (json.RawMessage, error) {
+func invoiceRequestPayload(prefix string, consecutive int, pending *dto.PendingInvoice, billForInvoice *dto.Bill) (json.RawMessage, error) {
 	reqPayload, err := json.Marshal(&dto.CreateElectronicInvoiceRequest{
 		Prefix:      prefix,
 		Consecutive: consecutive,
 		PaymentCode: pending.PaymentCode,
-		Bill:        bill,
+		Bill:        billForInvoice,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("marshal invoice request: %w", err)

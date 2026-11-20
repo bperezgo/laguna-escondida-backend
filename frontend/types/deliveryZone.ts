@@ -19,6 +19,10 @@ export interface DeliveryZone {
   name: string;
   boundary: ZoneBoundary;
   active: boolean;
+  /** Flat fee per delivery with ICO included, as a decimal string; "0" is free delivery. */
+  delivery_fee: string;
+  delivery_fee_base: string;
+  delivery_fee_ico: string;
   created_at: string;
   updated_at: string;
 }
@@ -31,16 +35,20 @@ export interface CreateDeliveryZoneRequest {
   name: string;
   boundary: ZoneBoundary;
   active?: boolean;
+  delivery_fee?: string;
 }
 
 export interface UpdateDeliveryZoneRequest {
   name?: string;
   boundary?: ZoneBoundary;
   active?: boolean;
+  delivery_fee?: string;
 }
 
 export interface DeliveryPointCheck {
   deliverable: boolean;
   zone_id?: string;
   zone_name?: string;
+  /** Set when deliverable: what an order at this point would be charged. */
+  delivery_fee?: string;
 }

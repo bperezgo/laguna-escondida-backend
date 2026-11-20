@@ -22,5 +22,9 @@ export interface DailyCloseReport {
   total_ico: string;
   total_discount: string;
   total_tip: string;
+  // Delivery fees collected; already inside total_collected, total_net and total_ico.
+  total_delivery_fee: string;
+  total_delivery_fee_base: string;
+  total_delivery_fee_ico: string;
   by_payment_method: PaymentMethodBreakdown[];
 }

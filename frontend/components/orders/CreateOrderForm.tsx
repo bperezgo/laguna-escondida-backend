@@ -17,6 +17,7 @@ import {
   isWeighedProduct,
 } from "./orderTakingParts";
 import { formatMoney } from "@/lib/format";
+import { deliveryFeeLabel } from "@/lib/deliveryZones/fee";
 import { ApiError } from "@/lib/api/config";
 import { organizationSettingsApi } from "@/lib/api/organizationSettings";
 import { PERMISSIONS, usePermissions } from "@/lib/permissions";
@@ -384,11 +385,31 @@ export default function CreateOrderForm({
       .reduce((sum, p) => sum + p.quantity, 0);
   const productInOrder = (productId: string) =>
     selectedProductsArray.some((p) => p.product.id === productId);
-  const orderTotal = selectedProductsArray.reduce(
+  const linesTotal = selectedProductsArray.reduce(
     (sum, { product, quantity }) =>
       sum + parseFloat(product.total_price_with_taxes) * quantity,
     0,
   );
+  // The server charges the zone's fee itself; this only previews it.
+  const deliveryFee =
+    orderType === "delivery" && pinCheck.status === "inside" ? pinCheck.deliveryFee : null;
+  const orderTotal = linesTotal + (deliveryFee ?? 0);
+  const deliveryFeeRow =
+    deliveryFee === null ? null : (
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          marginBottom: "0.35rem",
+          fontSize: "0.85rem",
+          color: "var(--color-text-secondary)",
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        <span>Productos {formatMoney(linesTotal)}</span>
+        <span>{deliveryFeeLabel(deliveryFee, formatMoney)}</span>
+      </div>
+    );
 
   // Weighed lines with no weight yet block submit — a fish left "pending" would
   // otherwise be charged as 0.
@@ -783,6 +804,7 @@ export default function CreateOrderForm({
                 backgroundColor: "var(--color-bg)",
               }}
             >
+              {deliveryFeeRow}
               <div
                 style={{
                   display: "flex",
@@ -1110,6 +1132,7 @@ export default function CreateOrderForm({
                 backgroundColor: "var(--color-bg)",
               }}
             >
+              {deliveryFeeRow}
               <div
                 style={{
                   display: "flex",

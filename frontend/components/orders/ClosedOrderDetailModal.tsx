@@ -25,7 +25,7 @@ export default function ClosedOrderDetailModal({
   const { printRef, isPrinting, print } = useReceiptPrint(openBill);
 
   const consolidated = groupBillProducts(openBill);
-  const { subtotal, totalVAT, totalICO, total } =
+  const { subtotal, totalVAT, totalICO, deliveryFee, total } =
     calculateReceiptTotals(openBill);
 
   const sectionCard: React.CSSProperties = {
@@ -210,6 +210,21 @@ export default function ClosedOrderDetailModal({
             ${totalICO.toFixed(2)}
           </span>
         </div>
+        {deliveryFee > 0 && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              marginBottom: "1rem",
+              fontSize: "1rem",
+            }}
+          >
+            <span style={{ color: "var(--color-text-secondary)" }}>Domicilio (incluye ICO):</span>
+            <span style={{ fontWeight: 500, color: "var(--color-text-primary)" }}>
+              ${deliveryFee.toFixed(2)}
+            </span>
+          </div>
+        )}
         <div
           style={{
             display: "flex",

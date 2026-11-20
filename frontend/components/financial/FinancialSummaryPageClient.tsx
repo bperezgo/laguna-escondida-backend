@@ -183,6 +183,11 @@ export default function FinancialSummaryPageClient() {
                 delta={`${summary.revenue.count} registros`}
               />
               <StatCard
+                label="Domicilios"
+                value={formatMoney(summary.revenue.total_delivery_fee ?? "0")}
+                delta="incluido en ingresos"
+              />
+              <StatCard
                 label="Gastos"
                 value={formatMoney(summary.expenses.total_amount)}
                 delta={`${summary.expenses.count} registros`}

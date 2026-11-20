@@ -265,6 +265,11 @@ export default function DailyClosePageClient() {
                 label="Descuentos"
                 value={formatMoney(report.total_discount)}
               />
+              <StatCard
+                label="Domicilios"
+                value={formatMoney(report.total_delivery_fee ?? "0")}
+                delta="incluido en el ingreso total"
+              />
             </div>
 
             {/* ② Cuadre de dinero — one row per payment kind */}

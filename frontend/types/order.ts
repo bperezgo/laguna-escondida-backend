@@ -48,6 +48,10 @@ export interface OpenBill {
   delivery_lng?: string | null;
   delivery_zone_id?: string | null;
   delivery_map_url?: string | null;
+  /** The zone's fee when a delivery was created, ICO included; already in total_amount. */
+  delivery_fee?: string | null;
+  delivery_fee_base?: string | null;
+  delivery_fee_ico?: string | null;
 }
 
 // The choice a line took for one slot of a plate, with the names as they were when it was taken.

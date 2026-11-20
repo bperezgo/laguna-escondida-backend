@@ -24,6 +24,7 @@ type Aggregate struct {
 	customer       *dto.Customer
 	paymentCode    *PaymentCode
 	products       []*BillProduct
+	deliveryFee    *dto.DeliveryFeeAmounts
 	createdAt      time.Time
 	updatedAt      time.Time
 }
@@ -93,7 +94,7 @@ func NewBillFromCreateElectronicInvoiceRequest(invoice *dto.ElectronicInvoice, p
 }
 
 func (a *Aggregate) ToDTO() *dto.Bill {
-	return &dto.Bill{
+	out := &dto.Bill{
 		ID:             a.id,
 		TotalAmount:    a.totalAmount,
 		DiscountAmount: a.discountAmount,
@@ -111,6 +112,11 @@ func (a *Aggregate) ToDTO() *dto.Bill {
 			return product.ToDTO()
 		}),
 	}
+	if a.deliveryFee != nil {
+		fee, base, ico := a.deliveryFee.DeliveryFee, a.deliveryFee.DeliveryFeeBase, a.deliveryFee.DeliveryFeeICO
+		out.DeliveryFee, out.DeliveryFeeBase, out.DeliveryFeeICO = &fee, &base, &ico
+	}
+	return out
 }
 
 func groupProductsByID(products []dto.OpenBillProductDetail) (map[string]*dto.OpenBillProductDetail, map[string]int) {
@@ -167,7 +173,7 @@ func NewBillFromOpenBillWithProducts(openBillWithProducts *dto.OpenBillWithProdu
 		))
 	}
 
-	return NewBillFromCreateElectronicInvoiceRequest(
+	aggregate, err := NewBillFromCreateElectronicInvoiceRequest(
 		&dto.ElectronicInvoice{
 			PaymentCode: paymentCode,
 			Customer:    customer,
@@ -175,6 +181,31 @@ func NewBillFromOpenBillWithProducts(openBillWithProducts *dto.OpenBillWithProdu
 		},
 		billProducts,
 	)
+	if err != nil {
+		return nil, err
+	}
+	aggregate.addDeliveryFee(openBillWithProducts.OrderFulfillment)
+	return aggregate, nil
+}
+
+// addDeliveryFee folds the order's recorded fee into net, ICO and the paid amount, so
+// pay_amount = net + vat + ico - discount + tip still holds. It is never a bill product.
+func (a *Aggregate) addDeliveryFee(f dto.OrderFulfillment) {
+	if f.DeliveryFee == nil {
+		return
+	}
+	fee := dto.DeliveryFeeAmounts{DeliveryFee: *f.DeliveryFee}
+	if f.DeliveryFeeBase != nil {
+		fee.DeliveryFeeBase = *f.DeliveryFeeBase
+	}
+	if f.DeliveryFeeICO != nil {
+		fee.DeliveryFeeICO = *f.DeliveryFeeICO
+	}
+	a.deliveryFee = &fee
+	a.totalAmount = a.totalAmount.Add(fee.DeliveryFeeBase)
+	a.ico = a.ico.Add(fee.DeliveryFeeICO)
+	a.taxAmount = a.taxAmount.Add(fee.DeliveryFeeICO)
+	a.payAmount = a.payAmount.Add(fee.DeliveryFee)
 }
 
 func (a *Aggregate) Products() []*BillProduct {

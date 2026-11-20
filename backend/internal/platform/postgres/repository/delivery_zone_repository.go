@@ -11,6 +11,7 @@ import (
 	"laguna-escondida/backend/internal/domain/ports"
 	"laguna-escondida/backend/internal/platform/postgres"
 
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -24,13 +25,18 @@ func NewDeliveryZoneRepository(db *gorm.DB) ports.DeliveryZoneRepository {
 
 type deliveryZoneModel struct {
 	postgres.TenantOwned
-	ID        string          `gorm:"type:uuid;primaryKey"`
-	Name      string          `gorm:"type:varchar(100);not null"`
-	Boundary  json.RawMessage `gorm:"type:jsonb;not null"`
-	Active    bool            `gorm:"type:boolean;not null;default:true"`
-	CreatedAt time.Time       `gorm:"type:timestamp;not null"`
-	UpdatedAt time.Time       `gorm:"type:timestamp;not null"`
-	DeletedAt *time.Time      `gorm:"type:timestamp"`
+	ID       string          `gorm:"type:uuid;primaryKey"`
+	Name     string          `gorm:"type:varchar(100);not null"`
+	Boundary json.RawMessage `gorm:"type:jsonb;not null"`
+	Active   bool            `gorm:"type:boolean;not null;default:true"`
+
+	DeliveryFee     decimal.Decimal `gorm:"type:numeric(19,4);not null;default:0"`
+	DeliveryFeeBase decimal.Decimal `gorm:"type:numeric(19,4);not null;default:0"`
+	DeliveryFeeICO  decimal.Decimal `gorm:"column:delivery_fee_ico;type:numeric(19,4);not null;default:0"`
+
+	CreatedAt time.Time  `gorm:"type:timestamp;not null"`
+	UpdatedAt time.Time  `gorm:"type:timestamp;not null"`
+	DeletedAt *time.Time `gorm:"type:timestamp"`
 }
 
 func (deliveryZoneModel) TableName() string {
@@ -49,6 +55,10 @@ func (r *DeliveryZoneRepository) Create(ctx context.Context, zone *dto.DeliveryZ
 		Active:    zone.Active,
 		CreatedAt: zone.CreatedAt,
 		UpdatedAt: zone.UpdatedAt,
+
+		DeliveryFee:     zone.DeliveryFee,
+		DeliveryFeeBase: zone.DeliveryFeeBase,
+		DeliveryFeeICO:  zone.DeliveryFeeICO,
 	}).Error
 }
 
@@ -61,10 +71,13 @@ func (r *DeliveryZoneRepository) Update(ctx context.Context, zone *dto.DeliveryZ
 		Model(&deliveryZoneModel{}).
 		Where("id = ? AND deleted_at IS NULL", zone.ID).
 		Updates(map[string]any{
-			"name":       zone.Name,
-			"boundary":   zone.Boundary,
-			"active":     zone.Active,
-			"updated_at": zone.UpdatedAt,
+			"name":              zone.Name,
+			"boundary":          zone.Boundary,
+			"active":            zone.Active,
+			"delivery_fee":      zone.DeliveryFee,
+			"delivery_fee_base": zone.DeliveryFeeBase,
+			"delivery_fee_ico":  zone.DeliveryFeeICO,
+			"updated_at":        zone.UpdatedAt,
 		}).Error
 }
 
@@ -132,5 +145,10 @@ func (m *deliveryZoneModel) toDTO() *dto.DeliveryZone {
 		Active:    m.Active,
 		CreatedAt: m.CreatedAt,
 		UpdatedAt: m.UpdatedAt,
+		DeliveryFeeAmounts: dto.DeliveryFeeAmounts{
+			DeliveryFee:     m.DeliveryFee,
+			DeliveryFeeBase: m.DeliveryFeeBase,
+			DeliveryFeeICO:  m.DeliveryFeeICO,
+		},
 	}
 }

@@ -10,6 +10,7 @@ const (
 	CodeInvalidName     DeliveryZoneErrorCode = "DELIVERY_ZONE_INVALID_NAME"
 	CodeInvalidBoundary DeliveryZoneErrorCode = "DELIVERY_ZONE_INVALID_BOUNDARY"
 	CodeInvalidPoint    DeliveryZoneErrorCode = "DELIVERY_ZONE_INVALID_POINT"
+	CodeInvalidFee      DeliveryZoneErrorCode = "DELIVERY_ZONE_INVALID_FEE"
 )
 
 func NewInvalidNameError(name string) *baseError.BaseError {
@@ -32,5 +33,13 @@ func NewInvalidPointError(location string) *baseError.BaseError {
 		baseError.ErrorCode(CodeInvalidPoint),
 		"lat must be in [-90, 90] and lng in [-180, 180]",
 		location,
+	)
+}
+
+func NewInvalidFeeError(fee string) *baseError.BaseError {
+	return baseError.NewBaseErrorWithField(
+		baseError.ErrorCode(CodeInvalidFee),
+		"delivery_fee must be a number >= 0 with at most 2 decimals",
+		fee,
 	)
 }

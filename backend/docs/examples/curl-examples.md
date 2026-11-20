@@ -767,9 +767,12 @@ curl -X POST "$BASE_URL/delivery-zones" \
     "boundary": {
       "type": "Polygon",
       "coordinates": [[[-74.10, 4.58], [-74.06, 4.58], [-74.06, 4.62], [-74.10, 4.62], [-74.10, 4.58]]]
-    }
+    },
+    "delivery_fee": "5000"
   }'
 ```
+
+`delivery_fee` is the final price with ICO 8% included; omit it (or send `"0"`) for free delivery.
 
 ### Check the Restaurant's Own Pin After Uploading
 
@@ -783,6 +786,15 @@ curl -X GET "$BASE_URL/delivery-zones/check?lat=4.5981&lng=-74.076" \
 ```bash
 curl -X GET "$BASE_URL/delivery-zones" \
   -H "Authorization: Bearer $TOKEN"
+```
+
+### Change a Zone's Delivery Fee (only new orders get it)
+
+```bash
+curl -X PUT "$BASE_URL/delivery-zones/ZONE_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "delivery_fee": "6000" }'
 ```
 
 ### Deactivate a Zone (stops new deliveries there)
