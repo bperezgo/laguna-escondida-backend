@@ -43,7 +43,20 @@ type openBillModel struct {
 	DeliveryLat        *decimal.Decimal `gorm:"type:numeric(9,6)"`
 	DeliveryLng        *decimal.Decimal `gorm:"type:numeric(9,6)"`
 	DeliveryZoneID     *string          `gorm:"type:uuid"`
+	DeliveryFeeColumns
 	OriginColumns
+}
+
+// DeliveryFeeColumns are a delivery's fee, written on create only. Exported: gorm skips
+// unexported embedded structs.
+type DeliveryFeeColumns struct {
+	DeliveryFee     *decimal.Decimal `gorm:"column:delivery_fee;type:numeric(19,4)"`
+	DeliveryFeeBase *decimal.Decimal `gorm:"column:delivery_fee_base;type:numeric(19,4)"`
+	DeliveryFeeICO  *decimal.Decimal `gorm:"column:delivery_fee_ico;type:numeric(19,4)"`
+}
+
+func newDeliveryFeeColumns(f dto.OrderFulfillment) DeliveryFeeColumns {
+	return DeliveryFeeColumns{DeliveryFee: f.DeliveryFee, DeliveryFeeBase: f.DeliveryFeeBase, DeliveryFeeICO: f.DeliveryFeeICO}
 }
 
 // OriginColumns are an agent order or reservation's origin, written on create only. Exported: gorm
@@ -128,6 +141,9 @@ const fulfillmentColumns = `
 			open_bills.delivery_lat,
 			open_bills.delivery_lng,
 			open_bills.delivery_zone_id,
+			open_bills.delivery_fee,
+			open_bills.delivery_fee_base,
+			open_bills.delivery_fee_ico,
 			open_bills.channel_id,
 			open_bills.conversation_id,
 			open_bills.attribution_source,
@@ -139,16 +155,17 @@ const fulfillmentColumns = `
 
 // fulfillmentRow is scanned into the header result structs via gorm:"embedded".
 type fulfillmentRow struct {
-	PaidAt          *time.Time
-	OrderType       string
-	CustomerName    *string
-	CustomerPhone   *string
-	DeliveryAddress *string
-	DeliveryLat     *decimal.Decimal
-	DeliveryLng     *decimal.Decimal
-	DeliveryZoneID  *string
-	VoidReason      *string
-	OriginColumns   `gorm:"embedded"`
+	PaidAt             *time.Time
+	OrderType          string
+	CustomerName       *string
+	CustomerPhone      *string
+	DeliveryAddress    *string
+	DeliveryLat        *decimal.Decimal
+	DeliveryLng        *decimal.Decimal
+	DeliveryZoneID     *string
+	VoidReason         *string
+	DeliveryFeeColumns `gorm:"embedded"`
+	OriginColumns      `gorm:"embedded"`
 }
 
 func (f fulfillmentRow) toDTO() dto.OrderFulfillment {
@@ -160,6 +177,9 @@ func (f fulfillmentRow) toDTO() dto.OrderFulfillment {
 		DeliveryLat:     f.DeliveryLat,
 		DeliveryLng:     f.DeliveryLng,
 		DeliveryZoneID:  f.DeliveryZoneID,
+		DeliveryFee:     f.DeliveryFee,
+		DeliveryFeeBase: f.DeliveryFeeBase,
+		DeliveryFeeICO:  f.DeliveryFeeICO,
 		Origin:          f.OriginColumns.toDTO(),
 	}).ToDTO()
 	fulfillment.VoidReason = f.VoidReason
@@ -377,14 +397,15 @@ type billModel struct {
 	VAT            decimal.Decimal `gorm:"type:numeric(19,4);not null"`
 	ICO            decimal.Decimal `gorm:"type:numeric(19,4);not null"`
 	Tip            decimal.Decimal `gorm:"type:numeric(19,4);not null"`
-	DocumentURL    *string         `gorm:"type:text"`
-	PDFStoragePath *string         `gorm:"type:text;column:pdf_storage_path"`
-	XMLStoragePath *string         `gorm:"type:text;column:xml_storage_path"`
-	CUFE           *string         `gorm:"type:varchar(255)"`
-	Tascode        *string         `gorm:"type:varchar(255)"`
-	CreatedAt      time.Time       `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
-	UpdatedAt      time.Time       `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
-	DeletedAt      *time.Time      `gorm:"type:timestamp"`
+	DeliveryFeeColumns
+	DocumentURL    *string    `gorm:"type:text"`
+	PDFStoragePath *string    `gorm:"type:text;column:pdf_storage_path"`
+	XMLStoragePath *string    `gorm:"type:text;column:xml_storage_path"`
+	CUFE           *string    `gorm:"type:varchar(255)"`
+	Tascode        *string    `gorm:"type:varchar(255)"`
+	CreatedAt      time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	UpdatedAt      time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	DeletedAt      *time.Time `gorm:"type:timestamp"`
 }
 
 func (billModel) TableName() string {
@@ -430,6 +451,7 @@ func (r *OpenBillRepository) Create(ctx context.Context, aggregate *openBill.Agg
 			DeliveryLat:        fulfillment.DeliveryLat,
 			DeliveryLng:        fulfillment.DeliveryLng,
 			DeliveryZoneID:     fulfillment.DeliveryZoneID,
+			DeliveryFeeColumns: newDeliveryFeeColumns(fulfillment),
 			OriginColumns:      newOriginColumns(fulfillment.Origin),
 		}
 
@@ -810,6 +832,9 @@ func (r *OpenBillRepository) findAggregate(ctx context.Context, where string, id
 		DeliveryLat:     model.DeliveryLat,
 		DeliveryLng:     model.DeliveryLng,
 		DeliveryZoneID:  model.DeliveryZoneID,
+		DeliveryFee:     model.DeliveryFee,
+		DeliveryFeeBase: model.DeliveryFeeBase,
+		DeliveryFeeICO:  model.DeliveryFeeICO,
 		Origin:          model.toDTO(),
 	}))
 	return aggregate, nil

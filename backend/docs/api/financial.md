@@ -43,7 +43,10 @@ GET /api/financial/summary?start_date=2024-01-01T00:00:00Z&end_date=2024-12-31T2
     "total_ico": "400000",
     "total_discount": "100000",
     "total_tip": "50000",
-    "count": 150
+    "count": 150,
+    "total_delivery_fee": "13000",
+    "total_delivery_fee_base": "12037.04",
+    "total_delivery_fee_ico": "962.96"
   },
   "expenses": {
     "total_amount": "1500000",
@@ -108,3 +111,38 @@ GET /api/financial/summary?start_date=2024-01-01T00:00:00Z&end_date=2024-12-31T2
 - All monetary amounts use `NUMERIC(19,4)` precision
 - Expense breakdown by category is sorted by total amount descending
 - A negative `net_income` indicates a loss for the period
+- `revenue.total_delivery_fee` (with `_base` and `_ico`) is the delivery fees collected in the period. They are **already included** in `total_amount` (the fee's base) and `total_ico` (its ICO), so `net_income` and the other totals reconcile as before; with no delivery fee they are `"0"`.
+
+---
+
+## Daily Close
+
+`GET /api/reports/daily-close?date=YYYY-MM-DD`
+
+The read-only end-of-day money reconciliation for one business day (America/Bogota); `date` defaults to today. Requires `financial:read`.
+
+### Example Response (200 OK)
+
+```json
+{
+  "start_date": "2026-11-20T05:00:00Z",
+  "end_date": "2026-11-21T04:59:59Z",
+  "total_orders": 12,
+  "total_collected": "1920000",
+  "total_net": "1700000",
+  "total_vat": "150000",
+  "total_ico": "70000",
+  "total_discount": "0",
+  "total_tip": "0",
+  "total_delivery_fee": "13000",
+  "total_delivery_fee_base": "12037.04",
+  "total_delivery_fee_ico": "962.96",
+  "by_payment_method": [
+    { "payment_method": "cash", "collected": "1240000", "net": "1100000", "count": 7 },
+    { "payment_method": "credit_card", "collected": "680000", "net": "600000", "count": 5 }
+  ]
+}
+```
+
+- `total_collected` is the sum of `by_payment_method[].collected` (gross the customers paid).
+- `total_delivery_fee` / `_base` / `_ico` break out the delivery fees of the day. They are **already inside** `total_collected`, `total_net`, `total_ico` and the per-method rows; they are `"0"` on a day without paid delivery fees.

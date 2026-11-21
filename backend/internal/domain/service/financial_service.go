@@ -78,15 +78,19 @@ func (s *FinancialService) GetDailyClose(ctx context.Context, from, to time.Time
 	}
 
 	return &dto.DailyCloseReport{
-		StartDate:       from,
-		EndDate:         to,
-		TotalOrders:     revenue.Count,
-		TotalCollected:  totalCollected,
-		TotalNet:        revenue.TotalAmount,
-		TotalVAT:        revenue.TotalVAT,
-		TotalICO:        revenue.TotalICO,
-		TotalDiscount:   revenue.TotalDiscount,
-		TotalTip:        revenue.TotalTip,
-		ByPaymentMethod: breakdown,
+		StartDate:      from,
+		EndDate:        to,
+		TotalOrders:    revenue.Count,
+		TotalCollected: totalCollected,
+		TotalNet:       revenue.TotalAmount,
+		TotalVAT:       revenue.TotalVAT,
+		TotalICO:       revenue.TotalICO,
+		TotalDiscount:  revenue.TotalDiscount,
+		TotalTip:       revenue.TotalTip,
+
+		TotalDeliveryFee:     revenue.TotalDeliveryFee,
+		TotalDeliveryFeeBase: revenue.TotalDeliveryFeeBase,
+		TotalDeliveryFeeICO:  revenue.TotalDeliveryFeeICO,
+		ByPaymentMethod:      breakdown,
 	}, nil
 }

@@ -116,20 +116,23 @@ func (r *BillRepository) FindBillForInvoice(ctx context.Context, billID string) 
 	}
 
 	return &dto.Bill{
-		ID:             bm.ID,
-		TotalAmount:    bm.TotalAmount,
-		DiscountAmount: bm.DiscountAmount,
-		TaxAmount:      bm.VAT.Add(bm.ICO),
-		PayAmount:      bm.PayAmount,
-		PaymentMethod:  bm.PaymentMethod,
-		VAT:            bm.VAT,
-		ICO:            bm.ICO,
-		Tip:            bm.Tip,
-		DocumentURL:    bm.DocumentURL,
-		Customer:       customer,
-		Products:       products,
-		CreatedAt:      bm.CreatedAt,
-		UpdatedAt:      bm.UpdatedAt,
+		ID:              bm.ID,
+		TotalAmount:     bm.TotalAmount,
+		DiscountAmount:  bm.DiscountAmount,
+		TaxAmount:       bm.VAT.Add(bm.ICO),
+		PayAmount:       bm.PayAmount,
+		PaymentMethod:   bm.PaymentMethod,
+		VAT:             bm.VAT,
+		ICO:             bm.ICO,
+		Tip:             bm.Tip,
+		DocumentURL:     bm.DocumentURL,
+		Customer:        customer,
+		Products:        products,
+		CreatedAt:       bm.CreatedAt,
+		UpdatedAt:       bm.UpdatedAt,
+		DeliveryFee:     bm.DeliveryFee,
+		DeliveryFeeBase: bm.DeliveryFeeBase,
+		DeliveryFeeICO:  bm.DeliveryFeeICO,
 	}, nil
 }
 
@@ -158,6 +161,9 @@ func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, produ
 			DocumentURL:    billDTO.DocumentURL,
 			CreatedAt:      billDTO.CreatedAt,
 			UpdatedAt:      billDTO.UpdatedAt,
+			DeliveryFeeColumns: DeliveryFeeColumns{
+				DeliveryFee: billDTO.DeliveryFee, DeliveryFeeBase: billDTO.DeliveryFeeBase, DeliveryFeeICO: billDTO.DeliveryFeeICO,
+			},
 		}
 
 		if billDTO.Customer != nil {
@@ -471,6 +477,10 @@ func (r *BillRepository) GetRevenueSummary(ctx context.Context, startDate time.T
 		TotalDiscount float64 `gorm:"column:total_discount"`
 		TotalTip      float64 `gorm:"column:total_tip"`
 		Count         int     `gorm:"column:count"`
+
+		TotalDeliveryFee     decimal.Decimal `gorm:"column:total_delivery_fee"`
+		TotalDeliveryFeeBase decimal.Decimal `gorm:"column:total_delivery_fee_base"`
+		TotalDeliveryFeeICO  decimal.Decimal `gorm:"column:total_delivery_fee_ico"`
 	}
 
 	err = db.
@@ -480,6 +490,9 @@ func (r *BillRepository) GetRevenueSummary(ctx context.Context, startDate time.T
 			COALESCE(SUM(ico), 0) as total_ico,
 			COALESCE(SUM(discount_amount), 0) as total_discount,
 			COALESCE(SUM(tip), 0) as total_tip,
+			COALESCE(SUM(delivery_fee), 0) as total_delivery_fee,
+			COALESCE(SUM(delivery_fee_base), 0) as total_delivery_fee_base,
+			COALESCE(SUM(delivery_fee_ico), 0) as total_delivery_fee_ico,
 			COUNT(*) as count`).
 		Where("created_at >= ? AND created_at <= ? AND deleted_at IS NULL", startDate, endDate).
 		Scan(&result).Error
@@ -495,6 +508,10 @@ func (r *BillRepository) GetRevenueSummary(ctx context.Context, startDate time.T
 		TotalDiscount: decimal.NewFromFloat(result.TotalDiscount),
 		TotalTip:      decimal.NewFromFloat(result.TotalTip),
 		Count:         result.Count,
+
+		TotalDeliveryFee:     result.TotalDeliveryFee,
+		TotalDeliveryFeeBase: result.TotalDeliveryFeeBase,
+		TotalDeliveryFeeICO:  result.TotalDeliveryFeeICO,
 	}, nil
 }
 

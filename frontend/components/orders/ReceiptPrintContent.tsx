@@ -19,7 +19,7 @@ interface ReceiptPrintContentProps {
 const ReceiptPrintContent = forwardRef<HTMLDivElement, ReceiptPrintContentProps>(
   function ReceiptPrintContent({ openBill }, ref) {
     const consolidated = groupBillProducts(openBill);
-    const { subtotal, totalVAT, totalICO, total } =
+    const { subtotal, totalVAT, totalICO, deliveryFee, total } =
       calculateReceiptTotals(openBill);
 
     return (
@@ -65,6 +65,12 @@ const ReceiptPrintContent = forwardRef<HTMLDivElement, ReceiptPrintContentProps>
             <span>ICO:</span>
             <span>${totalICO.toFixed(2)}</span>
           </div>
+          {deliveryFee > 0 && (
+            <div className="total-row">
+              <span>Domicilio (incluye ICO):</span>
+              <span>${deliveryFee.toFixed(2)}</span>
+            </div>
+          )}
           <div className="total-row final">
             <span>TOTAL:</span>
             <span>${total.toFixed(2)}</span>

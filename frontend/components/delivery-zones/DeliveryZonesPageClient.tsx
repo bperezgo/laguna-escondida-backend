@@ -5,6 +5,8 @@ import dynamic from "next/dynamic";
 import type { DeliveryZone } from "@/types/deliveryZone";
 import { deliveryZonesApi } from "@/lib/api/deliveryZones";
 import { describeBoundary, geojsonIoUrl } from "@/lib/deliveryZones/geojson";
+import { deliveryFeeLabel, feeAmount, isFreeDelivery } from "@/lib/deliveryZones/fee";
+import { formatMoney } from "@/lib/format";
 import { Badge, Button, Card, CardBody, Input } from "@/components/ui";
 import { PermissionGate } from "@/components/permissions";
 import { PERMISSIONS, usePermissions } from "@/lib/permissions";
@@ -43,6 +45,11 @@ interface DeliveryZonesPageClientProps {
 interface Draft extends ZoneEditState {
   name: string;
   active: boolean;
+  deliveryFee: string;
+}
+
+function feeLabel(fee: string | undefined): string {
+  return deliveryFeeLabel(fee, formatMoney);
 }
 
 export default function DeliveryZonesPageClient({
@@ -70,7 +77,7 @@ export default function DeliveryZonesPageClient({
     setError("");
     setSelectedZoneId(null);
     setCheckedPoint(null);
-    setDraft({ zoneId: null, name: "", active: true, boundary: null, revision: 0 });
+    setDraft({ zoneId: null, name: "", active: true, deliveryFee: "", boundary: null, revision: 0 });
   };
 
   const startEdit = (zone: DeliveryZone) => {
@@ -81,12 +88,13 @@ export default function DeliveryZonesPageClient({
       zoneId: zone.id,
       name: zone.name,
       active: zone.active,
+      deliveryFee: isFreeDelivery(zone.delivery_fee) ? "" : String(feeAmount(zone.delivery_fee)),
       boundary: zone.boundary,
       revision: 0,
     });
   };
 
-  const handleSave = async () => {
+  const handleSave = async (deliveryFee: string) => {
     if (!draft?.boundary) return;
     try {
       setSaving(true);
@@ -95,6 +103,7 @@ export default function DeliveryZonesPageClient({
         name: draft.name.trim(),
         boundary: draft.boundary,
         active: draft.active,
+        delivery_fee: deliveryFee,
       };
       const saved = draft.zoneId
         ? await deliveryZonesApi.update(draft.zoneId, body)
@@ -262,8 +271,10 @@ export default function DeliveryZonesPageClient({
                 isNew={draft.zoneId === null}
                 name={draft.name}
                 active={draft.active}
+                deliveryFee={draft.deliveryFee}
                 boundary={draft.boundary}
                 onNameChange={(name) => setDraft((d) => d && { ...d, name })}
+                onDeliveryFeeChange={(deliveryFee) => setDraft((d) => d && { ...d, deliveryFee })}
                 onActiveChange={(active) => setDraft((d) => d && { ...d, active })}
                 onBoundaryImport={(boundary) =>
                   setDraft((d) => d && { ...d, boundary, revision: d.revision + 1 })
@@ -349,7 +360,7 @@ export default function DeliveryZonesPageClient({
                           {checkedPoint?.result && (
                             <Badge tone={checkedPoint.result.deliverable ? "success" : "danger"}>
                               {checkedPoint.result.deliverable
-                                ? `Se entrega · ${checkedPoint.result.zone_name ?? ""}`
+                                ? `Se entrega · ${checkedPoint.result.zone_name ?? ""} · ${feeLabel(checkedPoint.result.delivery_fee)}`
                                 : "No se entrega"}
                             </Badge>
                           )}
@@ -418,6 +429,9 @@ function ZoneCard({
             </div>
             <div style={{ fontSize: "0.8125rem", color: "var(--color-text-secondary)", marginTop: "0.25rem" }}>
               {describeBoundary(zone.boundary)}
+            </div>
+            <div style={{ fontSize: "0.8125rem", color: "var(--color-text-primary)", marginTop: "0.25rem" }}>
+              {feeLabel(zone.delivery_fee)}
             </div>
           </div>
           <Badge tone={zone.active ? "success" : "neutral"}>

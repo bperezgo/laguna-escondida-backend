@@ -181,8 +181,9 @@ func slotOptionsView(slots []dto.PlateOptionSlot) slotOptions {
 }
 
 type locationCheck struct {
-	Deliverable bool    `json:"deliverable"`
-	ZoneName    *string `json:"zone_name,omitempty"`
+	Deliverable bool             `json:"deliverable"`
+	ZoneName    *string          `json:"zone_name,omitempty"`
+	DeliveryFee *decimal.Decimal `json:"delivery_fee,omitempty"`
 }
 
 func (c *Client) optionSlots(ctx context.Context, productID string) ([]dto.PlateOptionSlot, error) {
@@ -297,12 +298,14 @@ func lineChoiceViews(choices []dto.LineChoice) []lineChoiceView {
 }
 
 type orderView struct {
-	OrderID      string          `json:"order_id"`
-	OrderType    dto.OrderType   `json:"order_type"`
-	CreatedAt    *time.Time      `json:"created_at,omitempty"`
-	Total        decimal.Decimal `json:"total"`
-	ZoneID       *string         `json:"zone_id,omitempty"`
-	PaymentState string          `json:"payment_state"`
+	OrderID   string          `json:"order_id"`
+	OrderType dto.OrderType   `json:"order_type"`
+	CreatedAt *time.Time      `json:"created_at,omitempty"`
+	Total     decimal.Decimal `json:"total"`
+	ZoneID    *string         `json:"zone_id,omitempty"`
+	// DeliveryFee is already in Total; set on a delivery only.
+	DeliveryFee  *decimal.Decimal `json:"delivery_fee,omitempty"`
+	PaymentState string           `json:"payment_state"`
 	// PaymentURL is the only way to pay an order awaiting payment; absent once paid or expired.
 	PaymentURL *string         `json:"payment_url,omitempty"`
 	Lines      []orderLineView `json:"lines"`
@@ -423,6 +426,7 @@ func writtenOrderView(order *dto.OpenBill, items []dto.OrderProductItem, choices
 		OrderType:    order.OrderType,
 		Total:        order.TotalAmount,
 		ZoneID:       order.DeliveryZoneID,
+		DeliveryFee:  order.DeliveryFee,
 		PaymentState: paymentAwaiting,
 		PaymentURL:   order.PaymentURL,
 		Lines:        make([]orderLineView, 0, len(items)),
@@ -443,6 +447,7 @@ func detailOrderView(order *dto.OpenBillWithProducts) orderView {
 		CreatedAt:    &createdAt,
 		Total:        order.TotalAmount,
 		ZoneID:       order.DeliveryZoneID,
+		DeliveryFee:  order.DeliveryFee,
 		PaymentState: paymentAwaiting,
 		Lines:        make([]orderLineView, 0, len(order.Products)),
 	}
@@ -656,8 +661,10 @@ func registerCustomerTools(s *mcp.Server, c *Client) {
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
-		Name:        "check_delivery_location",
-		Description: "Check whether the location the customer shared in the chat is inside the delivery area, and which zone. Creates nothing. If it is not deliverable, offer takeaway.",
+		Name: "check_delivery_location",
+		Description: "Check whether the location the customer shared in the chat is inside the delivery area, which zone, and its delivery_fee " +
+			"(COP, ICO included). Creates nothing. If it is deliverable, tell the customer the delivery fee before creating the order, " +
+			"or that delivery is free when it is 0. If it is not deliverable, offer takeaway.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, _ noInput) (*mcp.CallToolResult, any, error) {
 		lat, lng, err := customerLocation(req)
 		if err != nil {
@@ -671,13 +678,14 @@ func registerCustomerTools(s *mcp.Server, c *Client) {
 		if err := json.Unmarshal(body, &result); err != nil {
 			return toolError(fmt.Errorf("decode location check: %w", err))
 		}
-		return jsonOK(json.Marshal(locationCheck{Deliverable: result.Deliverable, ZoneName: result.ZoneName}))
+		return jsonOK(json.Marshal(locationCheck{Deliverable: result.Deliverable, ZoneName: result.ZoneName, DeliveryFee: result.DeliveryFee}))
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "create_delivery_order",
 		Description: "Create a takeaway or delivery order for the customer in this chat. A delivery goes to the location the customer shared " +
-			"and needs the address reference for the rider. The order is awaiting payment and comes with payment_url, the only way to pay it; " +
+			"and needs the address reference for the rider; its zone's delivery_fee is added by the restaurant and is already in total. " +
+			"The order is awaiting payment and comes with payment_url, the only way to pay it; " +
 			"the kitchen starts it once it is paid, and it is cancelled if unpaid after 30 minutes. " +
 			"For a plate with slots send choices only when the customer asked for a change; each line comes back " +
 			"with the choice every slot resolved to. If a choice is refused, call get_side_dish_options again and ask the customer.",

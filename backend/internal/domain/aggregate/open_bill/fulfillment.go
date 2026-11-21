@@ -27,6 +27,7 @@ type Fulfillment struct {
 	deliveryLat     *decimal.Decimal
 	deliveryLng     *decimal.Decimal
 	deliveryZoneID  *string
+	deliveryFee     *dto.DeliveryFeeAmounts
 	origin          *dto.Origin
 }
 
@@ -35,7 +36,7 @@ func DineInFulfillment() Fulfillment {
 }
 
 // NewFulfillment validates a create request's type, contact and location. The delivery zone
-// is resolved afterwards by the caller (InZone), since it needs the active zones.
+// and its fee are resolved afterwards by the caller (InZone), since they need the active zones.
 func NewFulfillment(req dto.OrderContactRequest, homeRegion string) (Fulfillment, error) {
 	orderType := req.OrderType
 	if orderType == "" {
@@ -116,8 +117,23 @@ func RestoreFulfillment(f dto.OrderFulfillment) Fulfillment {
 		deliveryLat:     f.DeliveryLat,
 		deliveryLng:     f.DeliveryLng,
 		deliveryZoneID:  f.DeliveryZoneID,
+		deliveryFee:     restoreFee(f),
 		origin:          f.Origin,
 	}
+}
+
+func restoreFee(f dto.OrderFulfillment) *dto.DeliveryFeeAmounts {
+	if f.DeliveryFee == nil {
+		return nil
+	}
+	fee := dto.DeliveryFeeAmounts{DeliveryFee: *f.DeliveryFee}
+	if f.DeliveryFeeBase != nil {
+		fee.DeliveryFeeBase = *f.DeliveryFeeBase
+	}
+	if f.DeliveryFeeICO != nil {
+		fee.DeliveryFeeICO = *f.DeliveryFeeICO
+	}
+	return &fee
 }
 
 // WithOrigin records where an agent order came from; an empty origin is no origin.
@@ -130,9 +146,19 @@ func (f Fulfillment) WithOrigin(origin dto.Origin) Fulfillment {
 	return f
 }
 
-func (f Fulfillment) InZone(zoneID string) Fulfillment {
+// InZone records the zone and its fee as they are now; repricing the zone later changes neither.
+func (f Fulfillment) InZone(zoneID string, fee dto.DeliveryFeeAmounts) Fulfillment {
 	f.deliveryZoneID = &zoneID
+	f.deliveryFee = &fee
 	return f
+}
+
+// DeliveryFee is zero for an order with no fee (dine-in, takeaway).
+func (f Fulfillment) DeliveryFee() decimal.Decimal {
+	if f.deliveryFee == nil {
+		return decimal.Zero
+	}
+	return f.deliveryFee.DeliveryFee
 }
 
 func (f Fulfillment) OrderType() dto.OrderType {
@@ -161,6 +187,10 @@ func (f Fulfillment) ToDTO() dto.OrderFulfillment {
 		DeliveryLng:     f.deliveryLng,
 		DeliveryZoneID:  f.deliveryZoneID,
 		Origin:          f.origin,
+	}
+	if f.deliveryFee != nil {
+		fee, base, ico := f.deliveryFee.DeliveryFee, f.deliveryFee.DeliveryFeeBase, f.deliveryFee.DeliveryFeeICO
+		out.DeliveryFee, out.DeliveryFeeBase, out.DeliveryFeeICO = &fee, &base, &ico
 	}
 	if f.deliveryLat != nil && f.deliveryLng != nil {
 		mapURL := shared.DeliveryMapURL(*f.deliveryLat, *f.deliveryLng)

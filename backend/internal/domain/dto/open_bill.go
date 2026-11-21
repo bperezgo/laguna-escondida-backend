@@ -37,6 +37,11 @@ type OrderFulfillment struct {
 	DeliveryLng     *decimal.Decimal `json:"delivery_lng,omitempty"`
 	DeliveryZoneID  *string          `json:"delivery_zone_id,omitempty"`
 	DeliveryMapURL  *string          `json:"delivery_map_url,omitempty"`
+	// DeliveryFee is the zone's fee when the order was created, ICO included; nil unless delivery.
+	// It is part of total_amount but never a line.
+	DeliveryFee     *decimal.Decimal `json:"delivery_fee,omitempty"`
+	DeliveryFeeBase *decimal.Decimal `json:"delivery_fee_base,omitempty"`
+	DeliveryFeeICO  *decimal.Decimal `json:"delivery_fee_ico,omitempty"`
 	// Origin is set on agent orders only, at creation, and never changes.
 	Origin *Origin `json:"origin,omitempty"`
 	// VoidReason is payment_expired for an agent order nobody paid in time; nil for any other order.
@@ -191,6 +196,11 @@ type Bill struct {
 	XMLStoragePath *string         `json:"xml_storage_path,omitempty"`
 	Customer       *Customer       `json:"customer,omitempty"`
 	Products       []BillProduct   `json:"products,omitempty"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
+	// DeliveryFee is the paid order's delivery fee; its base and ICO are already in
+	// total_amount and ico. Nil for a bill without one.
+	DeliveryFee     *decimal.Decimal `json:"delivery_fee,omitempty"`
+	DeliveryFeeBase *decimal.Decimal `json:"delivery_fee_base,omitempty"`
+	DeliveryFeeICO  *decimal.Decimal `json:"delivery_fee_ico,omitempty"`
+	CreatedAt       time.Time        `json:"created_at"`
+	UpdatedAt       time.Time        `json:"updated_at"`
 }

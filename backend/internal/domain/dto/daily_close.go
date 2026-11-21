@@ -22,14 +22,18 @@ type PaymentMethodBreakdown struct {
 // by payment kind. TotalCollected is the sum of the per-method gross, so the breakdown
 // always reconciles to the total.
 type DailyCloseReport struct {
-	StartDate       time.Time                `json:"start_date"`
-	EndDate         time.Time                `json:"end_date"`
-	TotalOrders     int                      `json:"total_orders"`
-	TotalCollected  decimal.Decimal          `json:"total_collected"` // gross across all methods
-	TotalNet        decimal.Decimal          `json:"total_net"`       // net of tax (reference)
-	TotalVAT        decimal.Decimal          `json:"total_vat"`
-	TotalICO        decimal.Decimal          `json:"total_ico"`
-	TotalDiscount   decimal.Decimal          `json:"total_discount"`
-	TotalTip        decimal.Decimal          `json:"total_tip"`
-	ByPaymentMethod []PaymentMethodBreakdown `json:"by_payment_method"`
+	StartDate      time.Time       `json:"start_date"`
+	EndDate        time.Time       `json:"end_date"`
+	TotalOrders    int             `json:"total_orders"`
+	TotalCollected decimal.Decimal `json:"total_collected"` // gross across all methods
+	TotalNet       decimal.Decimal `json:"total_net"`       // net of tax (reference)
+	TotalVAT       decimal.Decimal `json:"total_vat"`
+	TotalICO       decimal.Decimal `json:"total_ico"`
+	TotalDiscount  decimal.Decimal `json:"total_discount"`
+	TotalTip       decimal.Decimal `json:"total_tip"`
+	// Delivery fees collected, already included in the totals above.
+	TotalDeliveryFee     decimal.Decimal          `json:"total_delivery_fee"`
+	TotalDeliveryFeeBase decimal.Decimal          `json:"total_delivery_fee_base"`
+	TotalDeliveryFeeICO  decimal.Decimal          `json:"total_delivery_fee_ico"`
+	ByPaymentMethod      []PaymentMethodBreakdown `json:"by_payment_method"`
 }

@@ -10,6 +10,10 @@ export interface RevenueData {
   total_discount: string;
   total_tip: string;
   count: number;
+  // Delivery fees; already inside total_amount and total_ico.
+  total_delivery_fee: string;
+  total_delivery_fee_base: string;
+  total_delivery_fee_ico: string;
 }
 
 export interface ExpenseCategoryData {

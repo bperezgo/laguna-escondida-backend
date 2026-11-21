@@ -24,6 +24,7 @@ import { choicesPayload, selectChoice } from "@/lib/orders/lineChoices";
 import type { OpenBillWithProducts, OrderProductItem } from "@/types/order";
 import type { OpenBillProductStatus } from "@/types/commandItem";
 import { formatDateTime, formatMoney } from "@/lib/format";
+import { deliveryFeeLabel, feeAmount } from "@/lib/deliveryZones/fee";
 
 interface EditOrderFormProps {
   openBill: OpenBillWithProducts;
@@ -471,11 +472,33 @@ export default function EditOrderForm({
   // Live total from the current lines, so it grows as the waitress adds
   // products. `openBill.total_amount` is the stale server value from load and
   // must not be shown while editing.
-  const orderTotal = selectedProductsArray.reduce(
+  const linesTotal = selectedProductsArray.reduce(
     (sum, { product, quantity }) =>
       sum + parseFloat(product.total_price_with_taxes) * quantity,
     0,
   );
+  // Recorded at creation and never changed by an edit.
+  const deliveryFee =
+    openBill.order_type === "delivery" && openBill.delivery_fee != null
+      ? feeAmount(openBill.delivery_fee)
+      : null;
+  const orderTotal = linesTotal + (deliveryFee ?? 0);
+  const deliveryFeeRow =
+    deliveryFee === null ? null : (
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          marginBottom: "0.35rem",
+          fontSize: "0.85rem",
+          color: "var(--color-text-secondary)",
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        <span>Productos {formatMoney(linesTotal)}</span>
+        <span>{deliveryFeeLabel(deliveryFee, formatMoney)}</span>
+      </div>
+    );
 
   // Has the waitress changed anything since load / last save? Drives the update
   // button colour: gray when nothing's changed, green once there are edits.
@@ -1116,6 +1139,7 @@ export default function EditOrderForm({
                 backgroundColor: "var(--color-bg)",
               }}
             >
+              {deliveryFeeRow}
               <div
                 style={{
                   display: "flex",
@@ -1554,6 +1578,7 @@ export default function EditOrderForm({
                 backgroundColor: "var(--color-bg)",
               }}
             >
+              {deliveryFeeRow}
               <div
                 style={{
                   display: "flex",

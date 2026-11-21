@@ -68,6 +68,17 @@ Every order has an `order_type`:
 - The contact is **not** a fiscal customer: no bill owner is created. Choosing who the invoice is for still happens at `pay-order`.
 - Orders replicated from the restaurant (edge) are always `dine_in`.
 
+### Delivery fee
+
+A `delivery` order records the [delivery fee](./delivery-zones.md#delivery-fee) of the zone it is accepted in, as that zone's fee is at that moment.
+
+- **Not taken from the request.** A `delivery_fee` sent on create is ignored; the zone's fee is used. Use [`GET /api/delivery-zones/check`](./delivery-zones.md#check-a-point) to quote it beforehand: it comes from the same zone lookup.
+- **Part of the total.** `total_amount` = the lines (`total_price_with_taxes × quantity`) **plus** `delivery_fee`. The Wompi payment link and the paid amount charge that total.
+- **Fixed.** Repricing or redrawing the zone, or replacing the order's lines with `PUT`, never changes it: after an update the total is the new lines plus the recorded fee.
+- **Never a line.** It is not in `products`, never reaches a kitchen board, and reserves or consumes no stock.
+- **Returned on every order read** (create, update, the active list, a single order, the closed list and a single closed order) as `delivery_fee`, `delivery_fee_base` and `delivery_fee_ico` (strings, ICO 8% included in the fee). A free zone gives `"delivery_fee": "0"`. `dine_in` and `takeaway` orders have no such fields.
+- At payment the fee goes to the bill and the electronic invoice gets a separate "Domicilio" item (see [Invoices → Delivery fee item](./invoices.md#delivery-fee-item)).
+
 ### Ordering availability
 
 The organization can pause `delivery` and `takeaway` and give each a weekly schedule (see [Organization Settings](./organization-settings.md)). Creating a `takeaway` or `delivery` order while that type is paused or outside its hours is refused with `422` (`ORDERING_PAUSED` or `OUTSIDE_ORDERING_HOURS`), and nothing is created.
@@ -251,7 +262,7 @@ An agent order's response also carries `payment_url`, the link that pays it, whe
 {
   "id": "019a1f3c-5b2e-7c41-9a8d-3e6f1b2c4d50",
   "temporal_identifier": "019a1f3c-5b2e-7c41-9a8d-3e6f1b2c4d51",
-  "total_amount": "32000",
+  "total_amount": "37000",
   "status": "created",
   "descriptor": "Domicilio Ana",
   "created_at": "2026-10-15T12:00:00Z",
@@ -263,9 +274,14 @@ An agent order's response also carries `payment_url`, the link that pays it, whe
   "delivery_lat": "4.5981",
   "delivery_lng": "-74.076",
   "delivery_zone_id": "019a0f00-1111-7000-8000-00000000c3e7",
-  "delivery_map_url": "https://www.google.com/maps/search/?api=1&query=4.5981,-74.076"
+  "delivery_map_url": "https://www.google.com/maps/search/?api=1&query=4.5981,-74.076",
+  "delivery_fee": "5000",
+  "delivery_fee_base": "4629.63",
+  "delivery_fee_ico": "370.37"
 }
 ```
+
+The line is worth `32000`; `total_amount` adds zone Centro's `5000` fee.
 
 ### Error Responses
 
@@ -385,7 +401,7 @@ An agent order's response also carries `payment_url`, the link that pays it, whe
 
 `PUT /api/orders/:id`
 
-Updates an existing order's products, description, and/or temporal identifier. Sending an empty `products` array clears all products. Fields `temporal_identifier` and `descriptor` are optional — only sent fields are updated. The order's `order_type`, contact, address, location and zone never change on update.
+Updates an existing order's products, description, and/or temporal identifier. Sending an empty `products` array clears all products. Fields `temporal_identifier` and `descriptor` are optional — only sent fields are updated. The order's `order_type`, contact, address, location, zone and delivery fee never change on update; `total_amount` is recomputed as the new lines plus the recorded delivery fee.
 
 ### Path Parameters
 

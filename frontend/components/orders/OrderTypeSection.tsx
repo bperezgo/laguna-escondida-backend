@@ -5,6 +5,8 @@ import { Input } from "@/components/ui";
 import type { OrderType } from "@/types/commandItem";
 import type { OrganizationSettingsResponse } from "@/types/organizationSettings";
 import { describeAvailability } from "@/lib/deliveries/schedule";
+import { deliveryFeeLabel } from "@/lib/deliveryZones/fee";
+import { formatMoney } from "@/lib/format";
 import {
   ORDER_TYPE_OPTIONS,
   type DeliveryPin,
@@ -51,7 +53,10 @@ function pinCheckLine(check: PinCheck): { text: string; color: string } | null {
     case "checking":
       return { text: "Verificando la ubicación…", color: "var(--color-text-secondary)" };
     case "inside":
-      return { text: `Zona: ${check.zoneName}`, color: "var(--color-success)" };
+      return {
+        text: `Zona: ${check.zoneName} · ${deliveryFeeLabel(check.deliveryFee, formatMoney)}`,
+        color: "var(--color-success)",
+      };
     case "outside":
       return { text: "Fuera de la zona de entrega", color: "var(--color-danger)" };
     case "error":

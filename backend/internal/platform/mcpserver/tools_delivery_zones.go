@@ -16,16 +16,18 @@ const boundaryDescription = "the zone as a GeoJSON Polygon or MultiPolygon geome
 	"Positions are [longitude, latitude]; every ring is closed (last position = first)"
 
 type createDeliveryZoneInput struct {
-	Name     string `json:"name" jsonschema:"the zone name, e.g. Centro"`
-	Boundary string `json:"boundary" jsonschema:"the zone as a GeoJSON Polygon or MultiPolygon geometry JSON string, positions [lng, lat]"`
-	Active   *bool  `json:"active,omitempty" jsonschema:"whether deliveries are accepted in it (default true)"`
+	Name        string  `json:"name" jsonschema:"the zone name, e.g. Centro"`
+	Boundary    string  `json:"boundary" jsonschema:"the zone as a GeoJSON Polygon or MultiPolygon geometry JSON string, positions [lng, lat]"`
+	Active      *bool   `json:"active,omitempty" jsonschema:"whether deliveries are accepted in it (default true)"`
+	DeliveryFee *string `json:"delivery_fee,omitempty" jsonschema:"flat fee per delivery in COP with ICO included, e.g. 5000; omitted or 0 is free delivery"`
 }
 
 type updateDeliveryZoneInput struct {
-	ID       string  `json:"id" jsonschema:"the delivery zone id (UUID)"`
-	Name     *string `json:"name,omitempty" jsonschema:"new zone name"`
-	Boundary *string `json:"boundary,omitempty" jsonschema:"new GeoJSON Polygon or MultiPolygon geometry JSON string, positions [lng, lat]"`
-	Active   *bool   `json:"active,omitempty" jsonschema:"set false to stop deliveries there"`
+	ID          string  `json:"id" jsonschema:"the delivery zone id (UUID)"`
+	Name        *string `json:"name,omitempty" jsonschema:"new zone name"`
+	Boundary    *string `json:"boundary,omitempty" jsonschema:"new GeoJSON Polygon or MultiPolygon geometry JSON string, positions [lng, lat]"`
+	Active      *bool   `json:"active,omitempty" jsonschema:"set false to stop deliveries there"`
+	DeliveryFee *string `json:"delivery_fee,omitempty" jsonschema:"new flat fee per delivery in COP with ICO included; orders already taken keep theirs"`
 }
 
 type deliveryZoneIDInput struct {
@@ -33,9 +35,10 @@ type deliveryZoneIDInput struct {
 }
 
 type deliveryZoneBody struct {
-	Name     *string         `json:"name,omitempty"`
-	Boundary json.RawMessage `json:"boundary,omitempty"`
-	Active   *bool           `json:"active,omitempty"`
+	Name        *string         `json:"name,omitempty"`
+	Boundary    json.RawMessage `json:"boundary,omitempty"`
+	Active      *bool           `json:"active,omitempty"`
+	DeliveryFee *string         `json:"delivery_fee,omitempty"`
 }
 
 func boundaryJSON(raw string) (json.RawMessage, error) {
@@ -48,7 +51,7 @@ func boundaryJSON(raw string) (json.RawMessage, error) {
 func registerDeliveryZoneTools(s *mcp.Server, c *Client) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "list_delivery_zones",
-		Description: "List the delivery zones (cloud only), with their GeoJSON boundaries and active flags.",
+		Description: "List the delivery zones (cloud only), with their GeoJSON boundaries, active flags and delivery fees.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ noInput) (*mcp.CallToolResult, any, error) {
 		body, err := c.Get(ctx, "/api/delivery-zones", nil)
 		if err != nil {
@@ -66,7 +69,7 @@ func registerDeliveryZoneTools(s *mcp.Server, c *Client) {
 		if err != nil {
 			return toolError(err)
 		}
-		body, err := c.Post(ctx, "/api/delivery-zones", deliveryZoneBody{Name: &in.Name, Boundary: boundary, Active: in.Active})
+		body, err := c.Post(ctx, "/api/delivery-zones", deliveryZoneBody{Name: &in.Name, Boundary: boundary, Active: in.Active, DeliveryFee: in.DeliveryFee})
 		if err != nil {
 			return toolError(err)
 		}
@@ -75,9 +78,9 @@ func registerDeliveryZoneTools(s *mcp.Server, c *Client) {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "update_delivery_zone",
-		Description: "Update a delivery zone's name, boundary or active flag (cloud only). Existing orders keep their zone. Boundary: " + boundaryDescription + ".",
+		Description: "Update a delivery zone's name, boundary, active flag or delivery fee (cloud only). Existing orders keep their zone and fee. Boundary: " + boundaryDescription + ".",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in updateDeliveryZoneInput) (*mcp.CallToolResult, any, error) {
-		req := deliveryZoneBody{Name: in.Name, Active: in.Active}
+		req := deliveryZoneBody{Name: in.Name, Active: in.Active, DeliveryFee: in.DeliveryFee}
 		if in.Boundary != nil {
 			boundary, err := boundaryJSON(*in.Boundary)
 			if err != nil {

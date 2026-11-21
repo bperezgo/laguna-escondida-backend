@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { deliveryZonesApi } from "@/lib/api/deliveryZones";
 import type { DeliveryPin } from "@/lib/orders/orderTypePayload";
+import { deliverableZone } from "@/lib/deliveryZones/fee";
 
 export type PinCheck =
   | { status: "idle" }
   | { status: "checking" }
-  | { status: "inside"; zoneName: string }
+  | { status: "inside"; zoneName: string; deliveryFee: number }
   | { status: "outside" }
   | { status: "error" };
 
@@ -33,11 +34,8 @@ export function useDeliveryPinCheck(): [PinCheck, (pin: DeliveryPin) => void] {
       try {
         const result = await deliveryZonesApi.check(pin.lat, pin.lng);
         if (seq !== seqRef.current) return;
-        setCheck(
-          result.deliverable
-            ? { status: "inside", zoneName: result.zone_name ?? "zona" }
-            : { status: "outside" },
-        );
+        const zone = deliverableZone(result);
+        setCheck(zone ? { status: "inside", ...zone } : { status: "outside" });
       } catch (error) {
         if (seq !== seqRef.current) return;
         console.error("Error checking delivery zone:", error);

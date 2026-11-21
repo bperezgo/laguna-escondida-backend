@@ -32,6 +32,8 @@ export interface ReceiptTotals {
   subtotal: number;
   totalVAT: number;
   totalICO: number;
+  /** The delivery fee the order recorded, ICO included; 0 when it has none. Already in total. */
+  deliveryFee: number;
   total: number;
 }
 
@@ -53,10 +55,13 @@ export function calculateReceiptTotals(
     totalICO += parseFloat(product.ico_amount || "0") * quantity;
   });
 
+  const deliveryFee = parseFloat(openBill.delivery_fee || "0") || 0;
+
   return {
     subtotal,
     totalVAT,
     totalICO,
-    total: subtotal + totalVAT + totalICO,
+    deliveryFee,
+    total: subtotal + totalVAT + totalICO + deliveryFee,
   };
 }

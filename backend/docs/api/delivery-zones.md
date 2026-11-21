@@ -10,11 +10,20 @@ Define the areas where the restaurant delivers. A `delivery` order is accepted o
 | ------ | -------------------------------- | ------------------------------------ | ------------------------ |
 | GET    | `/api/delivery-zones`            | List zones (active and inactive)     | `delivery-zones:read`    |
 | POST   | `/api/delivery-zones`            | Create a zone                        | `delivery-zones:manage`  |
-| PUT    | `/api/delivery-zones/:id`        | Update name, boundary or active flag | `delivery-zones:manage`  |
+| PUT    | `/api/delivery-zones/:id`        | Update name, boundary, active flag or fee | `delivery-zones:manage`  |
 | DELETE | `/api/delivery-zones/:id`        | Delete (soft) a zone                 | `delivery-zones:manage`  |
-| GET    | `/api/delivery-zones/check`      | Is a point deliverable, and where?   | `orders:create`          |
+| GET    | `/api/delivery-zones/check`      | Is a point deliverable, where, and for what fee? | `orders:create`          |
 
 `delivery-zones:read` and `delivery-zones:manage` are granted to **admin** and **manager**. Every other role, including `agent`, gets `403` on list/create/update/delete. Checking a point is open to anyone who can create orders.
+
+## Delivery fee
+
+Every zone has a flat `delivery_fee`: one amount charged on every delivery into it, in COP, given as the **final price with ICO included** (like a product's `total_price_with_taxes`). `0` means free delivery; a zone created without a fee has fee `0`, and so do zones that existed before fees were added.
+
+- The fee is sent as a **string**, like other numeric request fields: `"5000"`. It must be `0` or more with at most 2 decimals; anything else is refused with `400 DELIVERY_ZONE_INVALID_FEE` and nothing is stored.
+- The server derives and returns its base and ICO at 8%: `delivery_fee_base = round(fee / 1.08, 2)` and `delivery_fee_ico = fee − base`, so base + ICO always equals the fee. `5000` → `4629.63` + `370.37`.
+- A delivery order **records** its zone's fee when it is created (see [Orders → Delivery fee](./orders.md#delivery-fee)). Changing a zone's fee affects only orders created afterwards.
+- The fee is invoiced as its own "Domicilio" line taxed with ICO 8% (see [Invoices → Delivery fee item](./invoices.md#delivery-fee-item)).
 
 ## Boundary format (GeoJSON)
 
@@ -66,6 +75,9 @@ Returns every non-deleted zone, oldest first.
         "coordinates": [[[-74.10, 4.58], [-74.06, 4.58], [-74.06, 4.62], [-74.10, 4.62], [-74.10, 4.58]]]
       },
       "active": true,
+      "delivery_fee": "5000",
+      "delivery_fee_base": "4629.63",
+      "delivery_fee_ico": "370.37",
       "created_at": "2026-10-15T09:00:00Z",
       "updated_at": "2026-10-15T09:00:00Z"
     }
@@ -86,6 +98,7 @@ Returns every non-deleted zone, oldest first.
 | name     | string  | Yes      | 1–100 characters |
 | boundary | object  | Yes      | GeoJSON `Polygon` or `MultiPolygon` geometry, `[lng, lat]` positions |
 | active   | boolean | No       | Defaults to `true` |
+| delivery_fee | string | No    | Fee per delivery in COP, ICO included, `0` or more with at most 2 decimals. Defaults to `"0"` (free) |
 
 ### Example Request
 
@@ -95,7 +108,8 @@ Returns every non-deleted zone, oldest first.
   "boundary": {
     "type": "Polygon",
     "coordinates": [[[-74.10, 4.58], [-74.06, 4.58], [-74.06, 4.62], [-74.10, 4.62], [-74.10, 4.58]]]
-  }
+  },
+  "delivery_fee": "5000"
 }
 ```
 
@@ -118,6 +132,15 @@ The created zone, same shape as a list item.
 | -------------------------------- | ---- |
 | `DELIVERY_ZONE_INVALID_NAME`     | Name empty or longer than 100 characters |
 | `DELIVERY_ZONE_INVALID_BOUNDARY` | Not a `Polygon`/`MultiPolygon`, a ring with fewer than 4 positions, an open ring, or a coordinate out of range |
+| `DELIVERY_ZONE_INVALID_FEE`      | `delivery_fee` negative, not a number, or with more than 2 decimals |
+
+```json
+{
+  "error": "delivery_fee must be a number >= 0 with at most 2 decimals",
+  "code": "DELIVERY_ZONE_INVALID_FEE",
+  "field": "-1000"
+}
+```
 
 **403 Forbidden** — the caller lacks `delivery-zones:manage`
 
@@ -127,7 +150,7 @@ The created zone, same shape as a list item.
 
 `PUT /api/delivery-zones/:id`
 
-Every field is optional; only sent fields change. Redrawing or deactivating a zone affects **later** delivery orders only: existing orders keep the zone they were accepted in. Deactivating every zone stops new deliveries without a deploy.
+Every field is optional; only sent fields change. Redrawing, repricing or deactivating a zone affects **later** delivery orders only: existing orders keep the zone and the fee they were accepted with. Deactivating every zone stops new deliveries without a deploy.
 
 ### Example Request
 
@@ -137,13 +160,21 @@ Every field is optional; only sent fields change. Redrawing or deactivating a zo
 }
 ```
 
+```json
+{
+  "delivery_fee": "6000"
+}
+```
+
 ### Example Response (200 OK)
 
 The updated zone.
 
 ### Error Responses
 
-**400 Bad Request** — invalid name or boundary (same codes as Create)
+**400 Bad Request** — invalid name, boundary or fee (same codes as Create)
+
+**403 Forbidden** — the caller lacks `delivery-zones:manage` (an `agent` cannot change a fee)
 
 **404 Not Found** — the zone does not exist or was deleted
 
@@ -177,7 +208,7 @@ Soft-deletes the zone. Orders already recorded in it are unchanged.
 
 `GET /api/delivery-zones/check?lat=<latitude>&lng=<longitude>`
 
-Answers whether a point is inside an active zone, without creating anything. When several active zones contain it, the oldest one is reported — the same one an order would record.
+Answers whether a point is inside an active zone and, if so, that zone's delivery fee, without creating anything. When several active zones contain it, the oldest one is reported — the same zone and fee an order created there at that moment would record, so staff and the agent can quote the fee before taking the order.
 
 ### Query Parameters
 
@@ -192,11 +223,16 @@ Answers whether a point is inside an active zone, without creating anything. Whe
 {
   "deliverable": true,
   "zone_id": "019a0f00-1111-7000-8000-00000000c3e7",
-  "zone_name": "Centro"
+  "zone_name": "Centro",
+  "delivery_fee": "5000"
 }
 ```
 
+A free zone answers `"delivery_fee": "0"`.
+
 ### Example Response (200 OK, not deliverable)
+
+No zone and no fee:
 
 ```json
 {

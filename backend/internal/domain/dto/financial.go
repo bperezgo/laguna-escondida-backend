@@ -27,6 +27,10 @@ type RevenueSummary struct {
 	TotalDiscount decimal.Decimal `json:"total_discount"`
 	TotalTip      decimal.Decimal `json:"total_tip"`
 	Count         int             `json:"count"`
+	// Delivery fees are already inside the totals above; these break them out.
+	TotalDeliveryFee     decimal.Decimal `json:"total_delivery_fee"`
+	TotalDeliveryFeeBase decimal.Decimal `json:"total_delivery_fee_base"`
+	TotalDeliveryFeeICO  decimal.Decimal `json:"total_delivery_fee_ico"`
 }
 
 type ExpenseSummary struct {

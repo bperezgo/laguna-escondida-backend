@@ -37,11 +37,12 @@ func NewAggregate(
 	return NewAggregateWithFulfillment(openBillID, temporalIdentifier, descriptor, totalAmount, products, createdByID, DineInFulfillment())
 }
 
+// NewAggregateWithFulfillment takes the lines' total; the order's total adds the delivery fee.
 func NewAggregateWithFulfillment(
 	openBillID string,
 	temporalIdentifier string,
 	descriptor *string,
-	totalAmount decimal.Decimal,
+	linesTotal decimal.Decimal,
 	products []*OpenBillProduct,
 	createdByID string,
 	fulfillment Fulfillment,
@@ -59,7 +60,7 @@ func NewAggregateWithFulfillment(
 	return &Aggregate{
 		id:                 openBillID,
 		temporalIdentifier: temporalIdentifier,
-		totalAmount:        totalAmount,
+		totalAmount:        linesTotal.Add(fulfillment.DeliveryFee()),
 		status:             status,
 		descriptor:         descriptor,
 		products:           products,
@@ -192,9 +193,10 @@ func (a *Aggregate) RestoreFulfillment(fulfillment Fulfillment) {
 	a.fulfillment = fulfillment
 }
 
-func (a *Aggregate) UpdateProducts(products []*OpenBillProduct, totalAmount decimal.Decimal) {
+// UpdateProducts keeps the fee recorded at creation, whatever the zone charges now.
+func (a *Aggregate) UpdateProducts(products []*OpenBillProduct, linesTotal decimal.Decimal) {
 	a.products = products
-	a.totalAmount = totalAmount
+	a.totalAmount = linesTotal.Add(a.fulfillment.DeliveryFee())
 	a.updatedAt = time.Now()
 }
 
