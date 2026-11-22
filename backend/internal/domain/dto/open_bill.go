@@ -42,6 +42,8 @@ type OrderFulfillment struct {
 	DeliveryFee     *decimal.Decimal `json:"delivery_fee,omitempty"`
 	DeliveryFeeBase *decimal.Decimal `json:"delivery_fee_base,omitempty"`
 	DeliveryFeeICO  *decimal.Decimal `json:"delivery_fee_ico,omitempty"`
+	// DeliveryFeeICORate is the zone's rate when the order was created, a fraction (0.08 = 8%).
+	DeliveryFeeICORate *decimal.Decimal `json:"delivery_fee_ico_rate,omitempty"`
 	// Origin is set on agent orders only, at creation, and never changes.
 	Origin *Origin `json:"origin,omitempty"`
 	// VoidReason is payment_expired for an agent order nobody paid in time; nil for any other order.
@@ -201,6 +203,8 @@ type Bill struct {
 	DeliveryFee     *decimal.Decimal `json:"delivery_fee,omitempty"`
 	DeliveryFeeBase *decimal.Decimal `json:"delivery_fee_base,omitempty"`
 	DeliveryFeeICO  *decimal.Decimal `json:"delivery_fee_ico,omitempty"`
-	CreatedAt       time.Time        `json:"created_at"`
-	UpdatedAt       time.Time        `json:"updated_at"`
+	// DeliveryFeeICORate is the rate the order recorded with its fee; the invoice taxes the fee at it.
+	DeliveryFeeICORate *decimal.Decimal `json:"delivery_fee_ico_rate,omitempty"`
+	CreatedAt          time.Time        `json:"created_at"`
+	UpdatedAt          time.Time        `json:"updated_at"`
 }

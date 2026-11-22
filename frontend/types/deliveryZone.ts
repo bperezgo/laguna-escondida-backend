@@ -23,6 +23,8 @@ export interface DeliveryZone {
   delivery_fee: string;
   delivery_fee_base: string;
   delivery_fee_ico: string;
+  /** ICO rate of the fee as a fraction ("0.08" = 8%); base and ICO are derived at it. */
+  delivery_fee_ico_rate: string;
   created_at: string;
   updated_at: string;
 }
@@ -36,6 +38,8 @@ export interface CreateDeliveryZoneRequest {
   boundary: ZoneBoundary;
   active?: boolean;
   delivery_fee?: string;
+  /** Fraction, 0 ≤ rate < 1; omitted is 0.08. */
+  delivery_fee_ico_rate?: string;
 }
 
 export interface UpdateDeliveryZoneRequest {
@@ -43,6 +47,7 @@ export interface UpdateDeliveryZoneRequest {
   boundary?: ZoneBoundary;
   active?: boolean;
   delivery_fee?: string;
+  delivery_fee_ico_rate?: string;
 }
 
 export interface DeliveryPointCheck {

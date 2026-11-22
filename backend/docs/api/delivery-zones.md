@@ -10,7 +10,7 @@ Define the areas where the restaurant delivers. A `delivery` order is accepted o
 | ------ | -------------------------------- | ------------------------------------ | ------------------------ |
 | GET    | `/api/delivery-zones`            | List zones (active and inactive)     | `delivery-zones:read`    |
 | POST   | `/api/delivery-zones`            | Create a zone                        | `delivery-zones:manage`  |
-| PUT    | `/api/delivery-zones/:id`        | Update name, boundary, active flag or fee | `delivery-zones:manage`  |
+| PUT    | `/api/delivery-zones/:id`        | Update name, boundary, active flag, fee or ICO rate | `delivery-zones:manage`  |
 | DELETE | `/api/delivery-zones/:id`        | Delete (soft) a zone                 | `delivery-zones:manage`  |
 | GET    | `/api/delivery-zones/check`      | Is a point deliverable, where, and for what fee? | `orders:create`          |
 
@@ -21,9 +21,11 @@ Define the areas where the restaurant delivers. A `delivery` order is accepted o
 Every zone has a flat `delivery_fee`: one amount charged on every delivery into it, in COP, given as the **final price with ICO included** (like a product's `total_price_with_taxes`). `0` means free delivery; a zone created without a fee has fee `0`, and so do zones that existed before fees were added.
 
 - The fee is sent as a **string**, like other numeric request fields: `"5000"`. It must be `0` or more with at most 2 decimals; anything else is refused with `400 DELIVERY_ZONE_INVALID_FEE` and nothing is stored.
-- The server derives and returns its base and ICO at 8%: `delivery_fee_base = round(fee / 1.08, 2)` and `delivery_fee_ico = fee − base`, so base + ICO always equals the fee. `5000` → `4629.63` + `370.37`.
-- A delivery order **records** its zone's fee when it is created (see [Orders → Delivery fee](./orders.md#delivery-fee)). Changing a zone's fee affects only orders created afterwards.
-- The fee is invoiced as its own "Domicilio" line taxed with ICO 8% (see [Invoices → Delivery fee item](./invoices.md#delivery-fee-item)).
+- Every zone also has a `delivery_fee_ico_rate`: the ICO rate of its fee, as a **fraction** (`"0.08"` = 8%), like a product's `ico`. It must be at least `0` and less than `1`, with at most 4 decimals; anything else (including a percent such as `"8"`) is refused with `400 DELIVERY_ZONE_INVALID_ICO_RATE` and nothing is stored. A zone created without a rate gets `0.08`, and so do zones that existed before the rate was added (their base and ICO are unchanged).
+- The server derives and returns its base and ICO at the zone's rate: `delivery_fee_base = round(fee / (1 + rate), 2)` and `delivery_fee_ico = fee − base`, so base + ICO always equals the fee. `5000` at `0.08` → `4629.63` + `370.37`; at `0.19` → `4201.68` + `798.32`.
+- Changing either the fee or the rate recomputes the zone's base and ICO. Sending only one keeps the other.
+- A delivery order **records** its zone's fee, base, ICO and rate when it is created (see [Orders → Delivery fee](./orders.md#delivery-fee)). Changing a zone's fee or rate affects only orders created afterwards.
+- The fee is invoiced as its own "Domicilio" line taxed with ICO at the rate the order recorded (see [Invoices → Delivery fee item](./invoices.md#delivery-fee-item)).
 
 ## Boundary format (GeoJSON)
 
@@ -78,6 +80,7 @@ Returns every non-deleted zone, oldest first.
       "delivery_fee": "5000",
       "delivery_fee_base": "4629.63",
       "delivery_fee_ico": "370.37",
+      "delivery_fee_ico_rate": "0.08",
       "created_at": "2026-10-15T09:00:00Z",
       "updated_at": "2026-10-15T09:00:00Z"
     }
@@ -99,6 +102,7 @@ Returns every non-deleted zone, oldest first.
 | boundary | object  | Yes      | GeoJSON `Polygon` or `MultiPolygon` geometry, `[lng, lat]` positions |
 | active   | boolean | No       | Defaults to `true` |
 | delivery_fee | string | No    | Fee per delivery in COP, ICO included, `0` or more with at most 2 decimals. Defaults to `"0"` (free) |
+| delivery_fee_ico_rate | string | No | ICO rate of the fee as a fraction, `0` ≤ rate < `1`, at most 4 decimals. Defaults to `"0.08"` |
 
 ### Example Request
 
@@ -109,7 +113,8 @@ Returns every non-deleted zone, oldest first.
     "type": "Polygon",
     "coordinates": [[[-74.10, 4.58], [-74.06, 4.58], [-74.06, 4.62], [-74.10, 4.62], [-74.10, 4.58]]]
   },
-  "delivery_fee": "5000"
+  "delivery_fee": "5000",
+  "delivery_fee_ico_rate": "0.08"
 }
 ```
 
@@ -133,12 +138,21 @@ The created zone, same shape as a list item.
 | `DELIVERY_ZONE_INVALID_NAME`     | Name empty or longer than 100 characters |
 | `DELIVERY_ZONE_INVALID_BOUNDARY` | Not a `Polygon`/`MultiPolygon`, a ring with fewer than 4 positions, an open ring, or a coordinate out of range |
 | `DELIVERY_ZONE_INVALID_FEE`      | `delivery_fee` negative, not a number, or with more than 2 decimals |
+| `DELIVERY_ZONE_INVALID_ICO_RATE` | `delivery_fee_ico_rate` negative, `1` or more, not a number, or with more than 4 decimals |
 
 ```json
 {
   "error": "delivery_fee must be a number >= 0 with at most 2 decimals",
   "code": "DELIVERY_ZONE_INVALID_FEE",
   "field": "-1000"
+}
+```
+
+```json
+{
+  "error": "delivery_fee_ico_rate must be a fraction >= 0 and < 1 (0.08 = 8%) with at most 4 decimals",
+  "code": "DELIVERY_ZONE_INVALID_ICO_RATE",
+  "field": "8"
 }
 ```
 
@@ -150,7 +164,7 @@ The created zone, same shape as a list item.
 
 `PUT /api/delivery-zones/:id`
 
-Every field is optional; only sent fields change. Redrawing, repricing or deactivating a zone affects **later** delivery orders only: existing orders keep the zone and the fee they were accepted with. Deactivating every zone stops new deliveries without a deploy.
+Every field is optional; only sent fields change. Redrawing, repricing or deactivating a zone affects **later** delivery orders only: existing orders keep the zone, the fee and the ICO rate they were accepted with. Deactivating every zone stops new deliveries without a deploy.
 
 ### Example Request
 
@@ -166,15 +180,23 @@ Every field is optional; only sent fields change. Redrawing, repricing or deacti
 }
 ```
 
+```json
+{
+  "delivery_fee_ico_rate": "0.19"
+}
+```
+
+Changing only the rate of a `5000` zone to `0.19` returns base `4201.68` and ICO `798.32`; its fee stays `5000`.
+
 ### Example Response (200 OK)
 
 The updated zone.
 
 ### Error Responses
 
-**400 Bad Request** — invalid name, boundary or fee (same codes as Create)
+**400 Bad Request** — invalid name, boundary, fee or ICO rate (same codes as Create)
 
-**403 Forbidden** — the caller lacks `delivery-zones:manage` (an `agent` cannot change a fee)
+**403 Forbidden** — the caller lacks `delivery-zones:manage` (an `agent` cannot change a fee or a rate)
 
 **404 Not Found** — the zone does not exist or was deleted
 

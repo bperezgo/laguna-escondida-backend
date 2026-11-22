@@ -9,21 +9,24 @@ import {
   geojsonIoUrl,
   parseBoundaryText,
 } from "@/lib/deliveryZones/geojson";
-import { parseDeliveryFeeInput } from "@/lib/deliveryZones/fee";
+import { parseDeliveryFeeInput, parseICOPercentInput } from "@/lib/deliveryZones/fee";
 
 interface ZoneEditorProps {
   isNew: boolean;
   name: string;
   active: boolean;
   deliveryFee: string;
+  /** The ICO rate as a percent, as typed. */
+  icoPercent: string;
   boundary: ZoneBoundary | null;
   onNameChange: (name: string) => void;
   onDeliveryFeeChange: (fee: string) => void;
+  onICOPercentChange: (percent: string) => void;
   onActiveChange: (active: boolean) => void;
   /** A boundary that came from outside the map (pasted GeoJSON). */
   onBoundaryImport: (boundary: ZoneBoundary) => void;
-  /** Receives the fee as the API wants it. */
-  onSave: (deliveryFee: string) => void;
+  /** Receives the fee and the rate (a fraction) as the API wants them. */
+  onSave: (deliveryFee: string, icoRate: string) => void;
   onCancel: () => void;
   isSaving: boolean;
 }
@@ -33,9 +36,11 @@ export default function ZoneEditor({
   name,
   active,
   deliveryFee,
+  icoPercent,
   boundary,
   onNameChange,
   onDeliveryFeeChange,
+  onICOPercentChange,
   onActiveChange,
   onBoundaryImport,
   onSave,
@@ -49,6 +54,7 @@ export default function ZoneEditor({
   const [importError, setImportError] = useState("");
   const [nameError, setNameError] = useState("");
   const [feeError, setFeeError] = useState("");
+  const [rateError, setRateError] = useState("");
 
   const handleImport = () => {
     const result = parseBoundaryText(geojsonText);
@@ -78,7 +84,13 @@ export default function ZoneEditor({
       return;
     }
     setFeeError("");
-    onSave(fee.value);
+    const rate = parseICOPercentInput(icoPercent);
+    if (!rate.ok) {
+      setRateError(rate.error);
+      return;
+    }
+    setRateError("");
+    onSave(fee.value, rate.value);
   };
 
   return (
@@ -116,8 +128,21 @@ export default function ZoneEditor({
               if (feeError) setFeeError("");
             }}
             error={feeError}
-            helper="Precio final, incluye impoconsumo (8%). Vacío o 0 = domicilio gratis. Solo aplica a las órdenes nuevas."
+            helper={`Precio final, incluye impoconsumo (${icoPercent.trim() || "?"}%). Vacío o 0 = domicilio gratis. Solo aplica a las órdenes nuevas.`}
             placeholder="Ej: 5000"
+            inputMode="decimal"
+          />
+
+          <Input
+            label="ICO (%)"
+            value={icoPercent}
+            onChange={(e) => {
+              onICOPercentChange(e.target.value);
+              if (rateError) setRateError("");
+            }}
+            error={rateError}
+            helper="Impoconsumo incluido en la tarifa. Solo aplica a las órdenes nuevas."
+            placeholder="Ej: 8"
             inputMode="decimal"
           />
 

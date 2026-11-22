@@ -17,13 +17,16 @@ import (
 func TestSubmitDue_DeliveryFeeIsItsOwnICOItem(t *testing.T) {
 	dec := decimal.RequireFromString
 	tests := []struct {
-		name           string
-		fee, base, ico *decimal.Decimal
-		wantDelivery   bool
+		name                 string
+		fee, base, ico, rate *decimal.Decimal
+		wantDelivery         bool
+		wantPercent          string
 	}{
-		{"delivery with a fee", ptr(dec("5000")), ptr(dec("4629.63")), ptr(dec("370.37")), true},
-		{"free delivery", ptr(dec("0")), ptr(dec("0")), ptr(dec("0")), false},
-		{"takeaway", nil, nil, nil, false},
+		{"delivery with a fee", ptr(dec("5000")), ptr(dec("4629.63")), ptr(dec("370.37")), ptr(dec("0.08")), true, "8.00"},
+		{"recorded at 19%", ptr(dec("5000")), ptr(dec("4201.68")), ptr(dec("798.32")), ptr(dec("0.19")), true, "19.00"},
+		{"fee without a recorded rate", ptr(dec("5000")), ptr(dec("4629.63")), ptr(dec("370.37")), nil, false, ""},
+		{"free delivery", ptr(dec("0")), ptr(dec("0")), ptr(dec("0")), ptr(dec("0.08")), false, ""},
+		{"takeaway", nil, nil, nil, nil, false, ""},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -40,6 +43,8 @@ func TestSubmitDue_DeliveryFeeIsItsOwnICOItem(t *testing.T) {
 				DeliveryFee:     tc.fee,
 				DeliveryFeeBase: tc.base,
 				DeliveryFeeICO:  tc.ico,
+
+				DeliveryFeeICORate: tc.rate,
 			}, nil)
 			billRepo.EXPECT().GetNextConsecutive(mock.Anything, "LAG").Return(152, nil)
 			pendingRepo.EXPECT().AssignConsecutive(ctx, "pending-d", "LAG", 152, mock.AnythingOfType("json.RawMessage")).Return(nil)
@@ -65,8 +70,8 @@ func TestSubmitDue_DeliveryFeeIsItsOwnICOItem(t *testing.T) {
 			assert.Equal(t, "Domicilio", delivery.Name)
 			assert.Equal(t, "DOMICILIO", delivery.Code)
 			assert.Equal(t, 1, delivery.Quantity)
-			assert.True(t, dec("4629.63").Equal(delivery.UnitPrice))
-			assert.Equal(t, []dto.InvoiceTax{{TaxCode: dto.TaxCodeICO, TaxAmount: "370.37", Percent: "8.00"}}, delivery.Taxes)
+			assert.True(t, tc.base.Equal(delivery.UnitPrice))
+			assert.Equal(t, []dto.InvoiceTax{{TaxCode: dto.TaxCodeICO, TaxAmount: tc.ico.StringFixed(2), Percent: tc.wantPercent}}, delivery.Taxes)
 		})
 	}
 }

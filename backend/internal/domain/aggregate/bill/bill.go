@@ -113,8 +113,9 @@ func (a *Aggregate) ToDTO() *dto.Bill {
 		}),
 	}
 	if a.deliveryFee != nil {
-		fee, base, ico := a.deliveryFee.DeliveryFee, a.deliveryFee.DeliveryFeeBase, a.deliveryFee.DeliveryFeeICO
-		out.DeliveryFee, out.DeliveryFeeBase, out.DeliveryFeeICO = &fee, &base, &ico
+		fee := *a.deliveryFee
+		out.DeliveryFee, out.DeliveryFeeBase, out.DeliveryFeeICO = &fee.DeliveryFee, &fee.DeliveryFeeBase, &fee.DeliveryFeeICO
+		out.DeliveryFeeICORate = &fee.DeliveryFeeICORate
 	}
 	return out
 }
@@ -200,6 +201,9 @@ func (a *Aggregate) addDeliveryFee(f dto.OrderFulfillment) {
 	}
 	if f.DeliveryFeeICO != nil {
 		fee.DeliveryFeeICO = *f.DeliveryFeeICO
+	}
+	if f.DeliveryFeeICORate != nil {
+		fee.DeliveryFeeICORate = *f.DeliveryFeeICORate
 	}
 	a.deliveryFee = &fee
 	a.totalAmount = a.totalAmount.Add(fee.DeliveryFeeBase)

@@ -768,11 +768,12 @@ curl -X POST "$BASE_URL/delivery-zones" \
       "type": "Polygon",
       "coordinates": [[[-74.10, 4.58], [-74.06, 4.58], [-74.06, 4.62], [-74.10, 4.62], [-74.10, 4.58]]]
     },
-    "delivery_fee": "5000"
+    "delivery_fee": "5000",
+    "delivery_fee_ico_rate": "0.08"
   }'
 ```
 
-`delivery_fee` is the final price with ICO 8% included; omit it (or send `"0"`) for free delivery.
+`delivery_fee` is the final price with ICO included; omit it (or send `"0"`) for free delivery. `delivery_fee_ico_rate` is that ICO as a fraction (`0.08` = 8%); omit it for `0.08`.
 
 ### Check the Restaurant's Own Pin After Uploading
 
@@ -795,6 +796,15 @@ curl -X PUT "$BASE_URL/delivery-zones/ZONE_ID" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{ "delivery_fee": "6000" }'
+```
+
+### Change a Zone's ICO Rate (only new orders get it)
+
+```bash
+curl -X PUT "$BASE_URL/delivery-zones/ZONE_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "delivery_fee_ico_rate": "0.19" }'
 ```
 
 ### Deactivate a Zone (stops new deliveries there)

@@ -196,8 +196,9 @@ func deliveryOpenBillWorth32000(fee *dto.DeliveryFeeAmounts) *dto.OpenBillWithPr
 		OrderFulfillment: dto.OrderFulfillment{OrderType: dto.OrderTypeDelivery},
 	}
 	if fee != nil {
-		amount, base, ico := fee.DeliveryFee, fee.DeliveryFeeBase, fee.DeliveryFeeICO
+		amount, base, ico, rate := fee.DeliveryFee, fee.DeliveryFeeBase, fee.DeliveryFeeICO, fee.DeliveryFeeICORate
 		order.DeliveryFee, order.DeliveryFeeBase, order.DeliveryFeeICO = &amount, &base, &ico
+		order.DeliveryFeeICORate = &rate
 		order.TotalAmount = order.TotalAmount.Add(amount)
 	}
 	return order
@@ -269,4 +270,68 @@ func TestOrderService_PayOrder_AFreeDeliveryBillsLikeBefore(t *testing.T) {
 	assert.True(t, withoutFee.ICO.Equal(withFreeFee.ICO))
 	assert.True(t, decimal.NewFromInt(32000).Equal(withFreeFee.PayAmount))
 	assertPayIdentity(t, withFreeFee)
+}
+
+func TestOrderService_CreateOrder_DeliveryRecordsTheZoneICORate(t *testing.T) {
+	f := newFeeOrderFixture(t)
+	zone := centroZone()
+	zone.DeliveryFeeAmounts = feeAt("5000", "4201.68", "798.32", "0.19")
+	f.zones.EXPECT().ListActive(mock.Anything).Return([]*dto.DeliveryZone{zone}, nil).Once()
+	req := contactRequest(deliveryInCentro())
+	req.Products = linesWorth32000()
+
+	result, err := f.service.CreateOrder(createTestContext(), req, createTestUser())
+
+	require.NoError(t, err)
+	require.NotNil(t, result.DeliveryFeeICORate)
+	assert.True(t, decimal.RequireFromString("0.19").Equal(*result.DeliveryFeeICORate))
+	assert.True(t, decimal.RequireFromString("798.32").Equal(*result.DeliveryFeeICO))
+	stored := f.created.Fulfillment().ToDTO()
+	require.NotNil(t, stored.DeliveryFeeICORate, "the rate is persisted")
+	assert.True(t, decimal.RequireFromString("0.19").Equal(*stored.DeliveryFeeICORate))
+}
+
+func TestOrderService_UpdateOrder_KeepsTheRecordedICORateAfterTheZoneRateChanged(t *testing.T) {
+	ctx := createTestContext()
+	openBills := mocks.NewMockOpenBillRepository(t)
+	products := mocks.NewMockProductRepository(t)
+	service := createTestService(t, products, openBills, nil, nil)
+	existing := heldAggregate(t, dto.OrderTypeDelivery, nil, dto.CommandStatusCreated)
+	stored := existing.Fulfillment().ToDTO()
+	fee, base, ico, rate := decimal.NewFromInt(5000), decimal.RequireFromString("4629.63"), decimal.RequireFromString("370.37"), decimal.RequireFromString("0.08")
+	stored.DeliveryFee, stored.DeliveryFeeBase, stored.DeliveryFeeICO, stored.DeliveryFeeICORate = &fee, &base, &ico, &rate
+	existing.RestoreFulfillment(openBill.RestoreFulfillment(stored))
+
+	openBills.On("FindByIDWithProducts", ctx, openBillID1).Return(&dto.OpenBillWithProducts{ID: openBillID1, CreatedBy: dto.OpenBillCreator{ID: userID1}}, nil)
+	openBills.On("FindAggregateByID", ctx, openBillID1).Return(existing, nil)
+	products.On("FindByIDs", ctx, mock.Anything).Return([]*dto.Product{createTestProduct(productID2, "Limonada", "Bebidas", 1, 10000, 0)}, nil)
+	openBills.On("GetProductPreparationResponsibilities", ctx, mock.Anything).Return(nil, nil)
+	openBills.On("Update", ctx, mock.Anything).Return(nil)
+
+	// The zone is now at 0.19; the order never asks it again.
+	result, err := service.UpdateOrder(ctx, openBillID1, &dto.UpdateOrderRequest{Products: []dto.OrderProductItem{
+		{OpenBillProductID: obpIDNew, ProductID: productID2, Quantity: 2},
+	}}, createTestUser())
+
+	require.NoError(t, err)
+	require.NotNil(t, result.DeliveryFeeICORate)
+	assert.True(t, rate.Equal(*result.DeliveryFeeICORate))
+	assert.True(t, ico.Equal(*result.DeliveryFeeICO))
+}
+
+func TestOrderService_PayOrder_TheBillCarriesTheRecordedICORate(t *testing.T) {
+	for _, tc := range []struct{ base, ico, rate string }{
+		{"4629.63", "370.37", "0.08"},
+		{"4201.68", "798.32", "0.19"},
+	} {
+		t.Run(tc.rate, func(t *testing.T) {
+			fee := feeAt("5000", tc.base, tc.ico, tc.rate)
+
+			b, _ := payDelivery(t, deliveryOpenBillWorth32000(&fee))
+
+			require.NotNil(t, b.DeliveryFeeICORate)
+			assert.True(t, decimal.RequireFromString(tc.rate).Equal(*b.DeliveryFeeICORate))
+			assertPayIdentity(t, b)
+		})
+	}
 }

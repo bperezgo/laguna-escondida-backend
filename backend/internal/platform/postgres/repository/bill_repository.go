@@ -133,6 +133,8 @@ func (r *BillRepository) FindBillForInvoice(ctx context.Context, billID string) 
 		DeliveryFee:     bm.DeliveryFee,
 		DeliveryFeeBase: bm.DeliveryFeeBase,
 		DeliveryFeeICO:  bm.DeliveryFeeICO,
+
+		DeliveryFeeICORate: bm.DeliveryFeeICORate,
 	}, nil
 }
 
@@ -163,6 +165,7 @@ func (r *BillRepository) Create(ctx context.Context, bill *bill.Aggregate, produ
 			UpdatedAt:      billDTO.UpdatedAt,
 			DeliveryFeeColumns: DeliveryFeeColumns{
 				DeliveryFee: billDTO.DeliveryFee, DeliveryFeeBase: billDTO.DeliveryFeeBase, DeliveryFeeICO: billDTO.DeliveryFeeICO,
+				DeliveryFeeICORate: billDTO.DeliveryFeeICORate,
 			},
 		}
 

@@ -133,6 +133,9 @@ func restoreFee(f dto.OrderFulfillment) *dto.DeliveryFeeAmounts {
 	if f.DeliveryFeeICO != nil {
 		fee.DeliveryFeeICO = *f.DeliveryFeeICO
 	}
+	if f.DeliveryFeeICORate != nil {
+		fee.DeliveryFeeICORate = *f.DeliveryFeeICORate
+	}
 	return &fee
 }
 
@@ -146,7 +149,7 @@ func (f Fulfillment) WithOrigin(origin dto.Origin) Fulfillment {
 	return f
 }
 
-// InZone records the zone and its fee as they are now; repricing the zone later changes neither.
+// InZone records the zone and its fee and rate as they are now; repricing the zone later changes neither.
 func (f Fulfillment) InZone(zoneID string, fee dto.DeliveryFeeAmounts) Fulfillment {
 	f.deliveryZoneID = &zoneID
 	f.deliveryFee = &fee
@@ -189,8 +192,9 @@ func (f Fulfillment) ToDTO() dto.OrderFulfillment {
 		Origin:          f.origin,
 	}
 	if f.deliveryFee != nil {
-		fee, base, ico := f.deliveryFee.DeliveryFee, f.deliveryFee.DeliveryFeeBase, f.deliveryFee.DeliveryFeeICO
-		out.DeliveryFee, out.DeliveryFeeBase, out.DeliveryFeeICO = &fee, &base, &ico
+		fee := *f.deliveryFee
+		out.DeliveryFee, out.DeliveryFeeBase, out.DeliveryFeeICO = &fee.DeliveryFee, &fee.DeliveryFeeBase, &fee.DeliveryFeeICO
+		out.DeliveryFeeICORate = &fee.DeliveryFeeICORate
 	}
 	if f.deliveryLat != nil && f.deliveryLng != nil {
 		mapURL := shared.DeliveryMapURL(*f.deliveryLat, *f.deliveryLng)

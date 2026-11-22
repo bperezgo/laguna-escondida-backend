@@ -17,10 +17,15 @@ import (
 )
 
 func feeOf(fee, base, ico string) dto.DeliveryFeeAmounts {
+	return feeAt(fee, base, ico, "0.08")
+}
+
+func feeAt(fee, base, ico, rate string) dto.DeliveryFeeAmounts {
 	return dto.DeliveryFeeAmounts{
-		DeliveryFee:     decimal.RequireFromString(fee),
-		DeliveryFeeBase: decimal.RequireFromString(base),
-		DeliveryFeeICO:  decimal.RequireFromString(ico),
+		DeliveryFee:        decimal.RequireFromString(fee),
+		DeliveryFeeBase:    decimal.RequireFromString(base),
+		DeliveryFeeICO:     decimal.RequireFromString(ico),
+		DeliveryFeeICORate: decimal.RequireFromString(rate),
 	}
 }
 
@@ -29,6 +34,7 @@ func assertFee(t *testing.T, want, got dto.DeliveryFeeAmounts) {
 	assert.True(t, want.DeliveryFee.Equal(got.DeliveryFee), "fee: want %s, got %s", want.DeliveryFee, got.DeliveryFee)
 	assert.True(t, want.DeliveryFeeBase.Equal(got.DeliveryFeeBase), "base: want %s, got %s", want.DeliveryFeeBase, got.DeliveryFeeBase)
 	assert.True(t, want.DeliveryFeeICO.Equal(got.DeliveryFeeICO), "ico: want %s, got %s", want.DeliveryFeeICO, got.DeliveryFeeICO)
+	assert.True(t, want.DeliveryFeeICORate.Equal(got.DeliveryFeeICORate), "rate: want %s, got %s", want.DeliveryFeeICORate, got.DeliveryFeeICORate)
 }
 
 func TestDeliveryZoneService_Create_DerivesFeeBaseAndICO(t *testing.T) {
@@ -161,4 +167,85 @@ func TestDeliveryZoneService_Check_ReturnsZoneFee(t *testing.T) {
 			assert.True(t, decimal.RequireFromString(*tc.fee).Equal(*result.DeliveryFee))
 		})
 	}
+}
+
+func TestDeliveryZoneService_Create_UsesItsOwnICORate(t *testing.T) {
+	repo := mocks.NewMockDeliveryZoneRepository(t)
+	var stored *dto.DeliveryZone
+	repo.EXPECT().Create(mock.Anything, mock.Anything).
+		Run(func(_ context.Context, z *dto.DeliveryZone) { stored = z }).Return(nil).Once()
+
+	fee, rate := "5000", "0.19"
+	zone, err := NewDeliveryZoneService(repo).Create(context.Background(), &dto.CreateDeliveryZoneRequest{
+		Name: "Norte", Boundary: json.RawMessage(centroPolygon), DeliveryFee: &fee, DeliveryFeeICORate: &rate,
+	})
+
+	require.NoError(t, err)
+	assertFee(t, feeAt("5000", "4201.68", "798.32", "0.19"), zone.DeliveryFeeAmounts)
+	assertFee(t, feeAt("5000", "4201.68", "798.32", "0.19"), stored.DeliveryFeeAmounts)
+}
+
+func TestDeliveryZoneService_Create_InvalidICORate(t *testing.T) {
+	for _, rate := range []string{"-0.01", "1", "8", "0.08125", "abc"} {
+		t.Run(rate, func(t *testing.T) {
+			repo := mocks.NewMockDeliveryZoneRepository(t)
+			fee, value := "5000", rate
+
+			_, err := NewDeliveryZoneService(repo).Create(context.Background(), &dto.CreateDeliveryZoneRequest{
+				Name: "Centro", Boundary: json.RawMessage(centroPolygon), DeliveryFee: &fee, DeliveryFeeICORate: &value,
+			})
+
+			requireBaseErrorCode(t, err, zoneError.CodeInvalidICORate)
+		})
+	}
+}
+
+func TestDeliveryZoneService_Update_InvalidICORateChangesNothing(t *testing.T) {
+	for _, rate := range []string{"-0.01", "1", "8"} {
+		t.Run(rate, func(t *testing.T) {
+			created := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+			existing := zoneDTO("z1", "Centro", centroPolygon, true, created)
+			existing.DeliveryFeeAmounts = feeOf("5000", "4629.63", "370.37")
+			repo := mocks.NewMockDeliveryZoneRepository(t)
+			repo.EXPECT().FindByID(mock.Anything, "z1").Return(existing, nil).Once()
+
+			value := rate
+			_, err := NewDeliveryZoneService(repo).Update(context.Background(), "z1", &dto.UpdateDeliveryZoneRequest{DeliveryFeeICORate: &value})
+
+			requireBaseErrorCode(t, err, zoneError.CodeInvalidICORate)
+		})
+	}
+}
+
+func TestDeliveryZoneService_Update_RateOnlyRecomputesBaseAndICO(t *testing.T) {
+	created := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	existing := zoneDTO("z1", "Centro", centroPolygon, true, created)
+	existing.DeliveryFeeAmounts = feeOf("5000", "4629.63", "370.37")
+	repo := mocks.NewMockDeliveryZoneRepository(t)
+	repo.EXPECT().FindByID(mock.Anything, "z1").Return(existing, nil).Once()
+	var stored *dto.DeliveryZone
+	repo.EXPECT().Update(mock.Anything, mock.Anything).
+		Run(func(_ context.Context, z *dto.DeliveryZone) { stored = z }).Return(nil).Once()
+
+	rate := "0.19"
+	zone, err := NewDeliveryZoneService(repo).Update(context.Background(), "z1", &dto.UpdateDeliveryZoneRequest{DeliveryFeeICORate: &rate})
+
+	require.NoError(t, err)
+	assertFee(t, feeAt("5000", "4201.68", "798.32", "0.19"), zone.DeliveryFeeAmounts)
+	assertFee(t, feeAt("5000", "4201.68", "798.32", "0.19"), stored.DeliveryFeeAmounts)
+}
+
+func TestDeliveryZoneService_Update_FeeOnlyKeepsTheRate(t *testing.T) {
+	created := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	existing := zoneDTO("z1", "Norte", centroPolygon, true, created)
+	existing.DeliveryFeeAmounts = feeAt("5000", "4201.68", "798.32", "0.19")
+	repo := mocks.NewMockDeliveryZoneRepository(t)
+	repo.EXPECT().FindByID(mock.Anything, "z1").Return(existing, nil).Once()
+	repo.EXPECT().Update(mock.Anything, mock.Anything).Return(nil).Once()
+
+	fee := "6000"
+	zone, err := NewDeliveryZoneService(repo).Update(context.Background(), "z1", &dto.UpdateDeliveryZoneRequest{DeliveryFee: &fee})
+
+	require.NoError(t, err)
+	assertFee(t, feeAt("6000", "5042.02", "957.98", "0.19"), zone.DeliveryFeeAmounts)
 }

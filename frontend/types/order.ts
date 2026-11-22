@@ -52,6 +52,8 @@ export interface OpenBill {
   delivery_fee?: string | null;
   delivery_fee_base?: string | null;
   delivery_fee_ico?: string | null;
+  /** The zone's ICO rate when the order was created, a fraction ("0.08" = 8%). */
+  delivery_fee_ico_rate?: string | null;
 }
 
 // The choice a line took for one slot of a plate, with the names as they were when it was taken.
