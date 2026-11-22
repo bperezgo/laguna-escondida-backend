@@ -27,6 +27,37 @@ func createUserWithEmail(t *testing.T, db *Database, ctx context.Context, email 
 	return user, err
 }
 
+func createAPIKeyManagedUser(t *testing.T, db *Database, ctx context.Context) *dto.User {
+	t.Helper()
+	id := uuid.NewString()
+	user := &dto.User{ID: id, Username: "apikey-" + id, Name: "console", Password: "x", Active: true, APIKeyManaged: true, CreatedAt: time.Now(), UpdatedAt: time.Now()}
+	require.NoError(t, NewUserRepository(db.DB).Create(ctx, user))
+	t.Cleanup(func() { db.DB.Exec("DELETE FROM users WHERE id = ?", id) })
+	return user
+}
+
+func TestUserRepository_FindAll_SkipsAPIKeyManaged_Integration(t *testing.T) {
+	db := newApplierTestDB(t)
+	ctx := lagunaCtx()
+	repo := NewUserRepository(db.DB)
+	staff, err := createUserWithEmail(t, db, ctx, nil)
+	require.NoError(t, err)
+	marked := createAPIKeyManagedUser(t, db, ctx)
+
+	all, err := repo.FindAll(ctx)
+	require.NoError(t, err)
+	ids := make([]string, len(all))
+	for i := range all {
+		ids[i] = all[i].ID
+	}
+	assert.Contains(t, ids, staff.ID)
+	assert.NotContains(t, ids, marked.ID)
+
+	found, err := repo.FindByID(ctx, marked.ID)
+	require.NoError(t, err, "FindByID still sees it, so the service can refuse it explicitly")
+	assert.True(t, found.APIKeyManaged)
+}
+
 func uniqueEmail() string {
 	return "ana-" + uuid.NewString()[:8] + "@example.com"
 }

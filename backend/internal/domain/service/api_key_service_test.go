@@ -18,6 +18,7 @@ import (
 	"laguna-escondida/backend/internal/domain/ports/mocks"
 	"laguna-escondida/backend/internal/domain/tenant"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -47,7 +48,7 @@ func newAPIKeyFixture(t *testing.T) *apiKeyFixture {
 		userRoles: mocks.NewMockUserRoleRepository(t),
 		clock:     time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC),
 	}
-	f.service = NewAPIKeyService(f.keys, f.orgs, f.users, f.userRoles, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	f.service = NewAPIKeyService(f.keys, f.orgs, f.users, f.userRoles, passthroughUnitOfWork{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	f.service.now = func() time.Time { return f.clock }
 	return f
 }
@@ -276,12 +277,15 @@ func TestAPIKeyService_List_Failures(t *testing.T) {
 }
 
 func TestAPIKeyService_Revoke(t *testing.T) {
-	t.Run("own key", func(t *testing.T) {
+	t.Run("own key of a user that predates it", func(t *testing.T) {
 		f := newAPIKeyFixture(t)
 		f.orgWithStatus(apiKeyOrgA, dto.OrganizationStatusActive)
 		f.keys.EXPECT().Revoke(mock.MatchedBy(inOrg(apiKeyOrgA)), apiKeyKeyID, f.clock).Return(nil)
+		f.keys.EXPECT().Get(mock.MatchedBy(inOrg(apiKeyOrgA)), apiKeyKeyID).Return(&dto.APIKey{ID: apiKeyKeyID, UserID: apiKeyUser}, nil)
+		f.users.EXPECT().FindByID(mock.MatchedBy(inOrg(apiKeyOrgA)), apiKeyUser).Return(&dto.User{ID: apiKeyUser, Active: true}, nil)
 
 		assert.NoError(t, f.service.Revoke(context.Background(), apiKeyOrgA, apiKeyKeyID))
+		f.users.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
 	})
 	t.Run("another organization's or an unknown key", func(t *testing.T) {
 		f := newAPIKeyFixture(t)
@@ -442,4 +446,214 @@ func TestAPIKeyService_Authenticate_TouchOutlivesTheRequest(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.NoError(t, touchCtxErr, "a finished request does not cancel the write")
+}
+
+// recordingUnitOfWork marks the context it hands out, so a test can tell which writes ran inside it.
+type recordingUnitOfWork struct{ calls int }
+
+type uowMarker struct{}
+
+func (u *recordingUnitOfWork) Do(ctx context.Context, fn func(ctx context.Context) error) error {
+	u.calls++
+	return fn(context.WithValue(ctx, uowMarker{}, true))
+}
+
+func inAPIKeyUnitOfWork(ctx context.Context) bool {
+	in, _ := ctx.Value(uowMarker{}).(bool)
+	org, _ := tenant.OrgFrom(ctx)
+	return in && org == apiKeyOrgA
+}
+
+func (f *apiKeyFixture) withRecordingUnitOfWork() *recordingUnitOfWork {
+	uow := &recordingUnitOfWork{}
+	f.service.uow = uow
+	return uow
+}
+
+func TestAPIKeyService_IssueForOrganization_CreatesADedicatedAgentUser(t *testing.T) {
+	f := newAPIKeyFixture(t)
+	uow := f.withRecordingUnitOfWork()
+	f.orgWithStatus(apiKeyOrgA, dto.OrganizationStatusActive)
+	var created *dto.User
+	f.users.EXPECT().Create(mock.MatchedBy(inAPIKeyUnitOfWork), mock.Anything).
+		Run(func(_ context.Context, u *dto.User) { created = u }).Return(nil)
+	f.userRoles.EXPECT().Create(mock.MatchedBy(inAPIKeyUnitOfWork), mock.MatchedBy(func(r *dto.UserRole) bool {
+		return r.UserID == created.ID && r.RoleID == permissions.RoleAgent
+	})).Return(nil)
+	var storedHash string
+	f.keys.EXPECT().Create(mock.MatchedBy(inAPIKeyUnitOfWork), mock.Anything, mock.Anything).
+		Run(func(_ context.Context, _ *dto.APIKey, hash string) { storedHash = hash }).Return(nil)
+
+	issued, err := f.service.IssueForOrganization(context.Background(), apiKeyOrgA, "  console-local ")
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, uow.calls, "user, role and key are written in one unit of work")
+	require.NotNil(t, created)
+	assert.NoError(t, uuid.Validate(created.ID))
+	assert.Equal(t, "apikey-"+created.ID, created.Username)
+	assert.Equal(t, "console-local", created.Name)
+	assert.Nil(t, created.Email)
+	assert.True(t, created.Active)
+	assert.True(t, created.APIKeyManaged)
+	assert.True(t, strings.HasPrefix(created.Password, "$2"), "a bcrypt hash of a password nobody knows")
+	assert.Equal(t, created.ID, issued.UserID)
+	assert.Equal(t, "console-local", issued.Name)
+	assert.Equal(t, apiKeyOrgA, issued.OrganizationID)
+	assert.True(t, strings.HasPrefix(issued.Key, dto.APIKeyPrefix))
+	assert.Equal(t, sha256Hex(issued.Key), storedHash)
+	assert.NotContains(t, storedHash, issued.Key[len(dto.APIKeyPrefix):])
+}
+
+func TestAPIKeyService_IssueForOrganization_EachKeyGetsItsOwnUser(t *testing.T) {
+	f := newAPIKeyFixture(t)
+	f.orgs.EXPECT().Get(mock.Anything, apiKeyOrgA).Return(&dto.Organization{ID: apiKeyOrgA, Status: dto.OrganizationStatusActive}, nil).Times(2)
+	f.users.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Times(2)
+	f.userRoles.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Times(2)
+	f.keys.EXPECT().Create(mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(2)
+
+	first, err := f.service.IssueForOrganization(context.Background(), apiKeyOrgA, "a")
+	require.NoError(t, err)
+	second, err := f.service.IssueForOrganization(context.Background(), apiKeyOrgA, "b")
+	require.NoError(t, err)
+
+	assert.NotEqual(t, first.UserID, second.UserID)
+}
+
+func TestAPIKeyService_IssueForOrganization_Refusals(t *testing.T) {
+	cases := []struct {
+		name    string
+		keyName string
+		arrange func(f *apiKeyFixture)
+		want    error
+	}{
+		{name: "blank name", keyName: "   ", want: domainError.ErrAPIKeyNameRequired},
+		{name: "name too long", keyName: strings.Repeat("ñ", apiKeyMaxNameLength+1), want: domainError.ErrAPIKeyNameTooLong},
+		{name: "suspended organization", keyName: "k", want: domainError.ErrOrganizationNotFound, arrange: func(f *apiKeyFixture) {
+			f.orgWithStatus(apiKeyOrgA, dto.OrganizationStatusSuspended)
+		}},
+		{name: "unknown organization", keyName: "k", want: domainError.ErrOrganizationNotFound, arrange: func(f *apiKeyFixture) {
+			f.orgs.EXPECT().Get(mock.Anything, apiKeyOrgA).Return(nil, domainError.ErrOrganizationNotFound)
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newAPIKeyFixture(t)
+			uow := f.withRecordingUnitOfWork()
+			if tc.arrange != nil {
+				tc.arrange(f)
+			}
+
+			_, err := f.service.IssueForOrganization(context.Background(), apiKeyOrgA, tc.keyName)
+
+			assert.ErrorIs(t, err, tc.want)
+			assert.Zero(t, uow.calls, "nothing is written")
+		})
+	}
+}
+
+func TestAPIKeyService_IssueForOrganization_FailureInsideTheUnitOfWorkIsReturned(t *testing.T) {
+	boom := errors.New("db down")
+	cases := []struct {
+		name    string
+		arrange func(f *apiKeyFixture)
+	}{
+		{name: "user", arrange: func(f *apiKeyFixture) {
+			f.users.EXPECT().Create(mock.Anything, mock.Anything).Return(boom)
+		}},
+		{name: "role", arrange: func(f *apiKeyFixture) {
+			f.users.EXPECT().Create(mock.Anything, mock.Anything).Return(nil)
+			f.userRoles.EXPECT().Create(mock.Anything, mock.Anything).Return(boom)
+		}},
+		{name: "key", arrange: func(f *apiKeyFixture) {
+			f.users.EXPECT().Create(mock.Anything, mock.Anything).Return(nil)
+			f.userRoles.EXPECT().Create(mock.Anything, mock.Anything).Return(nil)
+			f.keys.EXPECT().Create(mock.Anything, mock.Anything, mock.Anything).Return(boom)
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newAPIKeyFixture(t)
+			var fnErr error
+			f.service.uow = unitOfWorkFunc(func(ctx context.Context, fn func(context.Context) error) error {
+				fnErr = fn(ctx)
+				return fnErr
+			})
+			f.orgWithStatus(apiKeyOrgA, dto.OrganizationStatusActive)
+			tc.arrange(f)
+
+			issued, err := f.service.IssueForOrganization(context.Background(), apiKeyOrgA, "k")
+
+			assert.ErrorIs(t, fnErr, boom, "the unit of work sees the failure, so it rolls the user back")
+			assert.ErrorIs(t, err, boom)
+			assert.Nil(t, issued)
+		})
+	}
+}
+
+type unitOfWorkFunc func(ctx context.Context, fn func(context.Context) error) error
+
+func (u unitOfWorkFunc) Do(ctx context.Context, fn func(context.Context) error) error {
+	return u(ctx, fn)
+}
+
+func TestAPIKeyService_Revoke_DeactivatesTheKeysOwnUser(t *testing.T) {
+	f := newAPIKeyFixture(t)
+	uow := f.withRecordingUnitOfWork()
+	f.orgWithStatus(apiKeyOrgA, dto.OrganizationStatusActive)
+	f.keys.EXPECT().Revoke(mock.MatchedBy(inAPIKeyUnitOfWork), apiKeyKeyID, f.clock).Return(nil)
+	f.keys.EXPECT().Get(mock.MatchedBy(inAPIKeyUnitOfWork), apiKeyKeyID).Return(&dto.APIKey{ID: apiKeyKeyID, UserID: apiKeyUser}, nil)
+	f.users.EXPECT().FindByID(mock.MatchedBy(inAPIKeyUnitOfWork), apiKeyUser).
+		Return(&dto.User{ID: apiKeyUser, Name: "console", Active: true, APIKeyManaged: true}, nil)
+	f.users.EXPECT().Update(mock.MatchedBy(inAPIKeyUnitOfWork), mock.MatchedBy(func(u *dto.User) bool {
+		return u.ID == apiKeyUser && !u.Active && u.Name == "console" && u.UpdatedAt.Equal(f.clock)
+	})).Return(nil)
+
+	require.NoError(t, f.service.Revoke(context.Background(), apiKeyOrgA, apiKeyKeyID))
+	assert.Equal(t, 1, uow.calls)
+}
+
+func TestAPIKeyService_Revoke_RetireFailures(t *testing.T) {
+	boom := errors.New("db down")
+	cases := []struct {
+		name    string
+		arrange func(f *apiKeyFixture)
+		want    error
+	}{
+		{name: "key lookup", want: boom, arrange: func(f *apiKeyFixture) {
+			f.keys.EXPECT().Get(mock.Anything, apiKeyKeyID).Return(nil, boom)
+		}},
+		{name: "user lookup", want: boom, arrange: func(f *apiKeyFixture) {
+			f.keys.EXPECT().Get(mock.Anything, apiKeyKeyID).Return(&dto.APIKey{UserID: apiKeyUser}, nil)
+			f.users.EXPECT().FindByID(mock.Anything, apiKeyUser).Return(nil, boom)
+		}},
+		{name: "user update", want: boom, arrange: func(f *apiKeyFixture) {
+			f.keys.EXPECT().Get(mock.Anything, apiKeyKeyID).Return(&dto.APIKey{UserID: apiKeyUser}, nil)
+			f.users.EXPECT().FindByID(mock.Anything, apiKeyUser).Return(&dto.User{ID: apiKeyUser, Active: true, APIKeyManaged: true}, nil)
+			f.users.EXPECT().Update(mock.Anything, mock.Anything).Return(boom)
+		}},
+		{name: "user already deleted", arrange: func(f *apiKeyFixture) {
+			f.keys.EXPECT().Get(mock.Anything, apiKeyKeyID).Return(&dto.APIKey{UserID: apiKeyUser}, nil)
+			f.users.EXPECT().FindByID(mock.Anything, apiKeyUser).Return(nil, domainError.ErrUserNotFound)
+		}},
+		{name: "user already inactive", arrange: func(f *apiKeyFixture) {
+			f.keys.EXPECT().Get(mock.Anything, apiKeyKeyID).Return(&dto.APIKey{UserID: apiKeyUser}, nil)
+			f.users.EXPECT().FindByID(mock.Anything, apiKeyUser).Return(&dto.User{ID: apiKeyUser, APIKeyManaged: true}, nil)
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newAPIKeyFixture(t)
+			f.orgWithStatus(apiKeyOrgA, dto.OrganizationStatusActive)
+			f.keys.EXPECT().Revoke(mock.Anything, apiKeyKeyID, f.clock).Return(nil)
+			tc.arrange(f)
+
+			err := f.service.Revoke(context.Background(), apiKeyOrgA, apiKeyKeyID)
+
+			if tc.want == nil {
+				assert.NoError(t, err)
+				return
+			}
+			assert.ErrorIs(t, err, tc.want)
+		})
+	}
 }

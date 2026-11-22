@@ -78,7 +78,7 @@ func (r *SyncReferenceRepository) FindChangedUsers(ctx context.Context, since ti
 	}
 
 	var models []userModel
-	if err = changedFilter(db, since).Find(&models).Error; err != nil {
+	if err = changedFilter(db, since).Where("api_key_managed = false").Find(&models).Error; err != nil {
 		return nil, fmt.Errorf("query changed users: %w", err)
 	}
 
@@ -312,8 +312,9 @@ func (r *SyncReferenceRepository) UpsertUsers(ctx context.Context, users []dto.U
 		}
 	}
 
-	// Emails never sync, and a box whose trim is blocked stays below the migration that adds the column.
-	if err := db.Omit("email").Clauses(clause.OnConflict{
+	// Emails and the API-key marker never sync, and a box whose trim is blocked stays below the
+	// migrations that add those columns.
+	if err := db.Omit("email", "api_key_managed").Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "id"}},
 		Where:   postgres.SameOrganization("users"),
 		DoUpdates: clause.AssignmentColumns([]string{

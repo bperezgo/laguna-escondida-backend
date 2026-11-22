@@ -155,6 +155,22 @@ func TestSyncReferenceRepository_FindChangedUsers_IncludesRoles_Integration(t *t
 	assert.ElementsMatch(t, []int{1, 3}, seeded.RoleIDs, "the user payload carries its role ids for the edge")
 }
 
+func TestSyncReferenceRepository_FindChangedUsers_SkipsAPIKeyManaged_Integration(t *testing.T) {
+	db := newApplierTestDB(t)
+	ctx := lagunaCtx()
+	staff := seedUser(t, db)
+	marked := createAPIKeyManagedUser(t, db, ctx)
+
+	users, err := NewSyncReferenceRepository(db.DB).FindChangedUsers(ctx, time.Time{})
+	require.NoError(t, err)
+	ids := make([]string, len(users))
+	for i := range users {
+		ids[i] = users[i].ID
+	}
+	assert.Contains(t, ids, staff)
+	assert.NotContains(t, ids, marked.ID, "a key's user never reaches a box")
+}
+
 func userRoleIDs(t *testing.T, db *Database, userID string) []int {
 	t.Helper()
 	var ids []int

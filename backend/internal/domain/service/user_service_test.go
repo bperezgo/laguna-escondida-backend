@@ -936,3 +936,60 @@ func TestUserService_UpdateUser_Email(t *testing.T) {
 		})
 	}
 }
+
+func apiKeyManagedUser() *dto.User {
+	return &dto.User{ID: "key-user-id", Username: "apikey-key-user-id", Name: "console", Active: true, APIKeyManaged: true}
+}
+
+func TestUserService_StaffOperations_APIKeyManagedNotFound(t *testing.T) {
+	ctx := tenant.WithOrg(context.Background(), testOrgA)
+	newName := "Renamed"
+	ops := map[string]func(s *UserService) error{
+		"get": func(s *UserService) error { _, err := s.GetUser(ctx, "key-user-id"); return err },
+		"update": func(s *UserService) error {
+			_, err := s.UpdateUser(ctx, "admin-id", "key-user-id", &dto.UpdateUserRequest{Name: &newName, RoleIDs: []int{permissions.RoleAdmin}})
+			return err
+		},
+		"reset password": func(s *UserService) error { return s.ResetPassword(ctx, "key-user-id", "new-password-123") },
+		"delete":         func(s *UserService) error { return s.DeleteUser(ctx, "admin-id", "key-user-id") },
+	}
+	for name, op := range ops {
+		t.Run(name, func(t *testing.T) {
+			service, userRepo, _, _ := createTestUserService(t)
+			userRepo.On("FindByID", ctx, "key-user-id").Return(apiKeyManagedUser(), nil)
+
+			err := op(service)
+
+			assert.ErrorIs(t, err, domainError.ErrUserNotFound)
+			userRepo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+			userRepo.AssertNotCalled(t, "UpdatePassword", mock.Anything, mock.Anything, mock.Anything)
+			userRepo.AssertNotCalled(t, "SoftDelete", mock.Anything, mock.Anything)
+		})
+	}
+}
+
+func TestUserService_SignIn_CloudAPIKeyManagedRefused(t *testing.T) {
+	f := newUserServiceFixture(t, tenant.AnyOrganization())
+	found := anaFound(t, "password123", true)
+	found.User.APIKeyManaged = true
+	f.userRepo.On("FindByEmail", mock.Anything, "ana@example.com").Return(found, nil)
+	f.orgRepo.On("Get", mock.Anything, testOrgA).Return(lagunaOrg(dto.OrganizationStatusActive), nil)
+
+	_, err := cloudSignIn(f)
+
+	assert.ErrorIs(t, err, domainError.ErrInvalidCredentials)
+	f.userRoleRepo.AssertNotCalled(t, "FindRolesByUserID", mock.Anything, mock.Anything)
+}
+
+func TestUserService_SignIn_EdgeAPIKeyManagedRefused(t *testing.T) {
+	f := newUserServiceFixture(t, tenant.PinnedTo(testOrgA))
+	marked := activeUser(t, "password123", true)
+	marked.APIKeyManaged = true
+	f.orgRepo.On("Get", mock.Anything, testOrgA).Return(lagunaOrg(dto.OrganizationStatusActive), nil)
+	f.userRepo.On("FindByUsername", mock.Anything, "bob").Return(marked, nil)
+
+	_, err := f.service.SignIn(context.Background(), &dto.SignInRequest{Username: "bob", Password: "password123"})
+
+	assert.ErrorIs(t, err, domainError.ErrInvalidCredentials)
+	f.userRoleRepo.AssertNotCalled(t, "FindRolesByUserID", mock.Anything, mock.Anything)
+}

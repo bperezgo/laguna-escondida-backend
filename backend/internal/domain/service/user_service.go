@@ -139,8 +139,20 @@ func (s *UserService) ListUsers(ctx context.Context) (*dto.UsersListResponse, er
 	return &dto.UsersListResponse{Users: result}, nil
 }
 
+// findStaffUser hides a user created for an API key: its key's lifecycle owns it, not user management.
+func (s *UserService) findStaffUser(ctx context.Context, id string) (*dto.User, error) {
+	u, err := s.userRepo.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if u.APIKeyManaged {
+		return nil, domainError.ErrUserNotFound
+	}
+	return u, nil
+}
+
 func (s *UserService) GetUser(ctx context.Context, id string) (*dto.UserWithRoles, error) {
-	userDTO, err := s.userRepo.FindByID(ctx, id)
+	userDTO, err := s.findStaffUser(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +166,7 @@ func (s *UserService) GetUser(ctx context.Context, id string) (*dto.UserWithRole
 }
 
 func (s *UserService) UpdateUser(ctx context.Context, actingUserID, id string, req *dto.UpdateUserRequest) (*dto.UserWithRoles, error) {
-	current, err := s.userRepo.FindByID(ctx, id)
+	current, err := s.findStaffUser(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +257,7 @@ func (s *UserService) UpdateUser(ctx context.Context, actingUserID, id string, r
 }
 
 func (s *UserService) ResetPassword(ctx context.Context, id, newPassword string) error {
-	if _, err := s.userRepo.FindByID(ctx, id); err != nil {
+	if _, err := s.findStaffUser(ctx, id); err != nil {
 		return err
 	}
 
@@ -262,7 +274,7 @@ func (s *UserService) DeleteUser(ctx context.Context, actingUserID, id string) e
 		return domainError.ErrCannotDeleteSelf
 	}
 
-	current, err := s.userRepo.FindByID(ctx, id)
+	current, err := s.findStaffUser(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -310,6 +322,9 @@ func (s *UserService) SignIn(ctx context.Context, req *dto.SignInRequest) (*dto.
 	}
 	if err != nil {
 		return nil, err
+	}
+	if userDTO.APIKeyManaged {
+		return nil, fmt.Errorf("%w: user %s exists only for an api key", domainError.ErrInvalidCredentials, userDTO.ID)
 	}
 	ctx = tenant.WithOrg(ctx, orgID)
 

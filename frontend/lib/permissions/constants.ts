@@ -103,6 +103,9 @@ export const PERMISSIONS = {
   INTEGRATIONS_READ: "integrations:read",
   INTEGRATIONS_MANAGE: "integrations:manage",
 
+  // Organization API keys (cloud only, admin only)
+  API_KEYS_MANAGE: "api_keys:manage",
+
   // Staff notifications (cloud only; managers read, admins manage)
   NOTIFICATION_CHANNELS_READ: "notification-channels:read",
   NOTIFICATION_CHANNELS_MANAGE: "notification-channels:manage",

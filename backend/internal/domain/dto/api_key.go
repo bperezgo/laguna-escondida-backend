@@ -10,6 +10,11 @@ type IssueAPIKeyRequest struct {
 	Name   string `json:"name"`
 }
 
+// IssueOrganizationAPIKeyRequest takes no user: the organization route creates one for the key.
+type IssueOrganizationAPIKeyRequest struct {
+	Name string `json:"name"`
+}
+
 // APIKey is a key as listed: never its plaintext or hash.
 type APIKey struct {
 	ID             string     `json:"id"`

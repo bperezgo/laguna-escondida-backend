@@ -9,14 +9,16 @@ type UserDomain struct {
 }
 
 type User struct {
-	ID        string    `json:"id"`
-	Username  string    `json:"username"`
-	Name      string    `json:"name"`
-	Email     *string   `json:"email"`
-	Password  string    `json:"-"` // Never serialize password
-	Active    bool      `json:"active"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID       string  `json:"id"`
+	Username string  `json:"username"`
+	Name     string  `json:"name"`
+	Email    *string `json:"email"`
+	Password string  `json:"-"` // Never serialize password
+	Active   bool    `json:"active"`
+	// APIKeyManaged marks a user created for one organization API key; user management never shows it.
+	APIKeyManaged bool      `json:"-"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 type UserInOrganization struct {

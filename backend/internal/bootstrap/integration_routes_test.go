@@ -99,7 +99,7 @@ func newStaffIntegrations(t *testing.T, withKey bool) *staffIntegrations {
 		RunAndReturn(func(context.Context, string, time.Time) error { return nil }).Maybe()
 	s.jwt = service.NewJWTService("test-secret", tenant.AnyOrganization())
 	s.jwt.AcceptAPIKeys(service.NewAPIKeyService(keys, mocks.NewMockOrganizationRepository(t), mocks.NewMockUserRepository(t),
-		mocks.NewMockUserRoleRepository(t), logger))
+		mocks.NewMockUserRoleRepository(t), nil, logger))
 
 	s.router = gin.New()
 	RegisterOrganizationIntegrationRoutes(s.router, handler.NewOrganizationIntegrationHandler(integrations), s.jwt)

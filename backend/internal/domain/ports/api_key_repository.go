@@ -12,6 +12,8 @@ import (
 type APIKeyRepository interface {
 	Create(ctx context.Context, key *dto.APIKey, hash string) error
 	List(ctx context.Context) ([]*dto.APIKey, error)
+	// Get returns error.ErrAPIKeyNotFound for a key outside the organization.
+	Get(ctx context.Context, id string) (*dto.APIKey, error)
 	// Revoke keeps the first revocation time; returns error.ErrAPIKeyNotFound for a key outside the organization.
 	Revoke(ctx context.Context, id string, at time.Time) error
 	// FindByHash deliberately ignores the org scope: the key is what names the organization.
