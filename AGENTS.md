@@ -16,4 +16,4 @@ Repo-wide: `openspec/` (specs and changes — one change may span apps), `docs/W
 - **A feature that touches the backend and the frontend ships as one change and one PR.** Don't split it across branches.
 - **Run each app's checks from its own folder**, and only for apps the change touches.
 - **Apps never import each other's code.** They talk over HTTP only.
-- **One `v*` tag releases everything**: the backend image, the edge-node binary and the frontend Windows bundle, all from the same commit (`.github/workflows/release.yml`). `landing/` is **not** part of it: it is a static site that ships on its own.
+- **One `v*` tag releases everything**: the backend image, the frontend image (`laguna-web`, run by aws-infra), the edge-node binary and the frontend Windows bundle, all from the same commit (`.github/workflows/release.yml`). `landing/` is **not** part of it: it is a static site that ships on its own.

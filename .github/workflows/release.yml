@@ -4,6 +4,8 @@ name: Release
 #   * the image tag in ECR (push-image), which you then point aws-infra/image-tags.json at
 #     before `cdk deploy bryan-dev-services`. This is the only workflow allowed to push to
 #     ECR — the AWS role trusts tag refs (refs/tags/v*) only, not branches or PRs.
+#   * the same tag as the UI image in ECR (push-web-image, repo laguna-web), which you point
+#     aws-infra/image-tags.json `lagunaWeb` at before `cdk deploy bryan-dev-web`.
 #   * a GitHub Release carrying the Windows edge-node binary (edge-windows), which the
 #     edge appliances download via laguna-escondida-edge/scripts/fetch-artifacts.ps1.
 #     Same tag, same commit as the cloud image — cloud first, then edges.
@@ -69,6 +71,51 @@ jobs:
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.ref_name }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "0"
+
+  # The operations UI (frontend/) as a container, for aws-infra's `laguna-web` service
+  # (replaces the Netlify site). Same tag, same commit as the backend image; roll it with
+  # image-tags.json `lagunaWeb`. The push role is the same one (CiStack grants it both repos).
+  push-web-image:
+    name: Build and push web image to ECR
+    runs-on: ubuntu-latest
+    env:
+      WEB_ECR_REPOSITORY: laguna-web
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build and push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: frontend
+          file: frontend/Dockerfile
+          push: true
+          platforms: linux/amd64
+          build-args: |
+            VERSION=${{ github.ref_name }}
+          tags: ${{ steps.login-ecr.outputs.registry }}/${{ env.WEB_ECR_REPOSITORY }}:${{ github.ref_name }}
+
+      # Informational, like the backend image's scan: review the report, don't gate.
+      - name: Scan released image (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ steps.login-ecr.outputs.registry }}/${{ env.WEB_ECR_REPOSITORY }}:${{ github.ref_name }}
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: "0"

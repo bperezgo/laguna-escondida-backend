@@ -1,0 +1,17 @@
+# Keep secrets, host build output and dependencies out of the build context.
+.git
+.github
+.env
+.env.*
+!.env.example
+node_modules
+.next
+.next-*
+out
+coverage
+ai-plan
+docs
+*.tsbuildinfo
+.DS_Store
+.vscode
+.idea
