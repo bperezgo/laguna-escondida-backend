@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
@@ -80,15 +79,16 @@ func (r *OrganizationIntegrationRepository) Get(ctx context.Context, provider dt
 	if err != nil {
 		return nil, false, err
 	}
-	var model organizationIntegrationModel
-	err = db.Where("provider = ?", string(provider)).First(&model).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, false, nil
-	}
-	if err != nil {
+	// Find, not First: an organization without this integration is normal and polled every few
+	// seconds, and First would make GORM log each miss as an error.
+	var models []organizationIntegrationModel
+	if err = db.Where("provider = ?", string(provider)).Limit(1).Find(&models).Error; err != nil {
 		return nil, false, err
 	}
-	record, err := model.toDTO()
+	if len(models) == 0 {
+		return nil, false, nil
+	}
+	record, err := models[0].toDTO()
 	if err != nil {
 		return nil, false, err
 	}
