@@ -95,12 +95,18 @@ services:
       INTEGRATION_SECRETS_KEY: "${INTEGRATION_SECRETS_KEY:-}"
       NOTIFICATION_SECRETS_KEY: "${NOTIFICATION_SECRETS_KEY:-}"
       WOMPI_API_URL: "${WOMPI_API_URL:-https://sandbox.wompi.co/v1}"
+      # Telemetry goes to the Alloy below, which forwards to ../../observability-stack.
+      OBSERVABILITY_ENABLED: "true"
+      OTEL_SERVICE_NAME: laguna-cloud
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4317
     ports:
       - "8080:8080"
     depends_on:
       cloud-db:
         condition: service_healthy
       minio:
+        condition: service_started
+      alloy:
         condition: service_started
     restart: unless-stopped
     networks:
@@ -189,6 +195,32 @@ services:
     depends_on:
       cloud:
         condition: service_started
+    restart: unless-stopped
+    networks:
+      - laguna-sync-network
+
+  # --- Telemetry collector (CLOUD) ---------------------------------------------
+  # The same shape as the Alloy sidecar the cloud runs with in production: receives the
+  # cloud's OTLP, scrapes its /metrics, and forwards to the shared observability-stack on
+  # the host (start it first: `make up` in ../../observability-stack). Nothing is published
+  # to the host, so it cannot clash with marketing-app's Alloy on 4317/4318.
+  alloy:
+    image: grafana/alloy:v1.10.0
+    container_name: laguna-sync-alloy
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    environment:
+      BACKEND_METRICS_TARGET: cloud:9090
+      STACK_TEMPO_OTLP_ENDPOINT: host.docker.internal:${STACK_TEMPO_OTLP_GRPC_PORT:-14317}
+      STACK_LOKI_OTLP_URL: http://host.docker.internal:${STACK_LOKI_PORT:-3100}/otlp
+      STACK_PROMETHEUS_WRITE_URL: http://host.docker.internal:${STACK_PROMETHEUS_PORT:-9091}/api/v1/write
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
     restart: unless-stopped
     networks:
       - laguna-sync-network

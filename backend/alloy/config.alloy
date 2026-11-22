@@ -1,0 +1,57 @@
+// Local collector for the backend, the same shape as the Alloy sidecar it runs
+// with in production: OTLP in, the backend's Prometheus endpoint scraped, and
+// everything forwarded to the shared observability-stack (../../observability-stack).
+
+logging {
+	level  = "info"
+	format = "logfmt"
+}
+
+otelcol.receiver.otlp "default" {
+	grpc {
+		endpoint = "0.0.0.0:4317"
+	}
+
+	output {
+		traces = [otelcol.processor.batch.default.input]
+		logs   = [otelcol.processor.batch.default.input]
+	}
+}
+
+otelcol.processor.batch "default" {
+	output {
+		traces = [otelcol.exporter.otlp.tempo.input]
+		logs   = [otelcol.exporter.otlphttp.loki.input]
+	}
+}
+
+otelcol.exporter.otlp "tempo" {
+	client {
+		endpoint = sys.env("STACK_TEMPO_OTLP_ENDPOINT")
+
+		tls {
+			insecure = true
+		}
+	}
+}
+
+otelcol.exporter.otlphttp "loki" {
+	client {
+		endpoint = sys.env("STACK_LOKI_OTLP_URL")
+	}
+}
+
+prometheus.remote_write "stack" {
+	endpoint {
+		url = sys.env("STACK_PROMETHEUS_WRITE_URL")
+	}
+}
+
+// The cloud service serves Prometheus metrics on METRICS_PORT and does not push them.
+prometheus.scrape "backend" {
+	targets = [{
+		"__address__" = sys.env("BACKEND_METRICS_TARGET"),
+		"job"         = "laguna-backend",
+	}]
+	forward_to = [prometheus.remote_write.stack.receiver]
+}
