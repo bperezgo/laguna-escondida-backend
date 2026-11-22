@@ -283,7 +283,7 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 	// API keys are a cloud credential: the edge's JWT service never accepts them.
 	apiKeyService := service.NewAPIKeyService(
 		repository.NewAPIKeyRepository(db), repository.NewOrganizationRepository(db),
-		repository.NewUserRepository(db), repository.NewUserRoleRepository(db), logger,
+		repository.NewUserRepository(db), repository.NewUserRoleRepository(db), c.unitOfWork, logger,
 	)
 	c.jwtService.AcceptAPIKeys(apiKeyService)
 

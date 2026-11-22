@@ -13,6 +13,7 @@ import (
 	"laguna-escondida/backend/internal/domain/permissions"
 	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/domain/tenant"
+	"laguna-escondida/backend/internal/platform/postgres"
 	"laguna-escondida/backend/internal/platform/postgres/repository"
 
 	"github.com/google/uuid"
@@ -170,7 +171,7 @@ func TestAPIKeyRepository_FindByHash_RunsWithoutTheOrgScope(t *testing.T) {
 	a := c.newRestaurant("Mojarra frita")
 	b := c.newRestaurant("Bandeja paisa")
 	keys := service.NewAPIKeyService(repository.NewAPIKeyRepository(cloudDB), repository.NewOrganizationRepository(cloudDB),
-		repository.NewUserRepository(cloudDB), repository.NewUserRoleRepository(cloudDB), slog.New(slog.NewTextHandler(io.Discard, nil)))
+		repository.NewUserRepository(cloudDB), repository.NewUserRoleRepository(cloudDB), postgres.NewUnitOfWork(cloudDB), slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 	principal, err := keys.Authenticate(context.Background(), a.key)
 	require.NoError(t, err, "found from a context with no organization")

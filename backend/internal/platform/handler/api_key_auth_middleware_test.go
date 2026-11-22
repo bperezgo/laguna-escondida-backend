@@ -34,6 +34,7 @@ type seenRequest struct {
 	userID   string
 	username string
 	roleIDs  []int
+	apiKeyID string
 	reached  bool
 	logged   string
 	status   int
@@ -45,7 +46,7 @@ func cloudJWTService(t *testing.T) (*service.JWTService, *mocks.MockAPIKeyReposi
 	t.Helper()
 	keys := mocks.NewMockAPIKeyRepository(t)
 	apiKeys := service.NewAPIKeyService(keys, mocks.NewMockOrganizationRepository(t), mocks.NewMockUserRepository(t),
-		mocks.NewMockUserRoleRepository(t), slog.New(slog.NewTextHandler(io.Discard, nil)))
+		mocks.NewMockUserRoleRepository(t), immediateUnitOfWork{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	jwt := service.NewJWTService("test-secret", tenant.AnyOrganization())
 	jwt.AcceptAPIKeys(apiKeys)
 	return jwt, keys
@@ -66,6 +67,7 @@ func serveBearer(t *testing.T, jwt *service.JWTService, bearer string, requiredR
 		seen.userID = c.GetString("user_id")
 		seen.username = c.GetString("username")
 		seen.roleIDs, _ = c.MustGet("role_ids").([]int)
+		seen.apiKeyID = c.GetString(APIKeyIDContextKey)
 		c.Status(http.StatusOK)
 	})
 	req := httptest.NewRequest(http.MethodGet, "/probe", nil)
@@ -100,6 +102,7 @@ func TestJWTAuthMiddleware_APIKey_ActsAsTheKeysUserInTheKeysOrganization(t *test
 	assert.Equal(t, apiKeyUserID, seen.userID)
 	assert.Equal(t, "agente", seen.username)
 	assert.Equal(t, []int{permissions.RoleAgent}, seen.roleIDs)
+	assert.Equal(t, apiKeyEntryID, seen.apiKeyID, "handlers can tell a key from a signed-in user")
 	<-touched
 
 	// Guard for RLS (design D4): the key names the organization, so its lookup must not run
@@ -192,5 +195,6 @@ func TestJWTAuthMiddleware_JWTPathUnchangedWhenKeysAreAccepted(t *testing.T) {
 	require.Equal(t, http.StatusOK, seen.status)
 	assert.Equal(t, authOrgB, seen.org)
 	assert.Equal(t, "user-1", seen.userID)
+	assert.Empty(t, seen.apiKeyID)
 	keys.AssertNotCalled(t, "FindByHash", mock.Anything, mock.Anything)
 }

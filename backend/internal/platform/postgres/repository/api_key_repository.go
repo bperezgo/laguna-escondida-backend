@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"laguna-escondida/backend/internal/domain/dto"
@@ -70,6 +71,21 @@ func (r *APIKeyRepository) List(ctx context.Context) ([]*dto.APIKey, error) {
 		keys[i] = toAPIKeyDTO(&models[i])
 	}
 	return keys, nil
+}
+
+func (r *APIKeyRepository) Get(ctx context.Context, id string) (*dto.APIKey, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
+	var model apiKeyModel
+	if err := db.WithContext(ctx).Where("id = ?", id).First(&model).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, domainError.ErrAPIKeyNotFound
+		}
+		return nil, err
+	}
+	return toAPIKeyDTO(&model), nil
 }
 
 func (r *APIKeyRepository) Revoke(ctx context.Context, id string, at time.Time) error {

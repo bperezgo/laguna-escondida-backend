@@ -219,12 +219,13 @@ Over HTTP only (`--stdio` is refused: stdio has no bearer and no headers).
 
 #### Adding a restaurant
 
-1. In the cloud, create the restaurant's agent user with only the `agent` role.
-2. Upload at least one delivery zone (full toolset or `POST /api/delivery-zones`) and check it with the restaurant's own pin. No active zone means every delivery is refused.
-3. Issue its key: `POST /api/platform/organizations/:id/api-keys` with the admin API key, `{"user_id": "<agent user>", "name": "whatsapp-agent"}`. The plaintext is shown once.
-4. In the marketing-app console, point the restaurant's orders tool server at the one MCP URL (`https://<mcp host>/mcp`) and set its token to the key. The agent runtime sends it as the bearer with `X-Customer-Phone` and, once shared, `X-Customer-Location`. Give the prompt the payment instructions (transfer details); staff record the payment with `pay_order` from the staff tools or the cloud page, which releases the order to the kitchen.
+1. Upload at least one delivery zone (full toolset or `POST /api/delivery-zones`) and check it with the restaurant's own pin. No active zone means every delivery is refused.
+2. Issue its key, one of two ways. The plaintext is shown once.
+   - **From Ajustes (the restaurant's admin):** Ajustes → Integraciones → Claves API → Emitir, with a name such as `whatsapp-agent`. The key gets its own agent user, and the page shows the MCP URL next to it when the frontend has `MCP_PUBLIC_URL` set. API: `POST /api/organization/api-keys` with the admin's token, `{"name": "whatsapp-agent"}`.
+   - **As the platform operator:** create the restaurant's agent user with only the `agent` role, then `POST /api/platform/organizations/:id/api-keys` with the admin API key, `{"user_id": "<agent user>", "name": "whatsapp-agent"}`.
+3. In the marketing-app console, point the restaurant's orders tool server at the one MCP URL (`https://<mcp host>/mcp`) and set its token to the key. The agent runtime sends it as the bearer with `X-Customer-Phone` and, once shared, `X-Customer-Location`. Give the prompt the payment instructions (transfer details); staff record the payment with `pay_order` from the staff tools or the cloud page, which releases the order to the kitchen.
 
-Revoke a leaked key with `DELETE /api/platform/organizations/:id/api-keys/:keyId` and issue a new one; deactivating every zone stops new deliveries without a deploy.
+Revoke a leaked key from Ajustes (or `DELETE /api/organization/api-keys/:keyId`, or the operator's `DELETE /api/platform/organizations/:id/api-keys/:keyId`) and issue a new one; a key issued from Ajustes takes its user down with it. Deactivating every zone stops new deliveries without a deploy.
 
 #### Rollout from the shared-secret setup
 

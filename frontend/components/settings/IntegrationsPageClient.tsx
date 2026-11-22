@@ -2,17 +2,21 @@
 
 import { PERMISSIONS, usePermissions } from "@/lib/permissions";
 import type { MarketingAppCardState, WompiCardState } from "@/lib/settings/integrations";
+import { showApiKeysCard, type ApiKeysCardState } from "@/lib/settings/apiKeys";
 import { ErrorBanner, NoticeBanner } from "@/components/deliveries/Banners";
 import SettingsSectionShell from "./SettingsSectionShell";
 import MarketingAppIntegrationCard from "./MarketingAppIntegrationCard";
 import WompiIntegrationCard from "./WompiIntegrationCard";
+import ApiKeysCard from "./ApiKeysCard";
 
 interface IntegrationsPageClientProps {
   wompi: WompiCardState;
   marketingApp: MarketingAppCardState;
+  apiKeys: ApiKeysCardState;
+  mcpUrl: string | null;
 }
 
-export default function IntegrationsPageClient({ wompi, marketingApp }: IntegrationsPageClientProps) {
+export default function IntegrationsPageClient({ wompi, marketingApp, apiKeys, mcpUrl }: IntegrationsPageClientProps) {
   const { hasPermission, isLoading } = usePermissions();
   const canRead = hasPermission(PERMISSIONS.INTEGRATIONS_READ);
   const canManage = hasPermission(PERMISSIONS.INTEGRATIONS_MANAGE);
@@ -33,6 +37,7 @@ export default function IntegrationsPageClient({ wompi, marketingApp }: Integrat
         </p>
         <WompiIntegrationCard initialState={wompi} canManage={canManage} />
         <MarketingAppIntegrationCard initialState={marketingApp} canManage={canManage} />
+        {showApiKeysCard(hasPermission) && <ApiKeysCard initialState={apiKeys} mcpUrl={mcpUrl} />}
       </>
     );
   }

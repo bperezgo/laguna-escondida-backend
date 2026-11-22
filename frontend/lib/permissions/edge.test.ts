@@ -39,3 +39,9 @@ test("the edge drops the delivery tracking permissions", () => {
   assert.deepEqual(effectivePermissions(withDeliveries, false), withDeliveries);
   assert.deepEqual(effectivePermissions(withDeliveries, true), ["products:read", "users:read", "orders:create"]);
 });
+
+test("the edge drops the API key permission", () => {
+  const withKeys = [...admin, "api_keys:manage"];
+  assert.deepEqual(effectivePermissions(withKeys, false), withKeys);
+  assert.deepEqual(effectivePermissions(withKeys, true), ["products:read", "users:read", "orders:create"]);
+});

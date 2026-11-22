@@ -26,15 +26,16 @@ func NewUserRepository(db *gorm.DB) ports.UserRepository {
 
 type userModel struct {
 	postgres.TenantOwned
-	ID        string     `gorm:"type:uuid;primaryKey"`
-	Username  string     `gorm:"type:varchar(255);not null;uniqueIndex"`
-	Name      string     `gorm:"type:varchar(255);not null"`
-	Email     *string    `gorm:"type:varchar(255)"`
-	Password  string     `gorm:"type:varchar(255);not null"`
-	Active    bool       `gorm:"type:boolean;not null;default:true"`
-	CreatedAt time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
-	UpdatedAt time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
-	DeletedAt *time.Time `gorm:"type:timestamp"`
+	ID            string     `gorm:"type:uuid;primaryKey"`
+	Username      string     `gorm:"type:varchar(255);not null;uniqueIndex"`
+	Name          string     `gorm:"type:varchar(255);not null"`
+	Email         *string    `gorm:"type:varchar(255)"`
+	Password      string     `gorm:"type:varchar(255);not null"`
+	Active        bool       `gorm:"type:boolean;not null;default:true"`
+	APIKeyManaged bool       `gorm:"column:api_key_managed;type:boolean;not null;default:false"`
+	CreatedAt     time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	UpdatedAt     time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	DeletedAt     *time.Time `gorm:"type:timestamp"`
 }
 
 func (userModel) TableName() string {
@@ -47,14 +48,15 @@ func (r *UserRepository) Create(ctx context.Context, user *dto.User) error {
 		return err
 	}
 	model := &userModel{
-		ID:        user.ID,
-		Username:  user.Username,
-		Name:      user.Name,
-		Email:     user.Email,
-		Password:  user.Password,
-		Active:    user.Active,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
+		ID:            user.ID,
+		Username:      user.Username,
+		Name:          user.Name,
+		Email:         user.Email,
+		Password:      user.Password,
+		Active:        user.Active,
+		APIKeyManaged: user.APIKeyManaged,
+		CreatedAt:     user.CreatedAt,
+		UpdatedAt:     user.UpdatedAt,
 	}
 
 	if err := db.WithContext(ctx).Create(model).Error; err != nil {
@@ -123,7 +125,7 @@ func (r *UserRepository) FindAll(ctx context.Context) ([]*dto.User, error) {
 	}
 	var models []userModel
 	if err := db.WithContext(ctx).
-		Where("deleted_at IS NULL").
+		Where("deleted_at IS NULL AND api_key_managed = false").
 		Order("created_at ASC").
 		Find(&models).Error; err != nil {
 		return nil, err
@@ -205,14 +207,15 @@ func (r *UserRepository) SoftDelete(ctx context.Context, id string) error {
 
 func (r *UserRepository) toDTO(model *userModel) *dto.User {
 	return &dto.User{
-		ID:        model.ID,
-		Username:  model.Username,
-		Name:      model.Name,
-		Email:     model.Email,
-		Password:  model.Password,
-		Active:    model.Active,
-		CreatedAt: model.CreatedAt,
-		UpdatedAt: model.UpdatedAt,
+		ID:            model.ID,
+		Username:      model.Username,
+		Name:          model.Name,
+		Email:         model.Email,
+		Password:      model.Password,
+		Active:        model.Active,
+		APIKeyManaged: model.APIKeyManaged,
+		CreatedAt:     model.CreatedAt,
+		UpdatedAt:     model.UpdatedAt,
 	}
 }
 

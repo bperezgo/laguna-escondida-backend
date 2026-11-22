@@ -100,6 +100,7 @@ func registerCloudRoutes(router *gin.Engine, adminAPIKey, nodeSyncKey string, jw
 	RegisterNotificationRoutes(router, h.notifChannel, h.notifRule, jwtService)
 	RegisterOrganizationSettingsRoutes(router, h.orgSettings, jwtService)
 	RegisterOrganizationIntegrationRoutes(router, h.integration, jwtService)
+	RegisterOrganizationAPIKeyRoutes(router, h.apiKey, jwtService)
 	RegisterReservationRoutes(router, h.reservation, h.contact, h.feedback, jwtService)
 	RegisterDeliveryRoutes(router, h.delivery, jwtService)
 	// Staff screens only: the WhatsApp agent holds reservations:read but has no use for a live feed.
@@ -161,6 +162,16 @@ func RegisterOrganizationIntegrationRoutes(router *gin.Engine, integrations *han
 	g.PUT("/:provider", handler.RequirePermission(permissions.IntegrationsManage), integrations.OwnPutHandler)
 	g.DELETE("/:provider", handler.RequirePermission(permissions.IntegrationsManage), integrations.OwnDeleteHandler)
 	g.POST("/:provider/secret", handler.RequirePermission(permissions.IntegrationsManage), integrations.OwnGenerateSecretHandler)
+}
+
+// RegisterOrganizationAPIKeyRoutes is cloud-only: keys authenticate only against the cloud.
+// They act on the token's organization; only admin holds api_keys:manage.
+func RegisterOrganizationAPIKeyRoutes(router *gin.Engine, apiKeys *handler.APIKeyHandler, jwtService *service.JWTService) {
+	g := router.Group("/api/organization/api-keys", handler.JWTAuthMiddleware(jwtService),
+		handler.RequirePermission(permissions.APIKeysManage))
+	g.POST("", apiKeys.OwnIssueHandler)
+	g.GET("", apiKeys.OwnListHandler)
+	g.DELETE("/:keyId", apiKeys.OwnRevokeHandler)
 }
 
 // RegisterDeliveryZoneRoutes is cloud-only: deliveries are taken in the cloud, and the edge's

@@ -51,6 +51,59 @@ func (h *APIKeyHandler) RevokeHandler(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// The Own* routes act on the token's organization and refuse a key as the bearer, so a key
+// can never mint more keys whatever roles its user later gains.
+func (h *APIKeyHandler) OwnIssueHandler(c *gin.Context) {
+	orgID, ok := staffOrganization(c)
+	if !ok {
+		return
+	}
+	var req dto.IssueOrganizationAPIKeyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+	issued, err := h.apiKeys.IssueForOrganization(c.Request.Context(), orgID, req.Name)
+	if err != nil {
+		h.respondError(c, "issuing api key", err)
+		return
+	}
+	c.JSON(http.StatusCreated, issued)
+}
+
+func (h *APIKeyHandler) OwnListHandler(c *gin.Context) {
+	orgID, ok := staffOrganization(c)
+	if !ok {
+		return
+	}
+	keys, err := h.apiKeys.List(c.Request.Context(), orgID)
+	if err != nil {
+		h.respondError(c, "listing api keys", err)
+		return
+	}
+	c.JSON(http.StatusOK, dto.APIKeyListResponse{APIKeys: keys})
+}
+
+func (h *APIKeyHandler) OwnRevokeHandler(c *gin.Context) {
+	orgID, ok := staffOrganization(c)
+	if !ok {
+		return
+	}
+	if err := h.apiKeys.Revoke(c.Request.Context(), orgID, c.Param("keyId")); err != nil {
+		h.respondError(c, "revoking api key", err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func staffOrganization(c *gin.Context) (string, bool) {
+	if _, viaKey := c.Get(APIKeyIDContextKey); viaKey {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient permissions"})
+		return "", false
+	}
+	return tokenOrganization(c)
+}
+
 func (h *APIKeyHandler) respondError(c *gin.Context, action string, err error) {
 	switch {
 	case errors.Is(err, domainError.ErrOrganizationNotFound):

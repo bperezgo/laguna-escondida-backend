@@ -1190,6 +1190,24 @@ curl -i -X DELETE "$BASE_URL/platform/organizations/ORG_ID/api-keys/KEY_ID" \
   -H "X-API-Key: $ADMIN_API_KEY"
 ```
 
+### The Organization's Admin Manages Its Own Keys (sign-in token)
+
+`$TOKEN` is an admin's sign-in token; other roles get `403`. Each key gets its own hidden agent user, which revoking deactivates.
+
+```bash
+# Issue: only a name; keep the "key" field of the 201 response
+curl -X POST "$BASE_URL/organization/api-keys" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "console-local" }'
+
+# List (newest first, revoked and operator-issued keys included)
+curl -X GET "$BASE_URL/organization/api-keys" -H "Authorization: Bearer $TOKEN"
+
+# Revoke (204; 404 for another organization's key)
+curl -i -X DELETE "$BASE_URL/organization/api-keys/KEY_ID" -H "Authorization: Bearer $TOKEN"
+```
+
 ---
 
 ## Financial Summary

@@ -129,6 +129,9 @@ const (
 	IntegrationsManage Permission = "integrations:manage"
 )
 
+// APIKeysManage mints organization API keys, so only admin holds it.
+const APIKeysManage Permission = "api_keys:manage"
+
 // Delivery tracking permissions: carry is the courier's narrow claim-and-report right.
 const (
 	DeliveriesRead   Permission = "deliveries:read"
@@ -213,6 +216,8 @@ func AllPermissions() []Permission {
 		NotificationChannelsRead, NotificationChannelsManage,
 		// Integrations
 		IntegrationsRead, IntegrationsManage,
+		// API keys
+		APIKeysManage,
 		// Ordering
 		OrderingRead, OrderingPause, OrderingManage,
 		// Reservations

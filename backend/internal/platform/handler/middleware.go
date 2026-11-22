@@ -130,7 +130,11 @@ func PushNodeIDFromBody() gin.HandlerFunc {
 // response can't tell which keys, users or organizations exist.
 var invalidTokenBody = gin.H{"error": "Invalid or expired token"}
 
+// APIKeyIDContextKey is set only when the bearer was an organization API key.
+const APIKeyIDContextKey = "api_key_id"
+
 type bearerPrincipal struct {
+	apiKeyID string
 	userID   string
 	orgID    string
 	username string
@@ -193,6 +197,9 @@ func JWTAuthMiddleware(jwtService *service.JWTService, requiredRoles ...int) gin
 		c.Set("org_id", principal.orgID)
 		c.Set("username", principal.username)
 		c.Set("role_ids", principal.roleIDs)
+		if principal.apiKeyID != "" {
+			c.Set(APIKeyIDContextKey, principal.apiKeyID)
+		}
 		c.Request = c.Request.WithContext(tenant.WithOrg(c.Request.Context(), principal.orgID))
 		c.Next()
 	}
@@ -219,6 +226,7 @@ func authenticateAPIKey(c *gin.Context, keys *service.APIKeyService, key string)
 		return bearerPrincipal{}, false
 	}
 	return bearerPrincipal{
+		apiKeyID: principal.KeyID,
 		userID:   principal.UserID,
 		orgID:    principal.OrganizationID,
 		username: principal.Username,

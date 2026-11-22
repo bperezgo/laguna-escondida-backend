@@ -14,6 +14,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	useragg "laguna-escondida/backend/internal/domain/aggregate/user"
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/permissions"
@@ -35,6 +36,7 @@ type APIKeyService struct {
 	orgs      ports.OrganizationRepository
 	users     ports.UserRepository
 	userRoles ports.UserRoleRepository
+	uow       ports.UnitOfWork
 	logger    *slog.Logger
 	now       func() time.Time
 
@@ -49,6 +51,7 @@ func NewAPIKeyService(
 	orgs ports.OrganizationRepository,
 	users ports.UserRepository,
 	userRoles ports.UserRoleRepository,
+	uow ports.UnitOfWork,
 	logger *slog.Logger,
 ) *APIKeyService {
 	return &APIKeyService{
@@ -56,6 +59,7 @@ func NewAPIKeyService(
 		orgs:        orgs,
 		users:       users,
 		userRoles:   userRoles,
+		uow:         uow,
 		logger:      logger,
 		now:         func() time.Time { return time.Now().UTC() },
 		lastTouched: make(map[string]time.Time),
@@ -63,37 +67,111 @@ func NewAPIKeyService(
 }
 
 func (s *APIKeyService) Issue(ctx context.Context, orgID string, req *dto.IssueAPIKeyRequest) (*dto.IssuedAPIKey, error) {
-	name := strings.TrimSpace(req.Name)
-	if name == "" {
-		return nil, domainError.ErrAPIKeyNameRequired
+	name, err := apiKeyName(req.Name)
+	if err != nil {
+		return nil, err
 	}
-	if utf8.RuneCountInString(name) > apiKeyMaxNameLength {
-		return nil, domainError.ErrAPIKeyNameTooLong
-	}
-	if err := s.requireOrganization(ctx, orgID, true); err != nil {
+	if err = s.requireOrganization(ctx, orgID, true); err != nil {
 		return nil, fmt.Errorf("issue api key: %w", err)
 	}
 	ctx = tenant.WithOrg(ctx, orgID)
-	if err := s.requireAgentOnlyUser(ctx, req.UserID); err != nil {
+	if err = s.requireAgentOnlyUser(ctx, req.UserID); err != nil {
 		return nil, fmt.Errorf("issue api key: %w", err)
 	}
 
-	plaintext, err := newAPIKeyPlaintext()
+	issued, err := s.createKey(ctx, orgID, req.UserID, name)
 	if err != nil {
 		return nil, fmt.Errorf("issue api key: %w", err)
+	}
+	return issued, nil
+}
+
+// IssueForOrganization gives every key its own agent user, so revoking one key never cuts off another.
+func (s *APIKeyService) IssueForOrganization(ctx context.Context, orgID, rawName string) (*dto.IssuedAPIKey, error) {
+	name, err := apiKeyName(rawName)
+	if err != nil {
+		return nil, err
+	}
+	if err = s.requireOrganization(ctx, orgID, true); err != nil {
+		return nil, fmt.Errorf("issue api key: %w", err)
+	}
+	ctx = tenant.WithOrg(ctx, orgID)
+
+	password, err := unusablePassword()
+	if err != nil {
+		return nil, fmt.Errorf("issue api key: %w", err)
+	}
+	var issued *dto.IssuedAPIKey
+	err = s.uow.Do(ctx, func(ctx context.Context) error {
+		var txErr error
+		issued, txErr = s.createKeyWithUser(ctx, orgID, name, password)
+		return txErr
+	})
+	if err != nil {
+		return nil, fmt.Errorf("issue api key: %w", err)
+	}
+	return issued, nil
+}
+
+func (s *APIKeyService) createKeyWithUser(ctx context.Context, orgID, name, password string) (*dto.IssuedAPIKey, error) {
+	now := s.now()
+	userID := uuid.Must(uuid.NewV7()).String()
+	keyUser := &dto.User{
+		ID:            userID,
+		Username:      "apikey-" + userID,
+		Name:          name,
+		Password:      password,
+		Active:        true,
+		APIKeyManaged: true,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+	if err := s.users.Create(ctx, keyUser); err != nil {
+		return nil, err
+	}
+	if err := s.userRoles.Create(ctx, &dto.UserRole{UserID: userID, RoleID: permissions.RoleAgent, CreatedAt: now}); err != nil {
+		return nil, err
+	}
+	return s.createKey(ctx, orgID, userID, name)
+}
+
+func (s *APIKeyService) createKey(ctx context.Context, orgID, userID, name string) (*dto.IssuedAPIKey, error) {
+	plaintext, err := newAPIKeyPlaintext()
+	if err != nil {
+		return nil, err
 	}
 	key := &dto.APIKey{
 		ID:             uuid.Must(uuid.NewV7()).String(),
 		OrganizationID: orgID,
-		UserID:         req.UserID,
+		UserID:         userID,
 		Name:           name,
 		Prefix:         plaintext[len(dto.APIKeyPrefix) : len(dto.APIKeyPrefix)+apiKeyRecognitionLength],
 		CreatedAt:      s.now(),
 	}
 	if err := s.keys.Create(ctx, key, hashAPIKey(plaintext)); err != nil {
-		return nil, fmt.Errorf("issue api key: %w", err)
+		return nil, err
 	}
 	return &dto.IssuedAPIKey{APIKey: *key, Key: plaintext}, nil
+}
+
+func apiKeyName(raw string) (string, error) {
+	name := strings.TrimSpace(raw)
+	if name == "" {
+		return "", domainError.ErrAPIKeyNameRequired
+	}
+	if utf8.RuneCountInString(name) > apiKeyMaxNameLength {
+		return "", domainError.ErrAPIKeyNameTooLong
+	}
+	return name, nil
+}
+
+// unusablePassword is never shown to anyone: a key's user only ever authenticates with its key.
+func unusablePassword() (string, error) {
+	buf := make([]byte, apiKeyRandomBytes)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("generate password: %w", err)
+	}
+	return useragg.HashPassword(base64.RawURLEncoding.EncodeToString(buf))
 }
 
 func (s *APIKeyService) List(ctx context.Context, orgID string) ([]*dto.APIKey, error) {
@@ -114,10 +192,38 @@ func (s *APIKeyService) Revoke(ctx context.Context, orgID, keyID string) error {
 	if err := uuid.Validate(keyID); err != nil {
 		return fmt.Errorf("revoke api key: %w", domainError.ErrAPIKeyNotFound)
 	}
-	if err := s.keys.Revoke(tenant.WithOrg(ctx, orgID), keyID, s.now()); err != nil {
+	err := s.uow.Do(tenant.WithOrg(ctx, orgID), func(ctx context.Context) error {
+		if err := s.keys.Revoke(ctx, keyID, s.now()); err != nil {
+			return err
+		}
+		return s.retireKeyUser(ctx, keyID)
+	})
+	if err != nil {
 		return fmt.Errorf("revoke api key: %w", err)
 	}
 	return nil
+}
+
+// retireKeyUser deactivates a user created for this key; a user that existed before its keys
+// (the WhatsApp agent) stays active for its other keys. Deactivating keeps past orders' created_by valid.
+func (s *APIKeyService) retireKeyUser(ctx context.Context, keyID string) error {
+	key, err := s.keys.Get(ctx, keyID)
+	if err != nil {
+		return err
+	}
+	keyUser, err := s.users.FindByID(ctx, key.UserID)
+	if errors.Is(err, domainError.ErrUserNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !keyUser.APIKeyManaged || !keyUser.Active {
+		return nil
+	}
+	keyUser.Active = false
+	keyUser.UpdatedAt = s.now()
+	return s.users.Update(ctx, keyUser)
 }
 
 // Authenticate reads the key's user and organization fresh, so deactivating either takes

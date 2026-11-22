@@ -357,6 +357,13 @@ func TestGetPermissionsForRoles_IntegrationsOnlyForAdmin(t *testing.T) {
 	}
 }
 
+func TestGetPermissionsForRoles_APIKeysManageOnlyForAdmin(t *testing.T) {
+	assert.Contains(t, GetPermissionsForRoles([]int{RoleAdmin}), APIKeysManage)
+	for _, role := range []int{RoleManager, RoleServer, RoleCooker, RoleAccountant, RoleAgent, RoleCourier} {
+		assert.NotContains(t, GetPermissionsForRoles([]int{role}), APIKeysManage, "role %d", role)
+	}
+}
+
 func TestGetPermissionsForRoles_DeliveryGrants(t *testing.T) {
 	for _, role := range []int{RoleAdmin, RoleManager} {
 		perms := GetPermissionsForRoles([]int{role})
