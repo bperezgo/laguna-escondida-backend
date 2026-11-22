@@ -5,7 +5,14 @@ import dynamic from "next/dynamic";
 import type { DeliveryZone } from "@/types/deliveryZone";
 import { deliveryZonesApi } from "@/lib/api/deliveryZones";
 import { describeBoundary, geojsonIoUrl } from "@/lib/deliveryZones/geojson";
-import { deliveryFeeLabel, feeAmount, isFreeDelivery } from "@/lib/deliveryZones/fee";
+import {
+  DEFAULT_ICO_PERCENT,
+  deliveryFeeLabel,
+  feeAmount,
+  icoPercent,
+  icoPercentLabel,
+  isFreeDelivery,
+} from "@/lib/deliveryZones/fee";
 import { formatMoney } from "@/lib/format";
 import { Badge, Button, Card, CardBody, Input } from "@/components/ui";
 import { PermissionGate } from "@/components/permissions";
@@ -46,6 +53,7 @@ interface Draft extends ZoneEditState {
   name: string;
   active: boolean;
   deliveryFee: string;
+  icoPercent: string;
 }
 
 function feeLabel(fee: string | undefined): string {
@@ -77,7 +85,15 @@ export default function DeliveryZonesPageClient({
     setError("");
     setSelectedZoneId(null);
     setCheckedPoint(null);
-    setDraft({ zoneId: null, name: "", active: true, deliveryFee: "", boundary: null, revision: 0 });
+    setDraft({
+      zoneId: null,
+      name: "",
+      active: true,
+      deliveryFee: "",
+      icoPercent: DEFAULT_ICO_PERCENT,
+      boundary: null,
+      revision: 0,
+    });
   };
 
   const startEdit = (zone: DeliveryZone) => {
@@ -89,12 +105,13 @@ export default function DeliveryZonesPageClient({
       name: zone.name,
       active: zone.active,
       deliveryFee: isFreeDelivery(zone.delivery_fee) ? "" : String(feeAmount(zone.delivery_fee)),
+      icoPercent: icoPercent(zone.delivery_fee_ico_rate),
       boundary: zone.boundary,
       revision: 0,
     });
   };
 
-  const handleSave = async (deliveryFee: string) => {
+  const handleSave = async (deliveryFee: string, icoRate: string) => {
     if (!draft?.boundary) return;
     try {
       setSaving(true);
@@ -104,6 +121,7 @@ export default function DeliveryZonesPageClient({
         boundary: draft.boundary,
         active: draft.active,
         delivery_fee: deliveryFee,
+        delivery_fee_ico_rate: icoRate,
       };
       const saved = draft.zoneId
         ? await deliveryZonesApi.update(draft.zoneId, body)
@@ -272,9 +290,11 @@ export default function DeliveryZonesPageClient({
                 name={draft.name}
                 active={draft.active}
                 deliveryFee={draft.deliveryFee}
+                icoPercent={draft.icoPercent}
                 boundary={draft.boundary}
                 onNameChange={(name) => setDraft((d) => d && { ...d, name })}
                 onDeliveryFeeChange={(deliveryFee) => setDraft((d) => d && { ...d, deliveryFee })}
+                onICOPercentChange={(icoPercent) => setDraft((d) => d && { ...d, icoPercent })}
                 onActiveChange={(active) => setDraft((d) => d && { ...d, active })}
                 onBoundaryImport={(boundary) =>
                   setDraft((d) => d && { ...d, boundary, revision: d.revision + 1 })
@@ -432,6 +452,7 @@ function ZoneCard({
             </div>
             <div style={{ fontSize: "0.8125rem", color: "var(--color-text-primary)", marginTop: "0.25rem" }}>
               {feeLabel(zone.delivery_fee)}
+              {` · ${icoPercentLabel(zone.delivery_fee_ico_rate)}`}
             </div>
           </div>
           <Badge tone={zone.active ? "success" : "neutral"}>

@@ -15,7 +15,7 @@ Electronic invoices issued to customers (facturas electrónicas). Invoices are c
 
 ## Delivery fee item
 
-A paid delivery order with a [delivery fee](./orders.md#delivery-fee) greater than `0` is invoiced with one extra item besides its products. A restaurant's own delivery charge is part of the restaurant service (DIAN Oficio 664 of 2022, art. 512-9 E.T.), so it is taxed with ICO 8%:
+A paid delivery order with a [delivery fee](./orders.md#delivery-fee) greater than `0` is invoiced with one extra item besides its products. A restaurant's own delivery charge is part of the restaurant service (DIAN Oficio 664 of 2022, art. 512-9 E.T.), so it is taxed with ICO, at the rate the order recorded with its fee (the zone's `delivery_fee_ico_rate` when the order was created; `0.08` by default):
 
 | Field       | Value |
 | ----------- | ----- |
@@ -23,9 +23,9 @@ A paid delivery order with a [delivery fee](./orders.md#delivery-fee) greater th
 | code        | `DOMICILIO` |
 | quantity    | `1` |
 | unitPrice   | the fee's base, e.g. `4629.63` for a `5000` fee |
-| taxes       | one ICO tax, `percent` `8.00`, `taxAmount` the fee's ICO (`370.37`) |
+| taxes       | one ICO tax, `percent` the recorded rate (`8.00` for `0.08`, `19.00` for `0.19`), `taxAmount` the fee's ICO (`370.37` at 8%) |
 
-- The amounts are the ones stored with the order and the bill; nothing is rounded again. The bill's net, ICO and paid amount already include the fee, so the invoice totals match the items.
+- The amounts and the rate are the ones stored with the order and the bill; nothing is rounded again, and changing the zone's rate later never changes an invoice. The bill's net, ICO and paid amount already include the fee, so the invoice totals match the items.
 - No product row or catalog entry is behind it: it never appears in menus, kitchen boards or stock.
 - A free delivery (`0`), a takeaway or a dine-in order has no such item. The tip is never calculated on the fee.
 

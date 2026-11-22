@@ -20,6 +20,7 @@ type createDeliveryZoneInput struct {
 	Boundary    string  `json:"boundary" jsonschema:"the zone as a GeoJSON Polygon or MultiPolygon geometry JSON string, positions [lng, lat]"`
 	Active      *bool   `json:"active,omitempty" jsonschema:"whether deliveries are accepted in it (default true)"`
 	DeliveryFee *string `json:"delivery_fee,omitempty" jsonschema:"flat fee per delivery in COP with ICO included, e.g. 5000; omitted or 0 is free delivery"`
+	ICORate     *string `json:"delivery_fee_ico_rate,omitempty" jsonschema:"ICO rate of the fee as a fraction, 0.08 = 8% (default 0.08); never a percent like 8"`
 }
 
 type updateDeliveryZoneInput struct {
@@ -28,6 +29,7 @@ type updateDeliveryZoneInput struct {
 	Boundary    *string `json:"boundary,omitempty" jsonschema:"new GeoJSON Polygon or MultiPolygon geometry JSON string, positions [lng, lat]"`
 	Active      *bool   `json:"active,omitempty" jsonschema:"set false to stop deliveries there"`
 	DeliveryFee *string `json:"delivery_fee,omitempty" jsonschema:"new flat fee per delivery in COP with ICO included; orders already taken keep theirs"`
+	ICORate     *string `json:"delivery_fee_ico_rate,omitempty" jsonschema:"new ICO rate of the fee as a fraction, 0.08 = 8%; orders already taken keep theirs"`
 }
 
 type deliveryZoneIDInput struct {
@@ -39,6 +41,7 @@ type deliveryZoneBody struct {
 	Boundary    json.RawMessage `json:"boundary,omitempty"`
 	Active      *bool           `json:"active,omitempty"`
 	DeliveryFee *string         `json:"delivery_fee,omitempty"`
+	ICORate     *string         `json:"delivery_fee_ico_rate,omitempty"`
 }
 
 func boundaryJSON(raw string) (json.RawMessage, error) {
@@ -51,7 +54,7 @@ func boundaryJSON(raw string) (json.RawMessage, error) {
 func registerDeliveryZoneTools(s *mcp.Server, c *Client) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "list_delivery_zones",
-		Description: "List the delivery zones (cloud only), with their GeoJSON boundaries, active flags and delivery fees.",
+		Description: "List the delivery zones (cloud only), with their GeoJSON boundaries, active flags, delivery fees and the fees' ICO rates.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ noInput) (*mcp.CallToolResult, any, error) {
 		body, err := c.Get(ctx, "/api/delivery-zones", nil)
 		if err != nil {
@@ -69,7 +72,7 @@ func registerDeliveryZoneTools(s *mcp.Server, c *Client) {
 		if err != nil {
 			return toolError(err)
 		}
-		body, err := c.Post(ctx, "/api/delivery-zones", deliveryZoneBody{Name: &in.Name, Boundary: boundary, Active: in.Active, DeliveryFee: in.DeliveryFee})
+		body, err := c.Post(ctx, "/api/delivery-zones", deliveryZoneBody{Name: &in.Name, Boundary: boundary, Active: in.Active, DeliveryFee: in.DeliveryFee, ICORate: in.ICORate})
 		if err != nil {
 			return toolError(err)
 		}
@@ -78,9 +81,9 @@ func registerDeliveryZoneTools(s *mcp.Server, c *Client) {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "update_delivery_zone",
-		Description: "Update a delivery zone's name, boundary, active flag or delivery fee (cloud only). Existing orders keep their zone and fee. Boundary: " + boundaryDescription + ".",
+		Description: "Update a delivery zone's name, boundary, active flag, delivery fee or its ICO rate (cloud only). Existing orders keep their zone, fee and rate. Boundary: " + boundaryDescription + ".",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in updateDeliveryZoneInput) (*mcp.CallToolResult, any, error) {
-		req := deliveryZoneBody{Name: in.Name, Active: in.Active, DeliveryFee: in.DeliveryFee}
+		req := deliveryZoneBody{Name: in.Name, Active: in.Active, DeliveryFee: in.DeliveryFee, ICORate: in.ICORate}
 		if in.Boundary != nil {
 			boundary, err := boundaryJSON(*in.Boundary)
 			if err != nil {

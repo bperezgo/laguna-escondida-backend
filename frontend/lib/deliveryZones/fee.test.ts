@@ -4,8 +4,11 @@ import {
   deliverableZone,
   deliveryFeeLabel,
   feeAmount,
+  icoPercent,
+  icoPercentLabel,
   isFreeDelivery,
   parseDeliveryFeeInput,
+  parseICOPercentInput,
 } from "./fee.ts";
 
 test("a fee typed with or without thousands separators", () => {
@@ -51,4 +54,26 @@ test("the fee label says free when it is 0", () => {
   assert.equal(deliveryFeeLabel(5000, format), "Domicilio $5000");
   assert.equal(deliveryFeeLabel("5000.0000", format), "Domicilio $5000");
   assert.equal(deliveryFeeLabel(0, format), "Domicilio gratis");
+});
+
+test("the ICO is typed as a percent and sent as a fraction", () => {
+  assert.deepEqual(parseICOPercentInput("8"), { ok: true, value: "0.08" });
+  assert.deepEqual(parseICOPercentInput(" 19 "), { ok: true, value: "0.19" });
+  assert.deepEqual(parseICOPercentInput("8,25"), { ok: true, value: "0.0825" });
+  assert.deepEqual(parseICOPercentInput("0"), { ok: true, value: "0" });
+});
+
+test("an ICO percent out of range is rejected", () => {
+  for (const text of ["", "-1", "100", "8.125", "abc"]) {
+    assert.equal(parseICOPercentInput(text).ok, false, text);
+  }
+});
+
+test("a zone's rate is shown as a percent", () => {
+  assert.equal(icoPercent("0.08"), "8");
+  assert.equal(icoPercent("0.19"), "19");
+  assert.equal(icoPercent("0.0825"), "8.25");
+  assert.equal(icoPercent("0"), "0");
+  assert.equal(icoPercent(undefined), "8", "a zone read before the rate existed");
+  assert.equal(icoPercentLabel("0.0825"), "ICO 8,25%");
 });

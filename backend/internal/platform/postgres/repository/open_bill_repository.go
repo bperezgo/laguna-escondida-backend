@@ -53,10 +53,15 @@ type DeliveryFeeColumns struct {
 	DeliveryFee     *decimal.Decimal `gorm:"column:delivery_fee;type:numeric(19,4)"`
 	DeliveryFeeBase *decimal.Decimal `gorm:"column:delivery_fee_base;type:numeric(19,4)"`
 	DeliveryFeeICO  *decimal.Decimal `gorm:"column:delivery_fee_ico;type:numeric(19,4)"`
+
+	DeliveryFeeICORate *decimal.Decimal `gorm:"column:delivery_fee_ico_rate;type:numeric(5,4)"`
 }
 
 func newDeliveryFeeColumns(f dto.OrderFulfillment) DeliveryFeeColumns {
-	return DeliveryFeeColumns{DeliveryFee: f.DeliveryFee, DeliveryFeeBase: f.DeliveryFeeBase, DeliveryFeeICO: f.DeliveryFeeICO}
+	return DeliveryFeeColumns{
+		DeliveryFee: f.DeliveryFee, DeliveryFeeBase: f.DeliveryFeeBase, DeliveryFeeICO: f.DeliveryFeeICO,
+		DeliveryFeeICORate: f.DeliveryFeeICORate,
+	}
 }
 
 // OriginColumns are an agent order or reservation's origin, written on create only. Exported: gorm
@@ -144,6 +149,7 @@ const fulfillmentColumns = `
 			open_bills.delivery_fee,
 			open_bills.delivery_fee_base,
 			open_bills.delivery_fee_ico,
+			open_bills.delivery_fee_ico_rate,
 			open_bills.channel_id,
 			open_bills.conversation_id,
 			open_bills.attribution_source,
@@ -181,6 +187,8 @@ func (f fulfillmentRow) toDTO() dto.OrderFulfillment {
 		DeliveryFeeBase: f.DeliveryFeeBase,
 		DeliveryFeeICO:  f.DeliveryFeeICO,
 		Origin:          f.OriginColumns.toDTO(),
+
+		DeliveryFeeICORate: f.DeliveryFeeICORate,
 	}).ToDTO()
 	fulfillment.VoidReason = f.VoidReason
 	return fulfillment
@@ -836,6 +844,8 @@ func (r *OpenBillRepository) findAggregate(ctx context.Context, where string, id
 		DeliveryFeeBase: model.DeliveryFeeBase,
 		DeliveryFeeICO:  model.DeliveryFeeICO,
 		Origin:          model.toDTO(),
+
+		DeliveryFeeICORate: model.DeliveryFeeICORate,
 	}))
 	return aggregate, nil
 }

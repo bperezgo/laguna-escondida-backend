@@ -18,28 +18,31 @@ type DeliveryZone struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// DeliveryFeeAmounts is a delivery fee with ICO included, and the base and ICO derived from it.
-// Base + ICO always equals the fee.
+// DeliveryFeeAmounts is a delivery fee with ICO included, the ICO rate (a fraction) and the base
+// and ICO derived from them. Base + ICO always equals the fee; the four travel together.
 type DeliveryFeeAmounts struct {
-	DeliveryFee     decimal.Decimal `json:"delivery_fee"`
-	DeliveryFeeBase decimal.Decimal `json:"delivery_fee_base"`
-	DeliveryFeeICO  decimal.Decimal `json:"delivery_fee_ico"`
+	DeliveryFee        decimal.Decimal `json:"delivery_fee"`
+	DeliveryFeeBase    decimal.Decimal `json:"delivery_fee_base"`
+	DeliveryFeeICO     decimal.Decimal `json:"delivery_fee_ico"`
+	DeliveryFeeICORate decimal.Decimal `json:"delivery_fee_ico_rate"`
 }
 
-// DeliveryFee is a string, like the other numeric request fields; omitted means 0 on create
-// and unchanged on update.
+// DeliveryFee and DeliveryFeeICORate are strings, like the other numeric request fields; omitted
+// means 0 and 0.08 on create, and unchanged on update.
 type CreateDeliveryZoneRequest struct {
-	Name        string          `json:"name"`
-	Boundary    json.RawMessage `json:"boundary"`
-	Active      *bool           `json:"active,omitempty"`
-	DeliveryFee *string         `json:"delivery_fee,omitempty"`
+	Name               string          `json:"name"`
+	Boundary           json.RawMessage `json:"boundary"`
+	Active             *bool           `json:"active,omitempty"`
+	DeliveryFee        *string         `json:"delivery_fee,omitempty"`
+	DeliveryFeeICORate *string         `json:"delivery_fee_ico_rate,omitempty"`
 }
 
 type UpdateDeliveryZoneRequest struct {
-	Name        *string         `json:"name,omitempty"`
-	Boundary    json.RawMessage `json:"boundary,omitempty"`
-	Active      *bool           `json:"active,omitempty"`
-	DeliveryFee *string         `json:"delivery_fee,omitempty"`
+	Name               *string         `json:"name,omitempty"`
+	Boundary           json.RawMessage `json:"boundary,omitempty"`
+	Active             *bool           `json:"active,omitempty"`
+	DeliveryFee        *string         `json:"delivery_fee,omitempty"`
+	DeliveryFeeICORate *string         `json:"delivery_fee_ico_rate,omitempty"`
 }
 
 type DeliveryZoneCheckResult struct {

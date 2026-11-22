@@ -9,7 +9,6 @@ import (
 	"unicode/utf8"
 
 	zoneError "laguna-escondida/backend/internal/domain/aggregate/delivery_zone/error"
-	"laguna-escondida/backend/internal/domain/aggregate/shared"
 	"laguna-escondida/backend/internal/domain/dto"
 
 	"github.com/google/uuid"
@@ -22,7 +21,10 @@ const (
 	maxNameLength       = 100
 	minRingPositions    = 4
 	maxFeeDecimals      = 2
+	maxRateDecimals     = 4
 )
+
+var defaultICORate = decimal.RequireFromString("0.08")
 
 type ring [][]float64
 
@@ -53,11 +55,9 @@ func NewAggregateFromCreateRequest(req *dto.CreateDeliveryZoneRequest) (*Aggrega
 	if req.Active != nil {
 		active = *req.Active
 	}
-	fee := dto.DeliveryFeeAmounts{}
-	if req.DeliveryFee != nil {
-		if fee, err = parseFee(*req.DeliveryFee); err != nil {
-			return nil, err
-		}
+	fee, err := parseFee(req.DeliveryFee, req.DeliveryFeeICORate, dto.DeliveryFeeAmounts{DeliveryFeeICORate: defaultICORate})
+	if err != nil {
+		return nil, err
 	}
 	now := time.Now()
 	return &Aggregate{
@@ -108,8 +108,8 @@ func (a *Aggregate) Update(req *dto.UpdateDeliveryZoneRequest) error {
 	if req.Active != nil {
 		a.active = *req.Active
 	}
-	if req.DeliveryFee != nil {
-		fee, err := parseFee(*req.DeliveryFee)
+	if req.DeliveryFee != nil || req.DeliveryFeeICORate != nil {
+		fee, err := parseFee(req.DeliveryFee, req.DeliveryFeeICORate, a.fee)
 		if err != nil {
 			return err
 		}
@@ -192,13 +192,26 @@ func (r ring) contains(x, y float64) bool {
 }
 
 // parseFee derives base and ICO like a product price with VAT 0; rounding happens here once.
-func parseFee(raw string) (dto.DeliveryFeeAmounts, error) {
-	fee, err := decimal.NewFromString(strings.TrimSpace(raw))
-	if err != nil || fee.IsNegative() || !fee.Equal(fee.Round(maxFeeDecimals)) {
-		return dto.DeliveryFeeAmounts{}, zoneError.NewInvalidFeeError(raw)
+// A nil fee or rate keeps current's, and base and ICO are always recomputed from the pair.
+func parseFee(rawFee, rawRate *string, current dto.DeliveryFeeAmounts) (dto.DeliveryFeeAmounts, error) {
+	fee, rate := current.DeliveryFee, current.DeliveryFeeICORate
+	if rawFee != nil {
+		parsed, err := decimal.NewFromString(strings.TrimSpace(*rawFee))
+		if err != nil || parsed.IsNegative() || !parsed.Equal(parsed.Round(maxFeeDecimals)) {
+			return dto.DeliveryFeeAmounts{}, zoneError.NewInvalidFeeError(*rawFee)
+		}
+		fee = parsed
 	}
-	base := fee.Div(decimal.NewFromInt(1).Add(shared.DeliveryFeeICORate)).Round(maxFeeDecimals)
-	return dto.DeliveryFeeAmounts{DeliveryFee: fee, DeliveryFeeBase: base, DeliveryFeeICO: fee.Sub(base)}, nil
+	if rawRate != nil {
+		parsed, err := decimal.NewFromString(strings.TrimSpace(*rawRate))
+		if err != nil || parsed.IsNegative() || parsed.GreaterThanOrEqual(decimal.NewFromInt(1)) ||
+			!parsed.Equal(parsed.Round(maxRateDecimals)) {
+			return dto.DeliveryFeeAmounts{}, zoneError.NewInvalidICORateError(*rawRate)
+		}
+		rate = parsed
+	}
+	base := fee.Div(decimal.NewFromInt(1).Add(rate)).Round(maxFeeDecimals)
+	return dto.DeliveryFeeAmounts{DeliveryFee: fee, DeliveryFeeBase: base, DeliveryFeeICO: fee.Sub(base), DeliveryFeeICORate: rate}, nil
 }
 
 func validateName(raw string) (string, error) {

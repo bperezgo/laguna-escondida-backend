@@ -34,6 +34,8 @@ type deliveryZoneModel struct {
 	DeliveryFeeBase decimal.Decimal `gorm:"type:numeric(19,4);not null;default:0"`
 	DeliveryFeeICO  decimal.Decimal `gorm:"column:delivery_fee_ico;type:numeric(19,4);not null;default:0"`
 
+	DeliveryFeeICORate decimal.Decimal `gorm:"column:delivery_fee_ico_rate;type:numeric(5,4);not null;default:0.08"`
+
 	CreatedAt time.Time  `gorm:"type:timestamp;not null"`
 	UpdatedAt time.Time  `gorm:"type:timestamp;not null"`
 	DeletedAt *time.Time `gorm:"type:timestamp"`
@@ -59,6 +61,8 @@ func (r *DeliveryZoneRepository) Create(ctx context.Context, zone *dto.DeliveryZ
 		DeliveryFee:     zone.DeliveryFee,
 		DeliveryFeeBase: zone.DeliveryFeeBase,
 		DeliveryFeeICO:  zone.DeliveryFeeICO,
+
+		DeliveryFeeICORate: zone.DeliveryFeeICORate,
 	}).Error
 }
 
@@ -71,13 +75,14 @@ func (r *DeliveryZoneRepository) Update(ctx context.Context, zone *dto.DeliveryZ
 		Model(&deliveryZoneModel{}).
 		Where("id = ? AND deleted_at IS NULL", zone.ID).
 		Updates(map[string]any{
-			"name":              zone.Name,
-			"boundary":          zone.Boundary,
-			"active":            zone.Active,
-			"delivery_fee":      zone.DeliveryFee,
-			"delivery_fee_base": zone.DeliveryFeeBase,
-			"delivery_fee_ico":  zone.DeliveryFeeICO,
-			"updated_at":        zone.UpdatedAt,
+			"name":                  zone.Name,
+			"boundary":              zone.Boundary,
+			"active":                zone.Active,
+			"delivery_fee":          zone.DeliveryFee,
+			"delivery_fee_base":     zone.DeliveryFeeBase,
+			"delivery_fee_ico":      zone.DeliveryFeeICO,
+			"delivery_fee_ico_rate": zone.DeliveryFeeICORate,
+			"updated_at":            zone.UpdatedAt,
 		}).Error
 }
 
@@ -146,9 +151,10 @@ func (m *deliveryZoneModel) toDTO() *dto.DeliveryZone {
 		CreatedAt: m.CreatedAt,
 		UpdatedAt: m.UpdatedAt,
 		DeliveryFeeAmounts: dto.DeliveryFeeAmounts{
-			DeliveryFee:     m.DeliveryFee,
-			DeliveryFeeBase: m.DeliveryFeeBase,
-			DeliveryFeeICO:  m.DeliveryFeeICO,
+			DeliveryFee:        m.DeliveryFee,
+			DeliveryFeeBase:    m.DeliveryFeeBase,
+			DeliveryFeeICO:     m.DeliveryFeeICO,
+			DeliveryFeeICORate: m.DeliveryFeeICORate,
 		},
 	}
 }

@@ -10,6 +10,7 @@ import type {
 } from "@/types/product";
 import { PRODUCT_TYPES, UNITS_OF_MEASURE, PREPARATION_AREAS, PRIORITY_LEVELS, requiresPricing } from "@/types/product";
 import { productsApi } from "@/lib/api/products";
+import { fractionToPercentage } from "@/lib/taxes/percent";
 import { Modal, Input, Select, Textarea, Button } from "@/components/ui";
 import IngredientsEditor from "@/components/products/IngredientsEditor";
 import OptionSlotsEditor from "@/components/products/OptionSlotsEditor";
@@ -22,13 +23,6 @@ interface ProductFormProps {
   onCancel: () => void;
   isLoading?: boolean;
 }
-
-const fractionToPercentage = (value: string | undefined): string => {
-  if (!value) return "";
-  const num = parseFloat(value);
-  if (isNaN(num)) return "";
-  return (num * 100).toString();
-};
 
 export default function ProductForm({
   product,

@@ -70,13 +70,13 @@ Every order has an `order_type`:
 
 ### Delivery fee
 
-A `delivery` order records the [delivery fee](./delivery-zones.md#delivery-fee) of the zone it is accepted in, as that zone's fee is at that moment.
+A `delivery` order records the [delivery fee](./delivery-zones.md#delivery-fee) of the zone it is accepted in, with its base, ICO and ICO rate, as they are at that moment.
 
 - **Not taken from the request.** A `delivery_fee` sent on create is ignored; the zone's fee is used. Use [`GET /api/delivery-zones/check`](./delivery-zones.md#check-a-point) to quote it beforehand: it comes from the same zone lookup.
 - **Part of the total.** `total_amount` = the lines (`total_price_with_taxes × quantity`) **plus** `delivery_fee`. The Wompi payment link and the paid amount charge that total.
-- **Fixed.** Repricing or redrawing the zone, or replacing the order's lines with `PUT`, never changes it: after an update the total is the new lines plus the recorded fee.
+- **Fixed.** Repricing the zone or changing its ICO rate, redrawing it, or replacing the order's lines with `PUT`, never changes it: after an update the total is the new lines plus the recorded fee.
 - **Never a line.** It is not in `products`, never reaches a kitchen board, and reserves or consumes no stock.
-- **Returned on every order read** (create, update, the active list, a single order, the closed list and a single closed order) as `delivery_fee`, `delivery_fee_base` and `delivery_fee_ico` (strings, ICO 8% included in the fee). A free zone gives `"delivery_fee": "0"`. `dine_in` and `takeaway` orders have no such fields.
+- **Returned on every order read** (create, update, the active list, a single order, the closed list and a single closed order) as `delivery_fee`, `delivery_fee_base`, `delivery_fee_ico` and `delivery_fee_ico_rate` (strings; the fee includes ICO at that rate, a fraction such as `"0.08"`). Orders that recorded a fee before the rate existed return `"0.08"`. A free zone gives `"delivery_fee": "0"`. `dine_in` and `takeaway` orders have no such fields.
 - At payment the fee goes to the bill and the electronic invoice gets a separate "Domicilio" item (see [Invoices → Delivery fee item](./invoices.md#delivery-fee-item)).
 
 ### Ordering availability
@@ -277,7 +277,8 @@ An agent order's response also carries `payment_url`, the link that pays it, whe
   "delivery_map_url": "https://www.google.com/maps/search/?api=1&query=4.5981,-74.076",
   "delivery_fee": "5000",
   "delivery_fee_base": "4629.63",
-  "delivery_fee_ico": "370.37"
+  "delivery_fee_ico": "370.37",
+  "delivery_fee_ico_rate": "0.08"
 }
 ```
 
