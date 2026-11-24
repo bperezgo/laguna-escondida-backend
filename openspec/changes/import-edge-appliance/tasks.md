@@ -14,7 +14,7 @@
 - [x] 3.1 Keep `edge/AGENTS.md`, add `edge/CLAUDE.md` containing `@AGENTS.md`, and add an `edge/` row to the root AGENTS.md table (stack: PowerShell, WinSW, Caddy; commands run from `edge/`); verify no file under `edge/` references `backend/` or `frontend/` source
 - [x] 3.2 Add the Cross-app rule that the appliance consumes apps only as release artifacts to root AGENTS.md and `docs/WORKFLOW.md`; verify both mention `edge/`
 - [x] 3.3 Create `.github/workflows/edge-ci.yml` from `install-smoke.yml`: run with `working-directory: edge`, trigger on `edge/**` and the workflow file only, keep `paths-ignore` for docs and notes; verify a PR touching only `edge/scripts/` runs it, and one touching only `backend/`, `frontend/` or `landing/` does not
-- [ ] 3.4 Run `edge-ci.yml` through `workflow_dispatch` on the import branch and verify the full install, update, owner-triggered update and uninstall lifecycle passes
+- [x] 3.4 Run `edge-ci.yml` through `workflow_dispatch` on the import branch and verify the full install, update, owner-triggered update and uninstall lifecycle passes
 
 ## 4. Fix the stale references
 
