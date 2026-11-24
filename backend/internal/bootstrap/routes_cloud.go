@@ -36,11 +36,12 @@ type cloudHandlers struct {
 	paymentWebhook  *handler.PaymentWebhookHandler
 	delivery        *handler.DeliveryHandler
 	nodes           *service.NodeService
+	edgeEnroll      *handler.EdgeEnrollHandler
 	// minEdgeVersion is the sync floor (config MIN_EDGE_VERSION); empty accepts any edge.
 	minEdgeVersion string
 }
 
-func registerCloudRoutes(router *gin.Engine, adminAPIKey, nodeSyncKey string, jwtService *service.JWTService, h cloudHandlers) {
+func registerCloudRoutes(router *gin.Engine, adminAPIKey string, jwtService *service.JWTService, h cloudHandlers) {
 	// Admin routes (protected with admin API key)
 	router.POST("/api/invoices/update-missing-document-urls", handler.AdminAPIKeyMiddleware(adminAPIKey), h.invoice.UpdateMissingDocumentURLsHandler)
 	router.POST("/api/support-documents/update-missing-document-urls", handler.AdminAPIKeyMiddleware(adminAPIKey), h.supportDocument.UpdateMissingSupportDocumentURLsHandler)
@@ -87,7 +88,7 @@ func registerCloudRoutes(router *gin.Engine, adminAPIKey, nodeSyncKey string, jw
 
 	// Cloud sync aggregate: accept pushes from edge nodes and serve reference changes.
 	// Each acts for the organization the calling node is registered to.
-	nodeAuth := handler.NodeAuthMiddleware(nodeSyncKey, h.nodes)
+	nodeAuth := handler.NodeAuthMiddleware(h.nodes)
 	edgeVersion := handler.EdgeVersionMiddleware(h.minEdgeVersion)
 	router.POST("/api/sync/push", handler.PushNodeIDFromBody(), nodeAuth, edgeVersion, h.sync.PushHandler)
 	router.GET("/api/sync/pull", nodeAuth, edgeVersion, h.sync.PullHandler)
@@ -104,6 +105,7 @@ func registerCloudRoutes(router *gin.Engine, adminAPIKey, nodeSyncKey string, jw
 	RegisterOrganizationSettingsRoutes(router, h.orgSettings, jwtService)
 	RegisterOrganizationIntegrationRoutes(router, h.integration, jwtService)
 	RegisterOrganizationAPIKeyRoutes(router, h.apiKey, jwtService)
+	router.POST("/api/edge/enroll", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.EdgeEnroll), h.edgeEnroll.EnrollHandler)
 	RegisterReservationRoutes(router, h.reservation, h.contact, h.feedback, jwtService)
 	RegisterDeliveryRoutes(router, h.delivery, jwtService)
 	// Staff screens only: the WhatsApp agent holds reservations:read but has no use for a live feed.

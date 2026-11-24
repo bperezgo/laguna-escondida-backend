@@ -1393,16 +1393,41 @@ curl -X POST "$BASE_URL/device/print" \
 
 ---
 
+## Edge Box Enrollment
+
+> Cloud binary only. See `docs/api/edge-enrollment.md`. Needs an admin's token.
+
+```bash
+curl -X POST "$BASE_URL/edge/enroll" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Caja principal"}'
+```
+
+The `201` body carries `node_id`, `organization_id`, `organization_name`, the one-time `node_key` and `cloud_sync_url`.
+
+Replace the active box (revokes it):
+
+```bash
+curl -X POST "$BASE_URL/edge/enroll" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "PC nuevo", "replace": true}'
+```
+
+---
+
 ## Telemetry Ingest
 
 > Cloud binary only, and only when `TELEMETRY_FORWARD_URL` points at the
 > cloud Alloy sidecar. See `docs/api/telemetry.md`. The real client is the edge Alloy
 > sidecar — these examples are for smoke-testing the route.
 
-Set the node key the edge authenticates with:
+Set the box's own key (returned once by `POST /api/edge/enroll`) and its node id:
 
 ```bash
-export NODE_SYNC_KEY="your_node_sync_key"
+export NODE_SYNC_KEY="lgn_your_box_key"
+export NODE_ID="your_node_id"
 ```
 
 ### Relay an OTLP logs export
@@ -1413,6 +1438,7 @@ serialized `ExportLogsServiceRequest` (e.g. captured from Alloy, or produced by
 
 ```bash
 curl -X POST "$BASE_URL/telemetry/v1/logs" \
+  -H "X-Node-ID: $NODE_ID" \
   -H "X-Node-Key: $NODE_SYNC_KEY" \
   -H "Content-Type: application/x-protobuf" \
   --data-binary @export.pb
@@ -1422,6 +1448,7 @@ curl -X POST "$BASE_URL/telemetry/v1/logs" \
 
 ```bash
 gzip -c export.pb | curl -X POST "$BASE_URL/telemetry/v1/traces" \
+  -H "X-Node-ID: $NODE_ID" \
   -H "X-Node-Key: $NODE_SYNC_KEY" \
   -H "Content-Type: application/x-protobuf" \
   -H "Content-Encoding: gzip" \
@@ -1432,6 +1459,7 @@ gzip -c export.pb | curl -X POST "$BASE_URL/telemetry/v1/traces" \
 
 ```bash
 curl -X POST "$BASE_URL/telemetry/v1/metrics" \
+  -H "X-Node-ID: $NODE_ID" \
   -H "X-Node-Key: $NODE_SYNC_KEY" \
   -H "Content-Type: application/x-protobuf" \
   --data-binary @export.pb
@@ -1443,6 +1471,7 @@ curl -X POST "$BASE_URL/telemetry/v1/metrics" \
 export BAD_NODE_KEY="not-the-real-key"
 
 curl -s -o /dev/null -w "%{http_code}\n" -X POST "$BASE_URL/telemetry/v1/logs" \
+  -H "X-Node-ID: $NODE_ID" \
   -H "X-Node-Key: $BAD_NODE_KEY" \
   -H "Content-Type: application/x-protobuf" \
   --data-binary @export.pb

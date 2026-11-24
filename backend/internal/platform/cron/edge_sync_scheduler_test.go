@@ -3,11 +3,13 @@ package cron
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"testing"
 
 	"laguna-escondida/backend/internal/domain/dto"
+	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports/mocks"
 	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/platform/syncstatus"
@@ -88,4 +90,26 @@ func TestEdgeSyncScheduler_StockPullJob_RunsAsTheBoxOrganization(t *testing.T) {
 	pullClient.EXPECT().PullStock(mock.MatchedBy(inCronOrg(cronOrgA)), mock.Anything).Return(nil, assert.AnError).Once()
 
 	scheduler.stockPullJob()
+}
+
+func TestEdgeSyncScheduler_RecordRefusal(t *testing.T) {
+	cases := []struct {
+		name        string
+		err         error
+		wantRefused bool
+		want        syncstatus.Blocked
+	}{
+		{"replaced", fmt.Errorf("pull: %w", domainError.ErrNodeRevoked), true, syncstatus.BlockedReplaced},
+		{"suspended", fmt.Errorf("pull: %w", domainError.ErrNodeOrganizationSuspended), true, syncstatus.BlockedSuspended},
+		{"network failure", assert.AnError, false, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			scheduler, _, _ := newStockRefreshScheduler(t, "0 5 * * *")
+
+			assert.Equal(t, tc.wantRefused, scheduler.recordRefusal(tc.err))
+
+			assert.Equal(t, tc.want, scheduler.tracker.Blocked())
+		})
+	}
 }

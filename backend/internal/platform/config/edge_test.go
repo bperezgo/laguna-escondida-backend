@@ -167,3 +167,22 @@ func TestLoadEdge_PrinterWidth_InvalidReturnsError(t *testing.T) {
 	assert.Nil(t, cfg)
 	assert.Contains(t, err.Error(), "PRINTER_WIDTH_MM")
 }
+
+func TestLoadEdge_NodeSyncKeyIsTheBoxsOwn(t *testing.T) {
+	setEdgeEnv(t)
+	t.Setenv("NODE_SYNC_KEY", "lgn_box")
+
+	cfg, err := LoadEdge()
+
+	require.NoError(t, err)
+	assert.Equal(t, "lgn_box", cfg.NodeSyncKey)
+}
+
+func TestLoadCloud_DoesNotNeedNodeSyncKey(t *testing.T) {
+	setCloudEnv(t)
+	t.Setenv("NODE_SYNC_KEY", "")
+
+	_, err := LoadCloud()
+
+	require.NoError(t, err)
+}

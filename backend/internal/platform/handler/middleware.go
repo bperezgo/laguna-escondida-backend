@@ -2,7 +2,6 @@ package handler
 
 import (
 	"bytes"
-	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"io"
@@ -67,29 +66,30 @@ func AdminAPIKeyMiddleware(adminAPIKey string) gin.HandlerFunc {
 // NodeIDHeader names the calling edge node; its registered organization is the one it syncs for.
 const NodeIDHeader = "X-Node-ID"
 
-// NodeAuthMiddleware authenticates an edge node calling the cloud sync endpoints via the
-// X-Node-Key header, then acts for the organization its X-Node-ID is registered to. It fails
-// closed: no node key configured, or a node the cloud doesn't know, rejects the request.
-func NodeAuthMiddleware(nodeSyncKey string, nodes *service.NodeService) gin.HandlerFunc {
+// NodeAuthMiddleware authenticates an edge node calling the cloud sync endpoints: X-Node-Key
+// must be the key issued to the node named by X-Node-ID, and the request then acts for that
+// node's organization. Unknown node, missing key and wrong key share one 401 body.
+func NodeAuthMiddleware(nodes *service.NodeService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		nodeKey := c.GetHeader("X-Node-Key")
-		// Constant-time compare so a wrong key can't be recovered byte-by-byte via a timing
-		// side-channel. ConstantTimeCompare also returns 0 on a length mismatch (empty header).
-		if nodeSyncKey == "" || subtle.ConstantTimeCompare([]byte(nodeKey), []byte(nodeSyncKey)) != 1 {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid node key"})
+		nodeID := c.GetHeader(NodeIDHeader)
+		orgID, err := nodes.Authenticate(c.Request.Context(), nodeID, c.GetHeader("X-Node-Key"))
+		switch {
+		case err == nil:
+		case errors.Is(err, domainError.ErrNodeKeyInvalid):
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid node credentials"})
 			c.Abort()
 			return
-		}
-
-		nodeID := c.GetHeader(NodeIDHeader)
-		orgID, err := nodes.OrganizationOf(c.Request.Context(), nodeID)
-		if err != nil {
+		case errors.Is(err, domainError.ErrNodeRevoked):
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "node revoked", "code": "node_revoked"})
+			c.Abort()
+			return
+		case errors.Is(err, domainError.ErrNodeOrganizationSuspended):
+			c.JSON(http.StatusForbidden, gin.H{"error": "organization suspended", "code": "organization_suspended"})
+			c.Abort()
+			return
+		default:
 			_ = c.Error(err)
-			if errors.Is(err, domainError.ErrNodeNotFound) {
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "unknown node"})
-			} else {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to resolve node"})
-			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to authenticate node"})
 			c.Abort()
 			return
 		}

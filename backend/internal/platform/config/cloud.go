@@ -3,7 +3,9 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
+	"strings"
 
 	"laguna-escondida/backend/internal/platform/buildinfo"
 )
@@ -41,6 +43,9 @@ type Cloud struct {
 	PaymentLinks PaymentLinks
 	// TrustedProxies are the peers allowed to set X-Forwarded-For; nil keeps the router's trust-all default.
 	TrustedProxies []string
+	// PublicAPIURL is the address boxes sync against; enrollment hands it to the box as CLOUD_SYNC_URL.
+	// A domain the owner controls, since a box keeps the value it was given.
+	PublicAPIURL string
 	// MinEdgeVersion is the oldest edge release allowed to sync ("vX.Y.Z"); empty accepts any.
 	MinEdgeVersion string
 	// FeedbackRequestCron asks for feedback the morning after visits; ReservationVisitedCron marks
@@ -130,7 +135,13 @@ func LoadCloud() (*Cloud, error) {
 		return nil, fmt.Errorf("invalid MIN_EDGE_VERSION %q: want vMAJOR.MINOR.PATCH", minEdgeVersion)
 	}
 
+	publicAPIURL, err := loadPublicAPIURL()
+	if err != nil {
+		return nil, err
+	}
+
 	return &Cloud{
+		PublicAPIURL:           publicAPIURL,
 		MinEdgeVersion:         minEdgeVersion,
 		Shared:                 shared,
 		ElectronicInvoice:      invoice,
@@ -149,6 +160,21 @@ func LoadCloud() (*Cloud, error) {
 		FeedbackRequestCron:    feedbackRequestCron,
 		ReservationVisitedCron: reservationVisitedCron,
 	}, nil
+}
+
+// The sync clients append /api/sync/..., so anything past the host would break them.
+func loadPublicAPIURL() (string, error) {
+	raw := os.Getenv("PUBLIC_API_URL")
+	if raw == "" {
+		return "", errors.New("PUBLIC_API_URL is not set")
+	}
+	parsed, err := url.Parse(raw)
+	invalid := err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" ||
+		strings.Trim(parsed.Path, "/") != "" || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.User != nil
+	if invalid {
+		return "", fmt.Errorf("invalid PUBLIC_API_URL %q: want an absolute http(s) URL with a host and no path, query or fragment", raw)
+	}
+	return strings.TrimSuffix(raw, "/"), nil
 }
 
 func envOr(name, fallback string) string {

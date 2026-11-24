@@ -6,6 +6,8 @@ export type EdgeMode = "edge" | "cloud";
  * ⚠ Assumed contract — confirm shape with the backend/edge team. The fields are
  * read defensively across the UI so they're easy to adjust.
  */
+export type SyncBlocked = "replaced" | "suspended";
+
 export interface EdgeStatus {
   /** Whether the app is served from the local edge node or the cloud. */
   mode: EdgeMode;
@@ -17,6 +19,8 @@ export interface EdgeStatus {
   pending_invoices: number;
   /** Orders created locally that have not yet synced to the cloud. */
   unsynced_orders: number;
+  /** Why the cloud refuses this box; null when it doesn't (always null in the cloud). */
+  sync_blocked?: SyncBlocked | null;
 }
 
 /** Outcome of the last update attempt, from the updater's `update-result.json`. */

@@ -1,13 +1,18 @@
 package bootstrap
 
 import (
+	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"sort"
 	"strings"
 	"testing"
 
+	"laguna-escondida/backend/internal/domain/dto"
+	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/permissions"
+	"laguna-escondida/backend/internal/domain/ports"
 	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/domain/tenant"
 	"laguna-escondida/backend/internal/platform/config"
@@ -88,13 +93,14 @@ func fullRouter(mode config.Mode, jwtService *service.JWTService) *gin.Engine {
 			purchaseEntry: &handler.PurchaseEntryHandler{}, expense: &handler.ExpenseHandler{},
 			financial: &handler.FinancialHandler{},
 		})
-		registerCloudRoutes(router, "admin-key", "node-key", jwtService, cloudHandlers{
+		registerCloudRoutes(router, "admin-key", jwtService, cloudHandlers{
 			invoice: &handler.InvoiceHandler{}, supportDocument: &handler.SupportDocumentHandler{},
 			sync: &handler.SyncHandler{}, telemetry: &handler.TelemetryHandler{},
 			organization: &handler.OrganizationHandler{}, lead: &handler.LeadHandler{}, apiKey: &handler.APIKeyHandler{}, deliveryZone: &handler.DeliveryZoneHandler{},
 			orgSettings:  &handler.OrganizationSettingsHandler{},
 			notifChannel: &handler.NotificationChannelHandler{}, notifRule: &handler.NotificationRuleHandler{},
-			delivery: &handler.DeliveryHandler{},
+			delivery: &handler.DeliveryHandler{}, edgeEnroll: &handler.EdgeEnrollHandler{},
+			nodes: service.NewNodeService(noNodes{}, nil, nil, slog.Default(), ""),
 		})
 	case config.ModeEdge:
 		registerEdgeRoutes(router, jwtService, &handler.DeviceHandler{})
@@ -157,4 +163,11 @@ func TestAgentRole_ReachableRoutesExist(t *testing.T) {
 	for key := range agentReachableRoutes {
 		assert.True(t, registered[key], "%s is listed as agent-reachable but is not registered", key)
 	}
+}
+
+// noNodes registers no node, so every node-authenticated route answers 401.
+type noNodes struct{ ports.NodeRepository }
+
+func (noNodes) FindForAuth(context.Context, string) (*dto.NodeAuthRecord, error) {
+	return nil, domainError.ErrNodeNotFound
 }

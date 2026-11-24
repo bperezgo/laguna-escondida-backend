@@ -53,7 +53,7 @@ func (c *SyncPullClient) Pull(ctx context.Context, since time.Time) (res *dto.Sy
 		return nil, fmt.Errorf("read sync pull response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("sync pull returned status %d: %s", resp.StatusCode, string(respBody))
+		return nil, syncStatusError("sync pull", resp.StatusCode, respBody)
 	}
 
 	var out dto.SyncPullResponse

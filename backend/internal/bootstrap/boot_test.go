@@ -48,6 +48,7 @@ func serveMe(t *testing.T, app *App, orgID string) int {
 func TestCloudBoot_IgnoresALeftoverOrganizationID(t *testing.T) {
 	setBootSharedEnv(t)
 	t.Setenv("ELECTRONIC_INVOICE_URL", "https://invoice.example.com")
+	t.Setenv("PUBLIC_API_URL", "https://api.example.com")
 	t.Setenv("ELECTRONIC_INVOICE_USER", "user")
 	t.Setenv("ELECTRONIC_INVOICE_PASSWORD", "password")
 	t.Setenv("ORGANIZATION_ID", lagunaOrganizationID)

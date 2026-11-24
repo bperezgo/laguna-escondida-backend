@@ -130,3 +130,49 @@ func TestLoadCloud_TelemetryIngest_DisabledWhenForwardURLMissing(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, cfg.TelemetryIngestEnabled())
 }
+
+func TestLoadCloud_PublicAPIURL(t *testing.T) {
+	cases := []struct {
+		name    string
+		value   string
+		want    string
+		wantErr bool
+	}{
+		{"valid", "https://api.example.com", "https://api.example.com", false},
+		{"http with port", "http://localhost:8080", "http://localhost:8080", false},
+		{"trailing slash trimmed", "https://api.example.com/", "https://api.example.com", false},
+		{"unset", "", "", true},
+		{"no scheme", "api.example.com", "", true},
+		{"other scheme", "ftp://api.example.com", "", true},
+		{"a path", "https://api.example.com/api", "", true},
+		{"a query", "https://api.example.com?x=1", "", true},
+		{"a fragment", "https://api.example.com#x", "", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setCloudEnv(t)
+			t.Setenv("PUBLIC_API_URL", tc.value)
+
+			cfg, err := LoadCloud()
+
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "PUBLIC_API_URL")
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, cfg.PublicAPIURL)
+		})
+	}
+}
+
+func TestLoadEdge_DoesNotReadPublicAPIURL(t *testing.T) {
+	for _, value := range []string{"", "not a url"} {
+		setEdgeEnv(t)
+		t.Setenv("PUBLIC_API_URL", value)
+
+		_, err := LoadEdge()
+
+		require.NoError(t, err)
+	}
+}

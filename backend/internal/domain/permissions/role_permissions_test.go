@@ -382,3 +382,10 @@ func TestGetPermissionsForRoles_DeliveryGrants(t *testing.T) {
 func TestGetPermissionsForRoles_CourierOnlyCarries(t *testing.T) {
 	assert.ElementsMatch(t, []Permission{DeliveriesCarry}, GetPermissionsForRoles([]int{RoleCourier}))
 }
+
+func TestGetPermissionsForRoles_EdgeEnrollOnlyForAdmin(t *testing.T) {
+	assert.Contains(t, GetPermissionsForRoles([]int{RoleAdmin}), EdgeEnroll)
+	for _, role := range []int{RoleManager, RoleAgent} {
+		assert.NotContains(t, GetPermissionsForRoles([]int{role}), EdgeEnroll, "role %d", role)
+	}
+}

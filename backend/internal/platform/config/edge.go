@@ -22,6 +22,8 @@ type Edge struct {
 	// CloudSyncURL is the cloud the sync loops target; when unset (or NodeSyncKey is unset)
 	// the loops stay disabled rather than failing to boot.
 	CloudSyncURL string
+	// NodeSyncKey is this box's own key, issued by the cloud at enrollment; sent as X-Node-Key.
+	NodeSyncKey string
 
 	SyncPushCron string
 	SyncPullCron string
@@ -102,6 +104,7 @@ func LoadEdge() (*Edge, error) {
 		NodeID:         nodeID,
 		CloudNodeID:    CloudNodeIDFor(organizationID),
 		CloudSyncURL:   os.Getenv("CLOUD_SYNC_URL"),
+		NodeSyncKey:    os.Getenv("NODE_SYNC_KEY"),
 		SyncPushCron:   envOr("SYNC_PUSH_CRON", "* * * * *"),
 		SyncPullCron:   envOr("SYNC_PULL_CRON", "* * * * *"),
 		StockPullCron:  stockPullCron,

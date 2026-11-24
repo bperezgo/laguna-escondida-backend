@@ -2,8 +2,10 @@ package cron
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
+	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/platform/syncstatus"
 
@@ -142,6 +144,7 @@ func (s *EdgeSyncScheduler) pushJob() {
 func (s *EdgeSyncScheduler) push(ctx context.Context) {
 	result, err := s.pushService.PushPending(ctx)
 	if err != nil {
+		s.recordRefusal(err)
 		s.logger.ErrorContext(ctx, "Edge sync push job failed", slog.Any("error", err))
 		return
 	}
@@ -162,7 +165,9 @@ func (s *EdgeSyncScheduler) pull(ctx context.Context) {
 	if err != nil {
 		// The pull loop always contacts the cloud, so its outcome is the edge's
 		// connectivity signal: a failure flips the status endpoint to offline.
-		s.tracker.RecordFailure()
+		if !s.recordRefusal(err) {
+			s.tracker.RecordFailure()
+		}
 		s.logger.ErrorContext(ctx, "Edge sync pull job failed", slog.Any("error", err))
 		return
 	}
@@ -177,4 +182,17 @@ func (s *EdgeSyncScheduler) pull(ctx context.Context) {
 			slog.Int("plate_option_slots", result.PlateOptionSlots),
 		)
 	}
+}
+
+// recordRefusal reports whether the cloud refused the box with a reason the POS should show.
+func (s *EdgeSyncScheduler) recordRefusal(err error) bool {
+	switch {
+	case errors.Is(err, domainError.ErrNodeRevoked):
+		s.tracker.RecordBlocked(syncstatus.BlockedReplaced)
+	case errors.Is(err, domainError.ErrNodeOrganizationSuspended):
+		s.tracker.RecordBlocked(syncstatus.BlockedSuspended)
+	default:
+		return false
+	}
+	return true
 }

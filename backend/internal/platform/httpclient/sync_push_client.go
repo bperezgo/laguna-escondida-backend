@@ -14,7 +14,7 @@ import (
 )
 
 // SyncPushClient POSTs a batch of outbox ops to a peer's /api/sync/push, authenticating
-// with the shared node key (X-Node-Key, matched by the cloud's NodeAuthMiddleware).
+// with this box's own key (X-Node-Key, matched by the cloud's NodeAuthMiddleware).
 type SyncPushClient struct {
 	client  *Client
 	baseURL string
@@ -56,7 +56,7 @@ func (c *SyncPushClient) Push(ctx context.Context, req *dto.SyncPushRequest) (re
 		return nil, fmt.Errorf("read sync push response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("sync push returned status %d: %s", resp.StatusCode, string(respBody))
+		return nil, syncStatusError("sync push", resp.StatusCode, respBody)
 	}
 
 	var out dto.SyncPushResponse
