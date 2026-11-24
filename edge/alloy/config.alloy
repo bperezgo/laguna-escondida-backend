@@ -1,0 +1,169 @@
+// Telemetry sidecar. The app emits to localhost; this buffers to a capped disk queue
+// and forwards to the cloud relay when online, so the app never blocks on telemetry.
+//
+//   edge-node (Go)  --OTLP/gRPC 4317--> [receiver] --> [filter] -----\
+//                   --OTLP/HTTP  4318-->                              \
+//   edge-node :9090/metrics  <--scrape-- [prometheus] --> [identity] --+--> [batch]
+//                                                                          |
+//                              disk buffer (capped) <--> [otlphttp] <------/
+//                                                            |
+//                                      https://<cloud>/api/telemetry  (X-Node-Key)
+//
+// Configured by env vars from env\alloy.env (see env\alloy.env.example).
+// The disk buffer is public-preview, so --stability.level=public-preview is required.
+//
+//   artifacts\alloy\alloy.exe validate --stability.level=public-preview alloy\config.alloy
+
+logging {
+	// Kept local: forwarding them would buffer logs about failing to ship logs.
+	level  = coalesce(sys.env("EDGE_ALLOY_LOG_LEVEL"), "warn")
+	format = "logfmt"
+}
+
+// --- Credentials -------------------------------------------------------------
+
+// A locked-down file, not an env var, so other processes can't read it.
+local.file "node_key" {
+	filename  = coalesce(sys.env("EDGE_NODE_KEY_FILE"), "C:\\laguna-edge\\env\\alloy-node-key")
+	is_secret = true
+}
+
+otelcol.auth.headers "cloud" {
+	// Same key as the data-sync path (NODE_SYNC_KEY).
+	header {
+		key   = "X-Node-Key"
+		value = local.file.node_key.content
+	}
+}
+
+// --- Ingress: the app's logs and traces ---------------------------------------
+
+otelcol.receiver.otlp "edge" {
+	grpc {
+		endpoint = coalesce(sys.env("EDGE_OTLP_GRPC_ADDRESS"), "127.0.0.1:4317")
+	}
+
+	http {
+		endpoint = coalesce(sys.env("EDGE_OTLP_HTTP_ADDRESS"), "127.0.0.1:4318")
+	}
+
+	output {
+		logs   = [otelcol.processor.filter.log_severity.input]
+		traces = [otelcol.processor.batch.cloud.input]
+	}
+}
+
+// Drop logs below the minimum severity. Records without a severity are kept.
+otelcol.processor.filter "log_severity" {
+	error_mode = "ignore"
+
+	logs {
+		log_record = [
+			"severity_number != SEVERITY_NUMBER_UNSPECIFIED and severity_number < SEVERITY_NUMBER_" + coalesce(sys.env("EDGE_MIN_LOG_SEVERITY"), "INFO"),
+		]
+	}
+
+	output {
+		logs = [otelcol.processor.batch.cloud.input]
+	}
+}
+
+// --- Ingress: the app's metrics -----------------------------------------------
+
+prometheus.scrape "edge_node" {
+	targets = [{
+		__address__ = coalesce(sys.env("EDGE_METRICS_ADDRESS"), "127.0.0.1:9090"),
+	}]
+
+	job_name        = coalesce(sys.env("EDGE_SERVICE_NAME"), "laguna-backend")
+	metrics_path    = "/metrics"
+	scrape_interval = coalesce(sys.env("EDGE_METRICS_SCRAPE_INTERVAL"), "60s")
+	scrape_timeout = coalesce(sys.env("EDGE_METRICS_SCRAPE_TIMEOUT"), "10s")
+	forward_to     = [otelcol.receiver.prometheus.edge_node.receiver]
+}
+
+// Converted to OTLP so all signals share one channel and one buffer.
+otelcol.receiver.prometheus "edge_node" {
+	output {
+		metrics = [otelcol.processor.transform.metric_identity.input]
+	}
+}
+
+// Same identity attributes the app puts on its logs and traces.
+otelcol.processor.transform "metric_identity" {
+	error_mode = "ignore"
+
+	metric_statements {
+		context = "resource"
+
+		statements = [
+			`set(attributes["service.name"], "` + coalesce(sys.env("EDGE_SERVICE_NAME"), "laguna-backend") + `")`,
+			`set(attributes["service.instance.id"], "` + sys.env("EDGE_NODE_ID") + `")`,
+			`set(attributes["node.id"], "` + sys.env("EDGE_NODE_ID") + `")`,
+			`set(attributes["organization.id"], "` + sys.env("EDGE_ORGANIZATION_ID") + `")`,
+			`set(attributes["deployment.mode"], "` + coalesce(sys.env("EDGE_DEPLOYMENT_MODE"), "edge") + `")`,
+			`set(attributes["deployment.environment.name"], "` + coalesce(sys.env("EDGE_ENVIRONMENT"), "production") + `")`,
+		]
+	}
+
+	output {
+		metrics = [otelcol.processor.batch.cloud.input]
+	}
+}
+
+// --- Egress -------------------------------------------------------------------
+
+otelcol.processor.batch "cloud" {
+	timeout             = coalesce(sys.env("EDGE_BATCH_TIMEOUT"), "10s")
+	send_batch_size     = 2048
+	send_batch_max_size = 4096
+
+	output {
+		logs    = [otelcol.exporter.otlphttp.cloud.input]
+		metrics = [otelcol.exporter.otlphttp.cloud.input]
+		traces  = [otelcol.exporter.otlphttp.cloud.input]
+	}
+}
+
+// Survives restarts, so a restart mid-outage keeps the backlog.
+otelcol.storage.file "buffer" {
+	directory        = coalesce(sys.env("EDGE_TELEMETRY_BUFFER_DIR"), "C:\\laguna-edge\\alloy-data\\buffer")
+	create_directory = true
+
+	compaction {
+		on_start                      = true
+		on_rebound                    = true
+		directory                     = coalesce(sys.env("EDGE_TELEMETRY_BUFFER_DIR"), "C:\\laguna-edge\\alloy-data\\buffer")
+		rebound_needed_threshold_mib  = 16
+		rebound_trigger_threshold_mib = 8
+	}
+}
+
+otelcol.exporter.otlphttp "cloud" {
+	client {
+		// The cloud relay's base URL; the exporter appends /v1/<signal>.
+		endpoint    = sys.env("EDGE_TELEMETRY_INGEST_URL")
+		auth        = otelcol.auth.headers.cloud.handler
+		compression = "gzip"
+		timeout     = "30s"
+	}
+
+	sending_queue {
+		enabled = true
+		storage = otelcol.storage.file.buffer.handler
+
+		// Per signal, and bbolt doubles allocations: budget ~6x this on disk.
+		// When full, new telemetry is rejected (no drop-oldest mode).
+		sizer         = "bytes"
+		queue_size    = coalesce(sys.env("EDGE_TELEMETRY_BUFFER_BYTES"), 33554432)
+		num_consumers = 1
+	}
+
+	retry_on_failure {
+		enabled          = true
+		initial_interval = "5s"
+		max_interval     = "5m"
+		// Drops a batch stuck this long so it can't wedge the queue. Keep it above a normal outage.
+		max_elapsed_time = coalesce(sys.env("EDGE_TELEMETRY_MAX_RETRY_AGE"), "24h")
+	}
+}

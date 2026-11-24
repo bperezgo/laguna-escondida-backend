@@ -1,0 +1,17 @@
+# Plain-HTTP LAN exposure of a dev app on port 3001. Not the production Caddyfile.
+#   .\artifacts\caddy\caddy.exe run --config .\Caddyfile.lan --adapter caddyfile
+{
+	auto_https off
+}
+
+:80 {
+	# Compressing SSE buffers the frames and the stream stays empty.
+	@notsse {
+		not path /api/sse/*
+	}
+	encode @notsse zstd gzip
+
+	reverse_proxy localhost:3001 {
+		flush_interval -1
+	}
+}

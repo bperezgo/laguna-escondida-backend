@@ -1,0 +1,21 @@
+<service>
+  <id>laguna-postgres</id>
+  <name>Laguna Escondida - Postgres</name>
+  <description>Local PostgreSQL for the edge node. Bound to 127.0.0.1:5432.</description>
+
+  <!-- postgres.exe refuses privileged accounts, so this runs as NetworkService. WinSW 2.x
+       ignores <serviceaccount> for built-in accounts; scripts\install.ps1 sets it instead. -->
+  <executable>%BASE%\..\artifacts\postgres\bin\postgres.exe</executable>
+  <arguments>-D "%BASE%\..\artifacts\postgres\data" -h 127.0.0.1 -p 5432</arguments>
+  <workingdirectory>%BASE%\..\artifacts\postgres</workingdirectory>
+
+  <startmode>Automatic</startmode>
+  <onfailure action="restart" delay="10 sec"/>
+  <stoptimeout>30 sec</stoptimeout>
+
+  <logpath>%BASE%\..\logs</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>8</keepFiles>
+  </log>
+</service>

@@ -1,0 +1,34 @@
+<service>
+  <id>laguna-next</id>
+  <name>Laguna Escondida - Web App (Next.js)</name>
+  <description>Next.js standalone server. Bound to 127.0.0.1:3000. Only Caddy proxies to it.</description>
+
+  <!-- Pinned Node runtime runs the standalone server bundle. -->
+  <executable>%BASE%\..\artifacts\node\node.exe</executable>
+  <arguments>"%BASE%\..\artifacts\next\server.js"</arguments>
+  <workingdirectory>%BASE%\..\artifacts\next</workingdirectory>
+
+  <env name="NODE_ENV" value="production"/>
+  <env name="PORT"     value="3000"/>
+  <env name="HOSTNAME" value="127.0.0.1"/>
+  <!-- Server-side proxy target (the edge node). NOTE: NEXT_PUBLIC_* values that the
+       CLIENT bundle reads are inlined at BUILD time, so this must also be set when the
+       frontend standalone build is produced, not only here at runtime. -->
+  <env name="NEXT_PUBLIC_API_URL" value="http://127.0.0.1:8080/api"/>
+  <!-- Other NEXT_PUBLIC_* vars the tablet reads (e.g. NEXT_PUBLIC_ORDER_ACTION_PIN) are
+       client-side and inlined at BUILD time only. They are NOT set here — they come from
+       env\next.env via scripts\build-artifacts.ps1. Setting them here would have no effect
+       on the browser bundle. Add one here ONLY if the frontend also reads it server-side. -->
+
+  <depend>laguna-edge-node</depend>
+
+  <startmode>Automatic</startmode>
+  <onfailure action="restart" delay="10 sec"/>
+  <stoptimeout>30 sec</stoptimeout>
+
+  <logpath>%BASE%\..\logs</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>8</keepFiles>
+  </log>
+</service>
