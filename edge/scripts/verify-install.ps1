@@ -63,7 +63,6 @@ foreach ($line in Get-Content (Join-Path $Root 'env\box.env')) {
 }
 $LanIp   = $box['EDGE_LAN_IP']
 $LanHost = if ($box['EDGE_LAN_HOST']) { ($box['EDGE_LAN_HOST'] -split ',')[0].Trim() } else { $null }
-$pins    = (Get-Content (Join-Path $Root 'versions.json') -Raw | ConvertFrom-Json).artifacts
 
 # --- 1. services --------------------------------------------------------------------
 Step "Services"
@@ -88,15 +87,12 @@ if (-not $ok) {
   $installed = $null
   $relFile = Join-Path $Root 'artifacts\edge-node\RELEASE'
   if (Test-Path $relFile) { $installed = (Get-Content $relFile -Raw).Trim() }
-  $pin = "$($pins.'edge-node'.version)"
   if ($installed -like 'local-*') {
     Write-Host "  note local build installed ($installed); not checking the version" -ForegroundColor Yellow
   } elseif ($status.version -ne $installed) {
     Fail "version = '$($status.version)', artifacts\edge-node\RELEASE says '$installed'"
-  } elseif ($installed -eq $pin) {
-    Pass "version = $installed (pinned in versions.json)"
   } else {
-    Pass "version = $installed (versions.json pins $pin; installed from the POS updater)"
+    Pass "version = $installed"
   }
 }
 Stop-OnFailure 'edge-node'

@@ -10,6 +10,7 @@ import (
 
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
+	"laguna-escondida/backend/internal/platform/buildinfo"
 )
 
 // SyncPushClient POSTs a batch of outbox ops to a peer's /api/sync/push, authenticating
@@ -38,6 +39,7 @@ func (c *SyncPushClient) Push(ctx context.Context, req *dto.SyncPushRequest) (re
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("X-Node-Key", c.nodeKey)
 	httpReq.Header.Set("X-Node-ID", c.nodeID)
+	httpReq.Header.Set("X-Edge-Version", buildinfo.Version)
 
 	resp, err := c.client.Do(httpReq)
 	if err != nil {

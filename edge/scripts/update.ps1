@@ -2,17 +2,17 @@
 <#
   update.ps1 -- swap ONE service to a freshly-built/fetched artifact with minimal downtime.
 
-  App services (edge-node, next) install the GitHub Release pinned in versions.json via
+  App services (edge-node, next) install the newest compatible edge/* GitHub Release via
   fetch-artifacts.ps1 (sha256-verified). The download + verify happens BEFORE the service is
   stopped, so downtime is only the swap. -FromSource rebuilds from the sibling repos with
   build-artifacts.ps1 instead (developer fallback). Infra services (caddy, postgres, alloy)
-  are re-fetched via fetch-artifacts.ps1. -Tag installs that release instead of the pin
+  are re-fetched via fetch-artifacts.ps1. -Tag installs that edge version instead
   (scripts\updater.ps1 uses it).
 
   Usage:  .\scripts\update.ps1 -Service next
           .\scripts\update.ps1 -Service edge-node
           .\scripts\update.ps1 -Service edge-node -FromSource
-          .\scripts\update.ps1 -Service next -Tag v1.0.4
+          .\scripts\update.ps1 -Service next -Tag v1.3.0
           .\scripts\update.ps1 -Service alloy
 #>
 param(
@@ -34,19 +34,9 @@ $tags    = @{}
 if ($Tag) {
   if (-not $isApp -or $FromSource) { throw "-Tag only applies to edge-node and next, without -FromSource." }
   $tags[$Service] = $Tag
-} elseif ($isApp -and -not $FromSource) {
-  $pin = "$((Get-Content (Join-Path $Root 'versions.json') -Raw | ConvertFrom-Json).artifacts.$Service.version)"
-  $relFile = Join-Path $Root "artifacts\$Service\RELEASE"
-  $installed = if (Test-Path $relFile) { (Get-Content $relFile -Raw).Trim() } else { '' }
-  $semver = '^v\d+\.\d+\.\d+$'
-  if ($installed -match $semver -and $pin -match $semver -and
-      [version]$installed.Substring(1) -gt [version]$pin.Substring(1)) {
-    throw ("$Service $installed was installed from the POS and is newer than the versions.json pin $pin. " +
-           "Pull this repo, or pass -Tag $pin to downgrade on purpose.")
-  }
 }
 if ($isApp -and -not $FromSource) {
-  # Fail here (checksum, bad pin, no network) while the service is still running.
+  # Fail here (checksum, no release, no network) while the service is still running.
   Write-Host "Downloading + verifying the $Service release ..."
   & $fetch -Only $Service -DownloadOnly -Tags $tags
 }

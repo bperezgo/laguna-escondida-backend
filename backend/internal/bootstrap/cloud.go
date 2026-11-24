@@ -306,6 +306,7 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		invoice:         handler.NewInvoiceHandler(invoiceService, documentURLMaintenance),
 		supportDocument: handler.NewSupportDocumentHandler(supportDocService, documentURLMaintenance),
 		sync:            handler.NewSyncHandler(syncService, syncReferenceService),
+		minEdgeVersion:  cfg.MinEdgeVersion,
 		telemetry:       telemetryHandler,
 		organization:    handler.NewOrganizationHandler(c.organizationService),
 		lead:            handler.NewLeadHandler(leadService),

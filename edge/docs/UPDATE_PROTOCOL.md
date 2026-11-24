@@ -16,20 +16,25 @@ The web app never executes anything: it drops a request file, and only the updat
 
 ## Where "a new version" comes from
 
-Every 30 minutes the updater compares what is installed (`artifacts\<app>\RELEASE`) with:
+A box follows only the **`edge/v*` GitHub Releases** of `laguna-escondida-backend`. Each one is the
+whole appliance, built from one commit, with one version (e.g. `v1.3.0`) for edge-node and Next.js
+together, and a `manifest.json` that lists every component's URL and sha256 plus **`min_cloud`**:
+the lowest cloud version the release can sync with. `cloud/*` and `landing/*` releases are never
+read, so a cloud deploy cannot offer the restaurant anything.
 
-- **edge-node**: the version the **cloud backend** runs, from `<CLOUD_SYNC_URL>/api/edge/status`
-  (`version` is the release tag stamped into the binary). Following the cloud means a box
-  never runs a backend newer than the cloud it syncs with.
-- **next**: the **latest GitHub Release** of `laguna-escondida-backend` (the monorepo). Netlify deploys on
-  push, so the cloud frontend has no tag to report; the box only needs a tagged Windows build.
+Every 30 minutes the updater reads the live cloud's version from `<CLOUD_SYNC_URL>/api/edge/status`,
+lists the `edge/*` releases and offers the **newest one that is newer than what is installed and
+whose `min_cloud` is at or below the cloud's version**. A newer edge release the cloud is not ready
+for is skipped; the newest older compatible one is offered if it is newer than the installed one.
 
-A newer version is offered only after its Windows asset has been downloaded and its sha256
-verified (`fetch-artifacts.ps1 -DownloadOnly -Tags`), so pressing the button needs no download.
-If either check fails (no internet), the previous offer is left as it is.
+An offer is made only after both Windows zips were downloaded and their sha256 verified against the
+release's `.sha256` files and the manifest (`fetch-artifacts.ps1 -DownloadOnly -Tags -Sha256`), so
+pressing the button needs no download. If the cloud, GitHub or a manifest cannot be reached, the
+previous offer is left as it is.
 
-The offered version is `<edge-node tag>+<next tag>`, e.g. `v1.1.21+v1.0.4`. Both apps are always
-installed as that pair.
+The offered version is the single edge version. Both apps are always installed as that pair.
+The first release after the split must be numbered above the tags the boxes run now, or it is not
+"newer".
 
 ## State files (`EDGE_STATE_DIR`, `C:\laguna-edge\state`)
 
@@ -38,7 +43,7 @@ to `<name>.tmp` and renamed.
 
 | File | Written by | Meaning |
 |---|---|---|
-| `update-available.json` | updater | `{version, current, notes_url, components: {edge-node, next}, checked_at}`; removed when up to date |
+| `update-available.json` | updater | `{version, current, notes_url, components: {edge-node, next}, sha256: {edge-node, next}, checked_at}`; removed when up to date |
 | `update-requested.json` | edge-node (POST) | `{version, requested_by, requested_at}`; `version` must equal the available one |
 | `update-progress.json` | updater | `{version, phase, started_at}` while installing |
 | `update-result.json` | updater | `{version, outcome, message, started_at, finished_at, from, to}` |
@@ -53,9 +58,9 @@ On the next minute tick after the click:
 
 1. `preparing`: the request must match `update-available.json`. The tags come from that file,
    which the updater wrote itself, never from the request.
-2. `downloading`: re-verify the staged zips.
+2. `downloading`: re-verify the staged zips (sha256 from the manifest as well).
 3. `backup` (only if edge-node changes): `pg_dump -Fc` to `C:\laguna-edge\backups\`, last 5 kept.
-4. `installing`: `update.ps1 -Service edge-node -Tag ...`, then `next`.
+4. `installing`: `update.ps1 -Service edge-node -Tag <edge version>`, then `next`.
 5. `verifying`: `verify-install.ps1`, which also checks edge-node reports the new version.
 
 If step 4 or 5 fails, the updater **rolls back**: it stops the app services, restores the
@@ -72,11 +77,12 @@ holding the lock and reports `refused` if the box is healthy, or `rollback_faile
 
 The log is `logs\updater.log`.
 
-## versions.json vs. what the box runs
+## versions.json
 
-`versions.json` is the **install-time baseline**. After a POS update, a box runs newer tags than
-its pins; `fetch-artifacts.ps1` keeps them instead of downgrading, and `update.ps1` refuses to
-downgrade unless given `-Tag`. `artifacts\<app>\RELEASE` is what is installed.
+`versions.json` pins only third-party software (WinSW, Caddy, Alloy, Node, Postgres). The app
+artifacts are not pinned: a fresh install (`fetch-artifacts.ps1`) takes the newest edge release the
+live cloud can sync with, and `artifacts\<app>\RELEASE` records what is installed. `update.ps1`
+and `fetch-artifacts.ps1` keep a newer installed version instead of downgrading it.
 
 ## Testing on a box
 

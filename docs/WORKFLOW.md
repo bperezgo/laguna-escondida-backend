@@ -204,6 +204,28 @@ Treat findings as leads to verify, not verdicts.
 3. Run `/opsx:archive <change>` to fold the delta specs into
    `openspec/specs/`.
 
+### Releasing
+
+Each channel has its own tag prefix and cadence; a bare `v*` tag does nothing.
+
+| Tag | Builds | Reaches |
+|---|---|---|
+| `cloud/vX.Y.Z` | backend and web images in ECR, tagged `vX.Y.Z` (no GitHub Release) | aws-infra `image-tags.json` (take the unprefixed version) |
+| `edge/vX.Y.Z` | one GitHub Release: appliance zip, edge-node and Next.js Windows zips, `.sha256` files, `manifest.json`, `edge-fingerprint.txt` | restaurant boxes, from the POS |
+| `landing/vX.Y.Z` | the landing site (`dist/` on a `landing/*` release) | wherever landing deploys (not decided yet) |
+
+- **Fingerprint.** `scripts/edge-fingerprint.sh` hashes everything the appliance release is built
+  from (Go packages `cmd/edge` compiles, migrations, `frontend/`, `edge/`, lockfiles, the edge
+  workflow). The PR job "Edge fingerprint" prints "edge release needed: yes/no"; tagging `edge/v*`
+  with an unchanged fingerprint fails ("edge unchanged").
+- **Compatibility floors.** `edge/compat.json` `min_cloud` (copied into the manifest) is the lowest
+  cloud a release can sync with: a box is offered the newest edge release whose `min_cloud` the
+  live cloud satisfies, never one newer than the cloud supports. The other way, the edge sends
+  `X-Edge-Version` and the cloud answers `426` below `MIN_EDGE_VERSION` (unset by default; raise it
+  only in a cloud release that breaks the sync contract).
+- **Order.** Deploy the cloud first when an edge release raises `min_cloud`; otherwise the two
+  channels are independent.
+
 ## Guardrails that run on their own
 
 **Tests-green Stop hook** (`.claude/hooks/tests-green-gate.sh`):

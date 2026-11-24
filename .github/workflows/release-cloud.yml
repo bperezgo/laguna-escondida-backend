@@ -1,0 +1,123 @@
+name: Release cloud
+
+# Cut a cloud release on a `cloud/v*` tag (e.g. cloud/v1.3.0). Builds only the cloud images:
+#   * the backend image, pushed to ECR repo laguna-escondida;
+#   * the operations UI image, pushed to ECR repo laguna-web.
+# The image tag is the version without the prefix (cloud/v1.3.0 -> v1.3.0; ECR tags cannot
+# contain "/"). Point aws-infra/image-tags.json at it before `cdk deploy`. No GitHub Release is
+# created and nothing here reaches an edge box: the box follows `edge/v*` (release-edge.yml).
+# This is the only workflow allowed to push to ECR; the AWS role trusts `refs/tags/cloud/v*`.
+on:
+  push:
+    tags:
+      - 'cloud/v*'
+
+# OIDC: id-token lets this job mint a GitHub token that AWS exchanges for the
+# scoped push role. No long-lived AWS access keys are stored in the repo.
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: laguna-escondida
+
+# Actions pinned to commit SHAs (tag in comment) to harden the release supply chain.
+jobs:
+  push-image:
+    name: Build and push image to ECR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Derive version from the tag
+        run: echo "VERSION=${GITHUB_REF_NAME#*/}" >> "$GITHUB_ENV"
+
+      # Assumes the role from the CiStack output. Set the repo variable
+      # AWS_ROLE_ARN (Settings → Secrets and variables → Actions → Variables)
+      # to the LagunaPushRoleArn value printed by `cdk deploy bryan-dev-ci`.
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      # Fargate here runs amd64, so build for linux/amd64 explicitly. The image
+      # tag is the git tag that triggered this run (derived from the tag, see the first step).
+      - name: Build and push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: backend
+          file: backend/Dockerfile
+          push: true
+          platforms: linux/amd64
+          build-args: |
+            VERSION=${{ env.VERSION }}
+          tags: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.VERSION }}
+
+      # INFORMATIONAL scan of the actual artifact that shipped. exit-code 0 so a finding
+      # doesn't block a release you intend to cut — review the report and patch in a
+      # follow-up. Flip exit-code to '1' if you want vulnerabilities to gate releases.
+      - name: Scan released image (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.VERSION }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "0"
+
+  # The operations UI (frontend/) as a container, for aws-infra's `laguna-web` service
+  # (replaces the Netlify site). Same tag, same commit as the backend image; roll it with
+  # image-tags.json `lagunaWeb`. The push role is the same one (CiStack grants it both repos).
+  push-web-image:
+    name: Build and push web image to ECR
+    runs-on: ubuntu-latest
+    env:
+      WEB_ECR_REPOSITORY: laguna-web
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Derive version from the tag
+        run: echo "VERSION=${GITHUB_REF_NAME#*/}" >> "$GITHUB_ENV"
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build and push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: frontend
+          file: frontend/Dockerfile
+          push: true
+          platforms: linux/amd64
+          build-args: |
+            VERSION=${{ env.VERSION }}
+          tags: ${{ steps.login-ecr.outputs.registry }}/${{ env.WEB_ECR_REPOSITORY }}:${{ env.VERSION }}
+
+      # Informational, like the backend image's scan: review the report, don't gate.
+      - name: Scan released image (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ steps.login-ecr.outputs.registry }}/${{ env.WEB_ECR_REPOSITORY }}:${{ env.VERSION }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "0"

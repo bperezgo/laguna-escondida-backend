@@ -99,14 +99,14 @@ This does NOT create the Postgres data dir — step 5 does that.
 
 ## 4. Install the two app artifacts (downloaded, not built)
 
-`fetch-artifacts.ps1` (step 3) also downloads the app builds: the GitHub Release of each app
-repo pinned in `versions.json` (`artifacts.edge-node.version`, `artifacts.next.version` are
-release **tags**), each checked against its `.sha256` and refused on mismatch.
+`fetch-artifacts.ps1` (step 3) also downloads the app builds: the newest `edge/v*` GitHub Release
+the live cloud can sync with (`min_cloud` in its manifest). Both apps carry that one edge version.
+Each zip is checked against its `.sha256` and refused on mismatch.
 
 ```powershell
 cd C:\laguna-edge
 .\scripts\fetch-artifacts.ps1 -Only edge-node,next
-# -> artifacts\edge-node\edge-node.exe, artifacts\next\server.js  (+ RELEASE = installed tag)
+# -> artifacts\edge-node\edge-node.exe, artifacts\next\server.js  (+ RELEASE = installed edge version)
 ```
 
 No Go, pnpm, git or app source is needed on the box. The frontend's API URL is baked to
@@ -116,30 +116,24 @@ workflow.
 Developer fallback for **unreleased** code (needs Go + pnpm + Developer Mode, and must be run at
 the final install path): `.\scripts\build-artifacts.ps1`. A local build records
 `local-<sha>` in `artifacts\<app>\RELEASE`, so the next `fetch-artifacts.ps1` replaces it
-with the pinned release.
+with the newest compatible edge release.
 
 ### Cutting a release (developer)
 
-1. Tag the app repo: `git tag v1.2.0 && git push origin v1.2.0`.
-   - backend: CI pushes the cloud image to ECR **and** attaches
-     `edge-node-windows-amd64-v1.2.0.zip` (+ `.sha256`) to the GitHub Release.
-   - frontend: CI attaches `next-standalone-windows-v1.2.0.zip` (+ `.sha256`), after a
-     relocated smoke test.
-2. Deploy the cloud first: point `aws-infra/image-tags.json` `laguna` at the backend tag and
-   `cdk deploy bryan-dev-services`.
-3. Cut the edge release from your machine (git, gh, jq):
-   ```bash
-   scripts/release.sh --dry-run   # resolve + check only
-   scripts/release.sh             # latest app releases with a Windows asset, bump patch
-   scripts/release.sh --backend v1.2.0 --frontend v1.0.3 --version v1.1.0
-   ```
-   It refuses a backend newer than the cloud's `image-tags.json` pin and an app tag whose
-   release has no Windows asset (failed CI). Then it pins `versions.json`, commits, tags this
-   repo, and publishes a GitHub Release with `edge-vX.Y.Z.zip` (tracked files only, never
-   `env/` or `certs/`) and a `manifest.json` (every component's tag, URL and sha256).
-4. On each box: `git pull` then `.\scripts\update.ps1 -Service edge-node` (or `next`).
-   `update.ps1` downloads and verifies *before* stopping the service; `GET /api/edge/status`
-   reports the running backend tag in `version`.
+An edge release is one `edge/v*` tag on the monorepo; it is independent of cloud deploys.
+
+1. The PR job "Edge fingerprint" says whether the change needs one ("edge release needed:
+   yes/no"). If `no`, there is nothing to release.
+2. If the edge now depends on cloud behaviour the live cloud already has, bump `min_cloud` in
+   `edge/compat.json` (it must name an existing cloud release).
+3. Tag and push: `git tag edge/v1.3.0 && git push origin edge/v1.3.0`. CI
+   (`.github/workflows/release-edge.yml`) refuses a tag whose fingerprint equals the last
+   release's ("edge unchanged"), then publishes one GitHub Release with the appliance zip,
+   `edge-node-windows-amd64-<v>.zip`, `next-standalone-windows-<v>.zip`, their `.sha256` files,
+   `manifest.json` and `edge-fingerprint.txt`.
+4. Boxes pick it up from the POS ("Actualizar ahora") once the live cloud satisfies its
+   `min_cloud`. For scripts, Caddyfile or services changes, also run `scripts\install.ps1` on
+   the box after fetching the appliance zip. `GET /api/edge/status` reports the running version.
 
 ---
 

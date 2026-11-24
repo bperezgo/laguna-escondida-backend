@@ -11,6 +11,7 @@ import (
 
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
+	"laguna-escondida/backend/internal/platform/buildinfo"
 )
 
 // SyncStockPullClient GETs the cloud's changed stock from /api/sync/pull/stock,
@@ -37,6 +38,7 @@ func (c *SyncStockPullClient) PullStock(ctx context.Context, since time.Time) (r
 	}
 	httpReq.Header.Set("X-Node-Key", c.nodeKey)
 	httpReq.Header.Set("X-Node-ID", c.nodeID)
+	httpReq.Header.Set("X-Edge-Version", buildinfo.Version)
 
 	resp, err := c.client.Do(httpReq)
 	if err != nil {
