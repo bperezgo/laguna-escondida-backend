@@ -80,7 +80,7 @@ func loadShared() (Shared, error) {
 	if err != nil {
 		return Shared{}, err
 	}
-	observability, err := loadObservability()
+	observability, err := LoadObservability("laguna-backend")
 	if err != nil {
 		return Shared{}, err
 	}
@@ -137,10 +137,12 @@ func loadStorage() (Storage, error) {
 	}, nil
 }
 
-func loadObservability() (Observability, error) {
+// LoadObservability reads the observability settings alone, so a binary that is not the API
+// (the MCP server) shares the variables without loading the rest of the config.
+func LoadObservability(defaultServiceName string) (Observability, error) {
 	serviceName := os.Getenv("OTEL_SERVICE_NAME")
 	if serviceName == "" {
-		serviceName = "laguna-backend"
+		serviceName = defaultServiceName
 	}
 	environment := os.Getenv("ENVIRONMENT")
 	if environment == "" {
