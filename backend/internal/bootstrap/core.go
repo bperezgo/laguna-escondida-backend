@@ -27,6 +27,7 @@ import (
 // ModeOptions are the choices that differ between modes; only cloud.go and edge.go fill them in.
 type ModeOptions struct {
 	Tenancy                     tenant.Scope
+	JWTSecret                   string
 	SyncIdentity                dto.SyncIdentity
 	StatusHandler               func(*service.EdgeStatusService, *syncstatus.Tracker) *handler.EdgeHandler
 	PendingInvoiceInitialStatus dto.PendingInvoiceStatus
@@ -108,7 +109,7 @@ func buildCore(cfg *config.Shared, infra Infra, opts ModeOptions) (*core, error)
 	watermillLogger := watermill.NewSlogLogger(logger)
 	publisher := eventbus.NewDetachedEventBus(infra.EventBus, postgres.Detach)
 
-	jwtService := service.NewJWTService(cfg.JWTSecret, opts.Tenancy)
+	jwtService := service.NewJWTService(opts.JWTSecret, opts.Tenancy)
 
 	unitOfWork := postgres.NewUnitOfWork(db)
 	syncOutboxRepo := repository.NewSyncOutboxRepository(db)
@@ -224,7 +225,7 @@ func buildCore(cfg *config.Shared, infra Infra, opts ModeOptions) (*core, error)
 		sse:               handler.NewSSEHandler(sseHub, openBillProductHub, orderService, logger),
 		edge:              opts.StatusHandler(edgeStatusService, syncStatusTracker),
 	}
-	registerAPIRoutes(router, cfg.AdminAPIKey, jwtService, handlers, opts.StockAuthoring)
+	registerAPIRoutes(router, jwtService, handlers, opts.StockAuthoring)
 
 	return &core{
 		router:                     router,

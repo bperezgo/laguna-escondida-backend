@@ -29,14 +29,14 @@ const testOrganizationID = "019a0000-0000-7000-8000-000000000123"
 
 func testSharedConfig() config.Shared {
 	return config.Shared{
-		AdminAPIKey: "admin-key", JWTSecret: "test-secret", PhoneHomeRegion: "CO",
+		JWTSecret: "test-secret", PhoneHomeRegion: "CO",
 		Observability: config.Observability{ServiceName: "laguna-backend", MetricsPort: "0"},
 	}
 }
 
 func testCloudConfig() *config.Cloud {
 	return &config.Cloud{
-		Shared: testSharedConfig(), PublicAPIURL: "https://api.example.com",
+		Shared: testSharedConfig(), AdminAPIKey: "admin-key", PublicAPIURL: "https://api.example.com",
 		TelemetryForwardURL: "http://127.0.0.1:4319", TelemetryTenantID: "tenant",
 	}
 }

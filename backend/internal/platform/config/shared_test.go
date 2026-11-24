@@ -13,7 +13,7 @@ const (
 	testNodeID         = "22222222-2222-2222-2222-222222222222"
 )
 
-func setSharedEnv(t *testing.T) {
+func setCloudSecrets(t *testing.T) {
 	t.Helper()
 	t.Setenv("ADMIN_API_KEY", "admin-key")
 	t.Setenv("JWT_SECRET", "jwt-secret")
@@ -23,10 +23,17 @@ func setSharedEnv(t *testing.T) {
 	t.Setenv("STORAGE_BUCKET", "storage-bucket")
 }
 
+func clearCloudSecrets(t *testing.T) {
+	t.Helper()
+	for _, name := range []string{"ADMIN_API_KEY", "JWT_SECRET", "STORAGE_REGION", "STORAGE_ACCESS_KEY", "STORAGE_SECRET", "STORAGE_BUCKET", "CDN_URL_TTL"} {
+		t.Setenv(name, "")
+	}
+}
+
 // setCloudEnv is the cloud's documented env: no organization or node identity.
 func setCloudEnv(t *testing.T) {
 	t.Helper()
-	setSharedEnv(t)
+	setCloudSecrets(t)
 	t.Setenv("ELECTRONIC_INVOICE_URL", "https://invoice.example.com")
 	t.Setenv("PUBLIC_API_URL", "https://api.example.com")
 	t.Setenv("ELECTRONIC_INVOICE_USER", "user")
@@ -35,10 +42,10 @@ func setCloudEnv(t *testing.T) {
 	t.Setenv("NODE_ID", "")
 }
 
-// setEdgeEnv is a box's documented env: no e-invoicing credentials.
+// setEdgeEnv is a box's documented env: no e-invoicing credentials, none of the cloud's secrets.
 func setEdgeEnv(t *testing.T) {
 	t.Helper()
-	setSharedEnv(t)
+	clearCloudSecrets(t)
 	t.Setenv("ELECTRONIC_INVOICE_URL", "")
 	t.Setenv("ELECTRONIC_INVOICE_USER", "")
 	t.Setenv("ELECTRONIC_INVOICE_PASSWORD", "")
@@ -68,53 +75,71 @@ var loaders = []struct {
 	}},
 }
 
-func TestLoadShared_RequiredVariables(t *testing.T) {
-	for _, l := range loaders {
-		for _, name := range []string{"ADMIN_API_KEY", "JWT_SECRET", "STORAGE_BUCKET"} {
-			t.Run(l.name+"/"+name, func(t *testing.T) {
-				l.setEnv(t)
-				t.Setenv(name, "")
+func TestLoadCloud_RequiredSecrets(t *testing.T) {
+	for _, name := range []string{"ADMIN_API_KEY", "JWT_SECRET", "STORAGE_BUCKET"} {
+		t.Run(name, func(t *testing.T) {
+			setCloudEnv(t)
+			t.Setenv(name, "")
 
-				cfg, err := l.load()
-
-				require.Error(t, err)
-				assert.Nil(t, cfg)
-				assert.Contains(t, err.Error(), name)
-			})
-		}
-	}
-}
-
-func TestLoadShared_StorageDefaults(t *testing.T) {
-	for _, l := range loaders {
-		t.Run(l.name, func(t *testing.T) {
-			l.setEnv(t)
-			t.Setenv("STORAGE_REGION", "")
-			t.Setenv("CDN_URL_TTL", "")
-
-			cfg, err := l.load()
-
-			require.NoError(t, err)
-			assert.Equal(t, "us-east-1", cfg.Storage.Region)
-			assert.Equal(t, "storage-bucket", cfg.Storage.Bucket)
-			assert.Equal(t, 7*24*time.Hour, cfg.Storage.CDNURLTTL)
-		})
-	}
-}
-
-func TestLoadShared_CDNURLTTL_InvalidReturnsError(t *testing.T) {
-	for _, l := range loaders {
-		t.Run(l.name, func(t *testing.T) {
-			l.setEnv(t)
-			t.Setenv("CDN_URL_TTL", "a week")
-
-			cfg, err := l.load()
+			cfg, err := LoadCloud()
 
 			require.Error(t, err)
 			assert.Nil(t, cfg)
-			assert.Contains(t, err.Error(), "invalid CDN_URL_TTL")
+			assert.Contains(t, err.Error(), name)
 		})
 	}
+}
+
+func TestLoadEdge_NeedsNoCloudSecrets(t *testing.T) {
+	setEdgeEnv(t)
+
+	cfg, err := LoadEdge()
+
+	require.NoError(t, err)
+	assert.Empty(t, cfg.JWTSecret)
+}
+
+func TestLoadEdge_CloudSecretsInTheEnvironmentAreNotRead(t *testing.T) {
+	setEdgeEnv(t)
+	setCloudSecrets(t)
+
+	cfg, err := LoadEdge()
+
+	require.NoError(t, err)
+	assert.Equal(t, "jwt-secret", cfg.JWTSecret)
+}
+
+func TestLoadEdge_InvalidCDNURLTTLDoesNotStopTheBox(t *testing.T) {
+	setEdgeEnv(t)
+	t.Setenv("CDN_URL_TTL", "a week")
+
+	_, err := LoadEdge()
+
+	require.NoError(t, err)
+}
+
+func TestLoadCloud_StorageDefaults(t *testing.T) {
+	setCloudEnv(t)
+	t.Setenv("STORAGE_REGION", "")
+	t.Setenv("CDN_URL_TTL", "")
+
+	cfg, err := LoadCloud()
+
+	require.NoError(t, err)
+	assert.Equal(t, "us-east-1", cfg.Storage.Region)
+	assert.Equal(t, "storage-bucket", cfg.Storage.Bucket)
+	assert.Equal(t, 7*24*time.Hour, cfg.Storage.CDNURLTTL)
+}
+
+func TestLoadCloud_CDNURLTTL_InvalidReturnsError(t *testing.T) {
+	setCloudEnv(t)
+	t.Setenv("CDN_URL_TTL", "a week")
+
+	cfg, err := LoadCloud()
+
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "invalid CDN_URL_TTL")
 }
 
 func TestLoadShared_Observability_Defaults(t *testing.T) {

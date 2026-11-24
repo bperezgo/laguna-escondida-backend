@@ -30,7 +30,7 @@ type EdgeUpdateHandler struct {
 	updateService *service.EdgeUpdateService
 }
 
-// NewEdgeUpdateHandler takes a nil service when LAGUNA_STATE_DIR is unset: the feature is off.
+// NewEdgeUpdateHandler takes a nil service when the box has no updater state folder: the feature is off.
 func NewEdgeUpdateHandler(updateService *service.EdgeUpdateService) *EdgeUpdateHandler {
 	return &EdgeUpdateHandler{updateService: updateService}
 }

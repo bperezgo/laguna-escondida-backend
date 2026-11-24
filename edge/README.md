@@ -20,7 +20,7 @@ Android tablets (LAN)
  Next.js (standalone)
    │  127.0.0.1:8080   (server-side, inside Next's /api/* route handlers)
    ▼
- Go edge node (APP_MODE=edge; ticket printing built in) ── cloud sync / S3 / invoicing (online)
+ Go edge node (ticket printing built in) ── cloud sync / S3 / invoicing (online)
    │                        │
    │                        └─ OTLP 127.0.0.1:4317 ─▶ Alloy ──▶ cloud telemetry ingest (online)
    ▼                                                   ▲

@@ -1,8 +1,11 @@
 package bootstrap
 
 import (
+	"fmt"
+
 	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/httpclient"
+	"laguna-escondida/backend/internal/platform/storage"
 )
 
 // Boot is a binary's loaded configuration, ready for Main to assemble once the database is up.
@@ -21,6 +24,11 @@ func CloudBoot() (Boot, error) {
 	return Boot{
 		Shared: &cfg.Shared,
 		Assemble: func(infra Infra) (*App, error) {
+			storageClient, err := storage.NewS3Client(cfg.Storage)
+			if err != nil {
+				return nil, fmt.Errorf("create storage client: %w", err)
+			}
+			infra.Storage = storageClient
 			infra.ElectronicInvoice = httpclient.NewElectronicInvoiceClient(cfg.ElectronicInvoice, infra.HTTPClient)
 			return NewCloud(cfg, infra)
 		},

@@ -18,6 +18,7 @@ import (
 // globalTableFiles reach tables that belong to no organization (or name it explicitly), so
 // they may use the unscoped database handle.
 var globalTableFiles = map[string]bool{
+	"box_secret_repository.go":          true,
 	"database.go":                       true,
 	"einvoicing_settings_repository.go": true,
 	"invoice_sequence.go":               true,

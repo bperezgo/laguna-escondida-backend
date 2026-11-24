@@ -107,6 +107,7 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 	// The cloud owns on-hand and the restaurant learns it back through the daily pull, so a
 	// cloud-origin stock op would never be delivered to anyone.
 	c, err := buildCore(&cfg.Shared, infra, ModeOptions{
+		JWTSecret:    cfg.JWTSecret,
 		Tenancy:      tenant.AnyOrganization(),
 		SyncIdentity: dto.SyncIdentity{NodeID: cloudOriginNodeID},
 		StatusHandler: func(*service.EdgeStatusService, *syncstatus.Tracker) *handler.EdgeHandler {
@@ -309,6 +310,7 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		sync:            handler.NewSyncHandler(syncService, syncReferenceService),
 		minEdgeVersion:  cfg.MinEdgeVersion,
 		telemetry:       telemetryHandler,
+		stock:           c.handlers.stock,
 		organization:    handler.NewOrganizationHandler(c.organizationService),
 		lead:            handler.NewLeadHandler(leadService),
 		apiKey:          handler.NewAPIKeyHandler(apiKeyService),

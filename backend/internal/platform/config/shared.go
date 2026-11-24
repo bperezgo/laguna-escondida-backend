@@ -22,12 +22,11 @@ const (
 
 // Shared is the configuration both binaries read.
 type Shared struct {
-	AdminAPIKey string
-	JWTSecret   string
+	// JWTSecret is required by the cloud; a box creates its own when this is empty.
+	JWTSecret string
 	// PhoneHomeRegion (ISO 3166 alpha-2) reads customer phones typed without "+".
 	PhoneHomeRegion string
 
-	Storage       Storage
 	Observability Observability
 }
 
@@ -64,19 +63,6 @@ type Observability struct {
 }
 
 func loadShared() (Shared, error) {
-	adminAPIKey := os.Getenv("ADMIN_API_KEY")
-	if adminAPIKey == "" {
-		return Shared{}, errors.New("ADMIN_API_KEY is not set")
-	}
-	jwtSecret := os.Getenv("JWT_SECRET")
-	if jwtSecret == "" {
-		return Shared{}, errors.New("JWT_SECRET is not set")
-	}
-
-	storage, err := loadStorage()
-	if err != nil {
-		return Shared{}, err
-	}
 	observability, err := LoadObservability("laguna-backend")
 	if err != nil {
 		return Shared{}, err
@@ -91,10 +77,8 @@ func loadShared() (Shared, error) {
 	}
 
 	return Shared{
-		AdminAPIKey:     adminAPIKey,
-		JWTSecret:       jwtSecret,
+		JWTSecret:       os.Getenv("JWT_SECRET"),
 		PhoneHomeRegion: phoneHomeRegion,
-		Storage:         storage,
 		Observability:   observability,
 	}, nil
 }

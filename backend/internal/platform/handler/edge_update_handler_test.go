@@ -24,7 +24,7 @@ const (
 	stagedV101       = `{"version":"v1.0.1","current":"v1.0.0","components":{"edge-node":"v1.1.19","next":"v1.0.3"}}`
 )
 
-// newEdgeUpdateRouter serves the handler over dir; an empty dir means LAGUNA_STATE_DIR is unset.
+// newEdgeUpdateRouter serves the handler over dir; an empty dir means the box has no state folder.
 func newEdgeUpdateRouter(dir string) *gin.Engine {
 	var updateService *service.EdgeUpdateService
 	if dir != "" {

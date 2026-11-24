@@ -96,16 +96,12 @@ jobs:
           $dbPassword = [guid]::NewGuid().ToString('N')
           "DB_PASSWORD=$dbPassword" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
           $set = [ordered]@{
-            PORT = '8080'; APP_MODE = 'edge'
+            PORT = '8080'
             DB_HOST = '127.0.0.1'; DB_PORT = '5432'; DB_USER = 'laguna'; DB_PASSWORD = $dbPassword
             DB_NAME = 'laguna_escondida'; DB_SSLMODE = 'disable'
             ORGANIZATION_ID = '00000000-0000-0000-0000-00000000c1c1'
-            JWT_SECRET = [guid]::NewGuid().ToString('N'); ADMIN_API_KEY = [guid]::NewGuid().ToString('N')
             # Unreachable cloud = a box whose WAN is down: sync fails and queues, the LAN works.
             CLOUD_SYNC_URL = 'http://127.0.0.1:9'; NODE_SYNC_KEY = 'ci-smoke-test'
-            STORAGE_BUCKET = 'ci-smoke-test'; STORAGE_ACCESS_KEY = 'ci'; STORAGE_SECRET = 'ci'
-            ELECTRONIC_INVOICE_URL = 'http://127.0.0.1:9'
-            ELECTRONIC_INVOICE_USER = 'ci'; ELECTRONIC_INVOICE_PASSWORD = 'ci'
             PRINTER_TRANSPORT = 'file'; PRINTER_TARGET = "$root\logs\printer.out"
             OBSERVABILITY_ENABLED = 'false'
           }

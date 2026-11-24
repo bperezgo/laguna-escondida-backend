@@ -1,6 +1,8 @@
 package bootstrap
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -53,4 +55,26 @@ func servesHandler(app *App, name string) bool {
 		}
 	}
 	return false
+}
+
+func TestEdgeRoutes_IgnoreTheAdminAPIKey(t *testing.T) {
+	edge, err := NewEdge(testEdgeConfig(), testInfra(t))
+	require.NoError(t, err)
+
+	for _, route := range []struct {
+		method, path string
+		want         int
+	}{
+		{http.MethodGet, "/api/products", http.StatusUnauthorized},
+		{http.MethodPost, "/api/users", http.StatusNotFound},
+		{http.MethodPost, "/api/stock/opening-balances", http.StatusNotFound},
+	} {
+		t.Run(route.method+" "+route.path, func(t *testing.T) {
+			req := httptest.NewRequest(route.method, route.path, strings.NewReader("{}"))
+			req.Header.Set("X-API-Key", "admin-key")
+			rec := httptest.NewRecorder()
+			edge.Router.ServeHTTP(rec, req)
+			assert.Equal(t, route.want, rec.Code)
+		})
+	}
 }

@@ -210,9 +210,6 @@ foreach ($d in $StateDir, (Join-Path $Root 'backups')) {
   New-Item -ItemType Directory -Force -Path $d | Out-Null
   & icacls $d /inheritance:r /grant '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' /C /Q | Out-Null
 }
-if (-not (Select-String -Path $EnvSrc -Pattern '^\s*EDGE_STATE_DIR\s*=\s*[^\s#]' -Quiet)) {
-  Write-Warning "env\edge-node.env has no EDGE_STATE_DIR, so the POS will not offer updates. Add: EDGE_STATE_DIR=$StateDir"
-}
 
 # --- 2. Install services in dependency order --------------------------------------
 # WinSW finds <name>.xml by matching the copied exe's basename.

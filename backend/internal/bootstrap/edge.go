@@ -1,8 +1,10 @@
 package bootstrap
 
 import (
+	"context"
 	"errors"
 	"log/slog"
+	"os"
 
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/service"
@@ -10,7 +12,6 @@ import (
 	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/cron"
 	"laguna-escondida/backend/internal/platform/device"
-	"laguna-escondida/backend/internal/platform/edgeupdate"
 	"laguna-escondida/backend/internal/platform/handler"
 	"laguna-escondida/backend/internal/platform/httpclient"
 	"laguna-escondida/backend/internal/platform/postgres/repository"
@@ -27,7 +28,13 @@ func NewEdge(cfg *config.Edge, infra Infra) (*App, error) {
 	logger := infra.Logger
 	logger.Info("Running in EDGE mode")
 
+	jwtSecret, err := resolveJWTSecret(context.Background(), cfg.JWTSecret, repository.NewBoxSecretRepository(infra.DB), logger)
+	if err != nil {
+		return nil, err
+	}
+
 	c, err := buildCore(&cfg.Shared, infra, ModeOptions{
+		JWTSecret:    jwtSecret,
 		Tenancy:      tenant.PinnedTo(cfg.OrganizationID),
 		SyncIdentity: dto.SyncIdentity{NodeID: cfg.NodeID, CloudNodeID: cfg.CloudNodeID},
 		StatusHandler: func(statusService *service.EdgeStatusService, tracker *syncstatus.Tracker) *handler.EdgeHandler {
@@ -44,13 +51,8 @@ func NewEdge(cfg *config.Edge, infra Infra) (*App, error) {
 		return nil, err
 	}
 
-	var edgeUpdateService *service.EdgeUpdateService
-	if cfg.LagunaStateDir == "" {
-		logger.Info("Owner-triggered updates disabled: set LAGUNA_STATE_DIR to enable them")
-	} else {
-		edgeUpdateService = service.NewEdgeUpdateService(edgeupdate.NewStateStore(cfg.LagunaStateDir, logger))
-	}
-	registerEdgeUpdateRoutes(c.router, c.jwtService, handler.NewEdgeUpdateHandler(edgeUpdateService))
+	exe, exeErr := os.Executable()
+	registerEdgeUpdateRoutes(c.router, c.jwtService, handler.NewEdgeUpdateHandler(newEdgeUpdateService(exe, exeErr, logger)))
 
 	// A printer that fails to init (windows transport off windows, unreachable target) skips
 	// the route, so the box still boots and the frontend falls back to browser printing.

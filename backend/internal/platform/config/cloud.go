@@ -15,6 +15,9 @@ import (
 type Cloud struct {
 	Shared
 
+	AdminAPIKey string
+	Storage     Storage
+
 	ElectronicInvoice ElectronicInvoice
 
 	InvoiceURLCron         string
@@ -67,6 +70,18 @@ func (c *Cloud) TelemetryIngestEnabled() bool {
 
 func LoadCloud() (*Cloud, error) {
 	shared, err := loadShared()
+	if err != nil {
+		return nil, err
+	}
+
+	adminAPIKey := os.Getenv("ADMIN_API_KEY")
+	if adminAPIKey == "" {
+		return nil, errors.New("ADMIN_API_KEY is not set")
+	}
+	if shared.JWTSecret == "" {
+		return nil, errors.New("JWT_SECRET is not set")
+	}
+	storage, err := loadStorage()
 	if err != nil {
 		return nil, err
 	}
@@ -144,6 +159,8 @@ func LoadCloud() (*Cloud, error) {
 		PublicAPIURL:           publicAPIURL,
 		MinEdgeVersion:         minEdgeVersion,
 		Shared:                 shared,
+		AdminAPIKey:            adminAPIKey,
+		Storage:                storage,
 		ElectronicInvoice:      invoice,
 		InvoiceURLCron:         envOr("INVOICE_URL_CRON", "0 * * * *"),
 		SupportDocumentURLCron: envOr("SUPPORT_DOCUMENT_URL_CRON", "30 * * * *"),

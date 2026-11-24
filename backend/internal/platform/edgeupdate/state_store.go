@@ -35,7 +35,7 @@ type stateStore struct {
 	logger *slog.Logger
 }
 
-// NewStateStore reads and writes the updater's state files in dir (LAGUNA_STATE_DIR).
+// NewStateStore reads and writes the updater's state files in dir (see StateDirFor).
 func NewStateStore(dir string, logger *slog.Logger) ports.EdgeUpdateStateStore {
 	return &stateStore{dir: dir, logger: logger}
 }
