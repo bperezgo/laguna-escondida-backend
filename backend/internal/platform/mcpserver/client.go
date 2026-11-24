@@ -39,7 +39,7 @@ type Client struct {
 func NewClient(cfg *Config) *Client {
 	return &Client{
 		baseURL:     strings.TrimRight(cfg.APIBaseURL, "/"),
-		httpClient:  &http.Client{Timeout: 30 * time.Second},
+		httpClient:  &http.Client{Timeout: 30 * time.Second, Transport: injectTrace{next: http.DefaultTransport}},
 		email:       cfg.Email,
 		username:    cfg.Username,
 		password:    cfg.Password,

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -15,8 +16,11 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
+	"laguna-escondida/backend/internal/platform/config"
 	"laguna-escondida/backend/internal/platform/mcpserver"
+	"laguna-escondida/backend/internal/platform/observability"
 )
 
 func main() {
@@ -34,6 +38,28 @@ func main() {
 
 	if err := cfg.ValidateTransport(*stdioMode); err != nil {
 		log.Fatalf("mcp-server config: %v", err)
+	}
+
+	// Stdio runs as a subprocess with no collector, and owns stdout for JSON-RPC.
+	shutdownTelemetry := func(context.Context) error { return nil }
+	if !*stdioMode {
+		obs, obsErr := config.LoadObservability("laguna-mcp")
+		if obsErr != nil {
+			log.Fatalf("mcp-server config: %v", obsErr)
+		}
+		providers, initErr := observability.Init(context.Background(), observability.InitConfig{
+			Enabled:          obs.Enabled,
+			ServiceName:      obs.ServiceName,
+			ServiceVersion:   obs.ServiceVersion,
+			Environment:      obs.Environment,
+			OTLPEndpoint:     obs.OTLPEndpoint,
+			TraceSampleRatio: obs.TraceSampleRatio,
+		})
+		if initErr != nil {
+			log.Fatalf("mcp-server observability: %v", initErr)
+		}
+		shutdownTelemetry = providers.Shutdown
+		slog.SetDefault(observability.NewSlogLogger(obs.Enabled))
 	}
 
 	client := mcpserver.NewClient(cfg)
@@ -61,7 +87,7 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/mcp", guarded)
+	mux.Handle("/mcp", otelhttp.NewHandler(guarded, "mcp", otelhttp.WithPropagators(mcpserver.Propagator())))
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -92,6 +118,9 @@ func main() {
 	defer cancel()
 	if err := httpServer.Shutdown(ctx); err != nil {
 		log.Printf("mcp-server shutdown: %v", err)
+	}
+	if err := shutdownTelemetry(ctx); err != nil {
+		log.Printf("mcp-server telemetry shutdown: %v", err)
 	}
 	log.Println("mcp-server stopped")
 }

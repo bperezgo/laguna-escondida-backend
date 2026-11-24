@@ -184,6 +184,10 @@ services:
       LAGUNA_API_URL: http://cloud:8080
       MCP_TOOLSET: customer
       MCP_ADDR: ":8090"
+      # Shows up in Grafana as laguna-mcp, through the same Alloy as the cloud.
+      OBSERVABILITY_ENABLED: "true"
+      OTEL_SERVICE_NAME: laguna-mcp
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4317
     ports:
       - "8090:8090" # MCP endpoint -> http://localhost:8090/mcp
     # The image's healthcheck probes the API's /api/health on 8080; this binary serves /health on 8090.
@@ -194,6 +198,8 @@ services:
       retries: 3
     depends_on:
       cloud:
+        condition: service_started
+      alloy:
         condition: service_started
     restart: unless-stopped
     networks:
