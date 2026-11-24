@@ -11,6 +11,7 @@ import (
 
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports"
+	"laguna-escondida/backend/internal/platform/buildinfo"
 )
 
 // SyncPullClient GETs reference changes from a peer's /api/sync/pull, authenticating with
@@ -35,6 +36,7 @@ func (c *SyncPullClient) Pull(ctx context.Context, since time.Time) (res *dto.Sy
 	}
 	httpReq.Header.Set("X-Node-Key", c.nodeKey)
 	httpReq.Header.Set("X-Node-ID", c.nodeID)
+	httpReq.Header.Set("X-Edge-Version", buildinfo.Version)
 
 	resp, err := c.client.Do(httpReq)
 	if err != nil {

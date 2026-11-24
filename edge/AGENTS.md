@@ -19,5 +19,5 @@ See `README.md` for the architecture and layout.
 - Only Caddy is exposed on the LAN; everything else binds `127.0.0.1`.
 - `env\box.env` is the single source of truth for the box's IP, subnet and hostname.
 - Per-box files under `env/` (no `.example`), `artifacts/`, `certs/` and data dirs are gitignored.
-- Scripts target Windows PowerShell 5.1; `scripts/release.sh` runs on the developer machine.
-- Pinned versions live in `versions.json`.
+- Scripts target Windows PowerShell 5.1.
+- Pinned third-party versions live in `versions.json`; the app pair comes from the `edge/v*` release (`compat.json` holds `min_cloud`).

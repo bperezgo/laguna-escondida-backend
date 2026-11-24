@@ -1,12 +1,13 @@
 <#
-  updater.ps1 -- owner-triggered app updates (edge-node + next). See docs\UPDATE_PROTOCOL.md.
+  updater.ps1 -- owner-triggered appliance updates (edge-node + next, one edge release).
+  See docs\UPDATE_PROTOCOL.md.
 
   install.ps1 registers it as the "Laguna Updater" scheduled task: SYSTEM, every minute.
   Each run does at most one thing:
     - an admin pressed "Actualizar" (state\update-requested.json): back up the DB, install the
       staged versions, verify, roll back on failure, write state\update-result.json
-    - otherwise, every 30 min: compare what is installed with the cloud backend's version and
-      the latest frontend release, download + verify what is newer, and write
+    - otherwise, every 30 min: find the newest edge/* release that is newer than what is
+      installed and whose min_cloud the live cloud satisfies, download + verify it, and write
       state\update-available.json, which edge-node shows to admins as a banner
 
   Logs to logs\updater.log. Run by hand (elevated):  .\scripts\updater.ps1 -CheckNow
@@ -24,7 +25,6 @@ $Backups   = Join-Path $Root 'backups'
 $LogFile   = Join-Path $Root 'logs\updater.log'
 $EnvFile   = Join-Path $Root 'env\edge-node.env'
 $PgBin     = Join-Path $Root 'artifacts\postgres\bin'
-$GitHubApi = 'https://api.github.com/repos/bperezgo'
 $Apps      = 'edge-node','next'   # install order: the backend first, then the UI that calls it
 $CheckEvery  = New-TimeSpan -Minutes 30
 $KeepBackups = 5
@@ -35,13 +35,7 @@ function Log($msg) {
 
 function Now { Get-Date -Format 'yyyy-MM-ddTHH:mm:sszzz' }
 
-function Test-Tag($t) { return "$t" -match '^v\d+\.\d+\.\d+$' }
-
-# True if release tag $a is newer than $b.
-function Test-NewerTag($a, $b) {
-  if (-not (Test-Tag $a) -or -not (Test-Tag $b)) { return $false }
-  return [version]$a.Substring(1) -gt [version]$b.Substring(1)
-}
+. (Join-Path $PSScriptRoot 'releases.ps1')   # Test-Tag, Test-NewerTag, Select-EdgeRelease, ...
 
 function Get-Installed($app) {
   $f = Join-Path $Root "artifacts\$app\RELEASE"
@@ -55,8 +49,18 @@ function Get-InstalledTags {
   return $tags
 }
 
+# The edge version the box runs. Both apps carry the same one once installed from an edge
+# release; a box still on the old per-app tags reports the older of the two, so the first edge
+# release counts as newer.
+function Get-InstalledVersion($tags) {
+  $a = $tags['edge-node']; $b = $tags['next']
+  if ($a -eq $b) { return $a }
+  if (Test-NewerTag $a $b) { return $b }
+  return $a
+}
+
 # The banner shows this string and the request must echo it back exactly.
-function Format-Version($tags) { return "$($tags['edge-node'])+$($tags['next'])" }
+function Format-Version($tags) { return Get-InstalledVersion $tags }
 
 function Format-Tags($tags) { return "edge-node $($tags['edge-node']), next $($tags['next'])" }
 
@@ -107,51 +111,66 @@ function Invoke-Check {
   $installed = Get-InstalledTags
   $local = @($Apps | Where-Object { -not (Test-Tag $installed[$_]) })
   if ($local) { Log "check skipped: not a release install ($(Format-Tags $installed))"; return }
+  $current = Get-InstalledVersion $installed
 
-  $pins = (Get-Content (Join-Path $Root 'versions.json') -Raw | ConvertFrom-Json).artifacts
-  $latest = @{}
   try {
     $cloudUrl = (Read-EnvFile $EnvFile)['CLOUD_SYNC_URL'].TrimEnd('/')
-    $latest['edge-node'] = "$((Invoke-RestMethod "$cloudUrl/api/edge/status" -TimeoutSec 20 -UseBasicParsing).version)"
-    $release = Invoke-RestMethod "$GitHubApi/$($pins.next.repo)/releases/latest" -TimeoutSec 20 -UseBasicParsing
-    $latest['next'] = "$($release.tag_name)"
+    $cloud = "$((Invoke-RestMethod "$cloudUrl/api/edge/status" -TimeoutSec 20 -UseBasicParsing).version)"
+    $releases = Get-EdgeReleases
   } catch {
     # Leave any staged update-available.json alone: it is still valid while we are offline.
     Log "check failed: $($_.Exception.Message)"
     return
   }
 
-  $target = [ordered]@{}
-  foreach ($a in $Apps) {
-    $target[$a] = $installed[$a]
-    if (-not (Test-NewerTag $latest[$a] $installed[$a])) { continue }
+  # A release whose manifest cannot be read is skipped (min_cloud unknown), not offered.
+  $manifests = @{}
+  $getMin = {
+    param($r)
+    $v = Get-EdgeVersion $r.tag_name
+    try { $manifests[$v] = Get-EdgeManifest $v; return $manifests[$v].min_cloud }
+    catch { Log "$($r.tag_name): manifest unreadable: $($_.Exception.Message)"; return $null }
+  }
+
+  # Stage it now so pressing the button needs no download, and so a release whose Windows
+  # build is missing, corrupt or different from its manifest is never offered.
+  $offer = $null
+  $skip  = @()
+  while ($true) {
+    $pool = @($releases | Where-Object { $skip -notcontains $_.tag_name })
+    $r = Select-EdgeRelease $pool $current $cloud $getMin
+    if (-not $r) { break }
+    $v = Get-EdgeVersion $r.tag_name
     try {
-      # Stage it now so pressing the button needs no download, and so a release whose
-      # Windows build is missing or corrupt is never offered.
-      Invoke-Script 'fetch-artifacts.ps1' @{ Only = @($a); DownloadOnly = $true; Tags = @{ $a = $latest[$a] } }
-      $target[$a] = $latest[$a]
+      $sha = @{ 'edge-node' = "$($manifests[$v].components.'edge-node'.sha256)"; next = "$($manifests[$v].components.next.sha256)" }
+      foreach ($a in $Apps) {
+        Invoke-Script 'fetch-artifacts.ps1' @{ Only = @($a); DownloadOnly = $true; Tags = @{ $a = $v }; Sha256 = @{ $a = $sha[$a] } }
+      }
+      $offer = @{ release = $r; version = $v; sha256 = $sha }
+      break
     } catch {
-      Log "$a $($latest[$a]) not offered: $($_.Exception.Message)"
+      Log "$($r.tag_name) not offered: $($_.Exception.Message)"
+      $skip += $r.tag_name
     }
   }
 
-  $changed = @($Apps | Where-Object { $target[$_] -ne $installed[$_] })
-  if (-not $changed) {
+  if (-not $offer) {
     Remove-State 'update-available.json'
-    Log "up to date: $(Format-Tags $installed)"
+    Log "up to date: $(Format-Tags $installed) (cloud $cloud)"
     return
   }
-  if ($changed -contains 'next') { $notes = "$($release.html_url)" }
-  else { $notes = "https://github.com/bperezgo/$($pins.'edge-node'.repo)/releases/tag/$($target['edge-node'])" }
 
+  $target = [ordered]@{}
+  foreach ($a in $Apps) { $target[$a] = $offer.version }
   Write-State 'update-available.json' ([ordered]@{
-    version    = Format-Version $target
-    current    = Format-Version $installed
-    notes_url  = $notes
+    version    = $offer.version
+    current    = $current
+    notes_url  = "$($offer.release.html_url)"
     components = $target
+    sha256     = $offer.sha256
     checked_at = Now
   })
-  Log "available: $(Format-Tags $target) (installed: $(Format-Tags $installed))"
+  Log "available: $($offer.version) (installed: $current, cloud $cloud)"
 }
 
 # --- apply ------------------------------------------------------------------------------
@@ -265,12 +284,15 @@ function Invoke-Apply {
     foreach ($a in $Apps) {
       $to[$a] = "$($avail.components.$a)"
       if (-not (Test-Tag $to[$a])) { throw "update-available.json has no valid $a tag" }
+      if ($to[$a] -ne $script:version) { throw "update-available.json: $a is $($to[$a]), not the offered $script:version" }
     }
     $changed = @($Apps | Where-Object { $to[$_] -ne $from[$_] })
 
     Set-Phase 'downloading'
     foreach ($a in $changed) {
-      Invoke-Script 'fetch-artifacts.ps1' @{ Only = @($a); DownloadOnly = $true; Tags = @{ $a = $to[$a] } }
+      $fetch = @{ Only = @($a); DownloadOnly = $true; Tags = @{ $a = $to[$a] } }
+      if ("$($avail.sha256.$a)") { $fetch['Sha256'] = @{ $a = "$($avail.sha256.$a)" } }
+      Invoke-Script 'fetch-artifacts.ps1' $fetch
     }
 
     if ($changed -contains 'edge-node') {
@@ -287,7 +309,7 @@ function Invoke-Apply {
 
     Write-State 'installed.json' ([ordered]@{ version = $script:version; applied_at = Now })
     Remove-State 'update-available.json'
-    Write-Result 'success' "Actualizado a $(Format-Tags $to)." $from $to
+    Write-Result 'success' "Actualizado a $script:version." $from $to
   } catch {
     $err = "$($_.Exception.Message)"
     $failedPhase = $script:phase

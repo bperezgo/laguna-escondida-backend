@@ -36,6 +36,8 @@ type cloudHandlers struct {
 	paymentWebhook  *handler.PaymentWebhookHandler
 	delivery        *handler.DeliveryHandler
 	nodes           *service.NodeService
+	// minEdgeVersion is the sync floor (config MIN_EDGE_VERSION); empty accepts any edge.
+	minEdgeVersion string
 }
 
 func registerCloudRoutes(router *gin.Engine, adminAPIKey, nodeSyncKey string, jwtService *service.JWTService, h cloudHandlers) {
@@ -86,9 +88,10 @@ func registerCloudRoutes(router *gin.Engine, adminAPIKey, nodeSyncKey string, jw
 	// Cloud sync aggregate: accept pushes from edge nodes and serve reference changes.
 	// Each acts for the organization the calling node is registered to.
 	nodeAuth := handler.NodeAuthMiddleware(nodeSyncKey, h.nodes)
-	router.POST("/api/sync/push", handler.PushNodeIDFromBody(), nodeAuth, h.sync.PushHandler)
-	router.GET("/api/sync/pull", nodeAuth, h.sync.PullHandler)
-	router.GET("/api/sync/pull/stock", nodeAuth, h.sync.PullStockHandler)
+	edgeVersion := handler.EdgeVersionMiddleware(h.minEdgeVersion)
+	router.POST("/api/sync/push", handler.PushNodeIDFromBody(), nodeAuth, edgeVersion, h.sync.PushHandler)
+	router.GET("/api/sync/pull", nodeAuth, edgeVersion, h.sync.PullHandler)
+	router.GET("/api/sync/pull/stock", nodeAuth, edgeVersion, h.sync.PullStockHandler)
 
 	if h.telemetry != nil {
 		router.POST("/api/telemetry/v1/logs", nodeAuth, h.telemetry.IngestLogsHandler)

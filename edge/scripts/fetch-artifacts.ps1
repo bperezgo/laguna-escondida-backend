@@ -3,20 +3,22 @@
   Reads versions.json.
 
   INFRASTRUCTURE (Caddy, Alloy, Node, Postgres) are public upstream downloads.
-  APP artifacts (edge-node, next) are the Windows builds CI attaches to the monorepo's
-  GitHub Release (see .github/workflows/release.yml). versions.json
-  pins each to a release TAG; the download is checked against the release's .sha256 and
-  REFUSED on mismatch. Nothing is compiled on the box (no Go / pnpm / source needed).
-  scripts\build-artifacts.ps1 remains as a developer fallback for unreleased code.
+  APP artifacts (edge-node, next) are the Windows builds CI attaches to an edge/vX.Y.Z GitHub
+  Release of the monorepo (see .github/workflows/release-edge.yml); both carry that one
+  version. Without -Tags the newest edge release (compatible with the live cloud, when it can
+  be reached) is used. The download is checked against the release's .sha256 (and -Sha256,
+  the manifest's value, when given) and REFUSED on mismatch. Nothing is compiled on the box
+  (no Go / pnpm / source needed). scripts\build-artifacts.ps1 remains as a developer fallback
+  for unreleased code.
 
-  The installed tag is recorded in artifacts\<app>\RELEASE, so re-running is a no-op until
-  versions.json changes (or -Force). A release newer than the pin, installed from the POS by
-  scripts\updater.ps1 (-Tag), is kept rather than downgraded.
+  The installed version is recorded in artifacts\<app>\RELEASE, so re-running is a no-op until
+  a newer edge release exists (or -Force). A newer release installed from the POS by
+  scripts\updater.ps1 (-Tags) is kept rather than downgraded.
 
   Run:  .\scripts\fetch-artifacts.ps1                         # everything
         .\scripts\fetch-artifacts.ps1 -Only node,postgres     # subset
         .\scripts\fetch-artifacts.ps1 -Only next -DownloadOnly # download + verify into the cache only
-        .\scripts\fetch-artifacts.ps1 -Only next -Tags @{ next = 'v1.0.4' }   # a tag other than the pin
+        .\scripts\fetch-artifacts.ps1 -Only next -Tags @{ next = 'v1.3.0' }   # a specific edge version
 #>
 [CmdletBinding()]
 param(
@@ -27,8 +29,11 @@ param(
   # App artifacts only: download + verify into the local cache, do not touch artifacts\.
   # update.ps1 uses this BEFORE stopping a service, so the download is not downtime.
   [switch]   $DownloadOnly,
-  # App artifacts only: release tags to use instead of the versions.json pins.
-  [hashtable] $Tags = @{}
+  # App artifacts only: edge versions (vX.Y.Z) to use instead of the newest release.
+  [hashtable] $Tags = @{},
+  # App artifacts only: expected sha256 per app (from the release's manifest.json); a zip that
+  # does not match is refused even if it matches its own .sha256 file.
+  [hashtable] $Sha256 = @{}
 )
 
 $ErrorActionPreference = 'Stop'
@@ -38,8 +43,7 @@ $v         = Get-Content (Join-Path $Root 'versions.json') | ConvertFrom-Json
 $tmp       = Join-Path $env:TEMP 'laguna-fetch'
 # Verified app release zips, kept by tag so a staged download survives until install.
 $cache     = Join-Path $Root 'artifacts\.cache'
-# Releases are only ever downloaded from these repos (the updater will enforce the same).
-$ReleaseOwner = 'bperezgo'
+. (Join-Path $PSScriptRoot 'releases.ps1')   # release repo, Get-EdgeBaseUrl, Select-EdgeRelease
 $ProgressPreference = 'SilentlyContinue'   # PS 5.1's progress bar makes Invoke-WebRequest crawl
 
 New-Item -ItemType Directory -Force -Path $Artifacts, $tmp, $cache | Out-Null
@@ -123,8 +127,8 @@ if (Want 'postgres') {
   }
 }
 
-# --- App artifacts (edge-node, next) from GitHub Releases --------------------------
-# Asset names match the app repos' release workflows.
+# --- App artifacts (edge-node, next) from the edge GitHub Release -----------------
+# Asset names match .github/workflows/release-edge.yml.
 $AppAssets = @{
   'edge-node' = { param($tag) "edge-node-windows-amd64-$tag.zip" }
   'next'      = { param($tag) "next-standalone-windows-$tag.zip" }
@@ -133,18 +137,16 @@ $AppAssets = @{
 # Download <asset> and <asset>.sha256 for $tag into the cache and verify. Returns the zip
 # path. A cached zip is re-verified, never trusted blindly; a bad one is deleted.
 function Get-VerifiedRelease($app, $tag) {
-  $pin = $v.artifacts.$app
-  if ($tag -notmatch '^v\d+\.\d+\.\d+') {
-    throw ("$app '$tag' is not a release tag. Set " +
-           "artifacts.$app.version to a tag of $($pin.repo) that has a Windows release asset (e.g. v1.2.0), " +
+  if ($tag -notmatch '^v\d+\.\d+\.\d+$') {
+    throw ("$app '$tag' is not an edge version (vX.Y.Z). Pass -Tags @{ $app = 'v1.3.0' } " +
            "or build from source with scripts\build-artifacts.ps1 -Only $app.")
   }
   $asset = & $AppAssets[$app] $tag
-  $base  = "https://github.com/$ReleaseOwner/$($pin.repo)/releases/download/$tag"
+  $base  = Get-EdgeBaseUrl $tag
   $zip   = Join-Path $cache $asset
   $sumF  = "$zip.sha256"
 
-  Write-Host "  $($pin.repo) $tag"
+  Write-Host "  $ReleaseRepo $EdgePrefix$tag"
   try {
     Invoke-WebRequest -Uri "$base/$asset.sha256" -OutFile $sumF -UseBasicParsing
   } catch {
@@ -154,6 +156,9 @@ function Get-VerifiedRelease($app, $tag) {
   }
   $expected = ((Get-Content $sumF -Raw).Trim() -split '\s+')[0].ToLower()
   if ($expected -notmatch '^[0-9a-f]{64}$') { throw "$asset.sha256 is not a sha256 checksum." }
+  if ($Sha256.ContainsKey($app) -and "$($Sha256[$app])".ToLower() -ne $expected) {
+    throw "MANIFEST MISMATCH for ${asset}: manifest says $($Sha256[$app]), the release's .sha256 says $expected. Refusing to install."
+  }
 
   if (-not (Test-Path $zip) -or ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() -ne $expected)) {
     Write-Host "  downloading $base/$asset"
@@ -176,15 +181,28 @@ function Get-InstalledRelease($dest) {
   return $null
 }
 
-# True if release tag $a is newer than $b.
-function Test-NewerTag($a, $b) {
-  if ("$a" -notmatch '^v\d+\.\d+\.\d+$' -or "$b" -notmatch '^v\d+\.\d+\.\d+$') { return $false }
-  return [version]$a.Substring(1) -gt [version]$b.Substring(1)
+# The edge version to install when -Tags does not name one: the newest release the live cloud
+# can sync with (any, when the cloud cannot be reached, e.g. a first install without WAN).
+function Get-DefaultEdgeVersion {
+  $cloud = $null
+  try {
+    $envFile = Join-Path $Root 'env\edge-node.env'
+    $line = Get-Content $envFile -ErrorAction Stop | Where-Object { $_ -match '^\s*CLOUD_SYNC_URL\s*=' } | Select-Object -First 1
+    $url = (($line -split '=', 2)[1] -replace '\s+#.*$', '').Trim().Trim('"', "'").TrimEnd('/')
+    $cloud = "$((Invoke-RestMethod "$url/api/edge/status" -TimeoutSec 10 -UseBasicParsing).version)"
+  } catch { Write-Host "  cloud version unknown ($($_.Exception.Message)); not checking min_cloud" -ForegroundColor Yellow }
+  $r = Select-EdgeRelease (Get-EdgeReleases) $null $cloud { param($r) (Get-EdgeManifest (Get-EdgeVersion $r.tag_name)).min_cloud }
+  if (-not $r) { throw "no edge release is available$(if ($cloud) { " for cloud $cloud" })." }
+  return Get-EdgeVersion $r.tag_name
 }
 
 foreach ($a in 'edge-node','next') {
   if (-not (Want $a)) { continue }
-  $tag  = if ($Tags.ContainsKey($a)) { "$($Tags[$a])" } else { "$($v.artifacts.$a.version)" }
+  if ($Tags.ContainsKey($a)) { $tag = "$($Tags[$a])" }
+  else {
+    if (-not $defaultVersion) { $defaultVersion = Get-DefaultEdgeVersion }
+    $tag = $defaultVersion
+  }
   $dest = Join-Path $Artifacts $a
   Step "App artifact: $a $tag"
   $installed = Get-InstalledRelease $dest
@@ -194,7 +212,7 @@ foreach ($a in 'edge-node','next') {
       continue
     }
     if (-not $Tags.ContainsKey($a) -and (Test-NewerTag $installed $tag)) {
-      Write-Host "  $installed (installed from the POS) is newer than the pin $tag -- skip."
+      Write-Host "  $installed (installed from the POS) is newer than $tag -- skip."
       continue
     }
   }

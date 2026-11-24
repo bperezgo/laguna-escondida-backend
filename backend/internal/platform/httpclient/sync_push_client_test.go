@@ -8,18 +8,20 @@ import (
 	"testing"
 
 	"laguna-escondida/backend/internal/domain/dto"
+	"laguna-escondida/backend/internal/platform/buildinfo"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSyncPushClient_Push_SendsKeyAndParsesAck(t *testing.T) {
-	var gotKey, gotNodeID, gotPath, gotMethod string
+	var gotKey, gotNodeID, gotPath, gotMethod, gotVersion string
 	var gotReq dto.SyncPushRequest
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotKey = r.Header.Get("X-Node-Key")
 		gotNodeID = r.Header.Get("X-Node-ID")
+		gotVersion = r.Header.Get("X-Edge-Version")
 		gotPath = r.URL.Path
 		gotMethod = r.Method
 		_ = json.NewDecoder(r.Body).Decode(&gotReq)
@@ -44,6 +46,7 @@ func TestSyncPushClient_Push_SendsKeyAndParsesAck(t *testing.T) {
 	assert.Equal(t, "/api/sync/push", gotPath)
 	assert.Equal(t, "node-a", gotNodeID, "the cloud resolves the organization from the node id")
 	assert.Equal(t, "secret-key", gotKey, "client authenticates with the node key")
+	assert.Equal(t, buildinfo.Version, gotVersion, "the cloud learns which edge release is syncing")
 	assert.Equal(t, "node-a", gotReq.NodeID, "request body carries the sender node id")
 	require.Len(t, gotReq.Ops, 1)
 	assert.Equal(t, "op-1", gotReq.Ops[0].OpID)

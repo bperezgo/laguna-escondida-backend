@@ -2,7 +2,10 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"os"
+
+	"laguna-escondida/backend/internal/platform/buildinfo"
 )
 
 // Cloud is the cloud binary's configuration. It has no organization or node identity: each
@@ -38,6 +41,8 @@ type Cloud struct {
 	PaymentLinks PaymentLinks
 	// TrustedProxies are the peers allowed to set X-Forwarded-For; nil keeps the router's trust-all default.
 	TrustedProxies []string
+	// MinEdgeVersion is the oldest edge release allowed to sync ("vX.Y.Z"); empty accepts any.
+	MinEdgeVersion string
 	// FeedbackRequestCron asks for feedback the morning after visits; ReservationVisitedCron marks
 	// confirmed reservations visited two hours after they start.
 	FeedbackRequestCron    string
@@ -120,7 +125,13 @@ func LoadCloud() (*Cloud, error) {
 		return nil, err
 	}
 
+	minEdgeVersion := os.Getenv("MIN_EDGE_VERSION")
+	if _, ok := buildinfo.ParseVersion(minEdgeVersion); minEdgeVersion != "" && !ok {
+		return nil, fmt.Errorf("invalid MIN_EDGE_VERSION %q: want vMAJOR.MINOR.PATCH", minEdgeVersion)
+	}
+
 	return &Cloud{
+		MinEdgeVersion:         minEdgeVersion,
 		Shared:                 shared,
 		ElectronicInvoice:      invoice,
 		InvoiceURLCron:         envOr("INVOICE_URL_CRON", "0 * * * *"),

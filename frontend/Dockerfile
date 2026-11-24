@@ -1,6 +1,6 @@
 # Cloud image of the operations UI (Next.js standalone), run by aws-infra as the
 # `laguna-web` Fargate service. The edge box does NOT use this: it runs the Windows
-# bundle from release.yml (frontend-windows).
+# bundle from release-edge.yml (frontend-windows).
 
 # Build stage
 FROM node:22-alpine AS builder
