@@ -1,0 +1,41 @@
+# LAN HTTPS reverse proxy: the only service exposed on the LAN.
+# The storage root below must match the install root (C:\laguna-edge).
+{
+	# Holds the internal CA root. If this dir is lost, every tablet must re-trust a new root.
+	storage file_system {
+		root C:\laguna-edge\caddy-data
+	}
+}
+
+# Both placeholders are machine env vars that scripts\install.ps1 builds from env\box.env.
+#   EDGE_SITE_ADDR -> "pos.laguna.lan, 192.168.10.10" or just "192.168.10.10"
+#   EDGE_LAN_CIDR  -> e.g. 192.168.10.0/24
+{$EDGE_SITE_ADDR} {
+	tls internal
+
+	# Compressing SSE buffers the frames and the stream stays empty.
+	@notsse {
+		not path /api/sse/*
+	}
+	encode @notsse zstd gzip
+
+	# Defense in depth; the Windows Firewall rule is the primary control.
+	@notlan not remote_ip {$EDGE_LAN_CIDR}
+	respond @notlan "Forbidden" 403
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	reverse_proxy 127.0.0.1:3000 {
+		flush_interval -1
+
+		# Standalone Next builds redirects against its bind origin (localhost:3000).
+		# Strip it so Location is relative and resolves against the host the tablet used.
+		header_down Location "https?://localhost:3000" ""
+	}
+}
