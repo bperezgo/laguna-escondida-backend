@@ -33,8 +33,8 @@ $ErrorActionPreference = 'Stop'
 $Root      = Split-Path -Parent $PSScriptRoot
 $Artifacts = Join-Path $Root 'artifacts'
 $Parent    = Split-Path -Parent $Root
-if (-not $BackendRepo)  { $BackendRepo  = Join-Path $Parent 'laguna-escondida-backend' }
-if (-not $FrontendRepo) { $FrontendRepo = Join-Path $Parent 'laguna-escondida-frontend' }
+if (-not $BackendRepo)  { $BackendRepo  = Join-Path $Parent 'laguna-escondida-backend\backend' }
+if (-not $FrontendRepo) { $FrontendRepo = Join-Path $Parent 'laguna-escondida-backend\frontend' }
 
 function Want($n) { $Only -contains $n }
 function Step($m) { Write-Host ("`n==> " + $m) -ForegroundColor Cyan }

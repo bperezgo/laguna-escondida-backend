@@ -1,4 +1,4 @@
-name: Install smoke test (Windows)
+name: Edge CI (install smoke test, Windows)
 
 # Full appliance lifecycle on a clean Windows machine, so a change to the scripts, service
 # definitions, Caddyfile or pinned versions is proven without a physical box:
@@ -11,9 +11,21 @@ name: Install smoke test (Windows)
 on:
   push:
     branches: [main]
-    paths-ignore: ['ai-plan/**', 'docs/**', 'incidents/**', '**/*.md']
+    paths:
+      - 'edge/**'
+      - '!edge/ai-plan/**'
+      - '!edge/docs/**'
+      - '!edge/incidents/**'
+      - '!edge/**/*.md'
+      - '.github/workflows/edge-ci.yml'
   pull_request:
-    paths-ignore: ['ai-plan/**', 'docs/**', 'incidents/**', '**/*.md']
+    paths:
+      - 'edge/**'
+      - '!edge/ai-plan/**'
+      - '!edge/docs/**'
+      - '!edge/incidents/**'
+      - '!edge/**/*.md'
+      - '.github/workflows/edge-ci.yml'
   workflow_dispatch:
     inputs:
       edge_node_tag:
@@ -27,7 +39,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: install-smoke-${{ github.ref }}
+  group: edge-ci-${{ github.ref }}
   cancel-in-progress: true
 
 # Actions pinned to commit SHAs (tag in comment), same policy as the app repos.
@@ -39,6 +51,7 @@ jobs:
     defaults:
       run:
         shell: pwsh
+        working-directory: edge
     env:
       # The scripts (install.ps1 step 5, the Caddyfile storage root) assume this path.
       EDGE_ROOT: C:\laguna-edge
@@ -64,7 +77,7 @@ jobs:
 
       - name: Stage the install root at C:\laguna-edge
         run: |
-          robocopy $env:GITHUB_WORKSPACE $env:EDGE_ROOT /E /XD .git /NFL /NDL /NJH /NJS /NP
+          robocopy "$env:GITHUB_WORKSPACE\edge" $env:EDGE_ROOT /E /XD .git /NFL /NDL /NJH /NJS /NP
           if ($LASTEXITCODE -ge 8) { throw "robocopy failed ($LASTEXITCODE)" }
           exit 0
 
@@ -164,7 +177,7 @@ jobs:
 
           $edgeNode = (Get-Content "$root\artifacts\edge-node\RELEASE" -Raw).Trim()
           $next     = (Get-Content "$root\artifacts\next\RELEASE" -Raw).Trim()
-          $releases = Invoke-RestMethod 'https://api.github.com/repos/bperezgo/laguna-escondida-frontend/releases?per_page=20' `
+          $releases = Invoke-RestMethod 'https://api.github.com/repos/bperezgo/laguna-escondida-backend/releases?per_page=20' `
             -Headers @{ Authorization = "Bearer $env:GH_TOKEN" }
           $other = $releases | Where-Object {
             -not $_.draft -and -not $_.prerelease -and $_.tag_name -match '^v\d+\.\d+\.\d+$' -and

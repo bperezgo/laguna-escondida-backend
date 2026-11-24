@@ -3,8 +3,8 @@
   Reads versions.json.
 
   INFRASTRUCTURE (Caddy, Alloy, Node, Postgres) are public upstream downloads.
-  APP artifacts (edge-node, next) are the Windows builds CI attaches to each app repo's
-  GitHub Release (see .github/workflows/release.yml in -backend / -frontend). versions.json
+  APP artifacts (edge-node, next) are the Windows builds CI attaches to the monorepo's
+  GitHub Release (see .github/workflows/release.yml). versions.json
   pins each to a release TAG; the download is checked against the release's .sha256 and
   REFUSED on mismatch. Nothing is compiled on the box (no Go / pnpm / source needed).
   scripts\build-artifacts.ps1 remains as a developer fallback for unreleased code.

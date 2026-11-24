@@ -11,7 +11,7 @@
             "version": "v1.1.19"
         },
         "next": {
-            "repo": "laguna-escondida-frontend",
+            "repo": "laguna-escondida-backend",
             "version": "v1.0.2"
         }
     }

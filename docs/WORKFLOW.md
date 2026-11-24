@@ -197,7 +197,10 @@ Treat findings as leads to verify, not verdicts.
 1. Paste the traceability table (step 4.2) and the code-drawn diagram (step
    4.3) into the PR description. They're the evidence for whoever reads it
    later.
-2. Open the PR, then merge after CI is green.
+2. Open the PR, then merge after CI is green. Each app has its own CI,
+   path-filtered (`backend-ci`, `frontend-ci`, `landing-ci`, `edge-ci`). The
+   appliance in `edge/` consumes the apps only as release artifacts, never their
+   source, and its Windows install smoke test runs only when `edge/**` changes.
 3. Run `/opsx:archive <change>` to fold the delta specs into
    `openspec/specs/`.
 

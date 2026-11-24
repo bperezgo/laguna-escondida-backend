@@ -64,19 +64,22 @@ repos are the build sources (defaults are siblings of the edge repo's parent).
 
 ```
 C:\laguna-edge\                     <- THIS repo (laguna-escondida-edge), at this exact path
-C:\...\laguna-escondida-backend\    <- Go backend source  (build input)
-C:\...\laguna-escondida-frontend\   <- Next.js frontend source (build input)
+C:\...\laguna-escondida-backend\backend\   <- Go backend source  (build input)
+C:\...\laguna-escondida-backend\frontend\  <- Next.js frontend source (build input)
 ```
 
 ```powershell
 # Example: clone the app repos next to a working folder, then place edge at C:\laguna-edge
-git clone <backend-url>  C:\src\laguna-escondida-backend
-git clone <frontend-url> C:\src\laguna-escondida-frontend
+git clone <monorepo-url> C:\src\laguna-escondida-backend   # holds backend/, frontend/ and edge/
 git clone <edge-url>     C:\laguna-edge
 cd C:\laguna-edge
 ```
 
 If your app repos are NOT default siblings, pass them explicitly in step 4.
+
+> **The appliance now lives in `edge/` of the monorepo.** A box's existing `C:\laguna-edge` checkout
+> of the old `laguna-escondida-edge` repo keeps working, but that repo is archived and no longer
+> receives changes. How boxes get updates from here on is decided in the `split-release-tags` change.
 
 ---
 

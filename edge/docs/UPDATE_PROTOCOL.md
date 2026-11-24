@@ -21,7 +21,7 @@ Every 30 minutes the updater compares what is installed (`artifacts\<app>\RELEAS
 - **edge-node**: the version the **cloud backend** runs, from `<CLOUD_SYNC_URL>/api/edge/status`
   (`version` is the release tag stamped into the binary). Following the cloud means a box
   never runs a backend newer than the cloud it syncs with.
-- **next**: the **latest GitHub Release** of `laguna-escondida-frontend`. Netlify deploys on
+- **next**: the **latest GitHub Release** of `laguna-escondida-backend` (the monorepo). Netlify deploys on
   push, so the cloud frontend has no tag to report; the box only needs a tagged Windows build.
 
 A newer version is offered only after its Windows asset has been downloaded and its sha256

@@ -18,16 +18,16 @@
 #         scripts/release.sh --backend v1.1.18 --frontend v1.0.2 --version v1.1.0
 #         scripts/release.sh --dry-run                        # resolve + check, change nothing
 #
-# Env:    AWS_INFRA_DIR  path to the aws-infra checkout (default: ../aws-infra)
+# Env:    AWS_INFRA_DIR  path to the aws-infra checkout (default: ../../aws-infra)
 set -euo pipefail
 
 OWNER=bperezgo
-EDGE_REPO=laguna-escondida-edge
+EDGE_REPO=laguna-escondida-backend
 BACKEND_REPO=laguna-escondida-backend
-FRONTEND_REPO=laguna-escondida-frontend
+FRONTEND_REPO=laguna-escondida-backend
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-AWS_INFRA_DIR=${AWS_INFRA_DIR:-"$ROOT/../aws-infra"}
+AWS_INFRA_DIR=${AWS_INFRA_DIR:-"$ROOT/../../aws-infra"}
 VERSIONS="$ROOT/versions.json"
 
 BACKEND="" FRONTEND="" VERSION="" DRY_RUN=0 YES=0
@@ -151,6 +151,8 @@ echo "  edge-node  $OLD_BACKEND -> $BACKEND"
 echo "  next       $OLD_FRONTEND -> $FRONTEND"
 if [ -n "$UNPUSHED" ]; then echo "  also pushes these unpushed commits on main:"; printf '%s\n' "$UNPUSHED" | sed 's/^/    /'; fi
 if [ "$DRY_RUN" = 1 ]; then echo; echo "dry run: nothing changed."; exit 0; fi
+
+die "edge releases are not cut from the monorepo yet: a bare v* tag here would trigger the full release. See openspec/changes/split-release-tags."
 if [ "$YES" != 1 ]; then
   printf '\nCommit, tag, push and publish? [y/N] '; read -r ok
   case "$ok" in y|Y|yes) ;; *) echo "aborted."; exit 1 ;; esac
