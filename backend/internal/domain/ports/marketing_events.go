@@ -44,6 +44,9 @@ type MarketingEventRecorder interface {
 	// RecordReservationCreated is RecordReservation for a new reservation; one the agent's request
 	// stored confirmed records nothing, as the agent already told the guest.
 	RecordReservationCreated(ctx context.Context, reservation *dto.Reservation, at time.Time) error
+	// RecordReservationAttendance records reservation.visited or reservation.no_show with the status
+	// the reservation left; any other status records nothing.
+	RecordReservationAttendance(ctx context.Context, reservation *dto.Reservation, previous dto.ReservationStatus, at time.Time) error
 	RecordFeedbackRequested(ctx context.Context, request *dto.FeedbackRequest, reservation *dto.Reservation) error
 }
 

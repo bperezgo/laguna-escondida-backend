@@ -144,7 +144,8 @@ func newCloud(t *testing.T) *cloud {
 	cfg := &config.Cloud{Shared: config.Shared{
 		AdminAPIKey: adminAPIKey, JWTSecret: jwtSecret, NodeSyncKey: "accept-node-key", PhoneHomeRegion: "CO",
 		Observability: config.Observability{ServiceName: "laguna-backend", MetricsPort: "0"},
-	}, PaymentLinks: testsupport.PaymentLinks(t), Integrations: testsupport.Integrations()}
+	}, PaymentLinks: testsupport.PaymentLinks(t), Integrations: testsupport.Integrations(),
+		MarketingEvents: config.MarketingEvents{URL: "http://127.0.0.1:1"}}
 	app, err := bootstrap.NewCloud(cfg, bootstrap.Infra{
 		DB:                cloudDB,
 		Logger:            logger,

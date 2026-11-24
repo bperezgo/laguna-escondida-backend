@@ -358,7 +358,7 @@ func TestReservationService_Transitions_EmitTheirEvents(t *testing.T) {
 		{action: "confirm", from: dto.ReservationStatusRequested, wantType: dto.MarketingEventReservationConfirmed, wantInData: map[string]string{"status": "confirmed"}},
 		{action: "decline", from: dto.ReservationStatusRequested, wantType: dto.MarketingEventReservationDeclined, wantInData: map[string]string{"status": "declined", "reason": "Fully booked"}},
 		{action: "cancel", from: dto.ReservationStatusConfirmed, wantType: dto.MarketingEventReservationCancelled, wantInData: map[string]string{"status": "cancelled", "cancelled_by": "staff"}},
-		{action: "no_show", from: dto.ReservationStatusConfirmed, wantNoEvent: true},
+		{action: "no_show", from: dto.ReservationStatusConfirmed, wantType: dto.MarketingEventReservationNoShow, wantInData: map[string]string{"status": "no_show", "previous_status": "confirmed"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.action, func(t *testing.T) {
@@ -386,6 +386,56 @@ func TestReservationService_Transitions_EmitTheirEvents(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestReservationService_MarkNoShow_AfterStartRecordsAttendance(t *testing.T) {
+	tests := []struct {
+		from dto.ReservationStatus
+		at   time.Time
+	}{
+		{from: dto.ReservationStatusConfirmed, at: crmAt(t, 9, 8, 0)},
+		{from: dto.ReservationStatusVisited, at: crmAt(t, 9, 8, 0)},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.from), func(t *testing.T) {
+			f := newReservationFixture(t, tt.at)
+			f.holds(storedReservation(tt.from, tt.at.Add(-12*time.Hour)))
+
+			_, err := f.service.MarkNoShow(crmContext(), "r1")
+
+			require.NoError(t, err)
+			events := f.outbox.events()
+			require.Len(t, events, 1)
+			assert.Equal(t, dto.MarketingEventReservationNoShow, events[0].Type)
+			assert.Contains(t, string(events[0].Body), `"previous_status":"`+string(tt.from)+`"`)
+			assert.Contains(t, string(events[0].Body), `"occurred_at":"`+tt.at.In(tt.at.Location()).Format(time.RFC3339)+`"`)
+		})
+	}
+}
+
+func TestReservationService_MarkNoShow_RollbackLeavesNoEvent(t *testing.T) {
+	now := crmAt(t, 9, 8, 0)
+	f := newReservationFixture(t, now)
+	f.repo.EXPECT().FindByID(mock.Anything, "r1").Return(storedReservation(dto.ReservationStatusConfirmed, now.Add(-12*time.Hour)), nil).Once()
+	f.repo.EXPECT().Update(mock.Anything, mock.Anything, dto.ReservationStatusConfirmed).Return(errors.New("db down")).Once()
+
+	_, err := f.service.MarkNoShow(crmContext(), "r1")
+
+	require.Error(t, err)
+	assert.Empty(t, f.outbox.events())
+}
+
+func TestReservationService_MarkNoShow_StaffEnteredRecordsNothing(t *testing.T) {
+	now := crmAt(t, 9, 8, 0)
+	f := newReservationFixture(t, now)
+	current := storedReservation(dto.ReservationStatusConfirmed, now.Add(-12*time.Hour))
+	current.Origin = dto.Origin{}
+	f.holds(current)
+
+	_, err := f.service.MarkNoShow(crmContext(), "r1")
+
+	require.NoError(t, err)
+	assert.Empty(t, f.outbox.events())
 }
 
 func TestReservationService_Transitions_NoChannelNoEvent(t *testing.T) {
@@ -656,6 +706,49 @@ func TestReservationService_MarkVisited_TwoHoursAfterItStarts(t *testing.T) {
 	}
 }
 
+func TestReservationService_MarkVisited_RecordsOneEventPerVisitedRow(t *testing.T) {
+	dinner := storedReservation(dto.ReservationStatusConfirmed, crmAt(t, 8, 20, 0))
+	f, _ := visitedFixture(t, crmAt(t, 8, 22, 15), dinner)
+
+	_, err := f.service.MarkVisited(crmContext())
+
+	require.NoError(t, err)
+	events := f.outbox.events()
+	require.Len(t, events, 1)
+	assert.Equal(t, dto.MarketingEventReservationVisited, events[0].Type)
+	assert.Contains(t, string(events[0].Body), `"status":"visited"`)
+	assert.Contains(t, string(events[0].Body), `"previous_status":"confirmed"`)
+}
+
+func TestReservationService_MarkVisited_SkippedRowRecordsNoEvent(t *testing.T) {
+	f := newReservationFixture(t, crmAt(t, 8, 23, 0))
+	f.repo.EXPECT().ListConfirmedStartedBefore(mock.Anything, mock.Anything).Return([]*dto.Reservation{
+		storedReservation(dto.ReservationStatusConfirmed, crmAt(t, 8, 20, 0)),
+	}, nil).Once()
+	f.repo.EXPECT().Update(mock.Anything, mock.Anything, dto.ReservationStatusConfirmed).Return(domainError.ErrReservationTransition).Once()
+
+	_, err := f.service.MarkVisited(crmContext())
+
+	require.NoError(t, err)
+	assert.Empty(t, f.outbox.events())
+}
+
+func TestReservationService_MarkVisited_FailedEventRollsBackTheChange(t *testing.T) {
+	f := newReservationFixture(t, crmAt(t, 8, 23, 0))
+	f.outbox.appendErr = errors.New("outbox down")
+	f.repo.EXPECT().ListConfirmedStartedBefore(mock.Anything, mock.Anything).Return([]*dto.Reservation{
+		storedReservation(dto.ReservationStatusConfirmed, crmAt(t, 8, 20, 0)),
+	}, nil).Once()
+	f.repo.EXPECT().Update(mock.Anything, mock.Anything, dto.ReservationStatusConfirmed).Return(nil).Once()
+
+	marked, err := f.service.MarkVisited(crmContext())
+
+	require.Error(t, err)
+	assert.Zero(t, marked)
+	assert.Empty(t, f.outbox.events())
+	assert.Empty(t, f.live.statuses(), "staff screens hear nothing about a rolled-back change")
+}
+
 func TestReservationService_MarkVisited_LeavesARequestAlone(t *testing.T) {
 	never := storedReservation(dto.ReservationStatusRequested, crmAt(t, 8, 20, 0))
 	f, statuses := visitedFixture(t, crmAt(t, 8, 23, 0), never)
@@ -665,7 +758,7 @@ func TestReservationService_MarkVisited_LeavesARequestAlone(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, marked)
 	assert.Empty(t, statuses)
-	assert.Empty(t, f.outbox.events(), "a visit is not reported")
+	assert.Empty(t, f.outbox.events())
 }
 
 func TestReservationService_MarkVisited_SkipsWhatStaffChangedMeanwhile(t *testing.T) {

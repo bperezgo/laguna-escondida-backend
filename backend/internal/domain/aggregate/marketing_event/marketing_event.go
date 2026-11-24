@@ -62,6 +62,11 @@ type reservationData struct {
 	CancelledBy   *string `json:"cancelled_by,omitempty"`
 }
 
+type attendanceData struct {
+	reservationData
+	PreviousStatus string `json:"previous_status"`
+}
+
 type feedbackRequestedData struct {
 	FeedbackRequestID string `json:"feedback_request_id"`
 	ReservationID     string `json:"reservation_id"`
@@ -184,6 +189,21 @@ func NewReservationEvent(eventType dto.MarketingEventType, r *dto.Reservation, o
 	return newNotification(eventType, r, data, occurredAt, loc)
 }
 
+// NewAttendanceEvent is reservation.visited or reservation.no_show, with the status the reservation left.
+func NewAttendanceEvent(eventType dto.MarketingEventType, r *dto.Reservation, previous dto.ReservationStatus, occurredAt time.Time, loc *time.Location) (*dto.MarketingEvent, error) {
+	data := attendanceData{
+		reservationData: reservationData{
+			ReservationID: r.ID,
+			Name:          r.Name,
+			PartySize:     r.PartySize,
+			StartsAt:      formatTime(r.StartsAt, loc),
+			Status:        string(r.Status),
+		},
+		PreviousStatus: string(previous),
+	}
+	return newNotification(eventType, r, data, occurredAt, loc)
+}
+
 func NewFeedbackRequestedEvent(req *dto.FeedbackRequest, r *dto.Reservation, loc *time.Location) (*dto.MarketingEvent, error) {
 	data := feedbackRequestedData{
 		FeedbackRequestID: req.ID,
@@ -195,7 +215,7 @@ func NewFeedbackRequestedEvent(req *dto.FeedbackRequest, r *dto.Reservation, loc
 	return newNotification(dto.MarketingEventFeedbackRequested, r, data, req.RequestedAt, loc)
 }
 
-func newNotification[T reservationData | feedbackRequestedData](eventType dto.MarketingEventType, r *dto.Reservation, data T, occurredAt time.Time, loc *time.Location) (*dto.MarketingEvent, error) {
+func newNotification[T reservationData | attendanceData | feedbackRequestedData](eventType dto.MarketingEventType, r *dto.Reservation, data T, occurredAt time.Time, loc *time.Location) (*dto.MarketingEvent, error) {
 	if r.Origin.ChannelID == nil {
 		return nil, fmt.Errorf("reservation %s has no channel to report", r.ID)
 	}
@@ -251,6 +271,17 @@ func ReservationEventType(status dto.ReservationStatus) (dto.MarketingEventType,
 		return dto.MarketingEventReservationDeclined, true
 	case dto.ReservationStatusCancelled:
 		return dto.MarketingEventReservationCancelled, true
+	}
+	return "", false
+}
+
+// AttendanceEventType is the event a reservation entering status produces; ok=false for any other status.
+func AttendanceEventType(status dto.ReservationStatus) (dto.MarketingEventType, bool) {
+	switch status {
+	case dto.ReservationStatusVisited:
+		return dto.MarketingEventReservationVisited, true
+	case dto.ReservationStatusNoShow:
+		return dto.MarketingEventReservationNoShow, true
 	}
 	return "", false
 }
