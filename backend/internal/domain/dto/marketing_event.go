@@ -15,6 +15,9 @@ const (
 	MarketingEventReservationDeclined  MarketingEventType = "reservation.declined"
 	MarketingEventReservationCancelled MarketingEventType = "reservation.cancelled"
 	MarketingEventFeedbackRequested    MarketingEventType = "feedback.requested"
+	// Attendance is a presumption: visited is set by the job and staff may correct it to no_show.
+	MarketingEventReservationVisited MarketingEventType = "reservation.visited"
+	MarketingEventReservationNoShow  MarketingEventType = "reservation.no_show"
 	// MarketingEventOrderExpired is an agent order voided unpaid; it is sent only as a notification.
 	MarketingEventOrderExpired MarketingEventType = "order.expired"
 

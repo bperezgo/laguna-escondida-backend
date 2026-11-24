@@ -50,13 +50,15 @@ An organization has **one** secret: paste the same value on each of its channels
 | `reservation.confirmed` | Staff confirm a WhatsApp reservation before its `starts_at`             | `/backend/notifications` |
 | `reservation.declined`  | Staff decline it before its `starts_at`, with an optional `reason`      | `/backend/notifications` |
 | `reservation.cancelled` | The guest (through the agent) or staff cancel it before its `starts_at`; `cancelled_by` says which | `/backend/notifications` |
+| `reservation.visited`   | The job moves a confirmed reservation to `visited` two hours after `starts_at`; a **presumption** that the guest came, not a confirmation | `/backend/notifications` |
+| `reservation.no_show`   | Staff mark a reservation `no_show`, at any time, including after the job set it `visited` | `/backend/notifications` |
 | `feedback.requested`    | The morning-after job opens a feedback request                         | `/backend/notifications` |
 | `order.ready`           | The kitchen finishes the last line of a paid agent **takeaway** order (once per order, even after an undo) | `/backend/notifications` |
 | `order.out_for_delivery`| An agent delivery order is set out for delivery: a courier claims it, or staff dispatch or re-dispatch it | `/backend/notifications` |
 | `order.delivered`       | An agent order is set delivered (a delivery handed over, or a takeaway picked up) | `/backend/notifications` |
 | `order.delivery_failed` | An agent delivery order is set failed, with a reason                   | `/backend/notifications` |
 
-A request, a visit and a no-show produce no event. A delivery order becoming ready produces none: its customer hears when it goes out. The four delivery events are recorded in the same transaction as the [delivery change](deliveries.md) they report. A payment records two events, and an expiry two (`order.cancelled` and `order.expired`), each with its own `event_id`.
+A request produces no event. A delivery order becoming ready produces none: its customer hears when it goes out. The four delivery events are recorded in the same transaction as the [delivery change](deliveries.md) they report. A payment records two events, and an expiry two (`order.cancelled` and `order.expired`), each with its own `event_id`.
 
 ## `POST <events URL>/backend/events`
 
@@ -251,6 +253,29 @@ New in this contract. Each event is a message marketing-app sends the guest, so 
     "starts_at": "2026-11-09T20:00:00-05:00",
     "status": "cancelled",
     "cancelled_by": "customer"
+  }
+}
+```
+
+`reservation.visited` and `reservation.no_show` carry the same `data` plus `previous_status`, the status the reservation left. A reservation can receive `reservation.visited` and later `reservation.no_show` (`previous_status` `visited`): the earlier event is never withdrawn, so order a reservation's attendance by `occurred_at`, the time of each change, and treat the latest as current. Like every event they are delivered at least once and unordered. A reservation without a `channel_id` records neither.
+
+`reservation.no_show` (a correction of a visit):
+
+```json
+{
+  "event_id": "019a5f11-0a2b-7c44-8d13-6e5f4a3b2c74",
+  "type": "reservation.no_show",
+  "occurred_at": "2026-11-10T09:30:00-05:00",
+  "channel_id": "ch_1",
+  "conversation_id": "conv_9",
+  "customer_phone": "573005551234",
+  "data": {
+    "reservation_id": "r1",
+    "name": "Ana",
+    "party_size": 6,
+    "starts_at": "2026-11-09T20:00:00-05:00",
+    "status": "no_show",
+    "previous_status": "visited"
   }
 }
 ```

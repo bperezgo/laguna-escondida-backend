@@ -20,7 +20,10 @@ func TestReservationService_MarkNoShow_UnansweredRequestOnceItsTimeCame(t *testi
 
 	require.NoError(t, err)
 	assert.Equal(t, dto.ReservationStatusNoShow, result.Status)
-	assert.Empty(t, f.outbox.events(), "no-shows are never messaged")
+	events := f.outbox.events()
+	require.Len(t, events, 1)
+	assert.Equal(t, dto.MarketingEventReservationNoShow, events[0].Type)
+	assert.Contains(t, string(events[0].Body), `"previous_status":"requested"`)
 }
 
 func TestReservationService_MarkNoShow_RequestBeforeItsTimeIsRejected(t *testing.T) {

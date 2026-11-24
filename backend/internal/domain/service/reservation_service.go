@@ -253,6 +253,9 @@ func (s *ReservationService) transition(ctx context.Context, id string, apply fu
 				return err
 			}
 		}
+		if updated.Status == dto.ReservationStatusVisited || updated.Status == dto.ReservationStatusNoShow {
+			return s.events.RecordReservationAttendance(ctx, updated, current.Status, now)
+		}
 		if !aggregate.GuestIsNotified(now) {
 			return nil
 		}
@@ -348,7 +351,12 @@ func (s *ReservationService) MarkVisited(ctx context.Context) (int, error) {
 			continue
 		}
 		visited := aggregate.ToDTO()
-		err := s.reservations.Update(ctx, visited, current.Status)
+		err := s.unitOfWork.Do(ctx, func(ctx context.Context) error {
+			if err := s.reservations.Update(ctx, visited, current.Status); err != nil {
+				return err
+			}
+			return s.events.RecordReservationAttendance(ctx, visited, current.Status, now)
+		})
 		if errors.Is(err, domainError.ErrReservationTransition) {
 			// Staff changed it since the list was read; their change stands.
 			continue

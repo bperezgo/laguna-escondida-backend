@@ -167,6 +167,61 @@ func TestMarketingEventService_ReservationStatesThatAreNotReported(t *testing.T)
 	}
 }
 
+func TestMarketingEventService_RecordReservationAttendance(t *testing.T) {
+	at := crmAt(t, 9, 22, 30)
+	tests := []struct {
+		fixture  string
+		status   dto.ReservationStatus
+		previous dto.ReservationStatus
+		wantType dto.MarketingEventType
+	}{
+		{fixture: "reservation_visited.json", status: dto.ReservationStatusVisited, previous: dto.ReservationStatusConfirmed, wantType: dto.MarketingEventReservationVisited},
+		{fixture: "reservation_no_show.json", status: dto.ReservationStatusNoShow, previous: dto.ReservationStatusVisited, wantType: dto.MarketingEventReservationNoShow},
+	}
+	for _, tt := range tests {
+		t.Run(tt.fixture, func(t *testing.T) {
+			outbox := &txOutbox{}
+			events := recordInTx(t, outbox, func(ctx context.Context, s *MarketingEventService) error {
+				return s.RecordReservationAttendance(ctx, fixtureReservation(t, tt.status), tt.previous, at)
+			}, newRecordingEvents(t, outbox))
+
+			require.Len(t, events, 1)
+			assert.Equal(t, tt.wantType, events[0].Type)
+			assert.Equal(t, "/backend/notifications", events[0].Path)
+			requireFixture(t, tt.fixture, events[0])
+		})
+	}
+}
+
+func TestMarketingEventService_RecordReservationAttendance_RecordsNothingWhen(t *testing.T) {
+	noChannel := fixtureReservation(t, dto.ReservationStatusVisited)
+	noChannel.Origin = dto.Origin{}
+	tests := []struct {
+		name        string
+		reservation *dto.Reservation
+		events      func(t *testing.T, outbox *txOutbox) *MarketingEventService
+	}{
+		{name: "no channel", reservation: noChannel, events: newRecordingEvents},
+		{name: "a status that is not attendance", reservation: fixtureReservation(t, dto.ReservationStatusConfirmed), events: newRecordingEvents},
+		{name: "the events URL is unset", reservation: fixtureReservation(t, dto.ReservationStatusVisited), events: func(t *testing.T, outbox *txOutbox) *MarketingEventService {
+			return NewMarketingEventService(outbox, mocks.NewMockOrganizationRepository(t), staticSecrets{crmOrgID: crmSecret}, false)
+		}},
+		{name: "no signing secret", reservation: fixtureReservation(t, dto.ReservationStatusNoShow), events: func(t *testing.T, outbox *txOutbox) *MarketingEventService {
+			return NewMarketingEventService(outbox, crmOrganizations(t), staticSecrets{}, true)
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			outbox := &txOutbox{}
+			events := recordInTx(t, outbox, func(ctx context.Context, s *MarketingEventService) error {
+				return s.RecordReservationAttendance(ctx, tt.reservation, dto.ReservationStatusConfirmed, time.Now())
+			}, tt.events(t, outbox))
+
+			assert.Empty(t, events)
+		})
+	}
+}
+
 func TestMarketingEventService_FeedbackWithoutChannelIsNotReported(t *testing.T) {
 	outbox := &txOutbox{}
 	r := storedReservation(dto.ReservationStatusVisited, time.Now())
