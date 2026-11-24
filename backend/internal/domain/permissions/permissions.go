@@ -169,6 +169,8 @@ const (
 const (
 	// EdgeUpdate lets a user see and trigger the box's staged appliance update.
 	EdgeUpdate Permission = "edge:update"
+	// EdgeEnroll registers a restaurant's box with the cloud; only admin holds it.
+	EdgeEnroll Permission = "edge:enroll"
 )
 
 // SSE permissions
@@ -227,7 +229,7 @@ func AllPermissions() []Permission {
 		// Reservation settings
 		SettingsReservationsUpdate,
 		// Edge appliance
-		EdgeUpdate,
+		EdgeUpdate, EdgeEnroll,
 		// SSE
 		SSECommandsRead, SSECommandItemsRead,
 	}

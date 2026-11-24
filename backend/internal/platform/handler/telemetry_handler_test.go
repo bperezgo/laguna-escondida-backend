@@ -27,7 +27,7 @@ var telemetryPayload = []byte{0x0a, 0x00}
 
 func telemetryRouter(t *testing.T, nodeSyncKey string, forwarder *mocks.MockTelemetryForwarder) *gin.Engine {
 	t.Helper()
-	nodeAuth := NodeAuthMiddleware(nodeSyncKey, registeredNodes(t))
+	nodeAuth := NodeAuthMiddleware(registeredNodes(t, nodeSyncKey, nil))
 	ingestService := service.NewTelemetryIngestService(forwarder, "tenant-abc")
 	h := NewTelemetryHandler(ingestService)
 

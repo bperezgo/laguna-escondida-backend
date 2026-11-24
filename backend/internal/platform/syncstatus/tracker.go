@@ -16,8 +16,17 @@ type Tracker struct {
 	mu          sync.RWMutex
 	lastAttempt time.Time
 	lastOK      bool
+	blocked     Blocked
 	staleWindow time.Duration
 }
+
+// Blocked is why the cloud refuses this box, as the status endpoint reports it; empty when it doesn't.
+type Blocked string
+
+const (
+	BlockedReplaced  Blocked = "replaced"
+	BlockedSuspended Blocked = "suspended"
+)
 
 // NewTracker returns a Tracker that treats the node as offline until the first successful
 // sync. staleWindow should comfortably exceed the sync interval (e.g. ~2.5× a 1-minute
@@ -32,6 +41,22 @@ func (t *Tracker) RecordSuccess() {
 	defer t.mu.Unlock()
 	t.lastAttempt = time.Now()
 	t.lastOK = true
+	t.blocked = ""
+}
+
+// RecordBlocked notes that the cloud answered but refused this box; it stays until a sync succeeds.
+func (t *Tracker) RecordBlocked(reason Blocked) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.lastAttempt = time.Now()
+	t.lastOK = false
+	t.blocked = reason
+}
+
+func (t *Tracker) Blocked() Blocked {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.blocked
 }
 
 // RecordFailure notes that a sync attempt just failed (e.g. the cloud was unreachable).

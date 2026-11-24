@@ -4,8 +4,15 @@ Endpoints the cloud serves to edge boxes. The edge binary calls them; nothing el
 
 > **Cloud mode only.** Registered by the cloud binary; absent (404) on the edge.
 
-**Auth:** node key, not JWT. Every request sends `X-Node-Key` (the shared `NODE_SYNC_KEY`) and
-`X-Node-ID` (a node registered to an organization). The cloud acts for that organization.
+**Auth:** node key, not JWT. Every request sends `X-Node-ID` (the box's node id) and `X-Node-Key`
+(the key issued to that node when it enrolled, see [edge-enrollment.md](edge-enrollment.md)). The
+cloud accepts it only when the key belongs to that node, the node is not revoked and its
+organization is active, and then acts for that node's organization. There is no key shared
+between boxes, and the cloud has no `NODE_SYNC_KEY` setting.
+
+**Refusals:** `401` with one body for a missing key, wrong key, unknown node or another node's key;
+`401` with `code: node_revoked` for a replaced box; `403` with `code: organization_suspended` for a
+suspended organization. The box reports these as `sync_blocked` on `GET /api/edge/status`.
 
 ## Endpoints
 

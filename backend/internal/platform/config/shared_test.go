@@ -28,6 +28,7 @@ func setCloudEnv(t *testing.T) {
 	t.Helper()
 	setSharedEnv(t)
 	t.Setenv("ELECTRONIC_INVOICE_URL", "https://invoice.example.com")
+	t.Setenv("PUBLIC_API_URL", "https://api.example.com")
 	t.Setenv("ELECTRONIC_INVOICE_USER", "user")
 	t.Setenv("ELECTRONIC_INVOICE_PASSWORD", "password")
 	t.Setenv("ORGANIZATION_ID", "")
@@ -81,29 +82,6 @@ func TestLoadShared_RequiredVariables(t *testing.T) {
 				assert.Contains(t, err.Error(), name)
 			})
 		}
-	}
-}
-
-func TestLoadShared_NodeSyncKey(t *testing.T) {
-	for _, l := range loaders {
-		t.Run(l.name+"/from env", func(t *testing.T) {
-			l.setEnv(t)
-			t.Setenv("NODE_SYNC_KEY", "node-secret")
-
-			cfg, err := l.load()
-
-			require.NoError(t, err)
-			assert.Equal(t, "node-secret", cfg.NodeSyncKey)
-		})
-		t.Run(l.name+"/defaults empty", func(t *testing.T) {
-			l.setEnv(t)
-			t.Setenv("NODE_SYNC_KEY", "")
-
-			cfg, err := l.load()
-
-			require.NoError(t, err)
-			assert.Empty(t, cfg.NodeSyncKey)
-		})
 	}
 }
 

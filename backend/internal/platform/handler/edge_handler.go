@@ -23,6 +23,8 @@ type EdgeStatusResponse struct {
 	Online         bool        `json:"online"`
 	SyncLagSeconds int         `json:"sync_lag_seconds"`
 	PendingSyncOps int         `json:"pending_sync_ops"`
+	// SyncBlocked is "replaced" or "suspended" while the cloud refuses this box, else null.
+	SyncBlocked *syncstatus.Blocked `json:"sync_blocked"`
 }
 
 type EdgeHandler struct {
@@ -55,6 +57,9 @@ func (h *EdgeHandler) GetStatusHandler(c *gin.Context) {
 
 	if h.mode == config.ModeEdge {
 		resp.Online = h.tracker.Online()
+		if blocked := h.tracker.Blocked(); blocked != "" {
+			resp.SyncBlocked = &blocked
+		}
 
 		// Unauthenticated, but it reads only the box's own outbox, so it acts for the box's org.
 		health, err := h.statusService.GetSyncHealth(tenant.WithOrg(c.Request.Context(), h.organizationID))

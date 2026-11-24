@@ -23,6 +23,7 @@ POST /api/delivery-zones laguna-escondida/backend/internal/platform/handler.(*De
 DELETE /api/delivery-zones/:id laguna-escondida/backend/internal/platform/handler.(*DeliveryZoneHandler).DeleteHandler-fm
 PUT /api/delivery-zones/:id laguna-escondida/backend/internal/platform/handler.(*DeliveryZoneHandler).UpdateHandler-fm
 GET /api/delivery-zones/check laguna-escondida/backend/internal/platform/handler.(*DeliveryZoneHandler).CheckHandler-fm
+POST /api/edge/enroll laguna-escondida/backend/internal/platform/handler.(*EdgeEnrollHandler).EnrollHandler-fm
 GET /api/edge/status laguna-escondida/backend/internal/platform/handler.(*EdgeHandler).GetStatusHandler-fm
 GET /api/expense-categories laguna-escondida/backend/internal/platform/handler.(*ExpenseHandler).ListCategoriesHandler-fm
 POST /api/expense-categories laguna-escondida/backend/internal/platform/handler.(*ExpenseHandler).CreateCategoryHandler-fm

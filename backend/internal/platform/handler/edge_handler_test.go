@@ -91,3 +91,43 @@ func TestEdgeHandler_GetStatus_EdgeModeOnlineCaughtUp(t *testing.T) {
 	assert.Equal(t, 0, resp.PendingSyncOps)
 	assert.Equal(t, 0, resp.SyncLagSeconds)
 }
+
+func TestEdgeHandler_GetStatus_SyncBlocked(t *testing.T) {
+	cases := []struct {
+		name  string
+		setup func(*syncstatus.Tracker)
+		want  *syncstatus.Blocked
+	}{
+		{"replaced", func(tr *syncstatus.Tracker) { tr.RecordBlocked(syncstatus.BlockedReplaced) }, ptr(syncstatus.BlockedReplaced)},
+		{"suspended", func(tr *syncstatus.Tracker) { tr.RecordBlocked(syncstatus.BlockedSuspended) }, ptr(syncstatus.BlockedSuspended)},
+		{"cleared after a success", func(tr *syncstatus.Tracker) { tr.RecordBlocked(syncstatus.BlockedReplaced); tr.RecordSuccess() }, nil},
+		{"plain network failure", func(tr *syncstatus.Tracker) { tr.RecordFailure() }, nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			outbox := mocks.NewMockSyncOutboxRepository(t)
+			outbox.EXPECT().PendingStats(mock.Anything, edgeHandlerNodeID).Return(&dto.SyncOutboxPendingStats{}, nil)
+			tracker := syncstatus.NewTracker(time.Minute)
+			tc.setup(tracker)
+			h := NewEdgeStatusHandler("", service.NewEdgeStatusService(outbox, dto.SyncIdentity{NodeID: edgeHandlerNodeID}), tracker)
+
+			resp := serveEdgeStatus(t, h)
+
+			assert.Equal(t, tc.want, resp.SyncBlocked)
+			if tc.want != nil {
+				assert.False(t, resp.Online)
+			}
+		})
+	}
+}
+
+func TestEdgeHandler_GetStatus_CloudSyncBlockedIsNull(t *testing.T) {
+	rec := httptest.NewRecorder()
+	router := gin.New()
+	router.GET("/s", NewCloudStatusHandler().GetStatusHandler)
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/s", nil))
+
+	assert.Contains(t, rec.Body.String(), `"sync_blocked":null`)
+}
+
+func ptr[T any](v T) *T { return &v }

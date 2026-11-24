@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -35,16 +37,17 @@ func TestSyncPull_ReturnsOnlyTheCallingNodesOrganization_Integration(t *testing.
 	require.NoError(t, db.DB.WithContext(asB).Create(&userModel{ID: bUser, Username: "b-" + bUser[:8], Name: "B", Password: "x"}).Error)
 	t.Cleanup(func() { db.DB.Exec("DELETE FROM users WHERE id = ?", bUser) })
 
+	keySum := sha256.Sum256([]byte("key"))
 	lagunaNode := uuid.NewString()
-	require.NoError(t, db.DB.Exec("INSERT INTO nodes (id, name, kind, organization_id) VALUES (?, 'test edge', 'edge', ?)", lagunaNode, lagunaOrgID).Error)
+	require.NoError(t, db.DB.Exec("INSERT INTO nodes (id, name, kind, organization_id, key_hash) VALUES (?, 'test edge', 'edge', ?, ?)", lagunaNode, lagunaOrgID, hex.EncodeToString(keySum[:])).Error)
 	t.Cleanup(func() { db.DB.Exec("DELETE FROM nodes WHERE id = ?", lagunaNode) })
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(handler.DBSessionMiddleware(db.DB))
 	syncHandler := handler.NewSyncHandler(nil, service.NewSyncReferenceService(NewSyncReferenceRepository(db.DB), slog.Default()))
-	router.GET("/api/sync/pull", handler.NodeAuthMiddleware("key",
-		service.NewNodeService(NewNodeRepository(db.DB))), syncHandler.PullHandler)
+	router.GET("/api/sync/pull", handler.NodeAuthMiddleware(
+		service.NewNodeService(NewNodeRepository(db.DB), NewOrganizationRepository(db.DB), nil, slog.Default(), "")), syncHandler.PullHandler)
 
 	pull := func(nodeID string) *httptest.ResponseRecorder {
 		req := httptest.NewRequest(http.MethodGet, "/api/sync/pull", nil)

@@ -168,7 +168,7 @@ if (-not $InstallAlloy) {
     throw "EDGE_ORGANIZATION_ID ('$($alloyCfg['EDGE_ORGANIZATION_ID'])') must equal ORGANIZATION_ID ('$($nodeCfg['ORGANIZATION_ID'])') in env\edge-node.env."
   }
   if ($nodeCfg['NODE_SYNC_KEY'] -and $NodeKey -ne $nodeCfg['NODE_SYNC_KEY']) {
-    throw "EDGE_NODE_KEY must equal NODE_SYNC_KEY in env\edge-node.env -- the cloud matches both against one key."
+    throw "EDGE_NODE_KEY must equal NODE_SYNC_KEY in env\edge-node.env -- both are this box's own key, issued at enrollment."
   }
 
   # WriteAllText: a BOM or trailing newline would end up in X-Node-Key and cause 401s.

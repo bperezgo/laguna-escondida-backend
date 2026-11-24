@@ -24,9 +24,6 @@ const (
 type Shared struct {
 	AdminAPIKey string
 	JWTSecret   string
-	// NodeSyncKey authenticates edge nodes to the cloud sync endpoints: the cloud checks it,
-	// the edge sends it. When unset NodeAuthMiddleware fails closed and rejects every request.
-	NodeSyncKey string
 	// PhoneHomeRegion (ISO 3166 alpha-2) reads customer phones typed without "+".
 	PhoneHomeRegion string
 
@@ -96,7 +93,6 @@ func loadShared() (Shared, error) {
 	return Shared{
 		AdminAPIKey:     adminAPIKey,
 		JWTSecret:       jwtSecret,
-		NodeSyncKey:     os.Getenv("NODE_SYNC_KEY"),
 		PhoneHomeRegion: phoneHomeRegion,
 		Storage:         storage,
 		Observability:   observability,

@@ -40,16 +40,17 @@ The paths mirror the OTLP/HTTP layout, so an OTLP exporter only needs
 
 `POST /api/telemetry/v1/{logs|traces|metrics}`
 
-**Auth:** `X-Node-Key` header, matched against the cloud's `NODE_SYNC_KEY` — the same node
-credential the sync endpoints use — plus `X-Node-ID`, the edge node's id, which must be
-registered in the cloud's `nodes` table. The export is stamped with that node's organization.
-Fails closed: with no node key configured, or an unregistered node, every request is rejected.
+**Auth:** `X-Node-Key`, the key issued to the box at enrollment — the same credential the sync
+endpoints use — plus `X-Node-ID`, which must be the node that key was issued to. The export is
+stamped with that node's organization. Fails closed: an unregistered node, a node without a key or
+a key that is not the node's own is rejected; a revoked box gets `401` with `code: node_revoked` and
+a suspended organization `403` with `code: organization_suspended` (see [edge-enrollment.md](edge-enrollment.md)).
 
 ### Request Headers
 
 | Header             | Required | Description                                                       |
 | ------------------ | -------- | ----------------------------------------------------------------- |
-| `X-Node-Key`       | Yes      | The edge node's sync key                                           |
+| `X-Node-Key`       | Yes      | The key issued to this edge node at enrollment                     |
 | `X-Node-ID`        | Yes      | The edge node's `NODE_ID`; its organization is the export's         |
 | `Content-Type`     | Yes      | Must be `application/x-protobuf`                                   |
 | `Content-Encoding` | No       | `gzip` if the body is compressed (what Alloy sends by default)      |
@@ -89,7 +90,9 @@ Content-Length: 0
 
 ### Error Responses
 
-**401 Unauthorized** — missing or invalid `X-Node-Key`, or an `X-Node-ID` the cloud has not registered. Nothing is forwarded.
+**401 Unauthorized** — missing or invalid `X-Node-Key`, an `X-Node-ID` the cloud has not registered, or another node's key. Nothing is forwarded. A revoked box's own key answers `401` with `"code": "node_revoked"`.
+
+**403 Forbidden** — the node's organization is suspended (`"code": "organization_suspended"`).
 
 ```json
 {
@@ -139,7 +142,6 @@ that a 200 means the cloud sidecar accepted the batch, not that Grafana Cloud ha
 | ----------------------- | -------- | --------------------------------------------------------------------------------- |
 | `TELEMETRY_FORWARD_URL` | Yes      | Cloud Alloy OTLP/HTTP receiver for relayed edge telemetry, e.g. `http://127.0.0.1:4319` |
 | `TELEMETRY_TENANT_ID`   | Yes      | `tenant.id` stamped on relayed telemetry; required with `TELEMETRY_FORWARD_URL`   |
-| `NODE_SYNC_KEY`         | Yes      | Shared with edge nodes; already required by the sync endpoints                    |
 
 The Grafana Cloud URL, instance ID, and token live in the **cloud Alloy sidecar's** config,
 not here — one place to rotate them, shared with the sidecar's existing egress path.
@@ -148,7 +150,7 @@ not here — one place to rotate them, shared with the sidecar's existing egress
 
 | Variable                      | Description                                                        |
 | ----------------------------- | ------------------------------------------------------------------ |
-| `NODE_SYNC_KEY`               | Sent as `X-Node-Key` by the Alloy sidecar                            |
+| `NODE_SYNC_KEY`               | This box's own key from enrollment; the sync client sends it as `X-Node-Key`. Alloy reads the same value as `EDGE_NODE_KEY` |
 | `LAGUNA_NODE_ID`              | Sent as `X-Node-ID` by the Alloy sidecar; must equal `NODE_ID`       |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | The **local** Alloy sidecar, e.g. `http://127.0.0.1:4317`            |
 | `OBSERVABILITY_ENABLED`       | `true` to start the app's OTLP exporters                             |

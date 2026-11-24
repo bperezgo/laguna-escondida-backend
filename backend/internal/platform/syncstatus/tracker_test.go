@@ -31,3 +31,16 @@ func TestTracker_OfflineWhenStale(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 	assert.False(t, tr.Online())
 }
+
+func TestTracker_BlockedUntilASyncSucceeds(t *testing.T) {
+	tr := NewTracker(time.Minute)
+	tr.RecordBlocked(BlockedReplaced)
+	assert.Equal(t, BlockedReplaced, tr.Blocked())
+	assert.False(t, tr.Online())
+
+	tr.RecordFailure()
+	assert.Equal(t, BlockedReplaced, tr.Blocked(), "a network failure does not lift it")
+
+	tr.RecordSuccess()
+	assert.Empty(t, tr.Blocked())
+}

@@ -302,7 +302,8 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		logger.Info("Lead alerts disabled: set LEAD_ALERT_DISCORD_WEBHOOK_URL to be told about new leads")
 	}
 
-	registerCloudRoutes(c.router, cfg.AdminAPIKey, cfg.NodeSyncKey, c.jwtService, cloudHandlers{
+	nodeService := service.NewNodeService(repository.NewNodeRepository(db), cloudOrganizations, c.unitOfWork, logger, cfg.PublicAPIURL)
+	registerCloudRoutes(c.router, cfg.AdminAPIKey, c.jwtService, cloudHandlers{
 		invoice:         handler.NewInvoiceHandler(invoiceService, documentURLMaintenance),
 		supportDocument: handler.NewSupportDocumentHandler(supportDocService, documentURLMaintenance),
 		sync:            handler.NewSyncHandler(syncService, syncReferenceService),
@@ -322,7 +323,8 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		notifRule:       handler.NewNotificationRuleHandler(notificationRuleService),
 		paymentWebhook:  handler.NewPaymentWebhookHandler(paymentWebhooks, logger),
 		delivery:        handler.NewDeliveryHandler(service.NewDeliveryService(deliveryRepo, c.unitOfWork, marketingEvents, nil)),
-		nodes:           service.NewNodeService(repository.NewNodeRepository(db)),
+		nodes:           nodeService,
+		edgeEnroll:      handler.NewEdgeEnrollHandler(nodeService),
 	})
 
 	return c.app, nil

@@ -55,7 +55,7 @@ func (c *SyncStockPullClient) PullStock(ctx context.Context, since time.Time) (r
 		return nil, fmt.Errorf("read stock pull response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("stock pull returned status %d: %s", resp.StatusCode, string(respBody))
+		return nil, syncStatusError("stock pull", resp.StatusCode, respBody)
 	}
 
 	var out dto.SyncStockPullResponse

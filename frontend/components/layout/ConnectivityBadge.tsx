@@ -2,9 +2,17 @@
 
 import { useEdgeStatus } from "@/lib/edge/context";
 import { Badge } from "@/components/ui";
+import { usePermissions } from "@/lib/permissions";
+import { PERMISSIONS } from "@/lib/permissions/constants";
+import { syncBlockedMessage } from "@/lib/edge/syncBlocked";
 
 export default function ConnectivityBadge() {
   const { isOffline, isLoading, status, pendingSyncCount } = useEdgeStatus();
+  const { hasPermission, isLoading: permissionsLoading } = usePermissions();
+  const blockedMessage = syncBlockedMessage(
+    status?.sync_blocked,
+    !permissionsLoading && hasPermission(PERMISSIONS.EDGE_UPDATE)
+  );
 
   // Avoid flashing a misleading state before the first poll resolves.
   if (isLoading && !status) {
@@ -36,6 +44,12 @@ export default function ConnectivityBadge() {
           <Badge tone="success">En línea</Badge>
         )}
       </span>
+
+      {blockedMessage && (
+        <span title={blockedMessage}>
+          <Badge tone="danger">{blockedMessage}</Badge>
+        </span>
+      )}
 
       {pendingSyncCount > 0 && (
         <span title={pendingTooltip}>

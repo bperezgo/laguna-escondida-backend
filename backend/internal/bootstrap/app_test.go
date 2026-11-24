@@ -29,14 +29,14 @@ const testOrganizationID = "019a0000-0000-7000-8000-000000000123"
 
 func testSharedConfig() config.Shared {
 	return config.Shared{
-		NodeSyncKey: "node-key", AdminAPIKey: "admin-key", JWTSecret: "test-secret", PhoneHomeRegion: "CO",
+		AdminAPIKey: "admin-key", JWTSecret: "test-secret", PhoneHomeRegion: "CO",
 		Observability: config.Observability{ServiceName: "laguna-backend", MetricsPort: "0"},
 	}
 }
 
 func testCloudConfig() *config.Cloud {
 	return &config.Cloud{
-		Shared:              testSharedConfig(),
+		Shared: testSharedConfig(), PublicAPIURL: "https://api.example.com",
 		TelemetryForwardURL: "http://127.0.0.1:4319", TelemetryTenantID: "tenant",
 	}
 }
@@ -44,7 +44,7 @@ func testCloudConfig() *config.Cloud {
 func testEdgeConfig() *config.Edge {
 	return &config.Edge{
 		Shared: testSharedConfig(), NodeID: "edge-node",
-		OrganizationID: testOrganizationID, CloudSyncURL: "http://127.0.0.1:1", CloudNodeID: "cloud-node",
+		OrganizationID: testOrganizationID, CloudSyncURL: "http://127.0.0.1:1", NodeSyncKey: "node-key", CloudNodeID: "cloud-node",
 	}
 }
 

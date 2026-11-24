@@ -2,6 +2,8 @@ package sync
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -284,8 +286,8 @@ func newRig(t *testing.T) *rig {
 	}
 	// The cloud acts for the organization a calling node is registered to.
 	require.NoError(t, cloudGDB.Exec(
-		"INSERT INTO nodes (id, name, kind, organization_id) VALUES (?, 'acceptance edge', 'edge', ?)",
-		identity.NodeID, lagunaOrgID,
+		"INSERT INTO nodes (id, name, kind, organization_id, key_hash, enrolled_at) VALUES (?, 'acceptance edge', 'edge', ?, ?, now())",
+		identity.NodeID, lagunaOrgID, hashKey(testNodeKey),
 	).Error)
 
 	// --- cloud side: the sync aggregate served over a real HTTP boundary ---
@@ -334,8 +336,8 @@ func newRig(t *testing.T) *rig {
 		c.Next()
 	})
 	router.Use(handler.DBSessionMiddleware(cloudGDB))
-	nodeAuth := handler.NodeAuthMiddleware(testNodeKey,
-		service.NewNodeService(repository.NewNodeRepository(cloudGDB)))
+	nodeAuth := handler.NodeAuthMiddleware(
+		service.NewNodeService(repository.NewNodeRepository(cloudGDB), repository.NewOrganizationRepository(cloudGDB), cloudUoW, logger, ""))
 	router.POST("/api/sync/push", nodeAuth, syncHandler.PushHandler)
 	router.GET("/api/sync/pull", nodeAuth, syncHandler.PullHandler)
 	router.GET("/api/sync/pull/stock", nodeAuth, syncHandler.PullStockHandler)
@@ -871,4 +873,9 @@ func (r *rig) seedBothNodesProduct(sku, name string) string {
 	r.seedCloudProducts(product)
 	require.NoError(r.t, r.edgeRef.UpsertProducts(r.ctx, []dto.ProductSyncPayload{product}), "seed edge product")
 	return product.ID
+}
+
+func hashKey(key string) string {
+	sum := sha256.Sum256([]byte(key))
+	return hex.EncodeToString(sum[:])
 }
