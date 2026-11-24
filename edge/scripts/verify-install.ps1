@@ -95,6 +95,21 @@ if (-not $ok) {
     Pass "version = $installed"
   }
 }
+
+# The binary says at boot whether it found <root>\state; the box serves either way, so only the log shows it.
+$edgeLog = Join-Path $Root 'logs\edge-node.out.log'
+if (Test-Path $edgeLog) {
+  $lines = @(Get-Content $edgeLog)
+  $boot = @(0..($lines.Count - 1) | Where-Object { $lines[$_] -match 'Running in EDGE mode' } | Select-Object -Last 1)
+  $sinceBoot = if ($boot.Count) { $lines[$boot[0]..($lines.Count - 1)] } else { $lines }
+  if ($sinceBoot -match 'Owner-triggered updates disabled') {
+    Fail "edge-node log says owner-triggered updates are off; the binary is not running from <root>\artifacts\edge-node\ or <root>\state is missing"
+  } else {
+    Pass "owner-triggered updates enabled"
+  }
+} else {
+  Fail "logs\edge-node.out.log not found"
+}
 Stop-OnFailure 'edge-node'
 
 # --- 3. next --------------------------------------------------------------------------

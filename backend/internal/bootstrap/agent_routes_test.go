@@ -78,7 +78,7 @@ func fullRouter(mode config.Mode, jwtService *service.JWTService) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	registerAPIRoutes(router, "admin-key", jwtService, apiHandlers{
+	registerAPIRoutes(router, jwtService, apiHandlers{
 		order: &handler.OrderHandler{}, product: &handler.ProductHandler{}, stock: &handler.StockHandler{},
 		user: &handler.UserHandler{}, billOwner: &handler.BillOwnerHandler{},
 		productIngredient: &handler.ProductIngredientHandler{}, sse: &handler.SSEHandler{}, edge: &handler.EdgeHandler{},

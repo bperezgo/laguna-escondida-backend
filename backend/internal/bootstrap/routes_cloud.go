@@ -21,6 +21,7 @@ type cloudHandlers struct {
 	supportDocument *handler.SupportDocumentHandler
 	sync            *handler.SyncHandler
 	telemetry       *handler.TelemetryHandler
+	stock           *handler.StockHandler
 	organization    *handler.OrganizationHandler
 	lead            *handler.LeadHandler
 	apiKey          *handler.APIKeyHandler
@@ -42,6 +43,10 @@ type cloudHandlers struct {
 }
 
 func registerCloudRoutes(router *gin.Engine, adminAPIKey string, jwtService *service.JWTService, h cloudHandlers) {
+	// Cutover only, and admin-gated rather than permission-gated: this is an operational
+	// step run once when the cloud adopts on-hand, not something a stock manager does.
+	router.POST("/api/stock/opening-balances", handler.AdminAPIKeyMiddleware(adminAPIKey), h.stock.WriteStockOpeningBalancesHandler)
+
 	// Admin routes (protected with admin API key)
 	router.POST("/api/invoices/update-missing-document-urls", handler.AdminAPIKeyMiddleware(adminAPIKey), h.invoice.UpdateMissingDocumentURLsHandler)
 	router.POST("/api/support-documents/update-missing-document-urls", handler.AdminAPIKeyMiddleware(adminAPIKey), h.supportDocument.UpdateMissingSupportDocumentURLsHandler)

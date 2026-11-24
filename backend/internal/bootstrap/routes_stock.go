@@ -17,7 +17,6 @@ func registerStockRoutes(
 	router *gin.Engine,
 	stockHandler *handler.StockHandler,
 	jwtService *service.JWTService,
-	adminAuth gin.HandlerFunc,
 	authoring bool,
 ) {
 	router.GET("/api/stock",
@@ -52,10 +51,4 @@ func registerStockRoutes(
 		handler.JWTAuthMiddleware(jwtService),
 		handler.RequirePermission(permissions.StockCreate),
 		stockHandler.BulkStockCreationOrUpdatingHandler)
-
-	// Cutover only, and admin-gated rather than permission-gated: this is an operational
-	// step run once when the cloud adopts on-hand, not something a stock manager does.
-	router.POST("/api/stock/opening-balances",
-		adminAuth,
-		stockHandler.WriteStockOpeningBalancesHandler)
 }

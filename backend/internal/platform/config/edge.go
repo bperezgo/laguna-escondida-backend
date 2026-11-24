@@ -33,9 +33,6 @@ type Edge struct {
 
 	Printer Printer
 	Ticket  Ticket
-
-	// LagunaStateDir is the appliance updater's state directory; empty turns owner-triggered updates off.
-	LagunaStateDir string
 }
 
 // Printer configures POST /api/device/print. All optional with dev-friendly defaults
@@ -116,7 +113,6 @@ func LoadEdge() (*Edge, error) {
 			Footer:          os.Getenv("TICKET_FOOTER"),
 			LegalNotice:     os.Getenv("TICKET_LEGAL_NOTICE"),
 		},
-		LagunaStateDir: os.Getenv("LAGUNA_STATE_DIR"),
 	}, nil
 }
 

@@ -5,6 +5,7 @@
 
   <executable>%BASE%\..\artifacts\edge-node\edge-node.exe</executable>
 
+  <!-- edge-node locates <root>\state from this path (two levels up from the binary); keep the depth. -->
   <!-- Config is the .env in the working dir, staged by scripts\install.ps1. No <env> here. -->
   <workingdirectory>%BASE%\..\artifacts\edge-node</workingdirectory>
 

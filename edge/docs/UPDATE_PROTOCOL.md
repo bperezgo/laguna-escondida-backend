@@ -36,7 +36,9 @@ The offered version is the single edge version. Both apps are always installed a
 The first release after the split must be numbered above the tags the boxes run now, or it is not
 "newer".
 
-## State files (`EDGE_STATE_DIR`, `C:\laguna-edge\state`)
+## State files (`C:\laguna-edge\state`)
+
+edge-node finds this folder itself, two levels above the folder it runs from (`<root>\artifacts\edge-node\`), and offers updates only when it exists. No environment variable sets it.
 
 Only SYSTEM and Administrators can write here (`install.ps1` sets the ACL). JSON, no BOM, written
 to `<name>.tmp` and renamed.

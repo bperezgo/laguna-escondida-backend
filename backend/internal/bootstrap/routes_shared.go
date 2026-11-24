@@ -25,7 +25,7 @@ type apiHandlers struct {
 
 // registerAPIRoutes wires the routes served in both modes: the restaurant floor plus reads of
 // the data the cloud owns. stockAuthoring adds the cloud's stock writes.
-func registerAPIRoutes(router *gin.Engine, adminAPIKey string, jwtService *service.JWTService, h apiHandlers, stockAuthoring bool) {
+func registerAPIRoutes(router *gin.Engine, jwtService *service.JWTService, h apiHandlers, stockAuthoring bool) {
 	// Health check
 	router.GET("/api/health", handler.HealthCheckHandler)
 
@@ -57,7 +57,7 @@ func registerAPIRoutes(router *gin.Engine, adminAPIKey string, jwtService *servi
 	router.GET("/api/products/:id/option-slots", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.ProductsRead), h.plateOptionSlot.GetHandler)
 
 	// Stock routes — reads in both modes, authoring cloud-only (see registerStockRoutes).
-	registerStockRoutes(router, h.stock, jwtService, handler.AdminAPIKeyMiddleware(adminAPIKey), stockAuthoring)
+	registerStockRoutes(router, h.stock, jwtService, stockAuthoring)
 
 	// Bill Owner routes
 	router.GET("/api/bill-owners/:id", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.BillOwnersRead), h.billOwner.GetByIDHandler)

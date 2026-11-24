@@ -166,9 +166,9 @@ Fill every `CHANGE_ME` / `(required)` value. **Critical:** `DB_PASSWORD` must eq
 `-DbPassword` you used in step 5. Key fields:
 
 - `DB_PASSWORD` — must match step 5.
-- `ORGANIZATION_ID`, `JWT_SECRET`, `ADMIN_API_KEY` — required, the box won't start without them.
+- `ORGANIZATION_ID` — required, the box won't start without it. The box creates its own
+  signing secret on first boot; nothing else is needed from the operator.
 - `CLOUD_SYNC_URL` + `NODE_SYNC_KEY` — set to enable cloud sync; leave blank for local-only.
-- `STORAGE_*`, `ELECTRONIC_INVOICE_*` — required for storage + invoicing features.
 - `PRINTER_TRANSPORT=windows`, `PRINTER_TARGET=<exact Windows printer name>`.
 
 > `env\edge-node.env` is **gitignored** and holds real secrets. Never commit it. `install.ps1`

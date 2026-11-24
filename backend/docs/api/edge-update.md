@@ -19,9 +19,7 @@ release on its own.
 
 ## Configuration
 
-| Env var            | Meaning                                                      | Example                |
-| ------------------ | ------------------------------------------------------------ | ---------------------- |
-| `LAGUNA_STATE_DIR` | The updater's state directory. Unset turns the feature off.   | `C:\laguna-edge\state` |
+None. The box reads the updater's state files from the `state` folder at the appliance's install root (`C:\laguna-edge\state`), worked out from where the edge binary runs (`<root>\artifacts\edge-node\`). When that folder does not exist, as on a developer's machine, the feature is off. No environment variable changes the folder.
 
 ---
 
@@ -106,7 +104,7 @@ while the updater applies it; poll `GET` for `in_progress` and then `last_result
 { "error": "validation_error", "message": "version is required" }
 ```
 
-**404 Not Found** — feature off (`LAGUNA_STATE_DIR` unset)
+**404 Not Found** — feature off (no `state` folder at the install root)
 
 ```json
 { "error": "edge_update_disabled" }

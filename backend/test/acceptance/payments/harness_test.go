@@ -248,10 +248,10 @@ func newCloud(t *testing.T, ttl time.Duration, configured ...*restaurant) *cloud
 	logger := slog.New(slog.NewTextHandler(logOutput(), &slog.HandlerOptions{Level: slog.LevelError}))
 	bus := eventbus.NewGoChannelEventBus(watermill.NopLogger{})
 	t.Cleanup(func() { _ = bus.Close() })
-	cfg := &config.Cloud{
+	cfg := &config.Cloud{AdminAPIKey: adminAPIKey,
 		PublicAPIURL: "http://localhost",
 		Shared: config.Shared{
-			AdminAPIKey: adminAPIKey, JWTSecret: jwtSecret, PhoneHomeRegion: "CO",
+			JWTSecret: jwtSecret, PhoneHomeRegion: "CO",
 			Observability: config.Observability{ServiceName: "laguna-backend", MetricsPort: "0"},
 		},
 		PaymentLinks: links,

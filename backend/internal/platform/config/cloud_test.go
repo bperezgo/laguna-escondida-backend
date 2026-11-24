@@ -42,7 +42,7 @@ func TestLoadCloud_InvalidEdgeOnlyValuesDoNotStopIt(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// Wrong-host protection: a box has no e-invoicing credentials.
+// Wrong-host protection: a box has none of the cloud's secrets or e-invoicing credentials.
 func TestLoadCloud_OnABoxEnvironmentRefusesToBoot(t *testing.T) {
 	setEdgeEnv(t)
 
@@ -50,7 +50,6 @@ func TestLoadCloud_OnABoxEnvironmentRefusesToBoot(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Nil(t, cfg)
-	assert.Contains(t, err.Error(), "ELECTRONIC_INVOICE_")
 }
 
 func TestLoadCloud_ElectronicInvoiceRequired(t *testing.T) {

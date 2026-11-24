@@ -140,8 +140,8 @@ func newCloud(t *testing.T) *cloud {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	bus := eventbus.NewGoChannelEventBus(watermill.NopLogger{})
 	t.Cleanup(func() { _ = bus.Close() })
-	cfg := &config.Cloud{PublicAPIURL: "http://localhost", Shared: config.Shared{
-		AdminAPIKey: adminAPIKey, JWTSecret: jwtSecret, PhoneHomeRegion: "CO",
+	cfg := &config.Cloud{AdminAPIKey: adminAPIKey, PublicAPIURL: "http://localhost", Shared: config.Shared{
+		JWTSecret: jwtSecret, PhoneHomeRegion: "CO",
 		Observability: config.Observability{ServiceName: "laguna-backend", MetricsPort: "0"},
 	}, PaymentLinks: testsupport.PaymentLinks(t), Integrations: testsupport.Integrations()}
 	app, err := bootstrap.NewCloud(cfg, bootstrap.Infra{
