@@ -44,6 +44,8 @@ Telemetry is **opt-in** and runs on its own path, separate from the business-dat
 | `scripts/fetch-artifacts.ps1` | Download off-the-shelf binaries (Caddy, Alloy, Node, Postgres) and the sha256-verified app releases (edge-node, next) into `artifacts/` |
 | `scripts/update.ps1` | Swap one service to the newest compatible edge release (or `-Tag`) |
 | `scripts/updater.ps1` | Owner-triggered updates: offers new releases in the POS, installs on an admin's click — see [`docs/UPDATE_PROTOCOL.md`](docs/UPDATE_PROTOCOL.md) |
+| `installer/` | The `KuentaSetup-<v>.exe` wizard (`kuenta.iss`), its build (`build-installer.ps1`), exit-code table and licence texts; `installer/test/` holds the stub cloud and the silent install test |
+| `scripts/preflight.ps1`, `enroll.ps1`, `write-box-config.ps1`, `setup-box.ps1`, `create-shortcut.ps1` | The installer's steps (check the PC, sign in + enroll, write config, database/services/verify/shortcut, shortcut); each runs without the wizard |
 | `scripts/set-lan-ip.ps1` | Re-point the box at its current LAN IP after DHCP moved it (run as Admin) |
 | `env/box.env.example` | Template for this box's LAN IP/subnet; copy to `env/box.env` (gitignored) |
 | `scripts/releases.ps1` | Which `edge/*` release a box takes (newest one whose `min_cloud` the cloud satisfies); `test-releases.ps1` checks it |

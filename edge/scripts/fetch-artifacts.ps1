@@ -19,12 +19,17 @@
         .\scripts\fetch-artifacts.ps1 -Only node,postgres     # subset
         .\scripts\fetch-artifacts.ps1 -Only next -DownloadOnly # download + verify into the cache only
         .\scripts\fetch-artifacts.ps1 -Only next -Tags @{ next = 'v1.3.0' }   # a specific edge version
+
+  Installer build (release-edge.yml): -VerifyThirdParty checks every vendor download against the
+  sha256 pinned in versions.json and fails on a mismatch; -AssetDir takes the edge-node and POS
+  zips (each with its .sha256) from a folder instead of the GitHub release, which does not exist
+  yet at that point.
 #>
 [CmdletBinding()]
 param(
   # Which artifacts to fetch. Default: all of them.
-  [ValidateSet('caddy','alloy','node','postgres','edge-node','next')]
-  [string[]] $Only = @('caddy','alloy','node','postgres','edge-node','next'),
+  [ValidateSet('winsw','caddy','alloy','node','postgres','edge-node','next')]
+  [string[]] $Only = @('winsw','caddy','alloy','node','postgres','edge-node','next'),
   [switch]   $Force,        # re-download/re-install even if the target already exists
   # App artifacts only: download + verify into the local cache, do not touch artifacts\.
   # update.ps1 uses this BEFORE stopping a service, so the download is not downtime.
@@ -33,7 +38,12 @@ param(
   [hashtable] $Tags = @{},
   # App artifacts only: expected sha256 per app (from the release's manifest.json); a zip that
   # does not match is refused even if it matches its own .sha256 file.
-  [hashtable] $Sha256 = @{}
+  [hashtable] $Sha256 = @{},
+  # Check each third-party download against versions.json's "sha256" pin; refuse a mismatch.
+  [switch]   $VerifyThirdParty,
+  # App artifacts only: a folder holding edge-node-windows-amd64-<tag>.zip and
+  # next-standalone-windows-<tag>.zip with their .sha256 files, used instead of the release.
+  [string]   $AssetDir
 )
 
 $ErrorActionPreference = 'Stop'
@@ -50,14 +60,44 @@ New-Item -ItemType Directory -Force -Path $Artifacts, $tmp, $cache | Out-Null
 function Want($name) { $Only -contains $name }
 function Step($m) { Write-Host ("`n==> " + $m) -ForegroundColor Cyan }
 
-function Get-Zip($url, $zipName) {
+# Refuse a third-party download whose sha256 is not the one versions.json pins for $name.
+function Assert-ThirdParty($name, $file) {
+  if (-not $VerifyThirdParty) { return }
+  $pin = "$($v.sha256.$name)".ToLower()
+  if ($pin -notmatch '^[0-9a-f]{64}$') { throw "versions.json has no sha256 pin for $name." }
+  $actual = (Get-FileHash $file -Algorithm SHA256).Hash.ToLower()
+  if ($actual -ne $pin) {
+    Remove-Item $file -Force -ErrorAction SilentlyContinue
+    throw "CHECKSUM MISMATCH for third-party component ${name}: pinned $pin, downloaded $actual. Refusing to continue."
+  }
+  Write-Host "  sha256 ok ($name, pinned)" -ForegroundColor DarkGray
+}
+
+function Get-Zip($name, $url, $zipName) {
   $zip = Join-Path $tmp $zipName
   Write-Host "  downloading $url"
   Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
+  Assert-ThirdParty $name $zip
   $out = Join-Path $tmp ([IO.Path]::GetFileNameWithoutExtension($zipName))
   if (Test-Path $out) { Remove-Item $out -Recurse -Force }
   Expand-Archive -Path $zip -DestinationPath $out -Force
   return $out
+}
+
+# --- WinSW (service wrapper; install.ps1 downloads it itself when this was not run) ------
+if (Want 'winsw') {
+  Step "WinSW $($v.winsw)"
+  $dest = Join-Path $Root 'services\winsw.exe'
+  if ((Test-Path $dest) -and -not $Force) {
+    Write-Host "  present -- skip."
+  } else {
+    New-Item -ItemType Directory -Force -Path (Split-Path $dest) | Out-Null
+    $dl = Join-Path $tmp 'WinSW-x64.exe'
+    Invoke-WebRequest -Uri "https://github.com/winsw/winsw/releases/download/v$($v.winsw)/WinSW-x64.exe" -OutFile $dl -UseBasicParsing
+    Assert-ThirdParty 'winsw' $dl
+    Copy-Item $dl $dest -Force
+    Write-Host "  -> $dest" -ForegroundColor Green
+  }
 }
 
 # --- Caddy (official build) -------------------------------------------------------
@@ -67,7 +107,7 @@ if (Want 'caddy') {
   if ((Test-Path (Join-Path $dest 'caddy.exe')) -and -not $Force) {
     Write-Host "  present -- skip (use -Force to refresh)."
   } else {
-    $ex = Get-Zip "https://github.com/caddyserver/caddy/releases/download/v$($v.caddy)/caddy_$($v.caddy)_windows_amd64.zip" "caddy.zip"
+    $ex = Get-Zip 'caddy' "https://github.com/caddyserver/caddy/releases/download/v$($v.caddy)/caddy_$($v.caddy)_windows_amd64.zip" "caddy.zip"
     New-Item -ItemType Directory -Force -Path $dest | Out-Null
     Copy-Item (Join-Path $ex 'caddy.exe') (Join-Path $dest 'caddy.exe') -Force
     Write-Host "  -> $dest\caddy.exe" -ForegroundColor Green
@@ -83,7 +123,7 @@ if (Want 'alloy') {
   } else {
     # The zip holds a single 'alloy-windows-amd64.exe'; rename it to alloy.exe so
     # services\alloy.xml can point at a stable path across version bumps.
-    $ex  = Get-Zip "https://github.com/grafana/alloy/releases/download/v$($v.alloy)/alloy-windows-amd64.exe.zip" "alloy.zip"
+    $ex  = Get-Zip 'alloy' "https://github.com/grafana/alloy/releases/download/v$($v.alloy)/alloy-windows-amd64.exe.zip" "alloy.zip"
     $src = Join-Path $ex 'alloy-windows-amd64.exe'
     if (-not (Test-Path $src)) { throw "Unexpected Alloy archive layout under $ex" }
     New-Item -ItemType Directory -Force -Path $dest | Out-Null
@@ -100,7 +140,7 @@ if (Want 'node') {
     Write-Host "  present -- skip."
   } else {
     $folder = "node-v$($v.node)-win-x64"
-    $ex = Get-Zip "https://nodejs.org/dist/v$($v.node)/$folder.zip" "node.zip"
+    $ex = Get-Zip 'node' "https://nodejs.org/dist/v$($v.node)/$folder.zip" "node.zip"
     New-Item -ItemType Directory -Force -Path $dest | Out-Null
     # The zip extracts to <folder>\node.exe (+ npm etc). Copy the whole runtime.
     Copy-Item (Join-Path $ex "$folder\*") $dest -Recurse -Force
@@ -117,7 +157,7 @@ if (Want 'postgres') {
   } else {
     # EDB 'binaries' zip extracts to a top-level 'pgsql\' (bin, lib, share). Flatten
     # it into artifacts\postgres\ so postgres.xml finds artifacts\postgres\bin\postgres.exe.
-    $ex = Get-Zip "https://get.enterprisedb.com/postgresql/postgresql-$($v.postgres)-1-windows-x64-binaries.zip" "pg.zip"
+    $ex = Get-Zip 'postgres' "https://get.enterprisedb.com/postgresql/postgresql-$($v.postgres)-1-windows-x64-binaries.zip" "pg.zip"
     $pgsql = Join-Path $ex 'pgsql'
     if (-not (Test-Path $pgsql)) { throw "Unexpected Postgres archive layout under $ex" }
     New-Item -ItemType Directory -Force -Path $dest | Out-Null
@@ -142,17 +182,28 @@ function Get-VerifiedRelease($app, $tag) {
            "or build from source with scripts\build-artifacts.ps1 -Only $app.")
   }
   $asset = & $AppAssets[$app] $tag
-  $base  = Get-EdgeBaseUrl $tag
+  $base  = $null
   $zip   = Join-Path $cache $asset
   $sumF  = "$zip.sha256"
 
-  Write-Host "  $ReleaseRepo $EdgePrefix$tag"
-  try {
-    Invoke-WebRequest -Uri "$base/$asset.sha256" -OutFile $sumF -UseBasicParsing
-  } catch {
-    # Offline: a zip verified earlier can still be reinstalled, e.g. by an updater rollback.
-    if (-not (Test-Path $zip) -or -not (Test-Path $sumF)) { throw }
-    Write-Host "  offline -- using the cached checksum" -ForegroundColor Yellow
+  if ($AssetDir) {
+    # Local folder: no network, same sha256 check as a download.
+    Write-Host "  $AssetDir $tag"
+    foreach ($f in $asset, "$asset.sha256") {
+      if (-not (Test-Path (Join-Path $AssetDir $f))) { throw "$f not found in -AssetDir $AssetDir." }
+    }
+    Copy-Item (Join-Path $AssetDir "$asset.sha256") $sumF -Force
+    Copy-Item (Join-Path $AssetDir $asset) $zip -Force
+  } else {
+    $base = Get-EdgeBaseUrl $tag
+    Write-Host "  $ReleaseRepo $EdgePrefix$tag"
+    try {
+      Invoke-WebRequest -Uri "$base/$asset.sha256" -OutFile $sumF -UseBasicParsing
+    } catch {
+      # Offline: a zip verified earlier can still be reinstalled, e.g. by an updater rollback.
+      if (-not (Test-Path $zip) -or -not (Test-Path $sumF)) { throw }
+      Write-Host "  offline -- using the cached checksum" -ForegroundColor Yellow
+    }
   }
   $expected = ((Get-Content $sumF -Raw).Trim() -split '\s+')[0].ToLower()
   if ($expected -notmatch '^[0-9a-f]{64}$') { throw "$asset.sha256 is not a sha256 checksum." }
@@ -160,7 +211,7 @@ function Get-VerifiedRelease($app, $tag) {
     throw "MANIFEST MISMATCH for ${asset}: manifest says $($Sha256[$app]), the release's .sha256 says $expected. Refusing to install."
   }
 
-  if (-not (Test-Path $zip) -or ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() -ne $expected)) {
+  if (-not $AssetDir -and (-not (Test-Path $zip) -or ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() -ne $expected))) {
     Write-Host "  downloading $base/$asset"
     Invoke-WebRequest -Uri "$base/$asset" -OutFile $zip -UseBasicParsing
   } else {
@@ -199,6 +250,11 @@ function Get-DefaultEdgeVersion {
 foreach ($a in 'edge-node','next') {
   if (-not (Want $a)) { continue }
   if ($Tags.ContainsKey($a)) { $tag = "$($Tags[$a])" }
+  elseif ($AssetDir) {
+    $m = @(Get-ChildItem $AssetDir -Filter (& $AppAssets[$a] '*') | Where-Object { $_.Name -match 'v\d+\.\d+\.\d+\.zip$' })
+    if ($m.Count -ne 1) { throw "-AssetDir $AssetDir must hold exactly one $a zip; found $($m.Count)." }
+    $tag = [regex]::Match($m[0].Name, 'v\d+\.\d+\.\d+').Value
+  }
   else {
     if (-not $defaultVersion) { $defaultVersion = Get-DefaultEdgeVersion }
     $tag = $defaultVersion

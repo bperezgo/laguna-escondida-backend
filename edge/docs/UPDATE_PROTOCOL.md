@@ -19,7 +19,9 @@ The web app never executes anything: it drops a request file, and only the updat
 A box follows only the **`edge/v*` GitHub Releases** of `laguna-escondida-backend`. Each one is the
 whole appliance, built from one commit, with one version (e.g. `v1.3.0`) for edge-node and Next.js
 together, and a `manifest.json` that lists every component's URL and sha256 plus **`min_cloud`**:
-the lowest cloud version the release can sync with. `cloud/*` and `landing/*` releases are never
+the lowest cloud version the release can sync with. The manifest also lists an `installer`
+component (`KuentaSetup-<v>.exe`, for installing a new box); the updater reads only `appliance`,
+`edge-node` and `next` and ignores it. `cloud/*` and `landing/*` releases are never
 read, so a cloud deploy cannot offer the restaurant anything.
 
 Every 30 minutes the updater reads the live cloud's version from `<CLOUD_SYNC_URL>/api/edge/status`,

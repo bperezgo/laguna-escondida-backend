@@ -2,12 +2,13 @@ name: Edge CI (install smoke test, Windows)
 
 # Full appliance lifecycle on a clean Windows machine, so a change to the scripts, service
 # definitions, Caddyfile or pinned versions is proven without a physical box:
-#   fetch (newest verified edge/* release) -> init Postgres -> install -> verify -> re-install (idempotent)
-#   -> update next + edge-node -> verify -> owner-triggered update (updater task) -> uninstall
+#   build the installer -> silent install tests against a stub cloud (busy port, 409, fresh, repair,
+#   uninstall keeps data, reinstall) -> update next + edge-node -> verify -> owner-triggered update
+#   (updater task) -> uninstall
 #
 # What it does NOT cover: a real LAN/tablet, local DNS, the printer, the cloud sync peer, and
-# Windows 10/11 specifics (runners are Windows Server). edge-node points at an unreachable
-# cloud, i.e. it runs as a box with its WAN down, which must still serve the LAN.
+# Windows 10/11 specifics (runners are Windows Server). The cloud is a stub that answers sign-in,
+# enrollment and empty sync pages (edge/installer/test/stub-cloud.ps1).
 on:
   push:
     branches: [main]
@@ -30,7 +31,7 @@ on:
   workflow_dispatch:
     inputs:
       edge_version:
-        description: 'Edge release version to install, e.g. v1.3.0 (blank = newest edge/* release)'
+        description: 'Edge release whose apps go into the installer, e.g. v1.3.0 (blank = newest edge/* release)'
         required: false
 
 permissions:
@@ -73,76 +74,32 @@ jobs:
             throw 'appliance ports are in use'
           }
 
-      - name: Stage the install root at C:\laguna-edge
-        run: |
-          robocopy "$env:GITHUB_WORKSPACE\edge" $env:EDGE_ROOT /E /XD .git /NFL /NDL /NJH /NJS /NP
-          if ($LASTEXITCODE -ge 8) { throw "robocopy failed ($LASTEXITCODE)" }
-          exit 0
-
-      # Per-box config, the way a technician would write it. edge-node.env is generated FROM
-      # env\edge-node.env.example so a key the backend starts requiring but the template
-      # lacks (or a stale name) fails here instead of on a real box.
-      - name: Write per-box config
-        run: |
-          $root = $env:EDGE_ROOT
-          $ip = (Get-NetIPAddress -AddressFamily IPv4 |
-                  Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' } |
-                  Select-Object -First 1).IPAddress
-          if (-not $ip) { throw 'no usable IPv4 address on the runner' }
-          # /32: only this machine is "the LAN", which is also where the checks run from.
-          @("EDGE_LAN_IP=$ip", "EDGE_LAN_CIDR=$ip/32", 'EDGE_LAN_HOST=pos.laguna.lan') |
-            Set-Content "$root\env\box.env" -Encoding ascii
-
-          $dbPassword = [guid]::NewGuid().ToString('N')
-          "DB_PASSWORD=$dbPassword" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
-          $set = [ordered]@{
-            PORT = '8080'
-            DB_HOST = '127.0.0.1'; DB_PORT = '5432'; DB_USER = 'laguna'; DB_PASSWORD = $dbPassword
-            DB_NAME = 'laguna_escondida'; DB_SSLMODE = 'disable'
-            ORGANIZATION_ID = '00000000-0000-0000-0000-00000000c1c1'
-            # Unreachable cloud = a box whose WAN is down: sync fails and queues, the LAN works.
-            CLOUD_SYNC_URL = 'http://127.0.0.1:9'; NODE_SYNC_KEY = 'ci-smoke-test'
-            PRINTER_TRANSPORT = 'file'; PRINTER_TARGET = "$root\logs\printer.out"
-            OBSERVABILITY_ENABLED = 'false'
-          }
-          $required = @(); $out = @(); $seen = @{}
-          foreach ($line in Get-Content "$root\env\edge-node.env.example") {
-            if ($line -match '^\s*([A-Z0-9_]+)=') {
-              $k = $Matches[1]; $seen[$k] = $true
-              if ($line -match '\(required\)') { $required += $k }
-              if ($set.Contains($k)) { $out += "$k=$($set[$k])"; continue }
-            }
-            $out += $line
-          }
-          foreach ($k in $set.Keys) { if (-not $seen[$k]) { $out += "$k=$($set[$k])" } }
-          $out | Set-Content "$root\env\edge-node.env" -Encoding ascii
-
-          $missing = @($required | Where-Object { -not $set[$_] })
-          if ($missing) { throw "edge-node.env.example marks these required but the smoke test sets no value: $($missing -join ', ')" }
-          if (Select-String -Path "$root\env\edge-node.env" -Pattern 'CHANGE_ME' -Quiet) { throw 'CHANGE_ME left in edge-node.env' }
-          "box: $ip (pos.laguna.lan)"
-
-      - name: Fetch artifacts (infra + verified app releases)
+      # The installer is the one way a box gets installed, so this builds it from the working tree
+      # (apps from the newest published edge release) and drives it silently against a stub
+      # cloud: busy port, 409, fresh install, repair, uninstall keeps data, reinstall.
+      - name: Build the installer
         env:
+          GH_TOKEN: ${{ github.token }}
           EDGE_VERSION: ${{ inputs.edge_version }}
         run: |
-          $tags = @{}
-          if ($env:EDGE_VERSION) { $tags = @{ 'edge-node' = $env:EDGE_VERSION; next = $env:EDGE_VERSION } }
-          & "$env:EDGE_ROOT\scripts\fetch-artifacts.ps1" -Only caddy,node,postgres,edge-node,next -Tags $tags
+          $version = $env:EDGE_VERSION
+          if (-not $version) {
+            $tags = gh release list --repo $env:GITHUB_REPOSITORY --exclude-drafts --limit 100 --json tagName -q '.[].tagName' |
+              Where-Object { $_ -match '^edge/v\d+\.\d+\.\d+$' } |
+              Sort-Object { [version]($_ -replace '^edge/v', '') } -Descending
+            if (-not $tags) { throw 'no published edge release to take the apps from' }
+            $version = $tags[0] -replace '^edge/', ''
+          }
+          "installing $version"
+          "EDGE_VERSION=$version" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          & "$env:GITHUB_WORKSPACE\edge\installer\build-installer.ps1" -Version $version -CloudUrl 'http://127.0.0.1:18080' `
+            -OutDir "$env:RUNNER_TEMP\installer-out"
 
-      - name: Initialize Postgres
-        run: '& "$env:EDGE_ROOT\scripts\init-postgres.ps1" -DbPassword $env:DB_PASSWORD'
-
-      - name: Install
-        run: '& "$env:EDGE_ROOT\scripts\install.ps1"'
-
-      - name: Verify
-        run: '& "$env:EDGE_ROOT\scripts\verify-install.ps1" -TimeoutSeconds 300'
-
-      - name: Re-run install (must be idempotent)
+      - name: Installer test (silent)
         run: |
-          & "$env:EDGE_ROOT\scripts\install.ps1"
-          & "$env:EDGE_ROOT\scripts\verify-install.ps1"
+          & "$env:GITHUB_WORKSPACE\edge\installer\test\run-installer-tests.ps1" `
+            -Installer "$env:RUNNER_TEMP\installer-out\KuentaSetup-$env:EDGE_VERSION.exe" `
+            -Work "$env:RUNNER_TEMP\installer-test" -KeepInstalled
 
       - name: Update next and edge-node (swap in place)
         run: |
@@ -208,6 +165,10 @@ jobs:
           }
           'clean'
 
+      - name: Stop the stub cloud
+        if: always()
+        run: New-Item "$env:RUNNER_TEMP\installer-test\stub-18080.stop" -ItemType File -Force | Out-Null
+
       - name: Show service logs
         if: failure()
         run: |
@@ -222,6 +183,8 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: appliance-logs
-          path: C:\laguna-edge\logs
+          path: |
+            C:\laguna-edge\logs
+            ${{ runner.temp }}\installer-test\*.log
           if-no-files-found: ignore
           retention-days: 7

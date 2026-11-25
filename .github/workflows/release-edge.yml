@@ -5,6 +5,7 @@ name: Release edge
 #   * edge-appliance-<v>.zip              scripts, services, Caddyfile, alloy (tracked files of edge/)
 #   * edge-node-windows-amd64-<v>.zip     the Windows edge binary
 #   * next-standalone-windows-<v>.zip     the Windows UI bundle
+#   * KuentaSetup-<v>.exe                 the installer (edge/installer/), built from the artifacts above
 #   * a .sha256 for each, manifest.json (components, URLs, sha256, min_cloud) and
 #     edge-fingerprint.txt (what the release was built from)
 # Boxes follow only `edge/*` releases (edge/docs/UPDATE_PROTOCOL.md). A tag whose fingerprint
@@ -221,9 +222,76 @@ jobs:
             frontend/dist/${{ env.ASSET }}.sha256
           if-no-files-found: error
 
+  # The wizard an owner double-clicks. Built from the two artifacts above plus the pinned
+  # third-party programs, and tested silently against a stub cloud before anything publishes.
+  installer-windows:
+    name: Build and test the installer
+    needs: [fingerprint, edge-windows, frontend-windows]
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      VERSION: ${{ needs.fingerprint.outputs.version }}
+      CLOUD_URL: ${{ vars.KUENTA_CLOUD_URL }}
+      SIGN_PFX_BASE64: ${{ secrets.KUENTA_SIGN_PFX_BASE64 }}
+      SIGN_PFX_PASSWORD: ${{ secrets.KUENTA_SIGN_PFX_PASSWORD }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Download the edge node and the POS bundle
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          path: parts
+          merge-multiple: true
+
+      - name: Build the installer
+        run: |
+          if (-not $env:CLOUD_URL) { throw 'repository variable KUENTA_CLOUD_URL is not set' }
+          $sign = @{}
+          if ($env:SIGN_PFX_BASE64) {
+            $pfx = Join-Path $env:RUNNER_TEMP 'kuenta-sign.pfx'
+            [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:SIGN_PFX_BASE64))
+            $sign = @{ SignPfx = $pfx; SignPassword = $env:SIGN_PFX_PASSWORD }
+          }
+          & edge\installer\build-installer.ps1 -Version $env:VERSION -CloudUrl $env:CLOUD_URL `
+            -OutDir "$PWD\installer-out" -AssetDir "$PWD\parts" @sign
+
+      # Same test edge-ci.yml runs on every PR. A release whose installer fails it is not published.
+      - name: Free the appliance ports
+        run: |
+          Get-Service postgresql*, W3SVC, WAS -ErrorAction SilentlyContinue | Stop-Service -Force -ErrorAction SilentlyContinue
+          Start-Sleep -Seconds 2
+
+      - name: Install test (silent, against a stub cloud)
+        run: |
+          & edge\installer\test\run-installer-tests.ps1 -Installer "$PWD\installer-out\KuentaSetup-$env:VERSION.exe" -Work "$env:RUNNER_TEMP\installer-test"
+
+      - name: Show logs
+        if: failure()
+        run: |
+          Get-ChildItem "$env:RUNNER_TEMP\installer-test" -Filter *.log -ErrorAction SilentlyContinue | ForEach-Object {
+            Write-Host "::group::$($_.Name)"; Get-Content $_.FullName -Tail 60; Write-Host '::endgroup::'
+          }
+          Get-ChildItem C:\laguna-edge\logs -Filter *.log -ErrorAction SilentlyContinue | ForEach-Object {
+            Write-Host "::group::$($_.Name)"; Get-Content $_.FullName -Tail 60; Write-Host '::endgroup::'
+          }
+
+      - name: Upload the installer
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: installer-windows
+          path: |
+            installer-out/KuentaSetup-*.exe
+            installer-out/KuentaSetup-*.exe.sha256
+            installer-out/installer-unsigned.txt
+          if-no-files-found: error
+
   publish:
     name: Publish the GitHub Release
-    needs: [fingerprint, edge-windows, frontend-windows]
+    needs: [fingerprint, edge-windows, frontend-windows, installer-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write # create the release / upload assets
@@ -247,6 +315,11 @@ jobs:
         run: |
           mkdir -p dist
           mv parts/* dist/
+          # An unsigned installer is published, and the release notes say so.
+          if [ -f dist/installer-unsigned.txt ]; then
+            rm dist/installer-unsigned.txt
+            echo "unsigned=true" >> "$GITHUB_ENV"
+          fi
           # Tracked files of edge/ only (never env/, certs/ or data: they are gitignored).
           git archive --format=zip -o "dist/edge-appliance-${VERSION}.zip" "HEAD:edge"
           scripts/build-edge-manifest.sh --version "$VERSION" --tag "$GITHUB_REF_NAME" \
@@ -261,4 +334,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes --title "$GITHUB_REF_NAME" dist/*
+          notes=()
+          if [ "${unsigned:-}" = true ]; then
+            echo "**Unsigned build:** KuentaSetup-${VERSION}.exe is not code-signed, so Windows SmartScreen will warn when it runs." > notes.md
+            notes=(--notes-file notes.md)
+          fi
+          gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes "${notes[@]}" --title "$GITHUB_REF_NAME" dist/*

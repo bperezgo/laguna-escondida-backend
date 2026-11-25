@@ -7,9 +7,14 @@ package device
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 )
+
+// ErrPrintingOff means the box is configured with PRINTER_TRANSPORT=none: no
+// printer exists and the print route must not be registered.
+var ErrPrintingOff = errors.New("device: ticket printing is off (PRINTER_TRANSPORT=none)")
 
 // Transport ships a fully-rendered ESC/POS byte stream to a device. Each Write
 // is self-contained (one ticket copy).
@@ -19,7 +24,7 @@ type Transport interface {
 
 // Config is the adapter configuration, mapped from PRINTER_* env at wiring time.
 type Config struct {
-	Transport string // file | tcp | windows | serial
+	Transport string // file | tcp | windows | none | serial
 	Target    string // file dir | host:port | windows printer name | COM port
 	WidthMM   int    // 80 or 58
 	Codepage  string // CP850 | CP858 | CP1252
@@ -35,11 +40,13 @@ func NewTransport(cfg Config) (Transport, error) {
 		return newTCPTransport(cfg.Target)
 	case "windows":
 		return newWindowsTransport(cfg.Target)
+	case "none":
+		return nil, ErrPrintingOff
 	case "serial":
 		return nil, fmt.Errorf("device: serial transport not implemented (Phase B); use PRINTER_TRANSPORT=file|tcp|windows")
 	case "":
 		return nil, fmt.Errorf("device: no transport configured (set PRINTER_TRANSPORT)")
 	default:
-		return nil, fmt.Errorf("device: unknown transport %q (want file|tcp|windows|serial)", cfg.Transport)
+		return nil, fmt.Errorf("device: unknown transport %q (want file|tcp|windows|none|serial)", cfg.Transport)
 	}
 }

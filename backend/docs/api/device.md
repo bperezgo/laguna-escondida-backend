@@ -89,7 +89,7 @@ The printer is selected at startup via environment variables:
 
 | Env var            | Meaning                                            | Example                       |
 | ------------------ | -------------------------------------------------- | ----------------------------- |
-| `PRINTER_TRANSPORT`| `file` \| `tcp` \| `windows` \| `serial`           | `windows` (prod), `file` (dev)|
+| `PRINTER_TRANSPORT`| `file` \| `tcp` \| `windows` \| `none` \| `serial` | `windows` (prod), `file` (dev)|
 | `PRINTER_TARGET`   | file dir / `host:port` / Windows printer name / COM| `POS-80`                      |
 | `PRINTER_WIDTH_MM` | `80` or `58` (→ 48 or 32 chars per line)           | `80`                          |
 | `PRINTER_CODEPAGE` | codepage for accents/ñ (`CP850`/`CP858`/`CP1252`)  | `CP850`                       |
@@ -108,4 +108,7 @@ The printer is selected at startup via environment variables:
   `:9100`). Dev/test.
 - `windows` — RAW print spooler to a locally-attached printer. Production on the
   Windows edge node (finished in Phase B).
+- `none` — printing is off: the print route is not registered, so
+  `POST /api/device/print` answers `404` and nothing is written. The frontend then prints
+  through the browser. Used by the installer.
 - `serial` — reserved for a COM device (Phase B, not yet implemented).

@@ -5,7 +5,8 @@
 #       --commit <sha> --assets dist/ > dist/manifest.json
 #
 # Expects in --assets: edge-appliance-<version>.zip, edge-node-windows-amd64-<version>.zip and
-# next-standalone-windows-<version>.zip. min_cloud comes from edge/compat.json and must name an
+# next-standalone-windows-<version>.zip, and optionally KuentaSetup-<version>.exe (the installer, listed as
+# the "installer" component; boxes ignore it). min_cloud comes from edge/compat.json and must name an
 # existing cloud release: tag cloud/<min_cloud> (or the bare <min_cloud> tag from before the
 # channels were split). Env: REPO_DIR (default: this repo) is where compat.json, versions.json
 # and the tags are read from. Needs jq and git.
@@ -48,10 +49,15 @@ component() { # name asset
   jq -n --arg v "$VERSION" --arg url "$BASE/$2" --arg sha "$(sha_of "$f")" '{version: $v, url: $url, sha256: $sha}'
 }
 
+installer='null'
+[ -f "$ASSETS/KuentaSetup-$VERSION.exe" ] && installer=$(component installer "KuentaSetup-$VERSION.exe")
+
 jq -n --arg version "$VERSION" --arg tag "$TAG" --arg commit "$COMMIT" --arg min "$MIN_CLOUD" \
   --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson infra "$infra" \
   --argjson appliance "$(component appliance "edge-appliance-$VERSION.zip")" \
   --argjson node "$(component edge-node "edge-node-windows-amd64-$VERSION.zip")" \
   --argjson next "$(component next "next-standalone-windows-$VERSION.zip")" \
+  --argjson installer "$installer" \
   '{appliance_version: $version, tag: $tag, published_at: $at, git_commit: $commit, min_cloud: $min,
-    components: {appliance: $appliance, "edge-node": $node, next: $next}, infra: $infra}'
+    components: ({appliance: $appliance, "edge-node": $node, next: $next} + (if $installer then {installer: $installer} else {} end)),
+    infra: $infra}'

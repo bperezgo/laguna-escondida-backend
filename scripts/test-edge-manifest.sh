@@ -22,6 +22,15 @@ echo "$out" | jq -e '.components | to_entries | all(.value.sha256 | test("^[0-9a
 echo "$out" | jq -e '.components.next.url == "https://github.com/o/r/releases/download/edge/v1.0.0/next-standalone-windows-v1.0.0.zip"' >/dev/null || fail "url"
 echo "$out" | jq -e '.infra.caddy == "2.8.4"' >/dev/null || fail "infra pins"
 
+# the installer, when present, is listed with the file's own sha256 and infra is unchanged
+echo installer > "$T/assets/KuentaSetup-v1.0.0.exe"
+out=$(run) || fail "manifest with an installer was rejected"
+[ "$(echo "$out" | jq -r '.components | keys | join(",")')" = appliance,edge-node,installer,next ] || fail "installer component"
+want=$(if command -v sha256sum >/dev/null; then sha256sum "$T/assets/KuentaSetup-v1.0.0.exe"; else shasum -a 256 "$T/assets/KuentaSetup-v1.0.0.exe"; fi | cut -d' ' -f1)
+[ "$(echo "$out" | jq -r .components.installer.sha256)" = "$want" ] || fail "installer sha256"
+echo "$out" | jq -e '.infra | keys == ["alloy","caddy","node","postgres","winsw"]' >/dev/null || fail "infra grew"
+rm "$T/assets/KuentaSetup-v1.0.0.exe"
+
 # missing: no such cloud release
 echo '{"min_cloud":"v9.9.9"}' > "$T/edge/compat.json"
 if run >/dev/null 2>"$T/err"; then fail "missing min_cloud was accepted"; fi

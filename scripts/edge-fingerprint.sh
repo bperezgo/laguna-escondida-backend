@@ -7,7 +7,8 @@
 #     windows/amd64, from `go list`; _test.go files excluded
 #   - backend/go.mod, backend/go.sum
 #   - tracked frontend/ files except tests, docs/ and ai-plan/ (lockfile included)
-#   - tracked edge/ files except docs/, ai-plan/ and incidents/ (edge/compat.json included)
+#   - tracked edge/ files except docs/, ai-plan/ and incidents/ (edge/compat.json included);
+#     this covers the installer (edge/installer/), so an installer change triggers a release
 #   - the edge release workflow and this script
 #
 # Usage: scripts/edge-fingerprint.sh            # prints the hash

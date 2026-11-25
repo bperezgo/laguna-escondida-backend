@@ -1,0 +1,66 @@
+{
+  "0": {
+    "key": "ok",
+    "message": "Listo."
+  },
+  "10": {
+    "key": "os_unsupported",
+    "message": "Kuenta necesita Windows 10 u 11 de 64 bits."
+  },
+  "11": {
+    "key": "not_elevated",
+    "message": "Ejecute el instalador como administrador del equipo."
+  },
+  "12": {
+    "key": "low_disk",
+    "message": "No hay espacio suficiente: se necesitan al menos 3 GB libres en el disco C:."
+  },
+  "13": {
+    "key": "port_busy",
+    "message": "Un puerto que Kuenta necesita ya está en uso por otro programa."
+  },
+  "14": {
+    "key": "policy_blocked",
+    "message": "Windows tiene bloqueada la ejecución de scripts por una directiva de la organización."
+  },
+  "15": {
+    "key": "no_connection",
+    "message": "No hay conexión con Kuenta. Revise el internet e intente de nuevo."
+  },
+  "20": {
+    "key": "bad_credentials",
+    "message": "El correo o la contraseña no son correctos."
+  },
+  "21": {
+    "key": "not_admin",
+    "message": "Solo un administrador del restaurante puede instalar la caja."
+  },
+  "22": {
+    "key": "box_already_enrolled",
+    "message": "La organización ya tiene una caja instalada."
+  },
+  "23": {
+    "key": "enroll_failed",
+    "message": "No se pudo registrar la caja en Kuenta."
+  },
+  "30": {
+    "key": "db_without_config",
+    "message": "Este equipo tiene datos de una caja pero no su configuración. Contacte a soporte; no se cambió nada."
+  },
+  "31": {
+    "key": "config_failed",
+    "message": "No se pudo escribir la configuración de la caja."
+  },
+  "32": {
+    "key": "install_failed",
+    "message": "No se pudieron instalar los servicios de la caja. Revise C:\\laguna-edge\\logs."
+  },
+  "33": {
+    "key": "verify_failed",
+    "message": "La caja se instaló pero no responde. Revise C:\\laguna-edge\\logs."
+  },
+  "34": {
+    "key": "serving_not_synced",
+    "message": "La caja funciona, pero aún no se ha conectado a Kuenta. El inicio de sesión funcionará cuando tenga conexión."
+  }
+}
