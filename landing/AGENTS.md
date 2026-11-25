@@ -13,7 +13,7 @@ Static Astro site in Spanish (es-CO) that sells the product to restaurant owners
 - **No invented proof.** No testimonials, customer logos, prices or figures unless the owner supplies them. Screenshots show demo data only.
 - **One primary action**, labelled `Pide una demo`, pointing at `#demo`.
 - **Apps never import each other's code.** Talk to the backend over HTTP only.
-- This is a self-contained pnpm project with its own lockfile, **not part of the `v*` release**: the site ships on its own as a static `dist/`.
+- This is a self-contained pnpm project with its own lockfile, **not part of the `cloud/` or `edge/` releases**: a `landing/v*` tag (`release-landing.yml`) builds the static `dist/`, deploys it to Cloudflare Pages and attaches it to a GitHub Release. `PUBLIC_*` values come from repo variables, Cloudflare credentials from repo secrets.
 - Comments: the default is none. Add one only when the *why* isn't obvious.
 
 ## Commands

@@ -1,12 +1,20 @@
 name: Release landing
 
-# Build the marketing site on a `landing/v*` tag (e.g. landing/v1.0.0) and attach dist/ to a
-# GitHub Release. Where it deploys is not decided yet; until then this only builds and
-# attaches the site. Boxes read only `edge/*` releases, so this never reaches them.
+# Build the marketing site on a `landing/v*` tag (e.g. landing/v1.0.0), deploy it to the
+# Cloudflare Pages production deployment, then attach dist/ to a GitHub Release. PUBLIC_*
+# settings come from repository variables. A manual run with `tag` republishes an earlier
+# tag (rollback) and creates no release. Boxes read only `edge/*` releases, so this never
+# reaches them.
 on:
   push:
     tags:
       - 'landing/v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing landing tag to republish (e.g. landing/v1.0.0)
+        required: true
+        type: string
 
 permissions:
   contents: write # create the release / upload the site
@@ -17,11 +25,15 @@ defaults:
 
 jobs:
   release:
-    name: Check, test, build, attach
+    name: Check, test, build, deploy, attach
     runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -40,21 +52,33 @@ jobs:
       - name: Test
         run: pnpm test
 
-      # Placeholder address, as in landing-ci.yml: the deploy target decides the real one.
       - name: Build
         env:
-          PUBLIC_API_BASE_URL: http://127.0.0.1:8080
+          PUBLIC_API_BASE_URL: ${{ vars.PUBLIC_API_BASE_URL }}
+          PUBLIC_SITE_URL: ${{ vars.PUBLIC_SITE_URL }}
+          PUBLIC_GA_MEASUREMENT_ID: ${{ vars.PUBLIC_GA_MEASUREMENT_ID }}
+          PUBLIC_META_PIXEL_ID: ${{ vars.PUBLIC_META_PIXEL_ID }}
+          PUBLIC_WHATSAPP_NUMBER: ${{ vars.PUBLIC_WHATSAPP_NUMBER }}
+          PUBLIC_LEGAL_NAME: ${{ vars.PUBLIC_LEGAL_NAME }}
+          PUBLIC_PRIVACY_EMAIL: ${{ vars.PUBLIC_PRIVACY_EMAIL }}
         run: pnpm build
 
       - name: Package + checksum
         run: |
-          asset="landing-site-${GITHUB_REF_NAME#*/}.zip"
+          asset="landing-site-${TAG#*/}.zip"
           (cd dist && zip -qr "../$asset" .)
           sha256sum "$asset" > "$asset.sha256"
           cat "$asset.sha256"
           echo "ASSET=$asset" >> "$GITHUB_ENV"
 
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm dlx wrangler@4.168.0 pages deploy dist --project-name=kuenta-landing --branch=main
+
       - name: Publish to GitHub Release
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes --title "$GITHUB_REF_NAME" "$ASSET" "$ASSET.sha256"
+        run: gh release create "$TAG" --verify-tag --generate-notes --title "$TAG" "$ASSET" "$ASSET.sha256"
