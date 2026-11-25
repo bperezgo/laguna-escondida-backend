@@ -63,7 +63,9 @@ func NewEdge(cfg *config.Edge, infra Infra) (*App, error) {
 		Codepage:  cfg.Printer.Codepage,
 		Cut:       cfg.Printer.Cut,
 	}
-	if receiptPrinter, printerErr := device.NewReceiptPrinterFromConfig(deviceCfg); printerErr != nil {
+	if receiptPrinter, printerErr := device.NewReceiptPrinterFromConfig(deviceCfg); errors.Is(printerErr, device.ErrPrintingOff) {
+		logger.Info("Ticket printing is off", slog.String("transport", deviceCfg.Transport))
+	} else if printerErr != nil {
 		logger.Error("Ticket printing disabled: failed to init printer transport", slog.Any("error", printerErr))
 	} else {
 		printService := service.NewPrintService(c.openBillRepo, receiptPrinter, dto.TicketBusinessInfo{

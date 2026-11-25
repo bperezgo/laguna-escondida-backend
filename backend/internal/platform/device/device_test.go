@@ -120,6 +120,9 @@ func TestNewTransport_Selection(t *testing.T) {
 		assert.Error(t, errWin, "windows transport unavailable off windows")
 	}
 
+	_, err = NewTransport(Config{Transport: "none"})
+	assert.ErrorIs(t, err, ErrPrintingOff)
+
 	_, err = NewTransport(Config{Transport: "serial", Target: "COM3"})
 	assert.Error(t, err, "serial not implemented yet")
 

@@ -17,7 +17,10 @@ param(
   [string] $DbName         = 'laguna_escondida',
   [string] $SuperPassword,              # superuser 'postgres' password; random if omitted
   [int]    $Port           = 5432,
-  [switch] $Force                       # wipe an existing data dir and re-init
+  [switch] $Force,                      # wipe an existing data dir and re-init
+  # Return success without touching anything when the data dir exists. The installer uses this
+  # so a repair or a re-run never fails on, or wipes, a database that is already there.
+  [switch] $SkipIfInitialized
 )
 
 $ErrorActionPreference = 'Stop'
@@ -36,6 +39,10 @@ $psql      = Join-Path $Bin 'psql.exe'
 $pgisready = Join-Path $Bin 'pg_isready.exe'
 if (-not (Test-Path $initdb)) { throw "Postgres binaries not found at $Bin. Run fetch-artifacts.ps1 -Only postgres first." }
 
+if ((Test-Path $Data) -and $SkipIfInitialized -and -not $Force) {
+  Write-Host "Data dir already exists at $Data -- leaving it as it is."
+  return
+}
 if ((Test-Path $Data) -and -not $Force) {
   throw "Data dir already exists at $Data. Use -Force to wipe and re-init (DESTROYS existing data)."
 }

@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -77,4 +78,28 @@ func TestEdgeRoutes_IgnoreTheAdminAPIKey(t *testing.T) {
 			assert.Equal(t, route.want, rec.Code)
 		})
 	}
+}
+
+func TestEdgeRoutes_PrintRouteFollowsThePrinterTransport(t *testing.T) {
+	target := t.TempDir()
+	cfg := testEdgeConfig()
+	cfg.Printer.Transport = "none"
+	cfg.Printer.Target = target
+
+	edge, err := NewEdge(cfg, testInfra(t))
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	edge.Router.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/device/print", strings.NewReader("{}")))
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+	entries, err := os.ReadDir(target)
+	require.NoError(t, err)
+	assert.Empty(t, entries, "a box with printing off writes no ticket")
+
+	cfg.Printer.Transport = "file"
+	edge, err = NewEdge(cfg, testInfra(t))
+	require.NoError(t, err)
+	rec = httptest.NewRecorder()
+	edge.Router.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/device/print", strings.NewReader("{}")))
+	assert.Equal(t, http.StatusUnauthorized, rec.Code, "with a printer the route exists and wants a login")
 }

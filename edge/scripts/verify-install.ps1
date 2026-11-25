@@ -13,11 +13,19 @@
 
   Run:  .\scripts\verify-install.ps1
         .\scripts\verify-install.ps1 -TimeoutSeconds 300     # slow first boot (migrations)
+        .\scripts\verify-install.ps1 -WaitForSync            # installer: also wait for the first sync
+
+  -WaitForSync: after the layers pass, wait up to -SyncWaitSeconds for /api/edge/status to report
+  online: true. On timeout exit 34 ("serving, not yet synced"), which is a warning, not a failure.
+  -SkipChecks (with -WaitForSync) runs only that wait.
 #>
 [CmdletBinding()]
 param(
   # How long to wait for each layer to come up (edge-node runs migrations on first boot).
-  [int] $TimeoutSeconds = 180
+  [int] $TimeoutSeconds = 180,
+  [switch] $WaitForSync,
+  [int] $SyncWaitSeconds = 300,
+  [switch] $SkipChecks
 )
 
 $ErrorActionPreference = 'Stop'
@@ -52,6 +60,15 @@ function Stop-OnFailure($layer) {
     exit 1
   }
 }
+
+function Wait-ForSync {
+  Step "first sync with the cloud (up to ${SyncWaitSeconds}s)"
+  $ok = Wait-Until { (Invoke-RestMethod http://127.0.0.1:8080/api/edge/status -TimeoutSec 5).online -eq $true } $SyncWaitSeconds
+  if ($ok) { Pass "online = true"; exit 0 }
+  Write-Host "  warn serving, but not synced within ${SyncWaitSeconds}s" -ForegroundColor Yellow
+  exit 34
+}
+if ($WaitForSync -and $SkipChecks) { Wait-ForSync }
 
 # --- box identity -----------------------------------------------------------------
 $box = @{}
@@ -145,4 +162,5 @@ else { Fail "http://$LanIp/ -> '$($r -join ' ')', expected a redirect to https" 
 Stop-OnFailure 'caddy'
 
 Write-Host "`nAll checks passed." -ForegroundColor Green
+if ($WaitForSync) { Wait-ForSync }
 exit 0
