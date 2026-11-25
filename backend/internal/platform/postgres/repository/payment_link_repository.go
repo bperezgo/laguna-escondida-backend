@@ -141,6 +141,7 @@ type paymentTransactionModel struct {
 	WompiTransactionID string          `gorm:"column:wompi_transaction_id"`
 	PaymentLinkID      *string         `gorm:"column:payment_link_id"`
 	WompiLinkID        *string         `gorm:"column:wompi_link_id"`
+	Reference          *string         `gorm:"column:reference"`
 	Status             string          `gorm:"column:status"`
 	AmountInCents      int64           `gorm:"column:amount_in_cents"`
 	Currency           string          `gorm:"column:currency"`
@@ -167,7 +168,7 @@ func (r *PaymentTransactionRepository) FindByWompiID(ctx context.Context, wompiT
 		return nil, false, err
 	}
 	return &dto.PaymentTransaction{
-		ID: m.ID, WompiTransactionID: m.WompiTransactionID, PaymentLinkID: m.PaymentLinkID, WompiLinkID: m.WompiLinkID,
+		ID: m.ID, WompiTransactionID: m.WompiTransactionID, PaymentLinkID: m.PaymentLinkID, WompiLinkID: m.WompiLinkID, Reference: m.Reference,
 		Status: dto.PaymentTransactionStatus(m.Status), AmountInCents: m.AmountInCents, Currency: m.Currency,
 		PaymentMethodType: m.PaymentMethodType, Matched: m.Matched, RawEvent: m.RawEvent,
 	}, true, nil
@@ -183,11 +184,11 @@ func (r *PaymentTransactionRepository) Save(ctx context.Context, tx *dto.Payment
 	return db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "organization_id"}, {Name: "wompi_transaction_id"}},
 		DoUpdates: clause.AssignmentColumns([]string{
-			"payment_link_id", "wompi_link_id", "status", "amount_in_cents", "currency", "payment_method_type", "matched", "raw_event", "updated_at",
+			"payment_link_id", "wompi_link_id", "reference", "status", "amount_in_cents", "currency", "payment_method_type", "matched", "raw_event", "updated_at",
 		}),
 		Where: postgres.SameOrganization("payment_link_transactions"),
 	}).Create(&paymentTransactionModel{
-		ID: tx.ID, WompiTransactionID: tx.WompiTransactionID, PaymentLinkID: tx.PaymentLinkID, WompiLinkID: tx.WompiLinkID,
+		ID: tx.ID, WompiTransactionID: tx.WompiTransactionID, PaymentLinkID: tx.PaymentLinkID, WompiLinkID: tx.WompiLinkID, Reference: tx.Reference,
 		Status: string(tx.Status), AmountInCents: tx.AmountInCents, Currency: tx.Currency, PaymentMethodType: tx.PaymentMethodType,
 		Matched: tx.Matched, RawEvent: tx.RawEvent, CreatedAt: now, UpdatedAt: now,
 	}).Error
@@ -200,8 +201,10 @@ func (r *PaymentTransactionRepository) HasPendingForOrder(ctx context.Context, o
 	}
 	var count int64
 	err = db.Model(&paymentTransactionModel{}).
-		Joins("JOIN payment_links ON payment_links.id = payment_link_transactions.payment_link_id").
-		Where("payment_links.order_id = ? AND payment_link_transactions.status = ?", orderID, string(dto.PaymentTransactionPending)).
+		Where(`payment_link_transactions.status = ? AND (
+			payment_link_transactions.payment_link_id IN (SELECT id FROM payment_links WHERE order_id = ?)
+			OR payment_link_transactions.reference IN (SELECT reference FROM payment_qr_transactions WHERE order_id = ?))`,
+			string(dto.PaymentTransactionPending), orderID, orderID).
 		Count(&count).Error
 	return count > 0, err
 }

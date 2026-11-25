@@ -18,6 +18,9 @@ An organization's credentials for a third-party provider, set by the platform op
 | `environment`        | string | Wompi only: `sandbox` (`prv_test_` keys) or `production` (`prv_prod_` keys). Absent for `marketing_app` |
 | `private_key_hint`   | string | Wompi only: last 4 characters of the private key                            |
 | `events_secret_hint` | string | Wompi only: last 4 characters of the events secret                          |
+| `public_key_hint`    | string | Wompi only, when the QR keys are set: last 4 characters of the public key   |
+| `integrity_secret_hint` | string | Wompi only, when the QR keys are set: last 4 characters of the integrity secret |
+| `qr_enabled`         | boolean | Wompi only: `true` when both QR keys are set. Absent for `marketing_app`     |
 | `signing_secret_hint` | string | marketing-app only: last 4 characters of the signing secret               |
 | `webhook_path`       | string | Wompi only: `/api/webhooks/wompi/:organization_id`, the path to set as the events URL in Wompi's dashboard |
 | `created_at`         | string | RFC 3339                                                                    |
@@ -109,6 +112,10 @@ PUT /api/platform/organizations/:id/integrations/wompi
 | --------------- | ------ | -------- | ----------------------------------------------------- |
 | `private_key`   | string | Yes      | Starts with `prv_test_` or `prv_prod_` (trimmed)       |
 | `events_secret` | string | Yes      | Starts with `test_events_` or `prod_events_` (trimmed) |
+| `public_key`    | string | No       | Starts with `pub_test_` or `pub_prod_`. Needs `integrity_secret` |
+| `integrity_secret` | string | No    | Starts with `test_integrity_` or `prod_integrity_`. Needs `public_key` |
+
+`public_key` and `integrity_secret` are the two extra keys the Bancolombia QR needs (Wompi's dashboard, *Desarrolladores*). They are optional: an integration without them keeps paying with the link only and reads `qr_enabled: false`. Putting the integration replaces everything, so a put without them removes any stored before.
 
 ### Validation
 
@@ -116,6 +123,7 @@ Nothing is stored when the request is refused.
 
 - Each value is required and must have its prefix. A public key (`pub_test_…`) or an integrity secret (`test_integrity_…`) is refused naming the field.
 - Both values must be for the same environment (`test` or `prod`).
+- `public_key` and `integrity_secret` are given together or not at all (`400` naming the missing one), each with its prefix, and for the private key's environment (`400` naming the one that differs).
 - They must match the cloud's `WOMPI_API_URL`: `sandbox.wompi.co` takes only `test` keys and `production.wompi.co` only `prod` keys. Any other host (a local stand-in) takes either.
 
 ### Example Request

@@ -48,7 +48,11 @@ type fakeOrder struct {
 	// Expired is a void for lack of payment; PaymentURL is the active link of an open order.
 	Expired    bool
 	PaymentURL string
-	Lines      []dto.OpenBillProductDetail
+	// PaymentQRURL is the image URL of the active QR of an open order.
+	PaymentQRURL string
+	Lines        []dto.OpenBillProductDetail
+	// Payment is the payment strategy fields an order of the manual strategy reads with.
+	Payment dto.OrderFulfillment
 }
 
 type fakeBackend struct {
@@ -186,10 +190,14 @@ func (b *fakeBackend) writeDetail(w http.ResponseWriter, id string, closed bool)
 			continue
 		}
 		detail := dto.OpenBillWithProducts{ID: o.ID, CreatedAt: o.CreatedAt, TotalAmount: decimal.NewFromInt(32000), Products: o.Lines}
+		detail.OrderFulfillment = o.Payment
 		detail.OrderType = o.Type
 		detail.VoidReason = o.voidReason()
 		if o.PaymentURL != "" && !closed {
 			detail.PaymentURL = &o.PaymentURL
+		}
+		if o.PaymentQRURL != "" && !closed {
+			detail.PaymentQRURL = &o.PaymentQRURL
 		}
 		if o.Paid {
 			paidAt := o.CreatedAt.Add(time.Minute)
@@ -992,7 +1000,7 @@ func TestCustomerTools_DescriptionsTellThePaymentRules(t *testing.T) {
 	}
 
 	assert.Contains(t, descriptions["create_delivery_order"], "payment_url, the only way to pay it")
-	assert.Contains(t, descriptions["create_delivery_order"], "cancelled if unpaid after 30 minutes")
+	assert.Contains(t, descriptions["create_delivery_order"], "cancelled if unpaid when its payment link expires")
 	assert.Contains(t, descriptions["update_my_order"], "Returns a new payment_url")
 	assert.Contains(t, descriptions["update_my_order"], "paid or expired")
 	assert.Contains(t, descriptions["get_my_orders"], "expired: cancelled for lack of payment")

@@ -29,6 +29,8 @@ var (
 	ErrOrderNotOwnedByAgent     = errors.New("the agent can only change takeaway and delivery orders it created")
 	// ErrPaymentLinksNotConfigured: an agent order is paid only through Wompi, so none is taken without it.
 	ErrPaymentLinksNotConfigured = errors.New("payment links are not configured for this organization")
+	// ErrPaymentReviewNotAllowed: only an unpaid, unvoided manual agent order can be marked under review.
+	ErrPaymentReviewNotAllowed = errors.New("only an unpaid manual agent order can be marked under review")
 )
 
 var (

@@ -748,6 +748,72 @@ func (_c *MockOpenBillRepository_FindDeletedByCreatedAtBetween_Call) RunAndRetur
 	return _c
 }
 
+// FindPaymentState provides a mock function with given fields: ctx, openBillID
+func (_m *MockOpenBillRepository) FindPaymentState(ctx context.Context, openBillID string) (*dto.OrderPaymentState, bool, error) {
+	ret := _m.Called(ctx, openBillID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindPaymentState")
+	}
+
+	var r0 *dto.OrderPaymentState
+	var r1 bool
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*dto.OrderPaymentState, bool, error)); ok {
+		return rf(ctx, openBillID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *dto.OrderPaymentState); ok {
+		r0 = rf(ctx, openBillID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*dto.OrderPaymentState)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) bool); ok {
+		r1 = rf(ctx, openBillID)
+	} else {
+		r1 = ret.Get(1).(bool)
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, string) error); ok {
+		r2 = rf(ctx, openBillID)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// MockOpenBillRepository_FindPaymentState_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindPaymentState'
+type MockOpenBillRepository_FindPaymentState_Call struct {
+	*mock.Call
+}
+
+// FindPaymentState is a helper method to define mock.On call
+//   - ctx context.Context
+//   - openBillID string
+func (_e *MockOpenBillRepository_Expecter) FindPaymentState(ctx interface{}, openBillID interface{}) *MockOpenBillRepository_FindPaymentState_Call {
+	return &MockOpenBillRepository_FindPaymentState_Call{Call: _e.mock.On("FindPaymentState", ctx, openBillID)}
+}
+
+func (_c *MockOpenBillRepository_FindPaymentState_Call) Run(run func(ctx context.Context, openBillID string)) *MockOpenBillRepository_FindPaymentState_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockOpenBillRepository_FindPaymentState_Call) Return(state *dto.OrderPaymentState, found bool, err error) *MockOpenBillRepository_FindPaymentState_Call {
+	_c.Call.Return(state, found, err)
+	return _c
+}
+
+func (_c *MockOpenBillRepository_FindPaymentState_Call) RunAndReturn(run func(context.Context, string) (*dto.OrderPaymentState, bool, error)) *MockOpenBillRepository_FindPaymentState_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // FindPendingByArea provides a mock function with given fields: ctx, area
 func (_m *MockOpenBillRepository) FindPendingByArea(ctx context.Context, area string) ([]*dto.OpenBillProductSSE, error) {
 	ret := _m.Called(ctx, area)
@@ -862,6 +928,172 @@ func (_c *MockOpenBillRepository_GetProductPreparationResponsibilities_Call) Ret
 }
 
 func (_c *MockOpenBillRepository_GetProductPreparationResponsibilities_Call) RunAndReturn(run func(context.Context, []string) ([]dto.ProductPreparationResponsibilityWithProduct, error)) *MockOpenBillRepository_GetProductPreparationResponsibilities_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListManualDue provides a mock function with given fields: ctx, now
+func (_m *MockOpenBillRepository) ListManualDue(ctx context.Context, now time.Time) ([]string, error) {
+	ret := _m.Called(ctx, now)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListManualDue")
+	}
+
+	var r0 []string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time) ([]string, error)); ok {
+		return rf(ctx, now)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time) []string); ok {
+		r0 = rf(ctx, now)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]string)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, time.Time) error); ok {
+		r1 = rf(ctx, now)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOpenBillRepository_ListManualDue_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListManualDue'
+type MockOpenBillRepository_ListManualDue_Call struct {
+	*mock.Call
+}
+
+// ListManualDue is a helper method to define mock.On call
+//   - ctx context.Context
+//   - now time.Time
+func (_e *MockOpenBillRepository_Expecter) ListManualDue(ctx interface{}, now interface{}) *MockOpenBillRepository_ListManualDue_Call {
+	return &MockOpenBillRepository_ListManualDue_Call{Call: _e.mock.On("ListManualDue", ctx, now)}
+}
+
+func (_c *MockOpenBillRepository_ListManualDue_Call) Run(run func(ctx context.Context, now time.Time)) *MockOpenBillRepository_ListManualDue_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockOpenBillRepository_ListManualDue_Call) Return(_a0 []string, _a1 error) *MockOpenBillRepository_ListManualDue_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOpenBillRepository_ListManualDue_Call) RunAndReturn(run func(context.Context, time.Time) ([]string, error)) *MockOpenBillRepository_ListManualDue_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SetPayment provides a mock function with given fields: ctx, openBillID, strategy, expiresAt
+func (_m *MockOpenBillRepository) SetPayment(ctx context.Context, openBillID string, strategy dto.PaymentStrategy, expiresAt *time.Time) error {
+	ret := _m.Called(ctx, openBillID, strategy, expiresAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SetPayment")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, dto.PaymentStrategy, *time.Time) error); ok {
+		r0 = rf(ctx, openBillID, strategy, expiresAt)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockOpenBillRepository_SetPayment_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetPayment'
+type MockOpenBillRepository_SetPayment_Call struct {
+	*mock.Call
+}
+
+// SetPayment is a helper method to define mock.On call
+//   - ctx context.Context
+//   - openBillID string
+//   - strategy dto.PaymentStrategy
+//   - expiresAt *time.Time
+func (_e *MockOpenBillRepository_Expecter) SetPayment(ctx interface{}, openBillID interface{}, strategy interface{}, expiresAt interface{}) *MockOpenBillRepository_SetPayment_Call {
+	return &MockOpenBillRepository_SetPayment_Call{Call: _e.mock.On("SetPayment", ctx, openBillID, strategy, expiresAt)}
+}
+
+func (_c *MockOpenBillRepository_SetPayment_Call) Run(run func(ctx context.Context, openBillID string, strategy dto.PaymentStrategy, expiresAt *time.Time)) *MockOpenBillRepository_SetPayment_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(dto.PaymentStrategy), args[3].(*time.Time))
+	})
+	return _c
+}
+
+func (_c *MockOpenBillRepository_SetPayment_Call) Return(_a0 error) *MockOpenBillRepository_SetPayment_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockOpenBillRepository_SetPayment_Call) RunAndReturn(run func(context.Context, string, dto.PaymentStrategy, *time.Time) error) *MockOpenBillRepository_SetPayment_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SetPaymentReview provides a mock function with given fields: ctx, openBillID, startedAt
+func (_m *MockOpenBillRepository) SetPaymentReview(ctx context.Context, openBillID string, startedAt *time.Time) (bool, error) {
+	ret := _m.Called(ctx, openBillID, startedAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SetPaymentReview")
+	}
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, *time.Time) (bool, error)); ok {
+		return rf(ctx, openBillID, startedAt)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, *time.Time) bool); ok {
+		r0 = rf(ctx, openBillID, startedAt)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, *time.Time) error); ok {
+		r1 = rf(ctx, openBillID, startedAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOpenBillRepository_SetPaymentReview_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetPaymentReview'
+type MockOpenBillRepository_SetPaymentReview_Call struct {
+	*mock.Call
+}
+
+// SetPaymentReview is a helper method to define mock.On call
+//   - ctx context.Context
+//   - openBillID string
+//   - startedAt *time.Time
+func (_e *MockOpenBillRepository_Expecter) SetPaymentReview(ctx interface{}, openBillID interface{}, startedAt interface{}) *MockOpenBillRepository_SetPaymentReview_Call {
+	return &MockOpenBillRepository_SetPaymentReview_Call{Call: _e.mock.On("SetPaymentReview", ctx, openBillID, startedAt)}
+}
+
+func (_c *MockOpenBillRepository_SetPaymentReview_Call) Run(run func(ctx context.Context, openBillID string, startedAt *time.Time)) *MockOpenBillRepository_SetPaymentReview_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(*time.Time))
+	})
+	return _c
+}
+
+func (_c *MockOpenBillRepository_SetPaymentReview_Call) Return(updated bool, err error) *MockOpenBillRepository_SetPaymentReview_Call {
+	_c.Call.Return(updated, err)
+	return _c
+}
+
+func (_c *MockOpenBillRepository_SetPaymentReview_Call) RunAndReturn(run func(context.Context, string, *time.Time) (bool, error)) *MockOpenBillRepository_SetPaymentReview_Call {
 	_c.Call.Return(run)
 	return _c
 }

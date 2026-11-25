@@ -84,6 +84,13 @@ export async function updateOrder(
   });
 }
 
+/** Marks (or, with false, clears) that staff are checking a manual order's payment. */
+export async function setPaymentReview(id: string, underReview: boolean): Promise<OpenBillWithProducts> {
+  return apiRequest<OpenBillWithProducts>(`/orders/${id}/payment-review`, {
+    method: underReview ? "PUT" : "DELETE",
+  });
+}
+
 export async function payOrder(
   data: PayOrderRequest
 ): Promise<{ message: string }> {

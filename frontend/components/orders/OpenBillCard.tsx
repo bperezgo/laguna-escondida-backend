@@ -5,6 +5,7 @@ import { PermissionGate } from "@/components/permissions";
 import { PERMISSIONS } from "@/lib/permissions";
 import { Badge, Button, Card } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
+import { manualPaymentLabel, manualPaymentStatus, reviewActionLabel } from "@/lib/orders/manualPayment";
 
 const ORDER_TYPE_CHIP = {
   takeaway: "Para llevar",
@@ -17,6 +18,8 @@ interface OpenBillCardProps {
   onClick?: () => void;
   onPayClick?: () => void;
   onRemoveClick?: () => void;
+  /** Marks or clears the review of a manual order's payment. */
+  onReviewClick?: () => void;
 }
 
 export default function OpenBillCard({
@@ -25,7 +28,9 @@ export default function OpenBillCard({
   onClick,
   onPayClick,
   onRemoveClick,
+  onReviewClick,
 }: OpenBillCardProps) {
+  const manualPayment = manualPaymentStatus(openBill);
   const orderType = openBill.order_type;
   const typeChip =
     orderType === "takeaway" || orderType === "delivery" ? ORDER_TYPE_CHIP[orderType] : null;
@@ -65,7 +70,17 @@ export default function OpenBillCard({
             Tú
           </Badge>
         )}
+        {manualPayment && (
+          <Badge tone={manualPayment.underReview ? "info" : "warning"} dot={false}>
+            {manualPaymentLabel(manualPayment)}
+          </Badge>
+        )}
       </div>
+      {manualPayment?.expiresAt && !manualPayment.underReview && (
+        <span style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+          Se cancela si no se paga antes de {formatDateTime(manualPayment.expiresAt)}
+        </span>
+      )}
 
       {typeChip && (
         <div
@@ -190,7 +205,21 @@ export default function OpenBillCard({
 
       {/* Actions */}
       {(onPayClick || onRemoveClick) && (
-        <div style={{ display: "flex", gap: "0.5rem" }}>
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          {manualPayment && onReviewClick && (
+            <PermissionGate permission={PERMISSIONS.ORDERS_PAY}>
+              <Button
+                variant="secondary"
+                size="lg"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onReviewClick();
+                }}
+              >
+                {reviewActionLabel(manualPayment)}
+              </Button>
+            </PermissionGate>
+          )}
           {onRemoveClick && (
             <PermissionGate permission={PERMISSIONS.ORDERS_DELETE}>
               <Button

@@ -36,6 +36,15 @@ type PaymentWebhookService struct {
 	payer        orderPayer
 	unitOfWork   ports.UnitOfWork
 	logger       *slog.Logger
+	qrs          ports.PaymentQRRepository
+}
+
+// PaymentWebhookOption adds to the webhook what only the cloud has.
+type PaymentWebhookOption func(*PaymentWebhookService)
+
+// WithQRMatching also pays an order with a transaction that has no link but the reference of its active QR.
+func WithQRMatching(qrs ports.PaymentQRRepository) PaymentWebhookOption {
+	return func(s *PaymentWebhookService) { s.qrs = qrs }
 }
 
 func NewPaymentWebhookService(
@@ -47,11 +56,16 @@ func NewPaymentWebhookService(
 	payer orderPayer,
 	unitOfWork ports.UnitOfWork,
 	logger *slog.Logger,
+	opts ...PaymentWebhookOption,
 ) *PaymentWebhookService {
-	return &PaymentWebhookService{
+	s := &PaymentWebhookService{
 		orgs: orgs, runner: runner, config: config, links: links, transactions: transactions,
 		payer: payer, unitOfWork: unitOfWork, logger: logger,
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // Handle answers refused for anything it can't verify as the organization's own Wompi event; an
@@ -123,6 +137,17 @@ func (s *PaymentWebhookService) apply(ctx context.Context, log *slog.Logger, tx 
 		}
 	}
 
+	var qr *dto.PaymentQRTransaction
+	if link == nil && s.qrs != nil && tx.Reference != "" {
+		found := false
+		if qr, found, err = s.qrs.FindActiveByReference(ctx, tx.Reference); err != nil {
+			return fmt.Errorf("read payment QR: %w", err)
+		}
+		if !found {
+			qr = nil
+		}
+	}
+
 	record := &dto.PaymentTransaction{
 		ID:                 uuid.Must(uuid.NewV7()).String(),
 		WompiTransactionID: tx.ID,
@@ -133,6 +158,9 @@ func (s *PaymentWebhookService) apply(ctx context.Context, log *slog.Logger, tx 
 		PaymentMethodType:  tx.PaymentMethodType,
 		RawEvent:           body,
 	}
+	if tx.Reference != "" {
+		record.Reference = &tx.Reference
+	}
 	if seen {
 		record.ID, record.Matched = existing.ID, existing.Matched
 	}
@@ -141,11 +169,20 @@ func (s *PaymentWebhookService) apply(ctx context.Context, log *slog.Logger, tx 
 	}
 
 	if tx.Status != dto.PaymentTransactionApproved {
-		return s.transactions.Save(ctx, record)
+		if err := s.transactions.Save(ctx, record); err != nil {
+			return err
+		}
+		if qr != nil && tx.Status != dto.PaymentTransactionPending {
+			// The QR failed; the order stays awaiting payment with its link.
+			if err := s.qrs.RetireByOrder(ctx, qr.OrderID); err != nil {
+				log.ErrorContext(ctx, "payment QR not retired after a failed QR payment", slog.Any("error", err))
+			}
+		}
+		return nil
 	}
 
 	return s.unitOfWork.Do(ctx, func(txCtx context.Context) error {
-		matched, reason := matches(link, tx)
+		matched, reason := matches(link, qr, tx)
 		record.Matched = matched
 		// Saved before paying: a second delivery waits here on the row, then finds the order paid.
 		if err := s.transactions.Save(txCtx, record); err != nil {
@@ -158,12 +195,28 @@ func (s *PaymentWebhookService) apply(ctx context.Context, log *slog.Logger, tx 
 			return nil
 		}
 		// Last, so nothing after it can roll back a payment the kitchen was already told about.
-		return s.payer.PayOrder(txCtx, command.PayOrderCommand{OpenBillID: link.OrderID, PaymentCode: paymentCodeFor(tx.PaymentMethodType)})
+		orderID := ""
+		if link != nil {
+			orderID = link.OrderID
+		} else {
+			orderID = qr.OrderID
+		}
+		return s.payer.PayOrder(txCtx, command.PayOrderCommand{OpenBillID: orderID, PaymentCode: paymentCodeFor(tx.PaymentMethodType)})
 	})
 }
 
-// matches reports whether an approved transaction pays its link's order, and why not otherwise.
-func matches(link *dto.PaymentLink, tx dto.WompiTransaction) (bool, string) {
+// matches reports whether an approved transaction pays the order of its link, or of its QR when it has
+// no link, and why not otherwise.
+func matches(link *dto.PaymentLink, qr *dto.PaymentQRTransaction, tx dto.WompiTransaction) (bool, string) {
+	if link == nil && qr != nil {
+		switch {
+		case !qr.OrderOpen:
+			return false, "order is paid or voided"
+		case tx.AmountInCents != qr.AmountInCents || !strings.EqualFold(tx.Currency, qr.Currency):
+			return false, "amount or currency differs from the QR's"
+		}
+		return true, ""
+	}
 	switch {
 	case link == nil:
 		return false, "not one of this organization's links"

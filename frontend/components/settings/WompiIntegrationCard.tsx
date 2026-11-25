@@ -10,7 +10,10 @@ import {
   environmentLabel,
   hasWompiErrors,
   maskedHint,
+  QR_ENABLED_NOTE,
+  QR_LINK_ONLY_NOTE,
   validateWompiDraft,
+  wompiRequestBody,
   wompiSaveErrors,
   type WompiCardState,
   type WompiFormErrors,
@@ -37,6 +40,8 @@ export default function WompiIntegrationCard({ initialState, canManage }: WompiI
   const [editing, setEditing] = useState(false);
   const [privateKey, setPrivateKey] = useState("");
   const [eventsSecret, setEventsSecret] = useState("");
+  const [publicKey, setPublicKey] = useState("");
+  const [integritySecret, setIntegritySecret] = useState("");
   const [errors, setErrors] = useState<WompiFormErrors>({});
   const [saving, setSaving] = useState(false);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
@@ -46,6 +51,8 @@ export default function WompiIntegrationCard({ initialState, canManage }: WompiI
   const clearInputs = () => {
     setPrivateKey("");
     setEventsSecret("");
+    setPublicKey("");
+    setIntegritySecret("");
   };
 
   const closeForm = () => {
@@ -56,7 +63,7 @@ export default function WompiIntegrationCard({ initialState, canManage }: WompiI
 
   const handleSave = async (event: FormEvent) => {
     event.preventDefault();
-    const draft = { private_key: privateKey, events_secret: eventsSecret };
+    const draft = { private_key: privateKey, events_secret: eventsSecret, public_key: publicKey, integrity_secret: integritySecret };
     const invalid = validateWompiDraft(draft);
     if (hasWompiErrors(invalid)) {
       setErrors(invalid);
@@ -66,7 +73,7 @@ export default function WompiIntegrationCard({ initialState, canManage }: WompiI
       setSaving(true);
       setErrors({});
       setNotice("");
-      const integration = await organizationIntegrationsApi.putWompi(draft);
+      const integration = await organizationIntegrationsApi.putWompi(wompiRequestBody(draft));
       setState({ kind: "configured", integration });
       setEditing(false);
       setNotice("Llaves de Wompi guardadas.");
@@ -115,6 +122,22 @@ export default function WompiIntegrationCard({ initialState, canManage }: WompiI
   const form = (
     <form onSubmit={handleSave} autoComplete="off" style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
       {errors.form && <ErrorBanner message={errors.form} />}
+      <p style={{ ...muted, margin: 0 }}>
+        La llave pública y el secreto de integridad son opcionales, para pagar con QR de Bancolombia, y van juntos.{" "}
+        {QR_LINK_ONLY_NOTE}
+      </p>
+      <Input
+        label="Llave pública (opcional)"
+        type="password"
+        autoComplete="off"
+        spellCheck={false}
+        placeholder="pub_test_… o pub_prod_…"
+        value={publicKey}
+        disabled={saving}
+        onChange={(e) => setPublicKey(e.target.value)}
+        error={errors.public_key}
+        helper="En Wompi: Desarrolladores → Llaves del API."
+      />
       <Input
         label="Llave privada"
         type="password"
@@ -137,6 +160,18 @@ export default function WompiIntegrationCard({ initialState, canManage }: WompiI
         disabled={saving}
         onChange={(e) => setEventsSecret(e.target.value)}
         error={errors.events_secret}
+        helper="En Wompi: Desarrolladores → Secretos para integración técnica."
+      />
+      <Input
+        label="Secreto de integridad (opcional)"
+        type="password"
+        autoComplete="off"
+        spellCheck={false}
+        placeholder="test_integrity_… o prod_integrity_…"
+        value={integritySecret}
+        disabled={saving}
+        onChange={(e) => setIntegritySecret(e.target.value)}
+        error={errors.integrity_secret}
         helper="En Wompi: Desarrolladores → Secretos para integración técnica."
       />
       <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
@@ -178,10 +213,24 @@ export default function WompiIntegrationCard({ initialState, canManage }: WompiI
             margin: "0 0 1rem",
           }}
         >
+          <dt style={muted}>Llave pública</dt>
+          <dd style={{ margin: 0, fontFamily: "monospace" }}>
+            {integration.public_key_hint ? maskedHint(integration.public_key_hint) : "—"}
+          </dd>
           <dt style={muted}>Llave privada</dt>
           <dd style={{ margin: 0, fontFamily: "monospace" }}>{maskedHint(integration.private_key_hint)}</dd>
           <dt style={muted}>Secreto de eventos</dt>
           <dd style={{ margin: 0, fontFamily: "monospace" }}>{maskedHint(integration.events_secret_hint)}</dd>
+          <dt style={muted}>Secreto de integridad</dt>
+          <dd style={{ margin: 0, fontFamily: "monospace" }}>
+            {integration.integrity_secret_hint ? maskedHint(integration.integrity_secret_hint) : "—"}
+          </dd>
+          <dt style={muted}>Pago con QR</dt>
+          <dd style={{ margin: 0 }}>
+            <Badge tone={integration.qr_enabled ? "success" : "neutral"}>
+              {integration.qr_enabled ? "QR habilitado" : "Solo link"}
+            </Badge>
+          </dd>
           <dt style={muted}>Actualizado</dt>
           <dd style={{ margin: 0 }}>{formatDate(integration.updated_at)}</dd>
           <dt style={muted}>URL de eventos</dt>
@@ -192,6 +241,7 @@ export default function WompiIntegrationCard({ initialState, canManage }: WompiI
             </Button>
           </dd>
         </dl>
+        <p style={{ ...muted, marginTop: 0 }}>{integration.qr_enabled ? QR_ENABLED_NOTE : QR_LINK_ONLY_NOTE}</p>
         <p style={{ ...muted, marginTop: 0 }}>
           En Wompi, pon como URL de eventos el dominio de este servidor seguido de esta ruta.
         </p>

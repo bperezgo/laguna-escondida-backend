@@ -23,6 +23,8 @@ import (
 const (
 	wompiPrivateKeyField   = "private_key"
 	wompiEventsSecretField = "events_secret"
+	wompiPublicKeyField    = "public_key"
+	wompiIntegrityField    = "integrity_secret"
 	secretHintLength       = 4
 
 	marketingAppSigningSecretField     = "signing_secret"
@@ -39,6 +41,14 @@ var (
 	wompiEventsSecretPrefixes = map[string]dto.IntegrationEnvironment{
 		"test_events_": dto.IntegrationEnvironmentSandbox,
 		"prod_events_": dto.IntegrationEnvironmentProduction,
+	}
+	wompiPublicKeyPrefixes = map[string]dto.IntegrationEnvironment{
+		"pub_test_": dto.IntegrationEnvironmentSandbox,
+		"pub_prod_": dto.IntegrationEnvironmentProduction,
+	}
+	wompiIntegrityPrefixes = map[string]dto.IntegrationEnvironment{
+		"test_integrity_": dto.IntegrationEnvironmentSandbox,
+		"prod_integrity_": dto.IntegrationEnvironmentProduction,
 	}
 	wompiHostEnvironments = map[string]dto.IntegrationEnvironment{
 		"sandbox.wompi.co":    dto.IntegrationEnvironmentSandbox,
@@ -85,6 +95,8 @@ func (s *OrganizationIntegrationService) SetWompi(ctx context.Context, orgID str
 	}
 	creds.PrivateKey = strings.TrimSpace(creds.PrivateKey)
 	creds.EventsSecret = strings.TrimSpace(creds.EventsSecret)
+	creds.PublicKey = strings.TrimSpace(creds.PublicKey)
+	creds.IntegritySecret = strings.TrimSpace(creds.IntegritySecret)
 	environment, err := s.validateWompi(creds)
 	if err != nil {
 		return nil, err
@@ -96,10 +108,15 @@ func (s *OrganizationIntegrationService) SetWompi(ctx context.Context, orgID str
 	if err != nil {
 		return nil, fmt.Errorf("encode wompi credentials: %w", err)
 	}
-	return s.store(ctx, orgID, dto.IntegrationProviderWompi, environment, plaintext, map[string]string{
+	hints := map[string]string{
 		wompiPrivateKeyField:   secretHint(creds.PrivateKey),
 		wompiEventsSecretField: secretHint(creds.EventsSecret),
-	})
+	}
+	if creds.QREnabled() {
+		hints[wompiPublicKeyField] = secretHint(creds.PublicKey)
+		hints[wompiIntegrityField] = secretHint(creds.IntegritySecret)
+	}
+	return s.store(ctx, orgID, dto.IntegrationProviderWompi, environment, plaintext, hints)
 }
 
 // SetMarketingApp creates or replaces the organization's marketing-app integration with a secret
@@ -336,7 +353,40 @@ func (s *OrganizationIntegrationService) validateWompi(creds dto.WompiCredential
 			Reason: fmt.Sprintf("the keys are for %s and this cloud uses Wompi's %s", keyEnv, s.wompiEnvironment),
 		}
 	}
+	if err = validateWompiQR(creds, keyEnv); err != nil {
+		return "", err
+	}
 	return keyEnv, nil
+}
+
+// validateWompiQR checks the optional QR pair: given together, and for the private key's environment.
+func validateWompiQR(creds dto.WompiCredentials, keyEnv dto.IntegrationEnvironment) error {
+	switch {
+	case creds.PublicKey == "" && creds.IntegritySecret == "":
+		return nil
+	case creds.PublicKey == "":
+		return &domainError.IntegrationValidationError{Field: wompiPublicKeyField, Reason: "is required with integrity_secret"}
+	case creds.IntegritySecret == "":
+		return &domainError.IntegrationValidationError{Field: wompiIntegrityField, Reason: "is required with public_key"}
+	}
+	for _, c := range []struct {
+		field, value, expected string
+		prefixes               map[string]dto.IntegrationEnvironment
+	}{
+		{wompiPublicKeyField, creds.PublicKey, "pub_test_ or pub_prod_", wompiPublicKeyPrefixes},
+		{wompiIntegrityField, creds.IntegritySecret, "test_integrity_ or prod_integrity_", wompiIntegrityPrefixes},
+	} {
+		env, err := environmentFromPrefix(c.field, c.value, c.prefixes, c.expected)
+		if err != nil {
+			return err
+		}
+		if env != keyEnv {
+			return &domainError.IntegrationValidationError{
+				Field: c.field, Reason: fmt.Sprintf("is for %s and the private key for %s", env, keyEnv),
+			}
+		}
+	}
+	return nil
 }
 
 func environmentFromPrefix(field, value string, prefixes map[string]dto.IntegrationEnvironment, expected string) (dto.IntegrationEnvironment, error) {
@@ -384,6 +434,10 @@ func toIntegration(record *dto.OrganizationIntegrationRecord) *dto.OrganizationI
 	case dto.IntegrationProviderWompi:
 		integration.PrivateKeyHint = record.SecretHints[wompiPrivateKeyField]
 		integration.EventsSecretHint = record.SecretHints[wompiEventsSecretField]
+		integration.PublicKeyHint = record.SecretHints[wompiPublicKeyField]
+		integration.IntegrityHint = record.SecretHints[wompiIntegrityField]
+		qr := integration.PublicKeyHint != "" && integration.IntegrityHint != ""
+		integration.QREnabled = &qr
 		integration.WebhookPath = "/api/webhooks/wompi/" + record.OrganizationID
 	case dto.IntegrationProviderMarketingApp:
 		integration.SigningSecretHint = record.SecretHints[marketingAppSigningSecretField]

@@ -4,6 +4,8 @@ import { PERMISSIONS, usePermissions } from "@/lib/permissions";
 import type { MarketingAppCardState, WompiCardState } from "@/lib/settings/integrations";
 import { showApiKeysCard, type ApiKeysCardState } from "@/lib/settings/apiKeys";
 import { ErrorBanner, NoticeBanner } from "@/components/deliveries/Banners";
+import type { PaymentSettingsCardState } from "@/lib/settings/paymentSettings";
+import PaymentSettingsCard from "./PaymentSettingsCard";
 import SettingsSectionShell from "./SettingsSectionShell";
 import MarketingAppIntegrationCard from "./MarketingAppIntegrationCard";
 import WompiIntegrationCard from "./WompiIntegrationCard";
@@ -12,11 +14,12 @@ import ApiKeysCard from "./ApiKeysCard";
 interface IntegrationsPageClientProps {
   wompi: WompiCardState;
   marketingApp: MarketingAppCardState;
+  payment: PaymentSettingsCardState;
   apiKeys: ApiKeysCardState;
   mcpUrl: string | null;
 }
 
-export default function IntegrationsPageClient({ wompi, marketingApp, apiKeys, mcpUrl }: IntegrationsPageClientProps) {
+export default function IntegrationsPageClient({ wompi, marketingApp, payment, apiKeys, mcpUrl }: IntegrationsPageClientProps) {
   const { hasPermission, isLoading } = usePermissions();
   const canRead = hasPermission(PERMISSIONS.INTEGRATIONS_READ);
   const canManage = hasPermission(PERMISSIONS.INTEGRATIONS_MANAGE);
@@ -35,6 +38,7 @@ export default function IntegrationsPageClient({ wompi, marketingApp, apiKeys, m
           Servicios externos conectados al restaurante. Las llaves se guardan cifradas y nunca se vuelven a mostrar:
           solo sus últimos 4 caracteres.
         </p>
+        <PaymentSettingsCard initialState={payment} canManage={canManage} wompiConfigured={wompi.kind === "configured"} />
         <WompiIntegrationCard initialState={wompi} canManage={canManage} />
         <MarketingAppIntegrationCard initialState={marketingApp} canManage={canManage} />
         {showApiKeysCard(hasPermission) && <ApiKeysCard initialState={apiKeys} mcpUrl={mcpUrl} />}

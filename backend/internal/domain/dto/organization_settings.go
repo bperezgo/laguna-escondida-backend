@@ -62,6 +62,11 @@ type OrganizationSettingsResponse struct {
 	Reservations ReservationSettings  `json:"reservations"`
 	Availability OrderingAvailability `json:"availability"`
 	Timezone     string               `json:"timezone"`
+	// PaymentStrategy is how agent orders are paid; read-only here, set at /api/organization/payment-settings.
+	// Cloud only, and only on a read: the customer agent cannot read those settings.
+	PaymentStrategy *PaymentStrategy `json:"payment_strategy,omitempty"`
+	// PaymentTerms are Wompi's documents, present when the organization is on wompi and can offer a QR.
+	PaymentTerms *PaymentTerms `json:"payment_terms,omitempty"`
 }
 
 // UpdateOrganizationSettingsRequest: a nil field is left unchanged.

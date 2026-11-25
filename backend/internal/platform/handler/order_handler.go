@@ -587,3 +587,29 @@ func orderTypeLabel(orderType string) string {
 	}
 	return "Takeaway"
 }
+
+// MarkPaymentReviewHandler and ClearPaymentReviewHandler set and clear a manual order's
+// "staff are checking this payment" mark (cloud only).
+func (h *OrderHandler) MarkPaymentReviewHandler(c *gin.Context) {
+	order, err := h.orderService.MarkPaymentReview(c.Request.Context(), c.Param("id"))
+	h.respondPaymentReview(c, order, err)
+}
+
+func (h *OrderHandler) ClearPaymentReviewHandler(c *gin.Context) {
+	order, err := h.orderService.ClearPaymentReview(c.Request.Context(), c.Param("id"))
+	h.respondPaymentReview(c, order, err)
+}
+
+func (h *OrderHandler) respondPaymentReview(c *gin.Context, order *dto.OpenBillWithProducts, err error) {
+	switch {
+	case err == nil:
+		c.JSON(http.StatusOK, order)
+	case errors.Is(err, orderError.ErrOrderNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
+	case errors.Is(err, orderError.ErrPaymentReviewNotAllowed):
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error(), "code": "PAYMENT_REVIEW_NOT_ALLOWED"})
+	default:
+		log.Printf("Error changing payment review: %v", err)
+		RespondError(c, err)
+	}
+}

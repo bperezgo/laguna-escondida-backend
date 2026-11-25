@@ -262,6 +262,8 @@ type createDeliveryOrderInput struct {
 	Lines           []orderLineInput `json:"lines" jsonschema:"what the customer orders, at least one line"`
 	CustomerName    *string          `json:"customer_name,omitempty" jsonschema:"the customer's name, if they gave it"`
 	DeliveryAddress *string          `json:"delivery_address,omitempty" jsonschema:"for delivery: street, building, apartment or door, as a reference for the rider"`
+	// PaymentTermsAccepted is only the agent's word; the backend cannot see the conversation.
+	PaymentTermsAccepted bool `json:"payment_terms_accepted,omitempty" jsonschema:"true only if the customer confirmed an order summary that showed both payment_terms documents from get_ordering_availability; without it the order has no QR, only the payment link"`
 }
 
 type updateMyOrderInput struct {
@@ -309,6 +311,23 @@ type orderView struct {
 	// PaymentURL is the only way to pay an order awaiting payment; absent once paid or expired.
 	PaymentURL *string         `json:"payment_url,omitempty"`
 	Lines      []orderLineView `json:"lines"`
+	// PaymentQRURL is a public image of the order's Bancolombia QR, to send to the customer; the link is the alternative.
+	PaymentQRURL *string `json:"payment_qr_url,omitempty"`
+	// PaymentStrategy is how the order is paid: wompi (payment_url) or manual (payment_instructions).
+	PaymentStrategy *dto.PaymentStrategy `json:"payment_strategy,omitempty"`
+	// The rest is set for an order awaiting payment only: a manual order's transfer instructions and
+	// whether staff are checking the payment, and when the order is cancelled if unpaid.
+	PaymentInstructions *string    `json:"payment_instructions,omitempty"`
+	PaymentExpiresAt    *time.Time `json:"payment_expires_at,omitempty"`
+	PaymentUnderReview  *bool      `json:"payment_under_review,omitempty"`
+}
+
+// withHowToPay adds what an order awaiting payment says about paying it.
+func (v *orderView) withHowToPay(f dto.OrderFulfillment) {
+	v.PaymentStrategy = f.PaymentStrategy
+	v.PaymentExpiresAt = f.PaymentExpiresAt
+	v.PaymentInstructions = f.PaymentInstructions
+	v.PaymentUnderReview = f.PaymentUnderReview
 }
 
 type myOrders struct {
@@ -429,8 +448,10 @@ func writtenOrderView(order *dto.OpenBill, items []dto.OrderProductItem, choices
 		DeliveryFee:  order.DeliveryFee,
 		PaymentState: paymentAwaiting,
 		PaymentURL:   order.PaymentURL,
+		PaymentQRURL: order.PaymentQRURL,
 		Lines:        make([]orderLineView, 0, len(items)),
 	}
+	view.withHowToPay(order.OrderFulfillment)
 	for _, item := range items {
 		view.Lines = append(view.Lines, orderLineView{
 			Name: names[item.ProductID], Quantity: item.Quantity, Notes: item.Notes, Choices: choices[item.OpenBillProductID],
@@ -458,7 +479,10 @@ func detailOrderView(order *dto.OpenBillWithProducts) orderView {
 		view.PaymentState = paymentExpired
 	default:
 		view.PaymentURL = order.PaymentURL
+		view.PaymentQRURL = order.PaymentQRURL
+		view.withHowToPay(order.OrderFulfillment)
 	}
+	view.PaymentStrategy = order.PaymentStrategy
 	for _, p := range order.Products {
 		view.Lines = append(view.Lines, orderLineView{
 			Name: p.Product.Name, Quantity: p.Quantity, Notes: p.Notes, Choices: lineChoiceViews(p.Choices), State: string(p.Status),
@@ -561,6 +585,10 @@ type orderingAvailability struct {
 	Delivery dto.Availability `json:"delivery"`
 	Takeaway dto.Availability `json:"takeaway"`
 	Timezone string           `json:"timezone"`
+	// PaymentStrategy is how agent orders are paid: wompi, or manual with instructions on each order.
+	PaymentStrategy *dto.PaymentStrategy `json:"payment_strategy,omitempty"`
+	// PaymentTerms are Wompi's two documents, when a QR can be offered: show both in the order summary.
+	PaymentTerms *dto.PaymentTerms `json:"payment_terms,omitempty"`
 }
 
 // createRefusal words the backend's 422 for the agent: ordering unavailable, payment links not
@@ -643,7 +671,9 @@ func registerCustomerTools(s *mcp.Server, c *Client) {
 		Description: "Whether the restaurant is taking delivery and takeaway orders right now. Call it before taking an order. " +
 			"Each type reports available, and when it isn't, the reason: paused (with paused_reason) or outside_hours (with next_opens_at). " +
 			"closes_at is when an open type stops taking orders. If the requested type is unavailable, offer the other one " +
-			"or tell the customer when it next opens. Creates nothing.",
+			"or tell the customer when it next opens. payment_strategy says how orders are paid here: wompi (a payment_url) or manual " +
+			"(a transfer to the restaurant's payment_instructions, confirmed by staff). When payment_terms is present, show both of its documents " +
+			"in the order summary and create the order with payment_terms_accepted only once the customer confirmed that summary. Creates nothing.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ noInput) (*mcp.CallToolResult, any, error) {
 		body, err := c.Get(ctx, "/api/organization/settings", nil)
 		if err != nil {
@@ -654,9 +684,11 @@ func registerCustomerTools(s *mcp.Server, c *Client) {
 			return toolError(fmt.Errorf("decode ordering availability: %w", err))
 		}
 		return jsonOK(json.Marshal(orderingAvailability{
-			Delivery: settings.Availability.Delivery,
-			Takeaway: settings.Availability.Takeaway,
-			Timezone: settings.Timezone,
+			Delivery:        settings.Availability.Delivery,
+			Takeaway:        settings.Availability.Takeaway,
+			Timezone:        settings.Timezone,
+			PaymentStrategy: settings.PaymentStrategy,
+			PaymentTerms:    settings.PaymentTerms,
 		}))
 	})
 
@@ -685,8 +717,11 @@ func registerCustomerTools(s *mcp.Server, c *Client) {
 		Name: "create_delivery_order",
 		Description: "Create a takeaway or delivery order for the customer in this chat. A delivery goes to the location the customer shared " +
 			"and needs the address reference for the rider; its zone's delivery_fee is added by the restaurant and is already in total. " +
-			"The order is awaiting payment and comes with payment_url, the only way to pay it; " +
-			"the kitchen starts it once it is paid, and it is cancelled if unpaid after 30 minutes. " +
+			"The order is awaiting payment and comes with payment_url, the only way to pay it, and, when payment_terms_accepted and the restaurant offers it, " +
+			"payment_qr_url: an image of a Bancolombia QR to send to the customer, with payment_url as the alternative; " +
+			"the kitchen starts it once it is paid, and it is cancelled if unpaid when its payment link expires. " +
+			"Under a manual payment_strategy there is no payment_url: the order comes with payment_instructions (how to transfer), " +
+			"staff confirm the transfer, and it is cancelled if unpaid at payment_expires_at. " +
 			"For a plate with slots send choices only when the customer asked for a change; each line comes back " +
 			"with the choice every slot resolved to. If a choice is refused, call get_side_dish_options again and ask the customer.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in createDeliveryOrderInput) (*mcp.CallToolResult, any, error) {
@@ -715,11 +750,12 @@ func registerCustomerTools(s *mcp.Server, c *Client) {
 
 		items := orderItems(in.Lines, nil)
 		body, err := c.Post(ctx, "/api/orders", dto.CreateOrderRequest{
-			OpenBillID:          uuid.Must(uuid.NewV7()).String(),
-			TemporalIdentifier:  uuid.Must(uuid.NewV7()).String(),
-			Products:            items,
-			Origin:              customerOrigin(req),
-			OrderContactRequest: contact,
+			OpenBillID:           uuid.Must(uuid.NewV7()).String(),
+			TemporalIdentifier:   uuid.Must(uuid.NewV7()).String(),
+			Products:             items,
+			Origin:               customerOrigin(req),
+			OrderContactRequest:  contact,
+			PaymentTermsAccepted: in.PaymentTermsAccepted,
 		})
 		var apiErr *APIError
 		if errors.As(err, &apiErr) && apiErr.Status == http.StatusUnprocessableEntity {
@@ -738,7 +774,7 @@ func registerCustomerTools(s *mcp.Server, c *Client) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "update_my_order",
 		Description: "Replace the lines of one of this customer's unpaid orders. The order type, contact and location do not change. " +
-			"Returns a new payment_url; the earlier link no longer works. Fails with order not found once the order is paid or expired. " +
+			"Returns a new payment_url (and a new payment_qr_url if the order had one); the earlier ones no longer work (a manual order keeps its payment_instructions and payment_expires_at). Fails with order not found once the order is paid or expired. " +
 			"Lines take the same shape as in create_delivery_order, choices included; resend a plate's choices or it goes back to its defaults.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in updateMyOrderInput) (*mcp.CallToolResult, any, error) {
 		if err := validateLines(in.Lines); err != nil {
@@ -799,7 +835,8 @@ func registerCustomerTools(s *mcp.Server, c *Client) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "get_my_orders",
 		Description: "List this customer's orders, newest first: unpaid ones and those paid or expired today, with payment state (awaiting_payment, paid, " +
-			"or expired: cancelled for lack of payment), the payment_url of one awaiting payment, " +
+			"or expired: cancelled for lack of payment), the payment_url of one awaiting payment (or, for a manual one, its payment_instructions, " +
+			"payment_expires_at and payment_under_review: staff are checking the transfer), " +
 			"and each line's kitchen state (created, in_progress, completed, cancelled). Cancelled orders are not listed.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, _ noInput) (*mcp.CallToolResult, any, error) {
 		phone, err := customerPhone(req)

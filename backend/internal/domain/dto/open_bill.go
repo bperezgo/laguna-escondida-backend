@@ -48,6 +48,23 @@ type OrderFulfillment struct {
 	Origin *Origin `json:"origin,omitempty"`
 	// VoidReason is payment_expired for an agent order nobody paid in time; nil for any other order.
 	VoidReason *string `json:"void_reason,omitempty"`
+	// PaymentStrategy is how an agent order is paid, recorded at creation; nil for staff and dine-in orders.
+	PaymentStrategy *PaymentStrategy `json:"payment_strategy,omitempty"`
+	// PaymentExpiresAt is when an unpaid manual order is voided; nil for any other order.
+	PaymentExpiresAt *time.Time `json:"payment_expires_at,omitempty"`
+	// PaymentReviewStartedAt is set while staff check a manual order's payment; the order is not expired meanwhile.
+	PaymentReviewStartedAt *time.Time `json:"payment_review_started_at,omitempty"`
+	// PaymentInstructions and PaymentUnderReview are filled on read for an unpaid manual order, from
+	// the organization's current instructions and the review mark.
+	PaymentInstructions *string `json:"payment_instructions,omitempty"`
+	PaymentUnderReview  *bool   `json:"payment_under_review,omitempty"`
+}
+
+// OrderPaymentState is what the payment review checks before marking an order.
+type OrderPaymentState struct {
+	Strategy *PaymentStrategy
+	Paid     bool
+	Voided   bool
 }
 
 type OpenBill struct {
@@ -64,6 +81,8 @@ type OpenBill struct {
 	PaidAt             *time.Time      `json:"paid_at,omitempty"`
 	// PaymentURL is the order's active payment link; nil when it has none.
 	PaymentURL *string `json:"payment_url,omitempty"`
+	// PaymentQRURL is the public image URL of the order's active QR; nil when it has none or it has not arrived.
+	PaymentQRURL *string `json:"payment_qr_url,omitempty"`
 	OrderFulfillment
 }
 
@@ -111,6 +130,7 @@ type OpenBillWithProducts struct {
 	UpdatedAt          time.Time               `json:"updated_at"`
 	PaidAt             *time.Time              `json:"paid_at,omitempty"`
 	PaymentURL         *string                 `json:"payment_url,omitempty"`
+	PaymentQRURL       *string                 `json:"payment_qr_url,omitempty"`
 	OrderFulfillment
 }
 
@@ -125,6 +145,9 @@ type CreateOrderRequest struct {
 	Descriptor         *string            `json:"descriptor,omitempty"`
 	Products           []OrderProductItem `json:"products" validate:"dive"`
 	Origin             *OriginRequest     `json:"origin,omitempty"`
+	// PaymentTermsAccepted is the agent's statement that the customer confirmed a summary showing Wompi's
+	// terms; without it no QR is created.
+	PaymentTermsAccepted bool `json:"payment_terms_accepted,omitempty"`
 	OrderContactRequest
 }
 

@@ -14,6 +14,8 @@ Manages open orders (open bills) — active tabs that can contain products befor
 | PUT    | `/api/orders/:id`                                            | Update an order                |
 | DELETE | `/api/orders/:id`                                            | Delete (soft) an order         |
 | POST   | `/api/orders/pay-order`                                      | Pay and close an order         |
+| PUT    | `/api/orders/:id/payment-review`                             | Mark a manual agent order's payment as under review (cloud only) |
+| DELETE | `/api/orders/:id/payment-review`                             | Clear that mark (cloud only)   |
 | PATCH  | `/api/orders/:id/products/:open_bill_product_id/complete`    | Mark product as completed      |
 | PATCH  | `/api/orders/:id/products/:open_bill_product_id/in-progress` | Mark product as in-progress    |
 | PATCH  | `/api/orders/:id/products/:open_bill_product_id/uncomplete`  | Revert a product to created    |
@@ -49,6 +51,61 @@ An order the agent-only user creates is an **agent order**: it is paid through a
 - **Paid by Wompi.** An approved Wompi transaction for the active link and its exact amount pays the order exactly as `pay-order` does: bill, e-invoice, release to the kitchen, `order.paid`.
 - **Voiding deactivates the link** (`DELETE /api/orders/:id`).
 - **Unpaid orders expire.** A cloud job, every 15 seconds, voids an agent order whose link has expired unpaid, as `DELETE` does (stock returned, `order.cancelled`), with `void_reason: "payment_expired"`, and records `order.expired` for marketing-app. A payment still pending at Wompi holds the order until it resolves.
+
+### Payment strategies (agent orders)
+
+Each organization chooses how its agent orders are paid, in [Payment settings](./payment-settings.md): `wompi` (the link above; the default for an organization that never chose) or `manual`. An agent order records the strategy it was created under as `payment_strategy` and keeps it through its changes, its payment and its expiry, whatever the organization chooses later. Staff-created and `dine_in` orders have none.
+
+A **manual** order:
+
+- **Needs no Wompi.** It is created even when the organization has no Wompi integration. Under `wompi` without one, the order is still refused with `422 PAYMENT_LINKS_NOT_CONFIGURED`.
+- **Gets no link.** Its reads carry `payment_instructions` (the organization's *current* transfer instructions) and `payment_under_review` while it is unpaid, and no `payment_url`.
+- **Expires on its own window.** `payment_expires_at` is the creation time plus the organization's `manual_window_minutes` at that moment (default 60). A change (`PUT /api/orders/:id`) does not move it. The same job that expires links voids the order after it, as `DELETE` does, with `void_reason: "payment_expired"`, and records `order.expired`.
+- **Is paid by staff** with `POST /api/orders/pay-order`, as at the till: the bill is written, the e-invoice queued, the lines released to the kitchen and `order.paid` recorded.
+- **Can be marked under review.** While staff check a transfer, `PUT /api/orders/:id/payment-review` marks the order (`payment_under_review: true`) and the expiry job leaves it alone until `DELETE /api/orders/:id/payment-review` clears the mark, it is paid, or it is voided. Both need `orders:pay`, respond `200` with the order (`GET /api/orders/:id` shape), and are idempotent. `404` for an unknown order; `409 PAYMENT_REVIEW_NOT_ALLOWED` for an order that is paid, voided, or not a manual agent order.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `payment_strategy` | string | `manual` or `wompi`; absent on staff and `dine_in` orders |
+| `payment_expires_at` | string | RFC 3339; manual orders only: when the order is voided if still unpaid |
+| `payment_review_started_at` | string | RFC 3339; manual orders only: when staff marked the payment under review |
+| `payment_instructions` | string | Unpaid manual orders only: the organization's transfer instructions |
+| `payment_under_review` | boolean | Unpaid manual orders only |
+
+```json
+{
+  "id": "019a1f3c-5b2e-7c41-9a8d-3e6f1b2c4d50",
+  "total_amount": "45000",
+  "order_type": "takeaway",
+  "payment_strategy": "manual",
+  "payment_expires_at": "2026-11-24T13:00:00Z",
+  "payment_instructions": "Llave Bre-B 3001234567, a nombre de Laguna Escondida SAS",
+  "payment_under_review": false
+}
+```
+
+### Payment QR (wompi agent orders)
+
+An agent order under `wompi` can also be paid with a Bancolombia QR, paid from Bancolombia and Nequi accounts. The link is always created first; the QR is best effort and never the only way to pay.
+
+- **When.** After the link, when the organization's Wompi integration holds the [QR keys](organization-integrations.md) (`qr_enabled`) and the create request has `payment_terms_accepted: true`: the agent's statement that the customer confirmed an order summary showing Wompi's two documents (read them from `payment_terms` in [Organization Settings](organization-settings.md)). Without either, the order has its link only.
+- **What the order returns.** `payment_qr_url`: a public image URL (`GET /api/payments/qr/:token`, below). It is absent when the order has no QR, Wompi refused it, or the image has not arrived. Creating the order waits up to `PAYMENT_QR_WAIT` (default 5 seconds) for the image; a late one appears on the next read of the order.
+- **A change replaces it.** `PUT /api/orders/:id` retires the active QR and, if the order had one, creates a new one for the new total (new reference, new URL) without the terms being accepted again. The old URL answers `404`.
+- **Paying, voiding and expiring retire it.** A QR cannot be cancelled at Wompi, so a payment made on a retired QR pays nothing: it is stored unmatched and logged for staff to refund, like an unmatched link payment.
+- **Paid by the QR.** An approved Wompi transaction with no payment link and the reference of the order's active QR, for its exact amount, pays the order as the link does (see [Wompi webhook](./wompi-webhook.md)). A QR transaction that fails (`DECLINED`, `VOIDED`, `ERROR`) retires the QR; the order keeps its link.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `payment_terms_accepted` | boolean | Request, create only: the customer confirmed a summary showing Wompi's terms. Without it no QR is created |
+| `payment_qr_url` | string | Response: the active QR's image URL; absent when there is none |
+
+### Get a QR image
+
+```
+GET /api/payments/qr/:token
+```
+
+**Public, cloud only.** No credentials: WhatsApp fetches it. The token is random (256 bits) and carries no order or organization id. Answers `200` with `image/png` (drawn from the stored QR on each request; nothing is kept as a file, and the response is not cached), and `404` for an unknown token, a retired QR or one that has not arrived. The route does not exist on an edge box.
 
 ## Order types: dine-in, takeaway and delivery
 

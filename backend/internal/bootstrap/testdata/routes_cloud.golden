@@ -62,6 +62,8 @@ POST /api/orders laguna-escondida/backend/internal/platform/handler.(*OrderHandl
 DELETE /api/orders/:id laguna-escondida/backend/internal/platform/handler.(*OrderHandler).DeleteOrderHandler-fm
 GET /api/orders/:id laguna-escondida/backend/internal/platform/handler.(*OrderHandler).GetOpenBillWithProductsHandler-fm
 PUT /api/orders/:id laguna-escondida/backend/internal/platform/handler.(*OrderHandler).UpdateOrderHandler-fm
+DELETE /api/orders/:id/payment-review laguna-escondida/backend/internal/platform/handler.(*OrderHandler).ClearPaymentReviewHandler-fm
+PUT /api/orders/:id/payment-review laguna-escondida/backend/internal/platform/handler.(*OrderHandler).MarkPaymentReviewHandler-fm
 PATCH /api/orders/:id/products/:open_bill_product_id/cancel laguna-escondida/backend/internal/platform/handler.(*OrderHandler).CancelOpenBillProductHandler-fm
 PATCH /api/orders/:id/products/:open_bill_product_id/complete laguna-escondida/backend/internal/platform/handler.(*OrderHandler).CompleteOpenBillProductHandler-fm
 PATCH /api/orders/:id/products/:open_bill_product_id/in-progress laguna-escondida/backend/internal/platform/handler.(*OrderHandler).SetOpenBillProductInProgressHandler-fm
@@ -77,8 +79,11 @@ DELETE /api/organization/integrations/:provider laguna-escondida/backend/interna
 GET /api/organization/integrations/:provider laguna-escondida/backend/internal/platform/handler.(*OrganizationIntegrationHandler).OwnGetHandler-fm
 PUT /api/organization/integrations/:provider laguna-escondida/backend/internal/platform/handler.(*OrganizationIntegrationHandler).OwnPutHandler-fm
 POST /api/organization/integrations/:provider/secret laguna-escondida/backend/internal/platform/handler.(*OrganizationIntegrationHandler).OwnGenerateSecretHandler-fm
+GET /api/organization/payment-settings laguna-escondida/backend/internal/platform/handler.(*PaymentSettingsHandler).GetHandler-fm
+PUT /api/organization/payment-settings laguna-escondida/backend/internal/platform/handler.(*PaymentSettingsHandler).PutHandler-fm
 GET /api/organization/settings laguna-escondida/backend/internal/platform/handler.(*OrganizationSettingsHandler).GetSettingsHandler-fm
 PATCH /api/organization/settings laguna-escondida/backend/internal/platform/handler.(*OrganizationSettingsHandler).PatchSettingsHandler-fm
+GET /api/payments/qr/:token laguna-escondida/backend/internal/platform/handler.(*PaymentQRHandler).ImageHandler-fm
 GET /api/platform/leads laguna-escondida/backend/internal/platform/handler.(*LeadHandler).ListHandler-fm
 DELETE /api/platform/leads/:id laguna-escondida/backend/internal/platform/handler.(*LeadHandler).DeleteHandler-fm
 GET /api/platform/leads/:id laguna-escondida/backend/internal/platform/handler.(*LeadHandler).GetHandler-fm

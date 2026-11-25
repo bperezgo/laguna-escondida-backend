@@ -34,7 +34,8 @@ Wompi's event, as Wompi sends it. The fields read:
 | `data.transaction.amount_in_cents`      | integer  | Must equal the link's amount for an approved transaction to pay |
 | `data.transaction.currency`             | string   | Must equal the link's currency |
 | `data.transaction.payment_method_type`  | string   | Sets the bill's payment method: `CARD` → `credit_card`, `PSE` → `transfer_debit_bank`, any other → `transfer_debit_interbank` |
-| `data.transaction.payment_link_id`      | string   | The Wompi link the transaction paid |
+| `data.transaction.payment_link_id`      | string   | The Wompi link the transaction paid. Absent (`null`) for a QR payment |
+| `data.transaction.reference`            | string   | Our reference for a QR transaction: it matches a payment that has no link to the order's active QR |
 | `signature.properties`                  | string[] | The `data` fields the checksum covers, in order |
 | `signature.checksum`                    | string   | Hex SHA-256 of those fields' values, then `timestamp`, then the events secret, concatenated |
 | `timestamp`                             | integer  | UNIX seconds, part of the checksum |
@@ -70,9 +71,10 @@ The checksum above is illustrative; [the curl example](../examples/curl-examples
 | Event | Result |
 | ----- | ------ |
 | `APPROVED`, for the order's **active** link, the order unpaid and not voided, same amount and currency | The order is paid exactly as `pay-order` pays it: bill (no fiscal customer), e-invoice queued, lines released to the kitchen, `order.paid` recorded |
-| `APPROVED`, anything else (replaced or expired link, paid or voided order, another amount, a link that is not ours) | Nothing is paid. The transaction is stored as **unmatched** and logged as an error: staff refund it in Wompi |
+| `APPROVED`, with **no payment link** and the reference of the order's **active QR**, the order unpaid and not voided, same amount and currency | The order is paid exactly as above; its QR is retired |
+| `APPROVED`, anything else (replaced or expired link, a retired or unknown QR reference, paid or voided order, another amount, a link that is not ours) | Nothing is paid. The transaction is stored as **unmatched** and logged as an error: staff refund it in Wompi |
 | `PENDING` | Stored. The order's expiry waits until the transaction resolves |
-| `DECLINED`, `VOIDED`, `ERROR` | Stored; the order and its link are unchanged until the link expires |
+| `DECLINED`, `VOIDED`, `ERROR` | Stored; the order and its link are unchanged until the link expires. With the reference of the order's active QR, that QR is retired |
 | The same transaction again with a status already stored | Nothing |
 
 Every transaction received is kept in `payment_link_transactions`, with the raw event.
@@ -102,6 +104,7 @@ Every transaction received is kept in `payment_link_transactions`, with the raw 
 | Env var                         | Required          | Description |
 | ------------------------------- | ----------------- | ----------- |
 | `WOMPI_API_URL`                 | No                | `https://sandbox.wompi.co/v1` or `https://production.wompi.co/v1` (default) |
+| `PAYMENT_QR_WAIT`               | No                | How long creating an order waits for Wompi to return its QR, default `5s` |
 | `PAYMENT_LINK_TTL`              | No                | How long a link lives, default `30m`. Shortened only for tests |
 
 Each organization's private key and events secret are its **Wompi integration**, put by the platform operator with `PUT /api/platform/organizations/:id/integrations/wompi` (see [Organization Integrations](organization-integrations.md)). The keys are read on every link and event, so replacing them takes effect without a restart. The integration's `webhook_path` is the URL to set in Wompi's dashboard.
