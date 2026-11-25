@@ -119,6 +119,7 @@ PUT /api/products/:id/option-slots laguna-escondida/backend/internal/platform/ha
 GET /api/products/:id/suppliers laguna-escondida/backend/internal/platform/handler.(*SupplierHandler).GetProductSuppliersHandler-fm
 POST /api/products/bulk laguna-escondida/backend/internal/platform/handler.(*ProductHandler).BulkCreateProductsHandler-fm
 GET /api/products/categories laguna-escondida/backend/internal/platform/handler.(*ProductHandler).ListCategoriesHandler-fm
+GET /api/public/edge/installer laguna-escondida/backend/internal/platform/handler.(*InstallerDownloadHandler).DownloadHandler-fm
 POST /api/public/leads laguna-escondida/backend/internal/platform/handler.(*LeadHandler).SubmitHandler-fm
 GET /api/purchase-entries laguna-escondida/backend/internal/platform/handler.(*PurchaseEntryHandler).ListPurchaseEntriesHandler-fm
 POST /api/purchase-entries laguna-escondida/backend/internal/platform/handler.(*PurchaseEntryHandler).CreatePurchaseEntryHandler-fm

@@ -14,6 +14,9 @@ import (
 const (
 	leadSubmissionsPerAddress = 5
 	leadSubmissionWindow      = time.Hour
+	// Twice the ten per ten minutes a restaurant behind one connection may need while retrying.
+	installerDownloadsPerAddress = 20
+	installerDownloadWindow      = 10 * time.Minute
 )
 
 // cloudHandlers back the cloud-only routes; telemetry is nil while the ingest is disabled.
@@ -25,6 +28,7 @@ type cloudHandlers struct {
 	stock           *handler.StockHandler
 	organization    *handler.OrganizationHandler
 	lead            *handler.LeadHandler
+	installer       *handler.InstallerDownloadHandler
 	apiKey          *handler.APIKeyHandler
 	integration     *handler.OrganizationIntegrationHandler
 	paymentSettings *handler.PaymentSettingsHandler
@@ -81,6 +85,8 @@ func registerCloudRoutes(router *gin.Engine, adminAPIKey string, jwtService *ser
 	router.POST("/api/webhooks/wompi/:organization_id", h.paymentWebhook.WompiHandler)
 
 	router.POST("/api/public/leads", handler.RateLimitMiddleware(leadSubmissionsPerAddress, leadSubmissionWindow), h.lead.SubmitHandler)
+	// The landing's download button links here; it redirects to the newest installer this cloud can sync with.
+	router.GET("/api/public/edge/installer", handler.RateLimitMiddleware(installerDownloadsPerAddress, installerDownloadWindow), h.installer.DownloadHandler)
 	leads := router.Group("/api/platform/leads", handler.AdminAPIKeyMiddleware(adminAPIKey))
 	leads.GET("", h.lead.ListHandler)
 	leads.GET("/:id", h.lead.GetHandler)

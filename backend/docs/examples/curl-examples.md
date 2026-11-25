@@ -1693,6 +1693,25 @@ curl -X POST "$EDGE_URL/edge/update" \
 
 ---
 
+## Edge Downloads (cloud only)
+
+See `docs/api/edge-downloads.md`. Public, no credential.
+
+### Get the Current Installer's Address
+
+```bash
+# 302 with the installer's address in Location; 503 {"error":"installer_unavailable"} when there is none
+curl -sS -o /dev/null -D - "$BASE_URL/public/edge/installer"
+```
+
+### Download the Installer
+
+```bash
+curl -fL -O -J "$BASE_URL/public/edge/installer"
+```
+
+---
+
 ## Leads (cloud only)
 
 See `docs/api/leads.md`. The public form posts without a credential; the platform routes need the admin API key.

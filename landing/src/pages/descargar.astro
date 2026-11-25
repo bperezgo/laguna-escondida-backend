@@ -1,0 +1,112 @@
+---
+import { Icon } from "astro-icon/components";
+
+import Base from "../layouts/Base.astro";
+import { installerHref, site } from "../config/site.ts";
+import { whatsappLink } from "../config/build-site-config.ts";
+
+const helpHref = whatsappLink(site, `Hola, no pude descargar el instalador de ${site.productName}.`);
+
+const requirements = [
+  { icon: "ph:windows-logo", text: "Windows 10 u 11 de 64 bits" },
+  { icon: "ph:wifi-high", text: "Conexión a internet" },
+  { icon: "ph:storefront", text: "El computador que se queda en el restaurante" },
+];
+
+const steps = [
+  { title: "Descarga", text: "Toca el botón y guarda el instalador en el computador." },
+  { title: "Ejecuta", text: "Abre el archivo descargado y sigue los pasos en pantalla." },
+  { title: "Entra con tu cuenta", text: "Inicia sesión con la cuenta de tu restaurante para terminar." },
+];
+---
+
+<Base
+  title={`Descargar ${site.productName} | Instalador para Windows`}
+  description={`Descarga el instalador de ${site.productName} para el computador de tu restaurante. Necesitas la cuenta de tu restaurante para terminar.`}
+  path="/descargar"
+  ctaHref="/#demo"
+>
+  <section class="px-4 pt-28 pb-12 md:pt-36" aria-labelledby="download-title">
+    <div class="mx-auto max-w-5xl">
+      <h1 id="download-title" class="heading-2 max-w-[680px]">Instala {site.productName} en el computador del restaurante</h1>
+      <p class="body-3 text-muted mt-4 max-w-[680px] md:text-lg">
+        Necesitas la cuenta de tu restaurante para terminar la instalación.
+      </p>
+      <a
+        href={installerHref}
+        data-installer-download
+        class="button-lg bg-primary text-on-primary hover:bg-primary-strong motion-weighted mt-6 inline-flex items-center justify-center gap-2 rounded-lg px-3 py-3 text-center active:scale-[0.98]"
+      >
+        <Icon name="ph:download-simple" class="size-6" aria-hidden="true" /> Descargar para Windows
+      </a>
+    </div>
+  </section>
+
+  <section class="px-4 py-12" aria-labelledby="requirements-title">
+    <div class="mx-auto max-w-5xl">
+      <h2 id="requirements-title" class="heading-4">Qué necesita el computador</h2>
+      <ul class="mt-6 grid gap-4 md:grid-cols-3">
+        {
+          requirements.map((item) => (
+            <li class="bg-surface border-line body-5 flex items-center gap-3 rounded-2xl border p-6">
+              <Icon name={item.icon} class="text-primary size-6 shrink-0" aria-hidden="true" />
+              {item.text}
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </section>
+
+  <section class="px-4 py-12" aria-labelledby="steps-title">
+    <div class="mx-auto max-w-5xl">
+      <h2 id="steps-title" class="heading-4">Tres pasos</h2>
+      <ol class="mt-6 grid gap-4 md:grid-cols-3">
+        {
+          steps.map((step, index) => (
+            <li class="bg-surface border-line rounded-2xl border p-6">
+              <span class="heading-4 text-primary" aria-hidden="true">{index + 1}</span>
+              <h3 class="title-2 mt-3">{step.title}</h3>
+              <p class="body-6 text-muted mt-2">{step.text}</p>
+            </li>
+          ))
+        }
+      </ol>
+    </div>
+  </section>
+
+  <section class="px-4 py-12" aria-labelledby="notes-title">
+    <h2 id="notes-title" class="sr-only">Antes de empezar</h2>
+    <div class="mx-auto grid max-w-5xl gap-4 md:grid-cols-2">
+      <div class="bg-surface border-line rounded-2xl border p-6">
+        <h3 class="title-2 flex items-center gap-2">
+          <Icon name="ph:shield-warning" class="text-primary size-6 shrink-0" aria-hidden="true" /> Si Windows muestra un aviso
+        </h3>
+        <p class="body-6 text-muted mt-2">
+          Windows puede detener el instalador con la pantalla «Windows protegió su PC». Toca «Más información» y luego «Ejecutar de todas formas».
+        </p>
+      </div>
+      <div class="bg-surface border-line rounded-2xl border p-6">
+        <h3 class="title-2 flex items-center gap-2">
+          <Icon name="ph:user-circle" class="text-primary size-6 shrink-0" aria-hidden="true" /> ¿Aún no tienes cuenta?
+        </h3>
+        <p class="body-6 text-muted mt-2">
+          La instalación termina cuando entras con la cuenta de tu restaurante.
+          <a href="/#demo" class="text-primary underline underline-offset-4">Pide una demo</a> y te la creamos.
+        </p>
+      </div>
+    </div>
+    <p class="body-6 text-muted mx-auto mt-6 max-w-5xl">
+      ¿La descarga no empieza?{" "}
+      {
+        helpHref ? (
+          <a href={helpHref} data-whatsapp class="text-primary underline underline-offset-4">
+            Escríbenos por WhatsApp
+          </a>
+        ) : (
+          "Vuelve a intentarlo en unos minutos."
+        )
+      }
+    </p>
+  </section>
+</Base>

@@ -6,7 +6,7 @@ Static Astro site in Spanish (es-CO) that sells the product to restaurant owners
 
 ## Rules
 
-- **The backend contract is `../backend/docs/api/leads.md`.** The only runtime dependency is one `POST /api/public/leads`. Read the doc before changing the form's request or error handling.
+- **The site uses two backend addresses, each with its contract.** The demo form's `POST /api/public/leads` (`../backend/docs/api/leads.md`), and the installer download link `GET /api/public/edge/installer` (`../backend/docs/api/edge-downloads.md`), a plain link on `/descargar` built by `installerDownloadUrl` in `src/config/`. Read the doc before changing either.
 - **One configuration module.** Product name, site URL, backend address, tracking ids and the WhatsApp number live in `src/config/` (`site.ts`, `build-site-config.ts`, `defaults.ts`), read from `PUBLIC_*` variables listed in `.env.example`. Never hard-code them in a page or component. A missing `PUBLIC_API_BASE_URL` fails the build; a missing tracking id turns that tool off.
 - **All analytics events go through `src/lib/track.ts`.** It is the only caller of `gtag` and `fbq`, every call is guarded, and no event ever carries a name, restaurant or phone. Fire the lead event only after the backend answers `201`.
 - **`DESIGN.md` wins over `.claude/skills/landing-page-design/SKILL.md`.** The skill is third party and pinned (see its `NOTICE`); do not edit it, and do not run an installer for it. Use the named text styles and tokens in `src/styles/global.css`.

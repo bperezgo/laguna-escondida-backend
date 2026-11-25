@@ -14,6 +14,7 @@ import (
 	"laguna-escondida/backend/internal/domain/ports"
 	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/domain/tenant"
+	"laguna-escondida/backend/internal/platform/buildinfo"
 	"laguna-escondida/backend/internal/platform/cache"
 	"laguna-escondida/backend/internal/platform/cache/memory"
 	"laguna-escondida/backend/internal/platform/config"
@@ -316,6 +317,8 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 
 	nodeService := service.NewNodeService(repository.NewNodeRepository(db), cloudOrganizations, c.unitOfWork, logger, cfg.PublicAPIURL,
 		service.WithNodeRefusalCache(nodeRefusalCache, service.NodeRefusalCacheTTL))
+	releaseCatalog := httpclient.NewCachedReleaseCatalog(
+		httpclient.NewGitHubReleaseCatalog(infra.HTTPClient, cfg.EdgeReleasesRepo, logger), logger, nil)
 	registerCloudRoutes(c.router, cfg.AdminAPIKey, c.jwtService, cloudHandlers{
 		invoice:               handler.NewInvoiceHandler(invoiceService, documentURLMaintenance),
 		supportDocument:       handler.NewSupportDocumentHandler(supportDocService, documentURLMaintenance),
@@ -326,6 +329,7 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		stock:                 c.handlers.stock,
 		organization:          handler.NewOrganizationHandler(c.organizationService),
 		lead:                  handler.NewLeadHandler(leadService),
+		installer:             handler.NewInstallerDownloadHandler(service.NewInstallerDownloadService(releaseCatalog, buildinfo.Version), logger),
 		apiKey:                handler.NewAPIKeyHandler(apiKeyService),
 		integration:           handler.NewOrganizationIntegrationHandler(integrations),
 		paymentSettings:       handler.NewPaymentSettingsHandler(paymentSettings),

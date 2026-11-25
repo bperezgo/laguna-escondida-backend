@@ -26,3 +26,9 @@ export function trackWhatsApp(): void {
   call("gtag", "event", "contact_whatsapp");
   call("fbq", "track", "Contact");
 }
+
+/** Never awaited by the link: the download must not wait on analytics. */
+export function trackInstallerDownload(): void {
+  call("gtag", "event", "installer_download");
+  call("fbq", "trackCustom", "InstallerDownload");
+}

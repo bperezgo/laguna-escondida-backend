@@ -72,7 +72,8 @@ const image = new URL("/og.png", site.siteUrl).toString();
     <footer class="border-line mt-24 border-t px-4 py-10">
       <div class="body-6 text-muted mx-auto flex max-w-5xl flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <p>© {new Date().getFullYear()} {site.productName}</p>
-        <nav aria-label="Legal" class="flex flex-wrap gap-6">
+        <nav aria-label="Pie de página" class="flex flex-wrap gap-6">
+          <a href="/descargar" class="hover:text-ink underline underline-offset-4">Descargar {site.productName}</a>
           <a href="/privacidad" class="hover:text-ink underline underline-offset-4">Política de privacidad</a>
           {
             whatsappHref && (
@@ -87,14 +88,16 @@ const image = new URL("/og.png", site.siteUrl).toString();
     <script>
       import { browserStorage, capture, currentPage } from "../lib/attribution.ts";
       import { initMobileBar, initReveals, initTagline } from "../lib/reveal.ts";
-      import { trackWhatsApp } from "../lib/track.ts";
+      import { trackInstallerDownload, trackWhatsApp } from "../lib/track.ts";
 
       capture(currentPage(), browserStorage());
       initReveals();
       initTagline();
       initMobileBar();
       document.addEventListener("click", (event) => {
-        if ((event.target as Element | null)?.closest("[data-whatsapp]")) trackWhatsApp();
+        const target = event.target as Element | null;
+        if (target?.closest("[data-whatsapp]")) trackWhatsApp();
+        if (target?.closest("[data-installer-download]")) trackInstallerDownload();
       });
     </script>
     <Analytics />
