@@ -350,7 +350,8 @@ func (s *OrderService) CreateOrder(
 		strategy := settings.Strategy
 		openBillDTO.PaymentStrategy = &strategy
 		if manual {
-			expiresAt := s.now().Add(time.Duration(settings.ManualWindowMinutes) * time.Minute)
+			// Postgres keeps microseconds; truncate so the create response matches what later reads return.
+			expiresAt := s.now().Add(time.Duration(settings.ManualWindowMinutes) * time.Minute).Truncate(time.Microsecond)
 			openBillDTO.PaymentExpiresAt = &expiresAt
 			s.showManualPayment(&openBillDTO.OrderFulfillment, settings)
 		}
