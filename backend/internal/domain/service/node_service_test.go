@@ -335,3 +335,19 @@ func TestNodeService_Authenticate_RefusalCache_CacheErrorFallsBackToDatabase(t *
 		require.ErrorIs(t, err, domainError.ErrNodeOrganizationSuspended)
 	}
 }
+
+func TestNodeService_Enroll_AdoptingKeylessNodeClearsItsCachedRefusal(t *testing.T) {
+	f, cache := newCachedNodeFixture(t)
+	enrollOrg(f)
+	f.nodes.On("FindForAuth", mock.Anything, nodeTestID).Return(authRecord("", nil), nil).Once()
+	f.nodes.On("FindActiveEdgeForUpdate", mock.Anything).Return(&dto.Node{ID: nodeTestID, HasKey: false}, nil)
+	f.nodes.On("SetKey", mock.Anything, nodeTestID, "Caja", mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+	_, err := f.service.Authenticate(context.Background(), nodeTestID, "lgn_any")
+	require.ErrorIs(t, err, domainError.ErrNodeKeyInvalid)
+	require.Contains(t, cache.entries, nodeRefusalCachePrefix+nodeTestID)
+
+	_, err = f.service.Enroll(context.Background(), testOrgA, &dto.EnrollEdgeBoxRequest{Name: "Caja"})
+
+	require.NoError(t, err)
+	assert.Empty(t, cache.entries, "the newly keyed box is checked against the database")
+}

@@ -209,6 +209,10 @@ func (s *NodeService) Enroll(ctx context.Context, orgID string, req *dto.EnrollE
 	if err != nil {
 		return nil, fmt.Errorf("enroll box: %w", err)
 	}
+	// Adopting a keyless node keeps its id; a refusal cached before it had a key must not answer the new box.
+	if s.refusals != nil {
+		_ = s.refusals.Delete(ctx, s.refusalKey(nodeID))
+	}
 	return &dto.EnrolledEdgeBox{NodeID: nodeID, OrganizationID: orgID, OrganizationName: org.Name, NodeKey: key, CloudSyncURL: s.publicAPIURL}, nil
 }
 
