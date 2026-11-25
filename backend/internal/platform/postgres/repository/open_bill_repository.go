@@ -157,21 +157,27 @@ const fulfillmentColumns = `
 			open_bills.attribution_clicked_at,
 			open_bills.attribution_campaign_id,
 			open_bills.attribution_campaign_name,
-			open_bills.void_reason,`
+			open_bills.void_reason,
+			open_bills.payment_strategy,
+			open_bills.payment_expires_at,
+			open_bills.payment_review_started_at,`
 
 // fulfillmentRow is scanned into the header result structs via gorm:"embedded".
 type fulfillmentRow struct {
-	PaidAt             *time.Time
-	OrderType          string
-	CustomerName       *string
-	CustomerPhone      *string
-	DeliveryAddress    *string
-	DeliveryLat        *decimal.Decimal
-	DeliveryLng        *decimal.Decimal
-	DeliveryZoneID     *string
-	VoidReason         *string
-	DeliveryFeeColumns `gorm:"embedded"`
-	OriginColumns      `gorm:"embedded"`
+	PaidAt                 *time.Time
+	OrderType              string
+	CustomerName           *string
+	CustomerPhone          *string
+	DeliveryAddress        *string
+	DeliveryLat            *decimal.Decimal
+	DeliveryLng            *decimal.Decimal
+	DeliveryZoneID         *string
+	VoidReason             *string
+	PaymentStrategy        *string
+	PaymentExpiresAt       *time.Time
+	PaymentReviewStartedAt *time.Time
+	DeliveryFeeColumns     `gorm:"embedded"`
+	OriginColumns          `gorm:"embedded"`
 }
 
 func (f fulfillmentRow) toDTO() dto.OrderFulfillment {
@@ -191,6 +197,12 @@ func (f fulfillmentRow) toDTO() dto.OrderFulfillment {
 		DeliveryFeeICORate: f.DeliveryFeeICORate,
 	}).ToDTO()
 	fulfillment.VoidReason = f.VoidReason
+	if f.PaymentStrategy != nil {
+		strategy := dto.PaymentStrategy(*f.PaymentStrategy)
+		fulfillment.PaymentStrategy = &strategy
+	}
+	fulfillment.PaymentExpiresAt = f.PaymentExpiresAt
+	fulfillment.PaymentReviewStartedAt = f.PaymentReviewStartedAt
 	return fulfillment
 }
 
@@ -1872,4 +1884,61 @@ func (r *OpenBillRepository) FindOrderOrigin(ctx context.Context, orderID string
 // NewOrderOriginReader is the slice of the open bill repository the cloud's sync push reads.
 func NewOrderOriginReader(db *gorm.DB) ports.OrderOriginReader {
 	return &OpenBillRepository{db: db}
+}
+
+func (r *OpenBillRepository) SetPayment(ctx context.Context, openBillID string, strategy dto.PaymentStrategy, expiresAt *time.Time) error {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	return db.Model(&openBillModel{}).Where("id = ?", openBillID).
+		Updates(map[string]any{"payment_strategy": string(strategy), "payment_expires_at": expiresAt}).Error
+}
+
+func (r *OpenBillRepository) SetPaymentReview(ctx context.Context, openBillID string, startedAt *time.Time) (bool, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return false, err
+	}
+	result := db.Model(&openBillModel{}).
+		Where("id = ? AND deleted_at IS NULL AND paid_at IS NULL AND payment_strategy = ?", openBillID, string(dto.PaymentStrategyManual)).
+		Update("payment_review_started_at", startedAt)
+	return result.RowsAffected > 0, result.Error
+}
+
+func (r *OpenBillRepository) ListManualDue(ctx context.Context, now time.Time) ([]string, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	err = db.Model(&openBillModel{}).
+		Where(`payment_strategy = ? AND deleted_at IS NULL AND paid_at IS NULL
+			AND payment_review_started_at IS NULL AND payment_expires_at <= ?`, string(dto.PaymentStrategyManual), now).
+		Order("payment_expires_at ASC").Pluck("id", &ids).Error
+	return ids, err
+}
+
+func (r *OpenBillRepository) FindPaymentState(ctx context.Context, openBillID string) (*dto.OrderPaymentState, bool, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return nil, false, err
+	}
+	var row struct {
+		PaymentStrategy *string
+		Paid            bool
+		Voided          bool
+	}
+	result := db.Table("open_bills").
+		Select("payment_strategy, (paid_at IS NOT NULL) AS paid, (deleted_at IS NOT NULL) AS voided").
+		Where("id = ?", openBillID).Limit(1).Scan(&row)
+	if result.Error != nil || result.RowsAffected == 0 {
+		return nil, false, result.Error
+	}
+	state := &dto.OrderPaymentState{Paid: row.Paid, Voided: row.Voided}
+	if row.PaymentStrategy != nil {
+		strategy := dto.PaymentStrategy(*row.PaymentStrategy)
+		state.Strategy = &strategy
+	}
+	return state, true, nil
 }

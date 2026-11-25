@@ -75,6 +75,10 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 	// Payment links are cloud-only too: the box neither creates links nor receives Wompi's events.
 	paymentLinkRepo := repository.NewPaymentLinkRepository(db)
 	paymentTransactionRepo := repository.NewPaymentTransactionRepository(db)
+	paymentSettings := service.NewPaymentSettingsService(repository.NewPaymentSettingsRepository(db))
+	paymentQRRepo := repository.NewPaymentQRRepository(db)
+	paymentQR := service.NewPaymentQRService(paymentQRRepo, httpclient.NewWompiQRClient(infra.HTTPClient, cfg.PaymentLinks.APIURL),
+		integrations, cloudOrganizations, cfg.PublicAPIURL, cfg.PaymentLinks.QRWait, logger, nil)
 	paymentLinks := service.NewPaymentLinkService(paymentLinkRepo, httpclient.NewWompiClient(infra.HTTPClient, cfg.PaymentLinks.APIURL),
 		integrations, cloudOrganizations, cfg.PaymentLinks.TTL, logger, nil)
 
@@ -126,6 +130,8 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 			service.WithMarketingEvents(marketingEvents),
 			service.WithEventPublisher(domainEvents),
 			service.WithPaymentLinks(paymentLinks),
+			service.WithPaymentSettings(paymentSettings),
+			service.WithPaymentQR(paymentQR),
 			service.WithDeliveryTracking(deliveryRepo),
 		},
 	})
@@ -184,9 +190,9 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 	})
 
 	paymentWebhooks := service.NewPaymentWebhookService(cloudOrganizations, c.organizationRunner, integrations,
-		paymentLinkRepo, paymentTransactionRepo, c.orderService, c.unitOfWork, logger)
+		paymentLinkRepo, paymentTransactionRepo, c.orderService, c.unitOfWork, logger, service.WithQRMatching(paymentQRRepo))
 	paymentExpiry := service.NewPaymentExpiryService(c.organizationRunner, paymentLinkRepo, paymentTransactionRepo,
-		paymentLinks, c.orderService, logger, nil)
+		paymentLinks, c.orderService, logger, nil, service.WithManualExpiry(repository.NewOpenBillRepository(db), c.orderService))
 	c.app.schedulers = append(c.app.schedulers, namedScheduler{
 		name: "payment expiry scheduler",
 		build: func() (scheduler, error) {
@@ -315,8 +321,11 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		lead:            handler.NewLeadHandler(leadService),
 		apiKey:          handler.NewAPIKeyHandler(apiKeyService),
 		integration:     handler.NewOrganizationIntegrationHandler(integrations),
+		paymentSettings: handler.NewPaymentSettingsHandler(paymentSettings),
+		paymentQR:       handler.NewPaymentQRHandler(paymentQR),
+		order:           c.handlers.order,
 		deliveryZone:    handler.NewDeliveryZoneHandler(service.NewDeliveryZoneService(c.deliveryZoneRepo)),
-		orgSettings:     handler.NewOrganizationSettingsHandler(service.NewOrganizationSettingsService(c.orgSettingsRepo)),
+		orgSettings:     handler.NewOrganizationSettingsHandler(service.NewOrganizationSettingsService(c.orgSettingsRepo).WithPaymentStrategy(paymentSettings).WithPaymentTerms(paymentQR)),
 		reservation:     handler.NewReservationHandler(reservationService),
 		reservationLive: handler.NewReservationStreamHandler(reservationHub, logger),
 		contact:         handler.NewContactHandler(contactService),

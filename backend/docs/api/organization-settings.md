@@ -52,6 +52,17 @@ A schedule is validated as a whole. An invalid one is rejected with `400` and no
 - Two windows of the same type don't overlap, including a past-midnight window running into the next day's windows (Friday `18:00`–`02:00` overlaps Saturday `01:00`–`04:00`). Back-to-back windows (`11:00`–`15:00`, `15:00`–`18:00`) are fine.
 - At most 21 windows per type.
 
+`GET` also returns `payment_strategy` (`manual` or `wompi`): how agent orders are paid, read-only here. It is changed in [Payment settings](./payment-settings.md), which the customer agent cannot read; the agent reads the strategy from here. It is absent on the box and in a `PATCH` response.
+
+Under `wompi`, when the organization can offer a QR, `GET` also returns `payment_terms` with Wompi's two documents (`terms_url`, `personal_data_url`), for the agent to show in the order summary before creating the order with `payment_terms_accepted`. They are read from Wompi and cached for an hour; absent when no QR can be offered, under `manual`, and when Wompi does not answer.
+
+```json
+"payment_terms": {
+  "terms_url": "https://wompi.com/assets/downloadble/reglamento.pdf",
+  "personal_data_url": "https://wompi.com/assets/downloadble/autorizacion.pdf"
+}
+```
+
 ### Availability
 
 Computed at the moment of the request, never stored. Each type reports:
@@ -122,7 +133,8 @@ Delivery paused during a rush; takeaway open until 22:30 on a Monday in Bogotá.
       "next_opens_at": null
     }
   },
-  "timezone": "America/Bogota"
+  "timezone": "America/Bogota",
+  "payment_strategy": "wompi"
 }
 ```
 

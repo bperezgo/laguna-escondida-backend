@@ -33,6 +33,8 @@ var globalTableFiles = map[string]bool{
 var unscopedByDesign = map[string]bool{
 	"user_repository.go FindByEmail":   true,
 	"api_key_repository.go FindByHash": true,
+	// The public QR image URL carries a random token and no organization.
+	"payment_qr_repository.go FindActiveByToken": true,
 }
 
 // unscopedTenantAccess reports the functions in src that reach the database without the

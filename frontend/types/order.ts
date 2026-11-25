@@ -54,6 +54,12 @@ export interface OpenBill {
   delivery_fee_ico?: string | null;
   /** The zone's ICO rate when the order was created, a fraction ("0.08" = 8%). */
   delivery_fee_ico_rate?: string | null;
+  /** How an agent order is paid; absent on staff and dine-in orders. */
+  payment_strategy?: "manual" | "wompi" | null;
+  /** Manual orders only: when the order is cancelled if still unpaid. */
+  payment_expires_at?: string | null;
+  /** Manual orders only: set while staff check the payment. */
+  payment_review_started_at?: string | null;
 }
 
 // The choice a line took for one slot of a plate, with the names as they were when it was taken.

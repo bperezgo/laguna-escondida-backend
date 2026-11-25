@@ -143,6 +143,9 @@ type fakeWompi struct {
 	fail        bool
 	key         string
 	server      *httptest.Server
+	// transactions are the QR transactions created, by id; qrSVG is the image Wompi returns for them.
+	transactions map[string]string
+	qrSVG        string
 }
 
 func newFakeWompi(t *testing.T) *fakeWompi {
@@ -150,6 +153,9 @@ func newFakeWompi(t *testing.T) *fakeWompi {
 	f.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
+		if f.serveQR(w, r) {
+			return
+		}
 		if r.Header.Get("Authorization") != "Bearer "+f.key || f.fail {
 			w.WriteHeader(http.StatusUnauthorized)
 			return

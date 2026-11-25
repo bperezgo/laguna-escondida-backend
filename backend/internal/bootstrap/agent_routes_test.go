@@ -34,6 +34,8 @@ var agentReachableRoutes = map[string]bool{
 	"GET /api/auth/context": true,
 	// The marketing site's lead form: no credential, so any caller reaches it.
 	"POST /api/public/leads": true,
+	// The QR image WhatsApp fetches: no credential, the random token in the URL is the secret.
+	"GET /api/payments/qr/:token": true,
 	// Any signed-in user.
 	"GET /api/auth/me": true,
 	// products:read

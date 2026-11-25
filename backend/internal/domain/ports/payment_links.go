@@ -41,3 +41,33 @@ type PaymentTransactionRepository interface {
 	// HasPendingForOrder is true when a transaction of any of the order's links is still PENDING.
 	HasPendingForOrder(ctx context.Context, orderID string) (bool, error)
 }
+
+// PaymentSettingsRepository stores the context organization's payment settings.
+type PaymentSettingsRepository interface {
+	// Get reports found=false when the organization never saved any.
+	Get(ctx context.Context) (settings *dto.PaymentSettings, found bool, err error)
+	Upsert(ctx context.Context, settings *dto.PaymentSettings) error
+}
+
+// PaymentQRRepository stores an order's QR transactions, for the context's organization.
+type PaymentQRRepository interface {
+	Create(ctx context.Context, qr *dto.PaymentQRTransaction) error
+	FindActiveByOrder(ctx context.Context, orderID string) (qr *dto.PaymentQRTransaction, found bool, err error)
+	FindActiveByReference(ctx context.Context, reference string) (qr *dto.PaymentQRTransaction, found bool, err error)
+	// FindActiveByToken is the one read that needs no organization in the context: the public image URL has none.
+	FindActiveByToken(ctx context.Context, token string) (qr *dto.PaymentQRTransaction, found bool, err error)
+	// SetSVG stores the QR once it arrives from Wompi.
+	SetSVG(ctx context.Context, id, svg string) error
+	// RetireByOrder retires the order's active QR, if any.
+	RetireByOrder(ctx context.Context, orderID string) error
+}
+
+// PaymentQRProvider is Wompi's BANCOLOMBIA_QR transactions. Reading the merchant needs the public key;
+// creating and reading a transaction use the private key.
+type PaymentQRProvider interface {
+	MerchantTerms(ctx context.Context, publicKey string) (dto.WompiMerchantTerms, error)
+	// CreateQRTransaction returns the provider's id of the new transaction.
+	CreateQRTransaction(ctx context.Context, privateKey string, req dto.QRTransactionRequest) (string, error)
+	// QRImage reports ready=false while Wompi has not produced the image; svg is the decoded SVG text.
+	QRImage(ctx context.Context, privateKey, transactionID string) (svg string, ready bool, err error)
+}

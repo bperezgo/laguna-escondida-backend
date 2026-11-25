@@ -58,12 +58,14 @@ type PaymentTransaction struct {
 	WompiTransactionID string
 	PaymentLinkID      *string
 	WompiLinkID        *string
-	Status             PaymentTransactionStatus
-	AmountInCents      int64
-	Currency           string
-	PaymentMethodType  string
-	Matched            bool
-	RawEvent           json.RawMessage
+	// Reference is Wompi's, set on a QR payment: it has no link to be matched by.
+	Reference         *string
+	Status            PaymentTransactionStatus
+	AmountInCents     int64
+	Currency          string
+	PaymentMethodType string
+	Matched           bool
+	RawEvent          json.RawMessage
 }
 
 // WompiEventTransactionUpdated is the only Wompi event that can pay an order.
@@ -91,6 +93,7 @@ type WompiTransaction struct {
 	Currency          string                   `json:"currency"`
 	PaymentMethodType string                   `json:"payment_method_type"`
 	PaymentLinkID     *string                  `json:"payment_link_id"`
+	Reference         string                   `json:"reference"`
 }
 
 // PaymentWebhookOutcome is how the webhook answers Wompi.

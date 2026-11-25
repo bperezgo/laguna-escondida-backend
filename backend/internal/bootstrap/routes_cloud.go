@@ -26,6 +26,9 @@ type cloudHandlers struct {
 	lead            *handler.LeadHandler
 	apiKey          *handler.APIKeyHandler
 	integration     *handler.OrganizationIntegrationHandler
+	paymentSettings *handler.PaymentSettingsHandler
+	paymentQR       *handler.PaymentQRHandler
+	order           *handler.OrderHandler
 	deliveryZone    *handler.DeliveryZoneHandler
 	orgSettings     *handler.OrganizationSettingsHandler
 	reservation     *handler.ReservationHandler
@@ -109,6 +112,9 @@ func registerCloudRoutes(router *gin.Engine, adminAPIKey string, jwtService *ser
 	RegisterNotificationRoutes(router, h.notifChannel, h.notifRule, jwtService)
 	RegisterOrganizationSettingsRoutes(router, h.orgSettings, jwtService)
 	RegisterOrganizationIntegrationRoutes(router, h.integration, jwtService)
+	RegisterPaymentStrategyRoutes(router, h.paymentSettings, h.order, jwtService)
+	// Public on purpose: WhatsApp fetches the image with no credentials; the URL's random token is the secret.
+	router.GET("/api/payments/qr/:token", h.paymentQR.ImageHandler)
 	RegisterOrganizationAPIKeyRoutes(router, h.apiKey, jwtService)
 	router.POST("/api/edge/enroll", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.EdgeEnroll), h.edgeEnroll.EnrollHandler)
 	RegisterReservationRoutes(router, h.reservation, h.contact, h.feedback, jwtService)
@@ -161,6 +167,16 @@ func RegisterOrganizationSettingsRoutes(router *gin.Engine, settingsHandler *han
 		handler.RequirePermission(permissions.OrderingRead))
 	settings.GET("", settingsHandler.GetSettingsHandler)
 	settings.PATCH("", settingsHandler.PatchSettingsHandler)
+}
+
+// RegisterPaymentStrategyRoutes is cloud-only: how agent orders are paid, and staff's check of a manual
+// order's payment. The settings share the integrations permissions; the review needs the one paying needs.
+func RegisterPaymentStrategyRoutes(router *gin.Engine, settings *handler.PaymentSettingsHandler, orders *handler.OrderHandler, jwtService *service.JWTService) {
+	g := router.Group("/api/organization/payment-settings", handler.JWTAuthMiddleware(jwtService))
+	g.GET("", handler.RequirePermission(permissions.IntegrationsRead), settings.GetHandler)
+	g.PUT("", handler.RequirePermission(permissions.IntegrationsManage), settings.PutHandler)
+	router.PUT("/api/orders/:id/payment-review", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersPay), orders.MarkPaymentReviewHandler)
+	router.DELETE("/api/orders/:id/payment-review", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.OrdersPay), orders.ClearPaymentReviewHandler)
 }
 
 // RegisterOrganizationIntegrationRoutes is cloud-only: provider credentials never reach a box.

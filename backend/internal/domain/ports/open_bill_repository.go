@@ -24,6 +24,15 @@ type OpenBillRepository interface {
 	Delete(ctx context.Context, openBillID string) error
 	// DeleteWithReason voids an open order as Delete does, recording why.
 	DeleteWithReason(ctx context.Context, openBillID, reason string) error
+	// SetPayment records how an agent order is paid, and when a manual one expires, right after it is created.
+	SetPayment(ctx context.Context, openBillID string, strategy dto.PaymentStrategy, expiresAt *time.Time) error
+	// SetPaymentReview marks (startedAt set) or clears (nil) the review of an unpaid, unvoided manual order.
+	// updated=false when the order is not one of those.
+	SetPaymentReview(ctx context.Context, openBillID string, startedAt *time.Time) (updated bool, err error)
+	// FindPaymentState reads an order even when it is paid or voided; found=false when it does not exist.
+	FindPaymentState(ctx context.Context, openBillID string) (state *dto.OrderPaymentState, found bool, err error)
+	// ListManualDue is the ids of manual orders past their payment expiry, unpaid, unvoided and not under review.
+	ListManualDue(ctx context.Context, now time.Time) ([]string, error)
 	ClosePaid(ctx context.Context, openBillID string, paidAt time.Time) error
 	GetProductPreparationResponsibilities(ctx context.Context, productIDs []string) ([]dto.ProductPreparationResponsibilityWithProduct, error)
 	FindPendingByArea(ctx context.Context, area string) ([]*dto.OpenBillProductSSE, error)

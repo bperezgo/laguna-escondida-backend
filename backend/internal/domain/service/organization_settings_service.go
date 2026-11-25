@@ -16,6 +16,22 @@ import (
 type OrganizationSettingsService struct {
 	repo ports.OrganizationSettingsRepository
 	now  func() time.Time
+	// payments adds the payment strategy to a read; nil on the box.
+	payments *PaymentSettingsService
+	// qr adds Wompi's terms to a read when the organization is on wompi and can offer a QR; nil on the box.
+	qr *PaymentQRService
+}
+
+// WithPaymentTerms makes reads carry Wompi's terms, for the customer agent to show before an order.
+func (s *OrganizationSettingsService) WithPaymentTerms(qr *PaymentQRService) *OrganizationSettingsService {
+	s.qr = qr
+	return s
+}
+
+// WithPaymentStrategy makes reads carry the organization's payment strategy.
+func (s *OrganizationSettingsService) WithPaymentStrategy(payments *PaymentSettingsService) *OrganizationSettingsService {
+	s.payments = payments
+	return s
 }
 
 func NewOrganizationSettingsService(repo ports.OrganizationSettingsRepository) *OrganizationSettingsService {
@@ -27,7 +43,19 @@ func (s *OrganizationSettingsService) Get(ctx context.Context) (*dto.Organizatio
 	if err != nil {
 		return nil, fmt.Errorf("get organization settings: %w", err)
 	}
-	return s.respond(view)
+	response, err := s.respond(view)
+	if err != nil || s.payments == nil {
+		return response, err
+	}
+	payment, err := s.payments.Get(ctx)
+	if err != nil {
+		return nil, err
+	}
+	response.PaymentStrategy = &payment.Strategy
+	if s.qr != nil && payment.Strategy == dto.PaymentStrategyWompi {
+		response.PaymentTerms = s.qr.Terms(ctx)
+	}
+	return response, nil
 }
 
 // Update merges under the repository's row lock, so a pause and a schedule edit saved together

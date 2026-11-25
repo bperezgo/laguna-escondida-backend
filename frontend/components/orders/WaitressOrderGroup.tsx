@@ -9,6 +9,7 @@ interface WaitressOrderGroupProps {
   onBillClick: (bill: OpenBill) => void;
   onPayClick: (bill: OpenBill) => void;
   onRemoveClick: (bill: OpenBill) => void;
+  onReviewClick?: (bill: OpenBill) => void;
 }
 
 export default function WaitressOrderGroup({
@@ -16,6 +17,7 @@ export default function WaitressOrderGroup({
   onBillClick,
   onPayClick,
   onRemoveClick,
+  onReviewClick,
 }: WaitressOrderGroupProps) {
   const accent = getGroupAccent(group);
 
@@ -103,6 +105,7 @@ export default function WaitressOrderGroup({
             onClick={() => onBillClick(bill)}
             onPayClick={() => onPayClick(bill)}
             onRemoveClick={() => onRemoveClick(bill)}
+            onReviewClick={onReviewClick && (() => onReviewClick(bill))}
           />
         ))}
       </div>

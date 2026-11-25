@@ -11,6 +11,7 @@ import PaymentModal from "./PaymentModal";
 import ClosedOrdersPanel from "./ClosedOrdersPanel";
 import {
   getOpenBills,
+  setPaymentReview,
   getOpenBillById,
   removeOpenBill,
 } from "@/lib/api/orders";
@@ -115,6 +116,17 @@ export default function OrdersPageClient() {
 
   const handleCreateSuccess = () => {
     fetchOpenBills();
+  };
+
+  const handleReviewClick = async (bill: OpenBill) => {
+    setError(null);
+    try {
+      await setPaymentReview(bill.id, !bill.payment_review_started_at);
+      await fetchOpenBills();
+    } catch (err) {
+      console.error("Error changing the payment review:", err);
+      setError(err instanceof Error ? err.message : "No se pudo cambiar la revisión del pago");
+    }
   };
 
   const handleBillClick = async (bill: OpenBill) => {
@@ -418,6 +430,7 @@ export default function OrdersPageClient() {
                         onClick={() => handleBillClick(bill)}
                         onPayClick={() => handlePayClick(bill)}
                         onRemoveClick={() => handleRemoveClick(bill)}
+                        onReviewClick={() => handleReviewClick(bill)}
                       />
                     ))}
                   </div>
@@ -429,6 +442,7 @@ export default function OrdersPageClient() {
                       onBillClick={handleBillClick}
                       onPayClick={handlePayClick}
                       onRemoveClick={handleRemoveClick}
+                      onReviewClick={handleReviewClick}
                     />
                   ))
                 )}

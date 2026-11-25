@@ -58,6 +58,8 @@ type OrderService struct {
 	marketingEvents             ports.MarketingEventRecorder
 	publisher                   ports.EventPublisher
 	paymentLinks                *PaymentLinkService
+	paymentSettings             *PaymentSettingsService
+	paymentQR                   *PaymentQRService
 	deliveries                  ports.DeliveryRepository
 	now                         func() time.Time
 }
@@ -94,6 +96,16 @@ func WithEventPublisher(publisher ports.EventPublisher) OrderServiceOption {
 // WithPaymentLinks gives agent orders a Wompi link, and refuses them where Wompi isn't configured.
 func WithPaymentLinks(links *PaymentLinkService) OrderServiceOption {
 	return func(s *OrderService) { s.paymentLinks = links }
+}
+
+// WithPaymentSettings lets each organization choose how its agent orders are paid (cloud only).
+func WithPaymentSettings(settings *PaymentSettingsService) OrderServiceOption {
+	return func(s *OrderService) { s.paymentSettings = settings }
+}
+
+// WithPaymentQR gives wompi agent orders a Bancolombia QR beside their link (cloud only).
+func WithPaymentQR(qr *PaymentQRService) OrderServiceOption {
+	return func(s *OrderService) { s.paymentQR = qr }
 }
 
 // WithOrderPlateOptionSlots resolves lines of plates with option slots from their choices.
@@ -203,7 +215,15 @@ func (s *OrderService) CreateOrder(
 	user dto.UserDomain,
 ) (*dto.OpenBill, error) {
 	agent := permissions.IsAgentOnly(user.RoleIDs)
-	fulfillment, resolveErr := s.resolveFulfillment(ctx, req.OrderContactRequest, agent)
+	var settings *dto.PaymentSettings
+	if agent && s.paymentSettings != nil {
+		var settingsErr error
+		if settings, settingsErr = s.paymentSettings.Get(ctx); settingsErr != nil {
+			return nil, fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, settingsErr)
+		}
+	}
+	manual := settings != nil && settings.Strategy == dto.PaymentStrategyManual
+	fulfillment, resolveErr := s.resolveFulfillment(ctx, req.OrderContactRequest, agent && !manual)
 	if resolveErr != nil {
 		return nil, resolveErr
 	}
@@ -326,6 +346,16 @@ func (s *OrderService) CreateOrder(
 
 	openBillDTO := openBillAggregate.ToDTO()
 	openBillDTO.CreatedByID = user.ID
+	if settings != nil {
+		strategy := settings.Strategy
+		openBillDTO.PaymentStrategy = &strategy
+		if manual {
+			// Postgres keeps microseconds; truncate so the create response matches what later reads return.
+			expiresAt := s.now().Add(time.Duration(settings.ManualWindowMinutes) * time.Minute).Truncate(time.Microsecond)
+			openBillDTO.PaymentExpiresAt = &expiresAt
+			s.showManualPayment(&openBillDTO.OrderFulfillment, settings)
+		}
+	}
 
 	if len(products) > 0 {
 		productDTOs := make([]dto.Product, len(products))
@@ -341,6 +371,11 @@ func (s *OrderService) CreateOrder(
 	if err := s.unitOfWork.Do(ctx, func(ctx context.Context) error {
 		if err := s.openBillRepo.Create(ctx, openBillAggregate); err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
+		}
+		if openBillDTO.PaymentStrategy != nil {
+			if err := s.openBillRepo.SetPayment(ctx, req.OpenBillID, *openBillDTO.PaymentStrategy, openBillDTO.PaymentExpiresAt); err != nil {
+				return fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
+			}
 		}
 		if err := s.appendOpenBillOutbox(ctx, openBillDTO, user.ID, openBillSyncProducts(openBillAggregate), dto.SyncOperationCreate); err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderCreationFailed, err)
@@ -373,8 +408,13 @@ func (s *OrderService) CreateOrder(
 		}
 	}
 
-	if agent && s.paymentLinks != nil {
-		openBillDTO.PaymentURL = s.paymentLinks.URL(s.paymentLinks.CreateForOrder(ctx, openBillDTO))
+	if agent && !manual && s.paymentLinks != nil {
+		link := s.paymentLinks.CreateForOrder(ctx, openBillDTO)
+		openBillDTO.PaymentURL = s.paymentLinks.URL(link)
+		// The link comes first and is never held back by the QR: any QR failure leaves the order with the link only.
+		if link != nil && s.paymentQR != nil {
+			openBillDTO.PaymentQRURL = s.paymentQR.CreateForOrder(ctx, openBillDTO, req.PaymentTermsAccepted, link.ExpiresAt)
+		}
 	}
 
 	return openBillDTO, nil
@@ -857,8 +897,21 @@ func (s *OrderService) UpdateOrder(ctx context.Context, openBillID string, req *
 		s.logger.ErrorContext(ctx, "failed to publish order updated event", slog.Any("error", err))
 	}
 
-	if s.paymentLinks != nil && existingBillAggregate.OrderType().IsHeldUntilPaid() {
-		updatedBill.PaymentURL = s.paymentLinks.URL(s.paymentLinks.ReplaceForOrder(ctx, updatedBill))
+	updatedBill.PaymentStrategy = existingOpenBill.PaymentStrategy
+	updatedBill.PaymentExpiresAt = existingOpenBill.PaymentExpiresAt
+	updatedBill.PaymentReviewStartedAt = existingOpenBill.PaymentReviewStartedAt
+	if isManualPayment(existingOpenBill.OrderFulfillment) {
+		s.showCurrentManualPayment(ctx, &updatedBill.OrderFulfillment)
+	} else if s.paymentLinks != nil && existingBillAggregate.OrderType().IsHeldUntilPaid() {
+		link := s.paymentLinks.ReplaceForOrder(ctx, updatedBill)
+		updatedBill.PaymentURL = s.paymentLinks.URL(link)
+		if s.paymentQR != nil {
+			if link != nil {
+				updatedBill.PaymentQRURL = s.paymentQR.ReplaceForOrder(ctx, updatedBill, link.ExpiresAt)
+			} else {
+				s.paymentQR.Retire(ctx, openBillID)
+			}
+		}
 	}
 
 	return updatedBill, nil
@@ -963,6 +1016,9 @@ func (s *OrderService) PayOrder(ctx context.Context, payOrderCommand command.Pay
 		return err
 	}
 
+	if s.paymentQR != nil {
+		s.paymentQR.Retire(ctx, payOrderCommand.OpenBillID)
+	}
 	// After the commit, so the kitchen never shows lines of a payment that rolled back.
 	if released != nil {
 		released.OrganizationID, _ = tenant.OrgFrom(ctx)
@@ -1157,10 +1213,15 @@ func (s *OrderService) GetOpenBillWithProducts(ctx context.Context, openBillID s
 		return nil, fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
 	}
 
-	if s.paymentLinks != nil && openBill.OrderType.IsHeldUntilPaid() && openBill.PaidAt == nil {
+	if isManualPayment(openBill.OrderFulfillment) && openBill.PaidAt == nil {
+		s.showCurrentManualPayment(ctx, &openBill.OrderFulfillment)
+	} else if s.paymentLinks != nil && openBill.OrderType.IsHeldUntilPaid() && openBill.PaidAt == nil {
 		// The link only adds to the order; a failed read leaves it out rather than failing the read.
 		if openBill.PaymentURL, err = s.paymentLinks.ActiveURL(ctx, openBillID); err != nil {
 			s.logger.ErrorContext(ctx, "failed to read the order's payment link", slog.String("order_id", openBillID), slog.Any("error", err))
+		}
+		if s.paymentQR != nil {
+			openBill.PaymentQRURL = s.paymentQR.ActiveURL(ctx, openBillID)
 		}
 	}
 	return openBill, nil
@@ -1192,35 +1253,122 @@ func (s *OrderService) DeleteOrder(ctx context.Context, openBillID string, user 
 	if s.paymentLinks != nil && existingOpenBill.OrderType.IsHeldUntilPaid() {
 		s.paymentLinks.Cancel(ctx, openBillID)
 	}
+	if s.paymentQR != nil {
+		s.paymentQR.Retire(ctx, openBillID)
+	}
 	return nil
 }
 
 // ExpireOrder voids an agent order nobody paid in time, as staff voiding it does, with the void
 // reason payment_expired and its link marked expired in the same transaction.
 func (s *OrderService) ExpireOrder(ctx context.Context, link *dto.PaymentLink) error {
-	existingOpenBill, err := s.openBillRepo.FindByIDWithProducts(ctx, link.OrderID)
+	return s.expireOrder(ctx, link.OrderID, func(ctx context.Context) error { return s.paymentLinks.MarkExpired(ctx, link.ID) })
+}
+
+// ExpireManualOrder voids a manual agent order nobody paid in time; it has no link to mark.
+func (s *OrderService) ExpireManualOrder(ctx context.Context, orderID string) error {
+	return s.expireOrder(ctx, orderID, nil)
+}
+
+func (s *OrderService) expireOrder(ctx context.Context, orderID string, inTx func(ctx context.Context) error) error {
+	existingOpenBill, err := s.openBillRepo.FindByIDWithProducts(ctx, orderID)
 	if err != nil {
 		return fmt.Errorf("%w: %w", orderError.ErrOrderNotFound, err)
 	}
 	if err := s.unitOfWork.Do(ctx, func(ctx context.Context) error {
-		if err := s.openBillRepo.DeleteWithReason(ctx, link.OrderID, dto.VoidReasonPaymentExpired); err != nil {
+		if err := s.openBillRepo.DeleteWithReason(ctx, orderID, dto.VoidReasonPaymentExpired); err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderDeletionFailed, err)
 		}
 		if err := s.recordVoid(ctx, existingOpenBill); err != nil {
 			return err
 		}
-		if err := s.recordOrderEvent(ctx, dto.MarketingEventOrderExpired, link.OrderID, existingOpenBill.OrderFulfillment, decimal.Zero, s.now()); err != nil {
+		if err := s.recordOrderEvent(ctx, dto.MarketingEventOrderExpired, orderID, existingOpenBill.OrderFulfillment, decimal.Zero, s.now()); err != nil {
 			return fmt.Errorf("%w: %w", orderError.ErrOrderDeletionFailed, err)
 		}
-		if err := s.paymentLinks.MarkExpired(ctx, link.ID); err != nil {
-			return fmt.Errorf("%w: %w", orderError.ErrOrderDeletionFailed, err)
+		if inTx != nil {
+			if err := inTx(ctx); err != nil {
+				return fmt.Errorf("%w: %w", orderError.ErrOrderDeletionFailed, err)
+			}
 		}
 		return nil
 	}); err != nil {
 		return err
 	}
 	s.publishOrderDeleted(ctx, existingOpenBill)
+	if s.paymentQR != nil {
+		s.paymentQR.Retire(ctx, orderID)
+	}
 	return nil
+}
+
+// MarkPaymentReview and ClearPaymentReview set and clear the "staff are checking this payment"
+// mark of an unpaid manual agent order; both are idempotent.
+func (s *OrderService) MarkPaymentReview(ctx context.Context, orderID string) (*dto.OpenBillWithProducts, error) {
+	return s.setPaymentReview(ctx, orderID, true)
+}
+
+func (s *OrderService) ClearPaymentReview(ctx context.Context, orderID string) (*dto.OpenBillWithProducts, error) {
+	return s.setPaymentReview(ctx, orderID, false)
+}
+
+func (s *OrderService) setPaymentReview(ctx context.Context, orderID string, review bool) (*dto.OpenBillWithProducts, error) {
+	state, found, err := s.openBillRepo.FindPaymentState(ctx, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("read order payment state: %w", err)
+	}
+	if !found {
+		return nil, orderError.ErrOrderNotFound
+	}
+	if state.Paid || state.Voided || state.Strategy == nil || *state.Strategy != dto.PaymentStrategyManual {
+		return nil, orderError.ErrPaymentReviewNotAllowed
+	}
+	order, err := s.GetOpenBillWithProducts(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+	if (order.PaymentReviewStartedAt != nil) == review {
+		return order, nil
+	}
+	var startedAt *time.Time
+	if review {
+		now := s.now()
+		startedAt = &now
+	}
+	updated, err := s.openBillRepo.SetPaymentReview(ctx, orderID, startedAt)
+	if err != nil {
+		return nil, fmt.Errorf("set payment review: %w", err)
+	}
+	if !updated {
+		return nil, orderError.ErrPaymentReviewNotAllowed
+	}
+	return s.GetOpenBillWithProducts(ctx, orderID)
+}
+
+func isManualPayment(f dto.OrderFulfillment) bool {
+	return f.PaymentStrategy != nil && *f.PaymentStrategy == dto.PaymentStrategyManual
+}
+
+// showManualPayment adds what a manual order's reads carry beside the stored columns.
+func (s *OrderService) showManualPayment(f *dto.OrderFulfillment, settings *dto.PaymentSettings) {
+	instructions := settings.ManualInstructions
+	review := f.PaymentReviewStartedAt != nil
+	f.PaymentInstructions = &instructions
+	f.PaymentUnderReview = &review
+}
+
+// showCurrentManualPayment shows the organization's current instructions; a failed read leaves them out.
+func (s *OrderService) showCurrentManualPayment(ctx context.Context, f *dto.OrderFulfillment) {
+	review := f.PaymentReviewStartedAt != nil
+	f.PaymentUnderReview = &review
+	if s.paymentSettings == nil {
+		return
+	}
+	settings, err := s.paymentSettings.Get(ctx)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to read the payment instructions", slog.Any("error", err))
+		return
+	}
+	f.PaymentInstructions = &settings.ManualInstructions
 }
 
 // recordVoid writes a voided order's tombstone and order.cancelled; it runs in the void's transaction.

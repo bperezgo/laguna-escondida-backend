@@ -12,6 +12,7 @@ import (
 const (
 	defaultWompiAPIURL    = "https://production.wompi.co/v1"
 	defaultPaymentLinkTTL = 30 * time.Minute
+	defaultPaymentQRWait  = 5 * time.Second
 )
 
 // ignoredWompiEnvPrefixes held per-organization keys before they moved to organization integrations.
@@ -22,12 +23,14 @@ var ignoredWompiEnvPrefixes = []string{"WOMPI_PRIVATE_KEY_", "WOMPI_EVENTS_SECRE
 type PaymentLinks struct {
 	APIURL string
 	TTL    time.Duration
+	// QRWait is how long creating an order waits for Wompi to return its QR.
+	QRWait time.Duration
 	// IgnoredEnv names leftover per-organization key variables, for a startup warning. Never values.
 	IgnoredEnv []string
 }
 
 func NewPaymentLinks(apiURL string, ttl time.Duration) PaymentLinks {
-	return PaymentLinks{APIURL: strings.TrimRight(apiURL, "/"), TTL: ttl}
+	return PaymentLinks{APIURL: strings.TrimRight(apiURL, "/"), TTL: ttl, QRWait: defaultPaymentQRWait}
 }
 
 func loadPaymentLinks() (PaymentLinks, error) {
@@ -42,6 +45,13 @@ func loadPaymentLinks() (PaymentLinks, error) {
 			return PaymentLinks{}, fmt.Errorf("PAYMENT_LINK_TTL must be a positive duration such as 30m, got %q", raw)
 		}
 		links.TTL = ttl
+	}
+	if raw := strings.TrimSpace(os.Getenv("PAYMENT_QR_WAIT")); raw != "" {
+		wait, parseErr := time.ParseDuration(raw)
+		if parseErr != nil || wait <= 0 {
+			return PaymentLinks{}, fmt.Errorf("PAYMENT_QR_WAIT must be a positive duration such as 5s, got %q", raw)
+		}
+		links.QRWait = wait
 	}
 	links.IgnoredEnv = ignoredWompiEnv()
 	return links, nil

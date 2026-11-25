@@ -91,17 +91,23 @@ export type WompiField = keyof WompiCredentialsRequest;
 export interface WompiFormErrors {
   private_key?: string;
   events_secret?: string;
+  public_key?: string;
+  integrity_secret?: string;
   form?: string;
 }
 
 const FIELD_LABELS: Record<WompiField, string> = {
   private_key: "La llave privada",
   events_secret: "El secreto de eventos",
+  public_key: "La llave pública",
+  integrity_secret: "El secreto de integridad",
 };
 
 const FIELD_PREFIXES: Record<WompiField, string> = {
   private_key: "prv_test_ o prv_prod_",
   events_secret: "test_events_ o prod_events_",
+  public_key: "pub_test_ o pub_prod_",
+  integrity_secret: "test_integrity_ o prod_integrity_",
 };
 
 export function environmentLabel(environment: IntegrationEnvironment | string): string {
@@ -119,26 +125,49 @@ function environmentWord(environment: string): string {
 const REQUIRED: Record<WompiField, string> = {
   private_key: "La llave privada es obligatoria.",
   events_secret: "El secreto de eventos es obligatorio.",
+  public_key: "La llave pública es obligatoria si pones el secreto de integridad.",
+  integrity_secret: "El secreto de integridad es obligatorio si pones la llave pública.",
 };
 
-/** Empty fields are caught before sending; the prefixes are left to the backend. */
+/** Empty fields are caught before sending; the prefixes are left to the backend. The QR pair goes together or not at all. */
 export function validateWompiDraft(draft: WompiCredentialsRequest): WompiFormErrors {
   const errors: WompiFormErrors = {};
   for (const field of ["private_key", "events_secret"] as const) {
     if (draft[field].trim() === "") errors[field] = REQUIRED[field];
   }
+  const hasPublic = (draft.public_key ?? "").trim() !== "";
+  const hasIntegrity = (draft.integrity_secret ?? "").trim() !== "";
+  if (hasPublic && !hasIntegrity) errors.integrity_secret = REQUIRED.integrity_secret;
+  if (hasIntegrity && !hasPublic) errors.public_key = REQUIRED.public_key;
   return errors;
 }
 
-export function hasWompiErrors(errors: WompiFormErrors): boolean {
-  return Boolean(errors.private_key || errors.events_secret || errors.form);
+/** The request body: the QR pair only when it was filled in. */
+export function wompiRequestBody(draft: WompiCredentialsRequest): WompiCredentialsRequest {
+  const body: WompiCredentialsRequest = { private_key: draft.private_key, events_secret: draft.events_secret };
+  if ((draft.public_key ?? "").trim() !== "") body.public_key = draft.public_key;
+  if ((draft.integrity_secret ?? "").trim() !== "") body.integrity_secret = draft.integrity_secret;
+  return body;
 }
+
+export function hasWompiErrors(errors: WompiFormErrors): boolean {
+  return Boolean(errors.private_key || errors.events_secret || errors.public_key || errors.integrity_secret || errors.form);
+}
+
+const FORM_FIELDS: readonly string[] = ["private_key", "events_secret", "public_key", "integrity_secret"];
 
 /** Puts a refused save next to the field the backend names, or on the form when it names none. */
 export function wompiSaveErrors(status: number, message: string, field?: string): WompiFormErrors {
-  if (status === 400 && (field === "private_key" || field === "events_secret")) {
-    if (/is required/.test(message)) return { [field]: REQUIRED[field] };
-    return { [field]: `${FIELD_LABELS[field]} debe empezar por ${FIELD_PREFIXES[field]}.` };
+  if (status === 400 && field && FORM_FIELDS.includes(field)) {
+    const named = field as WompiField;
+    if (/is required/.test(message)) return { [named]: REQUIRED[named] };
+    const environment = message.match(/is for (\w+) and the private key for (\w+)/);
+    if (environment) {
+      return {
+        [named]: `${FIELD_LABELS[named]} es de ${environmentWord(environment[1])} y la llave privada de ${environmentWord(environment[2])}. Deben ser del mismo ambiente.`,
+      };
+    }
+    return { [named]: `${FIELD_LABELS[named]} debe empezar por ${FIELD_PREFIXES[named]}.` };
   }
   if (status === 400) {
     const cloud = message.match(/keys are for (\w+) and this cloud uses Wompi's (\w+)/);
@@ -163,3 +192,8 @@ export function wompiSaveErrors(status: number, message: string, field?: string)
 export function maskedHint(hint: string): string {
   return hint ? `••••${hint}` : "••••";
 }
+
+export const QR_LINK_ONLY_NOTE =
+  "Sin la llave pública y el secreto de integridad, los pedidos se pagan solo con el link de pago.";
+
+export const QR_ENABLED_NOTE = "Los pedidos se pagan con QR de Bancolombia, y con el link de pago como respaldo.";

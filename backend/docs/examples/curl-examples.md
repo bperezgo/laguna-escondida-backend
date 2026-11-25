@@ -1772,6 +1772,49 @@ curl -s -X POST "$BASE_URL/webhooks/wompi/$ORG_ID" \
 # {"status":"ok"} — the order is paid and released to the kitchen. A wrong checksum is 401.
 ```
 
+## Payment Strategies (cloud only)
+
+How WhatsApp orders are paid: `manual` (staff confirm a transfer) or `wompi` (see [Payment settings](../api/payment-settings.md)). Admin only.
+
+```bash
+curl -X PUT "$BASE_URL/organization/payment-settings" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "strategy": "manual", "manual_instructions": "Llave Bre-B 3001234567, a nombre de Laguna Escondida SAS", "manual_window_minutes": 60 }'
+
+curl -X GET "$BASE_URL/organization/payment-settings" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Staff check a manual order's transfer, then pay it (`orders:pay`):
+
+```bash
+curl -X PUT "$BASE_URL/orders/ORDER_ID/payment-review" -H "Authorization: Bearer $TOKEN"
+curl -X DELETE "$BASE_URL/orders/ORDER_ID/payment-review" -H "Authorization: Bearer $TOKEN"
+```
+
+The two extra Wompi keys the Bancolombia QR needs go with the integration (optional):
+
+```bash
+curl -X PUT "$BASE_URL/organization/integrations/wompi" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "private_key": "prv_test_...", "events_secret": "test_events_...", "public_key": "pub_test_...", "integrity_secret": "test_integrity_..." }'
+```
+
+A wompi agent order with a QR is created with the customer's acceptance of Wompi's terms; the response carries `payment_qr_url`, a public image (no credentials) that WhatsApp can fetch:
+
+```bash
+curl -X POST "$BASE_URL/orders" \
+  -H "Authorization: Bearer $AGENT_KEY" -H "Content-Type: application/json" \
+  -d '{ "open_bill_id": "'"$(uuidgen)"'", "temporal_identifier": "'"$(uuidgen)"'", "order_type": "takeaway", "customer_phone": "3005551234",
+        "payment_terms_accepted": true,
+        "products": [{ "open_bill_product_id": "'"$(uuidgen)"'", "product_id": "PRODUCT_ID", "quantity": 1 }] }'
+# {..., "payment_url": "https://checkout.wompi.co/l/3Z0Cfi", "payment_qr_url": "https://api.example.com/api/payments/qr/<token>"}
+
+curl -o qr.png "https://api.example.com/api/payments/qr/<token>"   # 200 image/png; 404 once the order is paid, changed or voided
+```
+
 ## Marketing-App Signing Secret (cloud only)
 
 Each organization's marketing events are signed with its `marketing_app` integration (see `docs/api/organization-integrations.md` and `docs/api/marketing-events.md`). The cloud needs `INTEGRATION_SECRETS_KEY`.

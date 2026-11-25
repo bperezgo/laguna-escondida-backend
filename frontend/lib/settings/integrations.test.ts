@@ -7,6 +7,7 @@ import {
   maskedHint,
   validateWompiDraft,
   wompiCardState,
+  wompiRequestBody,
   wompiSaveErrors,
 } from "./integrations.ts";
 
@@ -15,6 +16,7 @@ const wompi: OrganizationIntegration = {
   environment: "sandbox",
   private_key_hint: "wxyz",
   events_secret_hint: "9876",
+  qr_enabled: false,
   webhook_path: "/api/webhooks/wompi/019a1c2e-5f00-7a4b-8c3d-2e1f0a9b8c7d",
   created_at: "2026-11-19T15:04:05Z",
   updated_at: "2026-11-19T15:04:05Z",
@@ -81,4 +83,32 @@ test("hints and environments are shown masked and in Spanish", () => {
   assert.equal(maskedHint(""), "••••");
   assert.equal(environmentLabel("sandbox"), "Sandbox");
   assert.equal(environmentLabel("production"), "Producción");
+});
+
+test("the QR keys are optional, but go together", () => {
+  const base = { private_key: "prv_test_a", events_secret: "test_events_b" };
+  assert.equal(hasWompiErrors(validateWompiDraft({ ...base, public_key: "", integrity_secret: "" })), false);
+  assert.equal(hasWompiErrors(validateWompiDraft({ ...base, public_key: "pub_test_c", integrity_secret: "test_integrity_d" })), false);
+  assert.match(validateWompiDraft({ ...base, public_key: "pub_test_c" }).integrity_secret ?? "", /obligatorio/);
+  assert.match(validateWompiDraft({ ...base, integrity_secret: "test_integrity_d" }).public_key ?? "", /obligatoria/);
+});
+
+test("the request carries the QR keys only when they were filled in", () => {
+  const base = { private_key: "prv_test_a", events_secret: "test_events_b" };
+  assert.deepEqual(wompiRequestBody({ ...base, public_key: " ", integrity_secret: "" }), base);
+  assert.deepEqual(wompiRequestBody({ ...base, public_key: "pub_test_c", integrity_secret: "test_integrity_d" }), {
+    ...base,
+    public_key: "pub_test_c",
+    integrity_secret: "test_integrity_d",
+  });
+});
+
+test("a refused QR key is shown next to its field", () => {
+  const prefix = wompiSaveErrors(400, "invalid public_key: must start with pub_test_ or pub_prod_", "public_key");
+  assert.match(prefix.public_key ?? "", /pub_test_ o pub_prod_/);
+  const missing = wompiSaveErrors(400, "invalid integrity_secret: is required with public_key", "integrity_secret");
+  assert.match(missing.integrity_secret ?? "", /obligatorio/);
+  const mixed = wompiSaveErrors(400, "invalid public_key: is for production and the private key for sandbox", "public_key");
+  assert.match(mixed.public_key ?? "", /producción/);
+  assert.match(mixed.public_key ?? "", /pruebas/);
 });
