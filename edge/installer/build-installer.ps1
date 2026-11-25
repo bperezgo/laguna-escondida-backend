@@ -28,9 +28,11 @@ function Step($m) { Write-Host ("`n==> " + $m) -ForegroundColor Cyan }
 
 Step 'exit-codes.inc matches exit-codes.json'
 $inc = Join-Path $PSScriptRoot 'exit-codes.inc'
-$before = (Get-FileHash $inc).Hash
+# Compared without line endings: a Windows checkout turns the committed LF into CRLF.
+function Read-Lf($path) { ([IO.File]::ReadAllText($path)) -replace "`r`n", "`n" }
+$before = Read-Lf $inc
 & (Join-Path $PSScriptRoot 'gen-exit-codes.ps1')
-if ((Get-FileHash $inc).Hash -ne $before) { throw 'exit-codes.inc was out of date; regenerate it with installer\gen-exit-codes.ps1 and commit.' }
+if ((Read-Lf $inc) -cne $before) { throw 'exit-codes.inc was out of date; regenerate it with installer\gen-exit-codes.ps1 and commit.' }
 
 Step "Staging tracked edge files at $StageDir"
 if (Test-Path $StageDir) { Remove-Item $StageDir -Recurse -Force }
@@ -51,7 +53,7 @@ else { $fetch.Tags = @{ 'edge-node' = $Version; next = $Version } }   # an alrea
 if (-not (Test-Path (Join-Path $StageDir 'services\winsw.exe'))) { throw 'winsw.exe missing from the stage' }
 foreach ($app in 'edge-node', 'next') {
   $got = (Get-Content (Join-Path $StageDir "artifacts\$app\RELEASE") -Raw).Trim()
-  if ($got -ne $Version) { throw "$app is $got, expected $Version: the zips in -AssetDir are not this release's." }
+  if ($got -ne $Version) { throw "$app is $got, expected ${Version}: the zips in -AssetDir are not this release's." }
 }
 
 Step 'Trimming Postgres to bin, lib, share'
