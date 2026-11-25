@@ -3,7 +3,10 @@ package cron
 import (
 	"context"
 	"errors"
+	"hash/fnv"
 	"log/slog"
+	"sync"
+	"time"
 
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/service"
@@ -28,6 +31,31 @@ type EdgeSyncScheduler struct {
 	pullCron         string
 	stockPullCron    string
 	logger           *slog.Logger
+	nodeID           string
+	now              func() time.Time
+	// callMu serializes the loops' cloud calls, so after a pause only the first one probes the cloud.
+	callMu   sync.Mutex
+	stop     chan struct{}
+	stopOnce sync.Once
+}
+
+const (
+	defaultRefusalPause = 6 * time.Hour
+	minRefusalPause     = time.Minute
+	maxRefusalPause     = 24 * time.Hour
+	minuteLoopSpread    = 45 * time.Second
+	dailyLoopSpread     = 15 * time.Minute
+)
+
+type EdgeSyncOption func(*EdgeSyncScheduler)
+
+// WithNodeID spreads this box's sync calls by an offset derived from its node id.
+func WithNodeID(nodeID string) EdgeSyncOption {
+	return func(s *EdgeSyncScheduler) { s.nodeID = nodeID }
+}
+
+func WithClock(now func() time.Time) EdgeSyncOption {
+	return func(s *EdgeSyncScheduler) { s.now = now }
 }
 
 // NewEdgeSyncScheduler runs every loop as the box's organization, boxOrgID.
@@ -42,13 +70,14 @@ func NewEdgeSyncScheduler(
 	pullCron string,
 	stockPullCron string,
 	logger *slog.Logger,
+	opts ...EdgeSyncOption,
 ) (*EdgeSyncScheduler, error) {
 	scheduler, err := gocron.NewScheduler()
 	if err != nil {
 		return nil, err
 	}
 
-	return &EdgeSyncScheduler{
+	s := &EdgeSyncScheduler{
 		scheduler:        scheduler,
 		organizations:    organizations,
 		boxOrgID:         boxOrgID,
@@ -60,7 +89,13 @@ func NewEdgeSyncScheduler(
 		pullCron:         pullCron,
 		stockPullCron:    stockPullCron,
 		logger:           logger,
-	}, nil
+		now:              time.Now,
+		stop:             make(chan struct{}),
+	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s, nil
 }
 
 func (s *EdgeSyncScheduler) Start() error {
@@ -73,6 +108,8 @@ func (s *EdgeSyncScheduler) Start() error {
 		slog.String("push_cron", s.pushCron),
 		slog.String("pull_cron", s.pullCron),
 		slog.String("stock_pull_cron", s.stockPullCron),
+		slog.Duration("minute_offset", s.offset(minuteLoopSpread)),
+		slog.Duration("daily_offset", s.offset(dailyLoopSpread)),
 	)
 	return nil
 }
@@ -80,7 +117,8 @@ func (s *EdgeSyncScheduler) Start() error {
 func (s *EdgeSyncScheduler) registerJobs() error {
 	if _, err := s.scheduler.NewJob(
 		gocron.CronJob(s.pushCron, false),
-		gocron.NewTask(s.pushJob),
+		gocron.NewTask(s.spread(minuteLoopSpread, s.pushJob)),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	); err != nil {
 		s.logger.Error("Failed to register sync push cron job", slog.Any("error", err))
 		return err
@@ -88,7 +126,8 @@ func (s *EdgeSyncScheduler) registerJobs() error {
 
 	if _, err := s.scheduler.NewJob(
 		gocron.CronJob(s.pullCron, false),
-		gocron.NewTask(s.pullJob),
+		gocron.NewTask(s.spread(minuteLoopSpread, s.pullJob)),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	); err != nil {
 		s.logger.Error("Failed to register sync pull cron job", slog.Any("error", err))
 		return err
@@ -96,7 +135,8 @@ func (s *EdgeSyncScheduler) registerJobs() error {
 
 	if _, err := s.scheduler.NewJob(
 		gocron.CronJob(s.stockPullCron, false),
-		gocron.NewTask(s.stockPullJob),
+		gocron.NewTask(s.spread(dailyLoopSpread, s.stockPullJob)),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	); err != nil {
 		s.logger.Error("Failed to register stock pull cron job", slog.Any("error", err))
 		return err
@@ -105,17 +145,18 @@ func (s *EdgeSyncScheduler) registerJobs() error {
 	return nil
 }
 
-// stockPullJob adopts the cloud's on-hand for the day. It is deliberately not wired into the
-// connectivity tracker: unlike the reference pull it runs once a day, so its silence says
-// nothing about whether the cloud is reachable right now. A failure leaves the previous
+// stockPullJob adopts the cloud's on-hand for the day. Only a refusal reaches the tracker:
+// unlike the reference pull it runs once a day, so its silence says nothing about whether
+// the cloud is reachable right now. A failure leaves the previous
 // amounts in place and touches nothing else — selling never depends on this.
 func (s *EdgeSyncScheduler) stockPullJob() {
-	s.asBox(s.stockPull)
+	s.whenNotPaused(func() { s.asBox(s.stockPull) })
 }
 
 func (s *EdgeSyncScheduler) stockPull(ctx context.Context) {
 	result, err := s.stockPullService.RefreshStock(ctx)
 	if err != nil {
+		s.recordRefusal(err)
 		s.logger.ErrorContext(ctx, "Edge stock refresh job failed", slog.Any("error", err))
 		return
 	}
@@ -134,11 +175,48 @@ func (s *EdgeSyncScheduler) asBox(job func(ctx context.Context)) {
 
 func (s *EdgeSyncScheduler) Stop() error {
 	s.logger.Info("Stopping edge sync scheduler...")
+	s.stopOnce.Do(func() { close(s.stop) })
 	return s.scheduler.Shutdown()
 }
 
+// offset is stable per node, so restarts keep it and different boxes don't all call at second 0.
+func (s *EdgeSyncScheduler) offset(spread time.Duration) time.Duration {
+	if s.nodeID == "" {
+		return 0
+	}
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(s.nodeID))
+	return time.Duration(int64(h.Sum32())%spread.Milliseconds()) * time.Millisecond
+}
+
+// spread waits this box's offset before job, giving up if the scheduler stops meanwhile.
+func (s *EdgeSyncScheduler) spread(within time.Duration, job func()) func() {
+	return func() {
+		if wait := s.offset(within); wait > 0 {
+			timer := time.NewTimer(wait)
+			defer timer.Stop()
+			select {
+			case <-s.stop:
+				return
+			case <-timer.C:
+			}
+		}
+		job()
+	}
+}
+
+// whenNotPaused runs call unless a cloud refusal paused sync and its delay hasn't passed.
+func (s *EdgeSyncScheduler) whenNotPaused(call func()) {
+	s.callMu.Lock()
+	defer s.callMu.Unlock()
+	if until := s.tracker.PausedUntil(); s.now().Before(until) {
+		return
+	}
+	call()
+}
+
 func (s *EdgeSyncScheduler) pushJob() {
-	s.asBox(s.push)
+	s.whenNotPaused(func() { s.asBox(s.push) })
 }
 
 func (s *EdgeSyncScheduler) push(ctx context.Context) {
@@ -157,7 +235,7 @@ func (s *EdgeSyncScheduler) push(ctx context.Context) {
 }
 
 func (s *EdgeSyncScheduler) pullJob() {
-	s.asBox(s.pull)
+	s.whenNotPaused(func() { s.asBox(s.pull) })
 }
 
 func (s *EdgeSyncScheduler) pull(ctx context.Context) {
@@ -184,8 +262,15 @@ func (s *EdgeSyncScheduler) pull(ctx context.Context) {
 	}
 }
 
-// recordRefusal reports whether the cloud refused the box with a reason the POS should show.
+// recordRefusal pauses sync for the cloud's Retry-After and reports whether it recorded a reason
+// the POS should show; an invalid key pauses without one, so the POS keeps showing offline.
 func (s *EdgeSyncScheduler) recordRefusal(err error) bool {
+	var refusal *domainError.NodeRefusalError
+	if errors.As(err, &refusal) {
+		until := s.now().Add(refusalPause(refusal.RetryAfter))
+		s.tracker.Pause(until)
+		s.logger.Warn("Edge sync paused: the cloud refused this box", slog.Any("reason", refusal.Reason), slog.Time("until", until))
+	}
 	switch {
 	case errors.Is(err, domainError.ErrNodeRevoked):
 		s.tracker.RecordBlocked(syncstatus.BlockedReplaced)
@@ -195,4 +280,11 @@ func (s *EdgeSyncScheduler) recordRefusal(err error) bool {
 		return false
 	}
 	return true
+}
+
+func refusalPause(retryAfter time.Duration) time.Duration {
+	if retryAfter <= 0 {
+		return defaultRefusalPause
+	}
+	return min(max(retryAfter, minRefusalPause), maxRefusalPause)
 }

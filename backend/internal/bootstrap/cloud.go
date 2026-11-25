@@ -32,6 +32,8 @@ import (
 // already wrote under its old NODE_ID, so existing and new rows share one origin.
 const cloudOriginNodeID = "45598059-e12e-530c-86b6-758477c4423d"
 
+const nodeRefusalCacheMaxEntries = 50_000
+
 // NewCloud assembles the cloud: the shared core plus the back office (accounting and catalog and
 // user writes), e-invoicing, crons, the sync API, telemetry ingest, organization admin,
 // delivery zones and stock authoring.
@@ -44,6 +46,8 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 
 	// One replica, so a process-local cache; a shared one replaces memory.New without touching the decorator.
 	settingsCache := memory.New()
+	// Bounded so a flood of random node ids can't grow memory; overflow just reads the database.
+	nodeRefusalCache := memory.New(memory.WithMaxEntries(nodeRefusalCacheMaxEntries))
 
 	// Contacts and marketing events are cloud-only: the box never takes agent orders or reservations.
 	db := infra.DB
@@ -175,6 +179,7 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 
 	c.app.background = append(c.app.background,
 		newBackgroundLoop(func(ctx context.Context) { settingsCache.Sweep(ctx, time.Minute) }),
+		newBackgroundLoop(func(ctx context.Context) { nodeRefusalCache.Sweep(ctx, time.Minute) }),
 		newBackgroundLoop(func(ctx context.Context) {
 			logPaymentLinks(ctx, logger, cloudOrganizations, integrations, cfg.PaymentLinks)
 		}))
@@ -309,33 +314,35 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		logger.Info("Lead alerts disabled: set LEAD_ALERT_DISCORD_WEBHOOK_URL to be told about new leads")
 	}
 
-	nodeService := service.NewNodeService(repository.NewNodeRepository(db), cloudOrganizations, c.unitOfWork, logger, cfg.PublicAPIURL)
+	nodeService := service.NewNodeService(repository.NewNodeRepository(db), cloudOrganizations, c.unitOfWork, logger, cfg.PublicAPIURL,
+		service.WithNodeRefusalCache(nodeRefusalCache, service.NodeRefusalCacheTTL))
 	registerCloudRoutes(c.router, cfg.AdminAPIKey, c.jwtService, cloudHandlers{
-		invoice:         handler.NewInvoiceHandler(invoiceService, documentURLMaintenance),
-		supportDocument: handler.NewSupportDocumentHandler(supportDocService, documentURLMaintenance),
-		sync:            handler.NewSyncHandler(syncService, syncReferenceService),
-		minEdgeVersion:  cfg.MinEdgeVersion,
-		telemetry:       telemetryHandler,
-		stock:           c.handlers.stock,
-		organization:    handler.NewOrganizationHandler(c.organizationService),
-		lead:            handler.NewLeadHandler(leadService),
-		apiKey:          handler.NewAPIKeyHandler(apiKeyService),
-		integration:     handler.NewOrganizationIntegrationHandler(integrations),
-		paymentSettings: handler.NewPaymentSettingsHandler(paymentSettings),
-		paymentQR:       handler.NewPaymentQRHandler(paymentQR),
-		order:           c.handlers.order,
-		deliveryZone:    handler.NewDeliveryZoneHandler(service.NewDeliveryZoneService(c.deliveryZoneRepo)),
-		orgSettings:     handler.NewOrganizationSettingsHandler(service.NewOrganizationSettingsService(c.orgSettingsRepo).WithPaymentStrategy(paymentSettings).WithPaymentTerms(paymentQR)),
-		reservation:     handler.NewReservationHandler(reservationService),
-		reservationLive: handler.NewReservationStreamHandler(reservationHub, logger),
-		contact:         handler.NewContactHandler(contactService),
-		feedback:        handler.NewFeedbackHandler(feedbackService),
-		notifChannel:    handler.NewNotificationChannelHandler(notificationChannelService),
-		notifRule:       handler.NewNotificationRuleHandler(notificationRuleService),
-		paymentWebhook:  handler.NewPaymentWebhookHandler(paymentWebhooks, logger),
-		delivery:        handler.NewDeliveryHandler(service.NewDeliveryService(deliveryRepo, c.unitOfWork, marketingEvents, nil)),
-		nodes:           nodeService,
-		edgeEnroll:      handler.NewEdgeEnrollHandler(nodeService),
+		invoice:               handler.NewInvoiceHandler(invoiceService, documentURLMaintenance),
+		supportDocument:       handler.NewSupportDocumentHandler(supportDocService, documentURLMaintenance),
+		sync:                  handler.NewSyncHandler(syncService, syncReferenceService),
+		minEdgeVersion:        cfg.MinEdgeVersion,
+		nodeRefusalRetryAfter: cfg.NodeRefusalRetryAfter,
+		telemetry:             telemetryHandler,
+		stock:                 c.handlers.stock,
+		organization:          handler.NewOrganizationHandler(c.organizationService),
+		lead:                  handler.NewLeadHandler(leadService),
+		apiKey:                handler.NewAPIKeyHandler(apiKeyService),
+		integration:           handler.NewOrganizationIntegrationHandler(integrations),
+		paymentSettings:       handler.NewPaymentSettingsHandler(paymentSettings),
+		paymentQR:             handler.NewPaymentQRHandler(paymentQR),
+		order:                 c.handlers.order,
+		deliveryZone:          handler.NewDeliveryZoneHandler(service.NewDeliveryZoneService(c.deliveryZoneRepo)),
+		orgSettings:           handler.NewOrganizationSettingsHandler(service.NewOrganizationSettingsService(c.orgSettingsRepo).WithPaymentStrategy(paymentSettings).WithPaymentTerms(paymentQR)),
+		reservation:           handler.NewReservationHandler(reservationService),
+		reservationLive:       handler.NewReservationStreamHandler(reservationHub, logger),
+		contact:               handler.NewContactHandler(contactService),
+		feedback:              handler.NewFeedbackHandler(feedbackService),
+		notifChannel:          handler.NewNotificationChannelHandler(notificationChannelService),
+		notifRule:             handler.NewNotificationRuleHandler(notificationRuleService),
+		paymentWebhook:        handler.NewPaymentWebhookHandler(paymentWebhooks, logger),
+		delivery:              handler.NewDeliveryHandler(service.NewDeliveryService(deliveryRepo, c.unitOfWork, marketingEvents, nil)),
+		nodes:                 nodeService,
+		edgeEnroll:            handler.NewEdgeEnrollHandler(nodeService),
 	})
 
 	return c.app, nil

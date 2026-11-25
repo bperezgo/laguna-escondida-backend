@@ -222,3 +222,116 @@ func TestNodeService_Enroll_InvalidName(t *testing.T) {
 		require.ErrorIs(t, err, domainError.ErrNodeNameRequired)
 	}
 }
+
+type mapCache struct{ entries map[string][]byte }
+
+func newMapCache() *mapCache { return &mapCache{entries: map[string][]byte{}} }
+
+func (c *mapCache) Get(_ context.Context, key string) ([]byte, bool, error) {
+	v, ok := c.entries[key]
+	return v, ok, nil
+}
+
+func (c *mapCache) Set(_ context.Context, key string, value []byte, _ time.Duration) error {
+	c.entries[key] = value
+	return nil
+}
+
+func (c *mapCache) Delete(_ context.Context, key string) error {
+	delete(c.entries, key)
+	return nil
+}
+
+func newCachedNodeFixture(t *testing.T) (*nodeFixture, *mapCache) {
+	t.Helper()
+	f := newNodeFixture(t)
+	cache := newMapCache()
+	f.service = NewNodeService(f.nodes, f.orgs, passthroughUnitOfWork{}, slog.New(slog.NewTextHandler(io.Discard, nil)), nodeTestPublicURL,
+		WithNodeRefusalCache(cache, time.Minute))
+	return f, cache
+}
+
+func TestNodeService_Authenticate_RefusalCache_SuspendedSecondCallSkipsDatabase(t *testing.T) {
+	const key = "lgn_right"
+	f, _ := newCachedNodeFixture(t)
+	f.nodes.On("FindForAuth", mock.Anything, nodeTestID).
+		Return(authRecord(key, func(r *dto.NodeAuthRecord) { r.OrganizationStatus = dto.OrganizationStatusSuspended }), nil).Once()
+
+	for i := 0; i < 3; i++ {
+		_, err := f.service.Authenticate(context.Background(), nodeTestID, key)
+		require.ErrorIs(t, err, domainError.ErrNodeOrganizationSuspended)
+	}
+}
+
+func TestNodeService_Authenticate_RefusalCache_WrongKeyStaysOpaque(t *testing.T) {
+	const key = "lgn_right"
+	f, _ := newCachedNodeFixture(t)
+	f.nodes.On("FindForAuth", mock.Anything, nodeTestID).
+		Return(authRecord(key, func(r *dto.NodeAuthRecord) { r.RevokedAt = new(time.Time) }), nil).Once()
+
+	_, err := f.service.Authenticate(context.Background(), nodeTestID, key)
+	require.ErrorIs(t, err, domainError.ErrNodeRevoked)
+
+	_, err = f.service.Authenticate(context.Background(), nodeTestID, "lgn_wrong")
+	require.ErrorIs(t, err, domainError.ErrNodeKeyInvalid)
+	assert.NotErrorIs(t, err, domainError.ErrNodeRevoked)
+}
+
+func TestNodeService_Authenticate_RefusalCache_RemembersUnknownNode(t *testing.T) {
+	f, cache := newCachedNodeFixture(t)
+	f.nodes.On("FindForAuth", mock.Anything, nodeTestID).Return(nil, domainError.ErrNodeNotFound).Once()
+
+	for i := 0; i < 3; i++ {
+		_, err := f.service.Authenticate(context.Background(), nodeTestID, "lgn_any")
+		require.ErrorIs(t, err, domainError.ErrNodeKeyInvalid)
+	}
+	assert.Contains(t, cache.entries, nodeRefusalCachePrefix+nodeTestID)
+}
+
+func TestNodeService_Authenticate_RefusalCache_AcceptedNodeNeverStored(t *testing.T) {
+	const key = "lgn_right"
+	f, cache := newCachedNodeFixture(t)
+	f.nodes.On("FindForAuth", mock.Anything, nodeTestID).Return(authRecord(key, nil), nil).Twice()
+	f.nodes.On("TouchLastSeen", mock.Anything, nodeTestID, mock.Anything, nodeSeenInterval).Return(nil).Twice()
+
+	for i := 0; i < 2; i++ {
+		orgID, err := f.service.Authenticate(context.Background(), nodeTestID, key)
+		require.NoError(t, err)
+		assert.Equal(t, testOrgA, orgID)
+	}
+	assert.Empty(t, cache.entries)
+}
+
+func TestNodeService_Authenticate_RefusalCache_RealKeyAfterWrongKeyIsAcceptedAndEvicted(t *testing.T) {
+	const key = "lgn_right"
+	f, cache := newCachedNodeFixture(t)
+	f.nodes.On("FindForAuth", mock.Anything, nodeTestID).Return(authRecord(key, nil), nil).Twice()
+	f.nodes.On("TouchLastSeen", mock.Anything, nodeTestID, mock.Anything, nodeSeenInterval).Return(nil).Once()
+
+	_, err := f.service.Authenticate(context.Background(), nodeTestID, "lgn_wrong")
+	require.ErrorIs(t, err, domainError.ErrNodeKeyInvalid)
+	require.Contains(t, cache.entries, nodeRefusalCachePrefix+nodeTestID)
+
+	orgID, err := f.service.Authenticate(context.Background(), nodeTestID, key)
+
+	require.NoError(t, err)
+	assert.Equal(t, testOrgA, orgID)
+	assert.Empty(t, cache.entries)
+}
+
+func TestNodeService_Authenticate_RefusalCache_CacheErrorFallsBackToDatabase(t *testing.T) {
+	const key = "lgn_right"
+	f := newNodeFixture(t)
+	cache := mocks.NewMockKeyValueCache(t)
+	f.service = NewNodeService(f.nodes, f.orgs, passthroughUnitOfWork{}, slog.New(slog.NewTextHandler(io.Discard, nil)), nodeTestPublicURL,
+		WithNodeRefusalCache(cache, time.Minute))
+	cache.On("Get", mock.Anything, nodeRefusalCachePrefix+nodeTestID).Return(nil, false, errors.New("cache down"))
+	cache.On("Set", mock.Anything, nodeRefusalCachePrefix+nodeTestID, mock.Anything, time.Minute).Return(errors.New("cache down"))
+	f.nodes.On("FindForAuth", mock.Anything, nodeTestID).
+		Return(authRecord(key, func(r *dto.NodeAuthRecord) { r.OrganizationStatus = dto.OrganizationStatusSuspended }), nil).Twice()
+
+	for i := 0; i < 2; i++ {
+		_, err := f.service.Authenticate(context.Background(), nodeTestID, key)
+		require.ErrorIs(t, err, domainError.ErrNodeOrganizationSuspended)
+	}
+}

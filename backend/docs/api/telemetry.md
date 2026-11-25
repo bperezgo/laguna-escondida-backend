@@ -43,8 +43,8 @@ The paths mirror the OTLP/HTTP layout, so an OTLP exporter only needs
 **Auth:** `X-Node-Key`, the key issued to the box at enrollment — the same credential the sync
 endpoints use — plus `X-Node-ID`, which must be the node that key was issued to. The export is
 stamped with that node's organization. Fails closed: an unregistered node, a node without a key or
-a key that is not the node's own is rejected; a revoked box gets `401` with `code: node_revoked` and
-a suspended organization `403` with `code: organization_suspended` (see [edge-enrollment.md](edge-enrollment.md)).
+a key that is not the node's own is rejected. Every refusal answers `429` with `Retry-After`, so Alloy
+waits that long before its next request (see [edge-enrollment.md](edge-enrollment.md)).
 
 ### Request Headers
 
@@ -90,19 +90,40 @@ Content-Length: 0
 
 ### Error Responses
 
-**401 Unauthorized** — missing or invalid `X-Node-Key`, an `X-Node-ID` the cloud has not registered, or another node's key. Nothing is forwarded. A revoked box's own key answers `401` with `"code": "node_revoked"`.
+**429 Too Many Requests** — the node is refused. Nothing is forwarded. The status is `429` (not
+`401`/`403` as on the sync routes) because Alloy drops a batch on `401`/`403` and sends the next
+one at once, but waits out a `429`'s `Retry-After`. The body says why, with the reason only told to
+a caller holding the node's own key:
 
-**403 Forbidden** — the node's organization is suspended (`"code": "organization_suspended"`).
+```
+HTTP/1.1 429 Too Many Requests
+Content-Type: application/json; charset=utf-8
+Retry-After: 21600
+```
+
+Missing or wrong `X-Node-Key`, an `X-Node-ID` the cloud has not registered, or another node's key:
 
 ```json
 {
-  "error": "invalid node key"
+  "error": "invalid node credentials"
 }
 ```
 
+A revoked box's own key:
+
 ```json
 {
-  "error": "unknown node"
+  "error": "node revoked",
+  "code": "node_revoked"
+}
+```
+
+The node's organization is suspended:
+
+```json
+{
+  "error": "organization suspended",
+  "code": "organization_suspended"
 }
 ```
 

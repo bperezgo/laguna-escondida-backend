@@ -143,7 +143,7 @@ func TestAgentRole_ReachesOnlyItsRoutes(t *testing.T) {
 				rec := httptest.NewRecorder()
 				router.ServeHTTP(rec, req)
 
-				refused := rec.Code == http.StatusUnauthorized || rec.Code == http.StatusForbidden
+				refused := rec.Code == http.StatusUnauthorized || rec.Code == http.StatusForbidden || rec.Code == http.StatusTooManyRequests
 				if agentReachableRoutes[key] {
 					assert.False(t, refused, "%s should be reachable by the agent, got %d", key, rec.Code)
 				} else {

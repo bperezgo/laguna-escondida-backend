@@ -15,14 +15,26 @@ type entry struct {
 }
 
 type Cache struct {
-	mu      sync.RWMutex
-	entries map[string]entry
-	now     func() time.Time
+	mu         sync.RWMutex
+	entries    map[string]entry
+	maxEntries int
+	now        func() time.Time
+}
+
+type Option func(*Cache)
+
+// WithMaxEntries bounds the cache: once full, Set drops new keys (no eviction) until Sweep frees space.
+func WithMaxEntries(n int) Option {
+	return func(c *Cache) { c.maxEntries = n }
 }
 
 // New starts nothing: reads skip expired entries, and Sweep removes them while it runs.
-func New() *Cache {
-	return &Cache{entries: map[string]entry{}, now: time.Now}
+func New(opts ...Option) *Cache {
+	c := &Cache{entries: map[string]entry{}, now: time.Now}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
 }
 
 var _ ports.KeyValueCache = (*Cache)(nil)
@@ -40,6 +52,9 @@ func (c *Cache) Get(_ context.Context, key string) ([]byte, bool, error) {
 func (c *Cache) Set(_ context.Context, key string, value []byte, ttl time.Duration) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if _, exists := c.entries[key]; !exists && c.maxEntries > 0 && len(c.entries) >= c.maxEntries {
+		return nil
+	}
 	c.entries[key] = entry{value: append([]byte(nil), value...), expiresAt: c.now().Add(ttl)}
 	return nil
 }

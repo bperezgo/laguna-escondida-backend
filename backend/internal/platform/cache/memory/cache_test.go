@@ -149,3 +149,59 @@ func TestCache_ConcurrentAccess(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestCache_UnlimitedByDefault(t *testing.T) {
+	c, _ := newTestCache(t)
+	ctx := context.Background()
+	for i := 0; i < 1000; i++ {
+		require.NoError(t, c.Set(ctx, fmt.Sprintf("k%d", i), []byte("v"), time.Minute))
+	}
+
+	assert.Equal(t, 1000, c.len())
+}
+
+func newBoundedTestCache(t *testing.T, max int) (*Cache, *fakeClock) {
+	clock := &fakeClock{now: time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)}
+	c := New(WithMaxEntries(max))
+	c.now = clock.Now
+	return c, clock
+}
+
+func TestCache_FullDropsNewKeys(t *testing.T) {
+	c, _ := newBoundedTestCache(t, 2)
+	ctx := context.Background()
+	require.NoError(t, c.Set(ctx, "a", []byte("1"), time.Minute))
+	require.NoError(t, c.Set(ctx, "b", []byte("1"), time.Minute))
+
+	require.NoError(t, c.Set(ctx, "c", []byte("1"), time.Minute))
+
+	_, ok, _ := c.Get(ctx, "c")
+	assert.False(t, ok, "a full cache stores nothing new")
+	assert.Equal(t, 2, c.len())
+}
+
+func TestCache_FullStillUpdatesExistingKey(t *testing.T) {
+	c, _ := newBoundedTestCache(t, 2)
+	ctx := context.Background()
+	require.NoError(t, c.Set(ctx, "a", []byte("1"), time.Minute))
+	require.NoError(t, c.Set(ctx, "b", []byte("1"), time.Minute))
+
+	require.NoError(t, c.Set(ctx, "a", []byte("2"), time.Minute))
+
+	got, ok, _ := c.Get(ctx, "a")
+	assert.True(t, ok)
+	assert.Equal(t, []byte("2"), got)
+}
+
+func TestCache_SweepFreesSpaceWhenFull(t *testing.T) {
+	c, clock := newBoundedTestCache(t, 1)
+	ctx := context.Background()
+	require.NoError(t, c.Set(ctx, "a", []byte("1"), time.Second))
+	clock.advance(time.Minute)
+	c.sweep()
+
+	require.NoError(t, c.Set(ctx, "b", []byte("1"), time.Minute))
+
+	_, ok, _ := c.Get(ctx, "b")
+	assert.True(t, ok)
+}

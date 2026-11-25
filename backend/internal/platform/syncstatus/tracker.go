@@ -17,6 +17,7 @@ type Tracker struct {
 	lastAttempt time.Time
 	lastOK      bool
 	blocked     Blocked
+	pausedUntil time.Time
 	staleWindow time.Duration
 }
 
@@ -42,6 +43,21 @@ func (t *Tracker) RecordSuccess() {
 	t.lastAttempt = time.Now()
 	t.lastOK = true
 	t.blocked = ""
+	t.pausedUntil = time.Time{}
+}
+
+// Pause holds the box's sync calls until the given time, as a refusal's Retry-After asked; memory only.
+func (t *Tracker) Pause(until time.Time) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.pausedUntil = until
+}
+
+// PausedUntil is zero when sync isn't paused.
+func (t *Tracker) PausedUntil() time.Time {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.pausedUntil
 }
 
 // RecordBlocked notes that the cloud answered but refused this box; it stays until a sync succeeds.

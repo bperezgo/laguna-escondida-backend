@@ -30,3 +30,13 @@ type BoxAlreadyEnrolledError struct {
 func (e *BoxAlreadyEnrolledError) Error() string { return ErrBoxAlreadyEnrolled.Error() }
 
 func (e *BoxAlreadyEnrolledError) Is(target error) bool { return target == ErrBoxAlreadyEnrolled }
+
+// NodeRefusalError is a cloud refusal of this node, with the delay the cloud asked for (0 when it gave none).
+type NodeRefusalError struct {
+	Reason     error
+	RetryAfter time.Duration
+}
+
+func (e *NodeRefusalError) Error() string { return e.Reason.Error() }
+
+func (e *NodeRefusalError) Unwrap() error { return e.Reason }

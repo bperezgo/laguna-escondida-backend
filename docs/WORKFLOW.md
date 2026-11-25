@@ -223,6 +223,9 @@ Each channel has its own tag prefix and cadence; a bare `v*` tag does nothing.
   live cloud satisfies, never one newer than the cloud supports. The other way, the edge sends
   `X-Edge-Version` and the cloud answers `426` below `MIN_EDGE_VERSION` (unset by default; raise it
   only in a cloud release that breaks the sync contract).
+- **Before self-serve signup opens** (`self-serve-signup-trial`): raise `MIN_EDGE_VERSION` to the
+  `edge/v*` release that ships `expired-box-backoff`. Older boxes don't pause when refused, so an
+  expired trial box on them would keep calling the cloud every minute.
 - **Order.** Deploy the cloud first when an edge release raises `min_cloud`; otherwise the two
   channels are independent.
 

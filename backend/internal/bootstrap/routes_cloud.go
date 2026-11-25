@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"net/http"
 	"time"
 
 	"laguna-escondida/backend/internal/domain/permissions"
@@ -43,6 +44,8 @@ type cloudHandlers struct {
 	edgeEnroll      *handler.EdgeEnrollHandler
 	// minEdgeVersion is the sync floor (config MIN_EDGE_VERSION); empty accepts any edge.
 	minEdgeVersion string
+	// nodeRefusalRetryAfter is the Retry-After on node refusals (config NODE_REFUSAL_RETRY_AFTER).
+	nodeRefusalRetryAfter time.Duration
 }
 
 func registerCloudRoutes(router *gin.Engine, adminAPIKey string, jwtService *service.JWTService, h cloudHandlers) {
@@ -96,16 +99,19 @@ func registerCloudRoutes(router *gin.Engine, adminAPIKey string, jwtService *ser
 
 	// Cloud sync aggregate: accept pushes from edge nodes and serve reference changes.
 	// Each acts for the organization the calling node is registered to.
-	nodeAuth := handler.NodeAuthMiddleware(h.nodes)
+	nodeAuth := handler.NodeAuthMiddleware(h.nodes, handler.WithRefusalRetryAfter(h.nodeRefusalRetryAfter))
+	// Alloy drops a batch on 401/403 and sends the next at once; it waits out a 429's Retry-After.
+	telemetryNodeAuth := handler.NodeAuthMiddleware(h.nodes,
+		handler.WithRefusalRetryAfter(h.nodeRefusalRetryAfter), handler.WithRefusalStatus(http.StatusTooManyRequests))
 	edgeVersion := handler.EdgeVersionMiddleware(h.minEdgeVersion)
 	router.POST("/api/sync/push", handler.PushNodeIDFromBody(), nodeAuth, edgeVersion, h.sync.PushHandler)
 	router.GET("/api/sync/pull", nodeAuth, edgeVersion, h.sync.PullHandler)
 	router.GET("/api/sync/pull/stock", nodeAuth, edgeVersion, h.sync.PullStockHandler)
 
 	if h.telemetry != nil {
-		router.POST("/api/telemetry/v1/logs", nodeAuth, h.telemetry.IngestLogsHandler)
-		router.POST("/api/telemetry/v1/traces", nodeAuth, h.telemetry.IngestTracesHandler)
-		router.POST("/api/telemetry/v1/metrics", nodeAuth, h.telemetry.IngestMetricsHandler)
+		router.POST("/api/telemetry/v1/logs", telemetryNodeAuth, h.telemetry.IngestLogsHandler)
+		router.POST("/api/telemetry/v1/traces", telemetryNodeAuth, h.telemetry.IngestTracesHandler)
+		router.POST("/api/telemetry/v1/metrics", telemetryNodeAuth, h.telemetry.IngestMetricsHandler)
 	}
 
 	RegisterDeliveryZoneRoutes(router, h.deliveryZone, jwtService)

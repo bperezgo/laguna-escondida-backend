@@ -2,6 +2,7 @@ package config
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -173,5 +174,38 @@ func TestLoadEdge_DoesNotReadPublicAPIURL(t *testing.T) {
 		_, err := LoadEdge()
 
 		require.NoError(t, err)
+	}
+}
+
+func TestLoadCloud_NodeRefusalRetryAfter_DefaultsToSixHours(t *testing.T) {
+	setCloudEnv(t)
+	t.Setenv("NODE_REFUSAL_RETRY_AFTER", "")
+
+	cfg, err := LoadCloud()
+
+	require.NoError(t, err)
+	assert.Equal(t, 6*time.Hour, cfg.NodeRefusalRetryAfter)
+}
+
+func TestLoadCloud_NodeRefusalRetryAfter_ReadFromEnv(t *testing.T) {
+	setCloudEnv(t)
+	t.Setenv("NODE_REFUSAL_RETRY_AFTER", "1h")
+
+	cfg, err := LoadCloud()
+
+	require.NoError(t, err)
+	assert.Equal(t, time.Hour, cfg.NodeRefusalRetryAfter)
+}
+
+func TestLoadCloud_NodeRefusalRetryAfter_InvalidReturnsError(t *testing.T) {
+	for _, value := range []string{"30s", "48h", "six hours", "-1h"} {
+		t.Run(value, func(t *testing.T) {
+			setCloudEnv(t)
+			t.Setenv("NODE_REFUSAL_RETRY_AFTER", value)
+
+			_, err := LoadCloud()
+
+			require.ErrorContains(t, err, "NODE_REFUSAL_RETRY_AFTER")
+		})
 	}
 }

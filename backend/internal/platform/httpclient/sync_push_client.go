@@ -56,7 +56,7 @@ func (c *SyncPushClient) Push(ctx context.Context, req *dto.SyncPushRequest) (re
 		return nil, fmt.Errorf("read sync push response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, syncStatusError("sync push", resp.StatusCode, respBody)
+		return nil, syncStatusError("sync push", resp, respBody)
 	}
 
 	var out dto.SyncPushResponse
