@@ -2,6 +2,7 @@ package httpclient
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -61,4 +62,54 @@ func TestSyncClients_RefusalReasons(t *testing.T) {
 		}
 		server.Close()
 	}
+}
+
+func TestSyncClients_RefusalCarriesRetryAfter(t *testing.T) {
+	cases := []struct {
+		name       string
+		status     int
+		body       string
+		retryAfter string
+		wantReason error
+		wantDelay  time.Duration
+	}{
+		{"invalid credentials", http.StatusUnauthorized, `{"error":"invalid node credentials"}`, "21600", domainError.ErrNodeKeyInvalid, 6 * time.Hour},
+		{"revoked", http.StatusUnauthorized, `{"error":"node revoked","code":"node_revoked"}`, "3600", domainError.ErrNodeRevoked, time.Hour},
+		{"suspended", http.StatusForbidden, `{"error":"organization suspended","code":"organization_suspended"}`, "60", domainError.ErrNodeOrganizationSuspended, time.Minute},
+		{"missing header", http.StatusForbidden, `{"error":"organization suspended","code":"organization_suspended"}`, "", domainError.ErrNodeOrganizationSuspended, 0},
+		{"unreadable header", http.StatusForbidden, `{"error":"organization suspended","code":"organization_suspended"}`, "Wed, 21 Oct 2026 07:28:00 GMT", domainError.ErrNodeOrganizationSuspended, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if tc.retryAfter != "" {
+					w.Header().Set("Retry-After", tc.retryAfter)
+				}
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			defer server.Close()
+
+			_, err := NewSyncPullClient(&Client{Client: server.Client()}, server.URL, "k", "n").Pull(context.Background(), time.Time{})
+
+			var refusal *domainError.NodeRefusalError
+			require.ErrorAs(t, err, &refusal)
+			assert.ErrorIs(t, err, tc.wantReason)
+			assert.Equal(t, tc.wantDelay, refusal.RetryAfter)
+		})
+	}
+}
+
+func TestSyncClients_ServerErrorIsNotARefusal(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Retry-After", "60")
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	_, err := NewSyncPullClient(&Client{Client: server.Client()}, server.URL, "k", "n").Pull(context.Background(), time.Time{})
+
+	require.Error(t, err)
+	var refusal *domainError.NodeRefusalError
+	assert.False(t, errors.As(err, &refusal))
 }

@@ -81,13 +81,15 @@ A box the cloud registered before node keys existed keeps its `node_id`: the enr
 
 ## Box refusals
 
-A box's sync and telemetry requests are refused as follows. The reasons are given only to a caller that presents the node's correct key.
+A box's sync and telemetry requests are refused as follows. The reasons are given only to a caller that presents the node's correct key. Telemetry routes answer every refusal with `429` and the same body, because the box's telemetry collector (Alloy) only waits out a `429`.
 
-| Status | `code`                   | Meaning                                                  |
-| ------ | ------------------------ | -------------------------------------------------------- |
-| 401    | none                     | Missing key, wrong key, unknown node, or another node's key; one body for all |
-| 401    | `node_revoked`           | The box was replaced                                     |
-| 403    | `organization_suspended` | The organization is suspended; works again once reactivated |
+| Sync status | Telemetry status | Body                                                                   | Meaning |
+| ----------- | ---------------- | ---------------------------------------------------------------------- | ------- |
+| 401         | 429              | `{"error": "invalid node credentials"}`                                | Missing key, wrong key, unknown node, or another node's key; one body for all |
+| 401         | 429              | `{"error": "node revoked", "code": "node_revoked"}`                    | The box was replaced |
+| 403         | 429              | `{"error": "organization suspended", "code": "organization_suspended"}` | The organization is suspended; works again once reactivated |
+
+Every refusal carries `Retry-After: <seconds>`, from the cloud setting `NODE_REFUSAL_RETRY_AFTER` (Go duration between `1m` and `24h`, default `6h`, so `21600`). An accepted request has no `Retry-After`. The box stops syncing for that long, then makes one call; restarting the edge service ends the pause early. The cloud remembers a refusal for up to 5 minutes, so a reactivation takes up to 5 minutes to reach the box's next call.
 
 ## Box status
 

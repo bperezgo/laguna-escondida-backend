@@ -101,7 +101,7 @@ func NewEdge(cfg *config.Edge, infra Infra) (*App, error) {
 		build: func() (scheduler, error) {
 			return cron.NewEdgeSyncScheduler(
 				c.organizationRunner, cfg.OrganizationID, syncPushService, syncPullService, stockPullService, c.syncStatusTracker,
-				cfg.SyncPushCron, cfg.SyncPullCron, cfg.StockPullCron, logger,
+				cfg.SyncPushCron, cfg.SyncPullCron, cfg.StockPullCron, logger, cron.WithNodeID(cfg.NodeID),
 			)
 		},
 	})

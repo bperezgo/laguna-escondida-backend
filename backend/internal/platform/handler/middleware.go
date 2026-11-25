@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -66,26 +67,54 @@ func AdminAPIKeyMiddleware(adminAPIKey string) gin.HandlerFunc {
 // NodeIDHeader names the calling edge node; its registered organization is the one it syncs for.
 const NodeIDHeader = "X-Node-ID"
 
+type nodeAuthConfig struct {
+	retryAfter    time.Duration
+	refusalStatus int
+}
+
+type NodeAuthOption func(*nodeAuthConfig)
+
+// WithRefusalRetryAfter sets Retry-After on every refusal, telling a refused box when to call again.
+func WithRefusalRetryAfter(d time.Duration) NodeAuthOption {
+	return func(cfg *nodeAuthConfig) { cfg.retryAfter = d }
+}
+
+// WithRefusalStatus answers every refusal with status instead of 401/403: Alloy only waits out a 429.
+func WithRefusalStatus(status int) NodeAuthOption {
+	return func(cfg *nodeAuthConfig) { cfg.refusalStatus = status }
+}
+
 // NodeAuthMiddleware authenticates an edge node calling the cloud sync endpoints: X-Node-Key
 // must be the key issued to the node named by X-Node-ID, and the request then acts for that
 // node's organization. Unknown node, missing key and wrong key share one 401 body.
-func NodeAuthMiddleware(nodes *service.NodeService) gin.HandlerFunc {
+func NodeAuthMiddleware(nodes *service.NodeService, opts ...NodeAuthOption) gin.HandlerFunc {
+	var cfg nodeAuthConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	refuse := func(c *gin.Context, status int, body gin.H) {
+		if cfg.retryAfter > 0 {
+			c.Header("Retry-After", strconv.Itoa(int(cfg.retryAfter/time.Second)))
+		}
+		if cfg.refusalStatus != 0 {
+			status = cfg.refusalStatus
+		}
+		c.JSON(status, body)
+		c.Abort()
+	}
 	return func(c *gin.Context) {
 		nodeID := c.GetHeader(NodeIDHeader)
 		orgID, err := nodes.Authenticate(c.Request.Context(), nodeID, c.GetHeader("X-Node-Key"))
 		switch {
 		case err == nil:
 		case errors.Is(err, domainError.ErrNodeKeyInvalid):
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid node credentials"})
-			c.Abort()
+			refuse(c, http.StatusUnauthorized, gin.H{"error": "invalid node credentials"})
 			return
 		case errors.Is(err, domainError.ErrNodeRevoked):
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "node revoked", "code": "node_revoked"})
-			c.Abort()
+			refuse(c, http.StatusUnauthorized, gin.H{"error": "node revoked", "code": "node_revoked"})
 			return
 		case errors.Is(err, domainError.ErrNodeOrganizationSuspended):
-			c.JSON(http.StatusForbidden, gin.H{"error": "organization suspended", "code": "organization_suspended"})
-			c.Abort()
+			refuse(c, http.StatusForbidden, gin.H{"error": "organization suspended", "code": "organization_suspended"})
 			return
 		default:
 			_ = c.Error(err)

@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"laguna-escondida/backend/internal/platform/buildinfo"
 )
@@ -51,6 +52,8 @@ type Cloud struct {
 	PublicAPIURL string
 	// MinEdgeVersion is the oldest edge release allowed to sync ("vX.Y.Z"); empty accepts any.
 	MinEdgeVersion string
+	// NodeRefusalRetryAfter is the Retry-After on every node refusal; within the edge's [1m, 24h] clamp.
+	NodeRefusalRetryAfter time.Duration
 	// FeedbackRequestCron asks for feedback the morning after visits; ReservationVisitedCron marks
 	// confirmed reservations visited two hours after they start.
 	FeedbackRequestCron    string
@@ -154,8 +157,13 @@ func LoadCloud() (*Cloud, error) {
 	if err != nil {
 		return nil, err
 	}
+	nodeRefusalRetryAfter, err := loadNodeRefusalRetryAfter()
+	if err != nil {
+		return nil, err
+	}
 
 	return &Cloud{
+		NodeRefusalRetryAfter:  nodeRefusalRetryAfter,
 		PublicAPIURL:           publicAPIURL,
 		MinEdgeVersion:         minEdgeVersion,
 		Shared:                 shared,
@@ -192,6 +200,24 @@ func loadPublicAPIURL() (string, error) {
 		return "", fmt.Errorf("invalid PUBLIC_API_URL %q: want an absolute http(s) URL with a host and no path, query or fragment", raw)
 	}
 	return strings.TrimSuffix(raw, "/"), nil
+}
+
+const (
+	defaultNodeRefusalRetryAfter = 6 * time.Hour
+	minNodeRefusalRetryAfter     = time.Minute
+	maxNodeRefusalRetryAfter     = 24 * time.Hour
+)
+
+func loadNodeRefusalRetryAfter() (time.Duration, error) {
+	raw := os.Getenv("NODE_REFUSAL_RETRY_AFTER")
+	if raw == "" {
+		return defaultNodeRefusalRetryAfter, nil
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil || d < minNodeRefusalRetryAfter || d > maxNodeRefusalRetryAfter {
+		return 0, fmt.Errorf("invalid NODE_REFUSAL_RETRY_AFTER %q: want a duration between 1m and 24h", raw)
+	}
+	return d, nil
 }
 
 func envOr(name, fallback string) string {

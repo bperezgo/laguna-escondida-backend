@@ -153,3 +153,61 @@ func nodeKeyHash(key string) string {
 	sum := sha256.Sum256([]byte(key))
 	return hex.EncodeToString(sum[:])
 }
+
+func TestNodeAuthMiddleware_RefusalRetryAfter(t *testing.T) {
+	const key = "lgn_secret"
+	refusals := []struct {
+		name       string
+		key        string
+		nodeID     string
+		syncStatus int
+		body       string
+	}{
+		{"wrong key", "nope", testNodeID, http.StatusUnauthorized, `{"error":"invalid node credentials"}`},
+		{"revoked", key, testRevokedID, http.StatusUnauthorized, `{"error":"node revoked","code":"node_revoked"}`},
+		{"suspended", key, testSuspendID, http.StatusForbidden, `{"error":"organization suspended","code":"organization_suspended"}`},
+	}
+	routes := []struct {
+		name string
+		opts []NodeAuthOption
+		want func(syncStatus int) int
+	}{
+		{"sync", []NodeAuthOption{WithRefusalRetryAfter(6 * time.Hour)}, func(s int) int { return s }},
+		{"telemetry", []NodeAuthOption{WithRefusalRetryAfter(6 * time.Hour), WithRefusalStatus(http.StatusTooManyRequests)},
+			func(int) int { return http.StatusTooManyRequests }},
+	}
+	for _, route := range routes {
+		for _, tc := range refusals {
+			t.Run(route.name+"/"+tc.name, func(t *testing.T) {
+				router := gin.New()
+				router.POST("/x", NodeAuthMiddleware(registeredNodes(t, key, nil), route.opts...), func(c *gin.Context) { c.Status(http.StatusOK) })
+				req := httptest.NewRequest(http.MethodPost, "/x", nil)
+				req.Header.Set("X-Node-Key", tc.key)
+				req.Header.Set(NodeIDHeader, tc.nodeID)
+				w := httptest.NewRecorder()
+
+				router.ServeHTTP(w, req)
+
+				assert.Equal(t, route.want(tc.syncStatus), w.Code)
+				assert.Equal(t, "21600", w.Header().Get("Retry-After"))
+				assert.JSONEq(t, tc.body, w.Body.String())
+			})
+		}
+	}
+}
+
+func TestNodeAuthMiddleware_AcceptedRequestHasNoRetryAfter(t *testing.T) {
+	const key = "lgn_secret"
+	router := gin.New()
+	router.POST("/x", NodeAuthMiddleware(registeredNodes(t, key, nil), WithRefusalRetryAfter(time.Hour), WithRefusalStatus(http.StatusTooManyRequests)),
+		func(c *gin.Context) { c.Status(http.StatusOK) })
+	req := httptest.NewRequest(http.MethodPost, "/x", nil)
+	req.Header.Set("X-Node-Key", key)
+	req.Header.Set(NodeIDHeader, testNodeID)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Empty(t, w.Header().Get("Retry-After"))
+}

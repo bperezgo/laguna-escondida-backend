@@ -7,6 +7,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -28,7 +29,11 @@ const (
 	nodeMaxNameLength        = 255
 	nodeSeenInterval         = time.Minute
 	nodeKindEdge             = "edge"
+	nodeRefusalCachePrefix   = "node-auth:"
 )
+
+// NodeRefusalCacheTTL bounds how long a reactivation or re-enrollment can take to reach node auth.
+const NodeRefusalCacheTTL = 5 * time.Minute
 
 // NodeService authenticates calling edge nodes and enrolls them.
 type NodeService struct {
@@ -39,38 +44,75 @@ type NodeService struct {
 	// publicAPIURL is returned to an enrolling box as the address it syncs against.
 	publicAPIURL string
 	now          func() time.Time
+	refusals     ports.KeyValueCache
+	refusalTTL   time.Duration
 }
 
-func NewNodeService(nodes ports.NodeRepository, orgs ports.OrganizationRepository, uow ports.UnitOfWork, logger *slog.Logger, publicAPIURL string) *NodeService {
-	return &NodeService{
+type NodeServiceOption func(*NodeService)
+
+// WithNodeRefusalCache remembers refused and unknown nodes for ttl, so a refused box's repeat calls skip the database.
+func WithNodeRefusalCache(cache ports.KeyValueCache, ttl time.Duration) NodeServiceOption {
+	return func(s *NodeService) {
+		s.refusals = cache
+		s.refusalTTL = ttl
+	}
+}
+
+func NewNodeService(nodes ports.NodeRepository, orgs ports.OrganizationRepository, uow ports.UnitOfWork, logger *slog.Logger, publicAPIURL string, opts ...NodeServiceOption) *NodeService {
+	s := &NodeService{
 		nodes:        nodes,
 		orgs:         orgs,
 		uow:          uow,
 		logger:       logger,
 		publicAPIURL: publicAPIURL,
 		now:          func() time.Time { return time.Now().UTC() },
+		refusalTTL:   NodeRefusalCacheTTL,
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
+}
+
+// cachedNodeAuth holds only what evaluating a request needs; Found=false is an unknown node.
+type cachedNodeAuth struct {
+	Found              bool   `json:"found"`
+	OrganizationID     string `json:"organization_id,omitempty"`
+	KeyHash            string `json:"key_hash,omitempty"`
+	Revoked            bool   `json:"revoked,omitempty"`
+	OrganizationStatus string `json:"organization_status,omitempty"`
 }
 
 // Authenticate returns the node's organization. Unknown node, missing key and wrong key all
 // return ErrNodeKeyInvalid; revoked and suspended are only told to a caller holding the right key.
 func (s *NodeService) Authenticate(ctx context.Context, nodeID, key string) (string, error) {
+	if cached, ok := s.cachedRefusal(ctx, nodeID); ok {
+		if _, err := evaluateNodeAuth(cached, key); err != nil {
+			return "", err
+		}
+		// Cached after someone else's wrong key; the real box takes the normal path so it is touched.
+		_ = s.refusals.Delete(ctx, s.refusalKey(nodeID))
+	}
+
 	record, err := s.nodes.FindForAuth(ctx, nodeID)
 	if errors.Is(err, domainError.ErrNodeNotFound) {
+		s.rememberRefusal(ctx, nodeID, cachedNodeAuth{Found: false})
 		return "", domainError.ErrNodeKeyInvalid
 	}
 	if err != nil {
 		return "", fmt.Errorf("authenticate node %s: %w", nodeID, err)
 	}
-	if record.KeyHash == "" || key == "" ||
-		subtle.ConstantTimeCompare([]byte(hashNodeKey(key)), []byte(record.KeyHash)) != 1 {
-		return "", domainError.ErrNodeKeyInvalid
+	auth := cachedNodeAuth{
+		Found:              true,
+		OrganizationID:     record.OrganizationID,
+		KeyHash:            record.KeyHash,
+		Revoked:            record.RevokedAt != nil,
+		OrganizationStatus: record.OrganizationStatus,
 	}
-	if record.RevokedAt != nil {
-		return "", domainError.ErrNodeRevoked
-	}
-	if record.OrganizationStatus == dto.OrganizationStatusSuspended {
-		return "", domainError.ErrNodeOrganizationSuspended
+	orgID, err := evaluateNodeAuth(auth, key)
+	if err != nil {
+		s.rememberRefusal(ctx, nodeID, auth)
+		return "", err
 	}
 
 	now := s.now()
@@ -79,7 +121,50 @@ func (s *NodeService) Authenticate(ctx context.Context, nodeID, key string) (str
 			s.logger.WarnContext(ctx, "record node last seen failed", "node_id", nodeID, "error", err)
 		}
 	}
-	return record.OrganizationID, nil
+	return orgID, nil
+}
+
+func evaluateNodeAuth(auth cachedNodeAuth, key string) (string, error) {
+	if !auth.Found || auth.KeyHash == "" || key == "" ||
+		subtle.ConstantTimeCompare([]byte(hashNodeKey(key)), []byte(auth.KeyHash)) != 1 {
+		return "", domainError.ErrNodeKeyInvalid
+	}
+	if auth.Revoked {
+		return "", domainError.ErrNodeRevoked
+	}
+	if auth.OrganizationStatus == dto.OrganizationStatusSuspended {
+		return "", domainError.ErrNodeOrganizationSuspended
+	}
+	return auth.OrganizationID, nil
+}
+
+func (s *NodeService) refusalKey(nodeID string) string { return nodeRefusalCachePrefix + nodeID }
+
+// A cache failure or unreadable entry is a miss: the database stays the source of truth.
+func (s *NodeService) cachedRefusal(ctx context.Context, nodeID string) (cachedNodeAuth, bool) {
+	if s.refusals == nil {
+		return cachedNodeAuth{}, false
+	}
+	raw, ok, err := s.refusals.Get(ctx, s.refusalKey(nodeID))
+	if err != nil || !ok {
+		return cachedNodeAuth{}, false
+	}
+	var auth cachedNodeAuth
+	if json.Unmarshal(raw, &auth) != nil {
+		return cachedNodeAuth{}, false
+	}
+	return auth, true
+}
+
+func (s *NodeService) rememberRefusal(ctx context.Context, nodeID string, auth cachedNodeAuth) {
+	if s.refusals == nil {
+		return
+	}
+	raw, err := json.Marshal(auth)
+	if err != nil {
+		return
+	}
+	_ = s.refusals.Set(ctx, s.refusalKey(nodeID), raw, s.refusalTTL)
 }
 
 // Enroll registers a box for the organization; see design decision 4 for the four paths.
@@ -123,6 +208,10 @@ func (s *NodeService) Enroll(ctx context.Context, orgID string, req *dto.EnrollE
 	})
 	if err != nil {
 		return nil, fmt.Errorf("enroll box: %w", err)
+	}
+	// Adopting a keyless node keeps its id; a refusal cached before it had a key must not answer the new box.
+	if s.refusals != nil {
+		_ = s.refusals.Delete(ctx, s.refusalKey(nodeID))
 	}
 	return &dto.EnrolledEdgeBox{NodeID: nodeID, OrganizationID: orgID, OrganizationName: org.Name, NodeKey: key, CloudSyncURL: s.publicAPIURL}, nil
 }

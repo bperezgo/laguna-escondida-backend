@@ -1415,6 +1415,25 @@ curl -X POST "$BASE_URL/edge/enroll" \
   -d '{"name": "PC nuevo", "replace": true}'
 ```
 
+### See a box's refusal and its Retry-After
+
+A box of a suspended organization pulling with its own key:
+
+```bash
+curl -s -i "$BASE_URL/sync/pull" \
+  -H "X-Node-ID: $NODE_ID" \
+  -H "X-Node-Key: $NODE_SYNC_KEY"
+```
+
+```
+HTTP/1.1 403 Forbidden
+Retry-After: 21600
+
+{"code":"organization_suspended","error":"organization suspended"}
+```
+
+`Retry-After` is `NODE_REFUSAL_RETRY_AFTER` in seconds; the box stays quiet that long.
+
 ---
 
 ## Telemetry Ingest
@@ -1465,16 +1484,25 @@ curl -X POST "$BASE_URL/telemetry/v1/metrics" \
   --data-binary @export.pb
 ```
 
-### Check auth is rejecting a bad node key (expects 401)
+### Check auth is rejecting a bad node key (expects 429 with Retry-After)
+
+Telemetry refusals are `429`, so Alloy waits out `Retry-After` instead of retrying at once.
 
 ```bash
 export BAD_NODE_KEY="not-the-real-key"
 
-curl -s -o /dev/null -w "%{http_code}\n" -X POST "$BASE_URL/telemetry/v1/logs" \
+curl -s -i -X POST "$BASE_URL/telemetry/v1/logs" \
   -H "X-Node-ID: $NODE_ID" \
   -H "X-Node-Key: $BAD_NODE_KEY" \
   -H "Content-Type: application/x-protobuf" \
   --data-binary @export.pb
+```
+
+```
+HTTP/1.1 429 Too Many Requests
+Retry-After: 21600
+
+{"error":"invalid node credentials"}
 ```
 
 ---

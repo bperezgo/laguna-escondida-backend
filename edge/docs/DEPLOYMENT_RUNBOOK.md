@@ -104,6 +104,10 @@ An edge release is one `edge/v*` tag on the monorepo; it is independent of cloud
    `PUBLIC_API_URL`. Signing runs when the secrets `KUENTA_SIGN_PFX_BASE64` and
    `KUENTA_SIGN_PFX_PASSWORD` exist; without them the installer is published unsigned and the notes say so.
 
+5. **Before self-serve signup opens** (`self-serve-signup-trial`): once the `edge/v*` release that
+   ships `expired-box-backoff` is out, raise the cloud's `MIN_EDGE_VERSION` to it. Older boxes don't
+   pause when the cloud refuses them, so an expired trial box on one keeps calling every minute.
+
 ---
 
 ## 4. The script path (developer fallback)
