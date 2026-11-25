@@ -51,7 +51,7 @@ else { $fetch.Tags = @{ 'edge-node' = $Version; next = $Version } }   # an alrea
 if (-not (Test-Path (Join-Path $StageDir 'services\winsw.exe'))) { throw 'winsw.exe missing from the stage' }
 foreach ($app in 'edge-node', 'next') {
   $got = (Get-Content (Join-Path $StageDir "artifacts\$app\RELEASE") -Raw).Trim()
-  if ($got -ne $Version) { throw "$app is $got, expected $Version: the zips in -AssetDir are not this release's." }
+  if ($got -ne $Version) { throw "$app is $got, expected ${Version}: the zips in -AssetDir are not this release's." }
 }
 
 Step 'Trimming Postgres to bin, lib, share'
