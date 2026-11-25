@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { buildSiteConfig, whatsappLink } from "./build-site-config.ts";
+import { buildSiteConfig, installerDownloadUrl, whatsappLink } from "./build-site-config.ts";
 
 const base = { PUBLIC_API_BASE_URL: "https://api.example.com/" };
 
@@ -67,4 +67,14 @@ test("without a number there is no WhatsApp link", () => {
 
 test("a malformed number fails the build", () => {
   assert.throws(() => buildSiteConfig({ ...base, PUBLIC_WHATSAPP_NUMBER: "12" }), /PUBLIC_WHATSAPP_NUMBER is malformed/);
+});
+
+test("the installer link is the configured backend's download endpoint, with or without a trailing slash", () => {
+  for (const api of ["https://api.example.com", "https://api.example.com/", "https://api.example.com//"]) {
+    assert.equal(installerDownloadUrl(buildSiteConfig({ PUBLIC_API_BASE_URL: api })), "https://api.example.com/api/public/edge/installer");
+  }
+  assert.equal(
+    installerDownloadUrl(buildSiteConfig({ PUBLIC_API_BASE_URL: "https://staging-api.example.com/" })),
+    "https://staging-api.example.com/api/public/edge/installer",
+  );
 });

@@ -17,7 +17,7 @@ export const faqs: Faq[] = [
   {
     question: "¿Es difícil cambiar de sistema?",
     answer:
-      "No empiezas solo. Instalamos el equipo, cargamos tu menú y dejamos listo tu canal de WhatsApp antes de que abras con el sistema nuevo.",
+      "No empiezas solo. Cargamos tu menú y dejamos listo tu canal de WhatsApp antes de que abras con el sistema nuevo. Tú instalas el sistema en el computador del local con nuestro instalador.",
   },
   {
     question: "¿Mi equipo va a aprender a usarlo?",

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 
-import { trackLead, trackWhatsApp } from "./track.ts";
+import { trackInstallerDownload, trackLead, trackWhatsApp } from "./track.ts";
 
 const globals = globalThis as Record<string, unknown>;
 
@@ -20,6 +20,7 @@ function install(): unknown[][] {
 test("calls do not throw when both tools are missing", () => {
   assert.doesNotThrow(() => trackLead("0b9c1c3e-6a1f-4c1e-9d55-3f2a8b7c1d10"));
   assert.doesNotThrow(() => trackWhatsApp());
+  assert.doesNotThrow(() => trackInstallerDownload());
 });
 
 test("calls do not throw when a tool throws", () => {
@@ -31,6 +32,7 @@ test("calls do not throw when a tool throws", () => {
   };
   assert.doesNotThrow(() => trackLead("0b9c1c3e-6a1f"));
   assert.doesNotThrow(() => trackWhatsApp());
+  assert.doesNotThrow(() => trackInstallerDownload());
 });
 
 test("a lead reports generate_lead and Lead with the same event id", () => {
@@ -53,6 +55,24 @@ test("the WhatsApp action reports contact_whatsapp and Contact", () => {
   ]);
 });
 
+test("an installer download reports installer_download and InstallerDownload, once each", () => {
+  const calls = install();
+  trackInstallerDownload();
+
+  assert.deepEqual(calls, [
+    ["gtag", "event", "installer_download"],
+    ["fbq", "trackCustom", "InstallerDownload"],
+  ]);
+});
+
+test("an installer download with one tool missing still reaches the other", () => {
+  const calls: unknown[][] = [];
+  globals.gtag = (...args: unknown[]) => calls.push(["gtag", ...args]);
+  trackInstallerDownload();
+
+  assert.deepEqual(calls, [["gtag", "event", "installer_download"]]);
+});
+
 test("one tool missing does not stop the other", () => {
   const calls: unknown[][] = [];
   globals.fbq = (...args: unknown[]) => calls.push(["fbq", ...args]);
@@ -65,6 +85,7 @@ test("no event carries a name, restaurant or phone", () => {
   const calls = install();
   trackLead("0b9c1c3e-6a1f");
   trackWhatsApp();
+  trackInstallerDownload();
 
   const sent = JSON.stringify(calls);
   assert.doesNotMatch(sent, /name|restaurant|phone|\+57/i);

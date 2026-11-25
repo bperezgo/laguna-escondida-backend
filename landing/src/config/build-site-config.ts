@@ -63,3 +63,8 @@ export function whatsappLink(config: SiteConfig, message: string): string | unde
   if (!config.whatsappNumber) return undefined;
   return `https://wa.me/${config.whatsappNumber}?text=${encodeURIComponent(message)}`;
 }
+
+/** Contract: backend/docs/api/edge-downloads.md. A plain link, so the download works without scripts. */
+export function installerDownloadUrl(config: SiteConfig): string {
+  return `${config.apiBaseUrl}/api/public/edge/installer`;
+}

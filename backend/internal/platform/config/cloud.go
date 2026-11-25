@@ -58,6 +58,8 @@ type Cloud struct {
 	// confirmed reservations visited two hours after they start.
 	FeedbackRequestCron    string
 	ReservationVisitedCron string
+	// EdgeReleasesRepo ("owner/name") is the public GitHub repository the installer download reads.
+	EdgeReleasesRepo string
 }
 
 type ElectronicInvoice struct {
@@ -161,6 +163,10 @@ func LoadCloud() (*Cloud, error) {
 	if err != nil {
 		return nil, err
 	}
+	edgeReleasesRepo, err := loadEdgeReleasesRepo()
+	if err != nil {
+		return nil, err
+	}
 
 	return &Cloud{
 		NodeRefusalRetryAfter:  nodeRefusalRetryAfter,
@@ -184,6 +190,7 @@ func LoadCloud() (*Cloud, error) {
 		TrustedProxies:         trustedProxies,
 		FeedbackRequestCron:    feedbackRequestCron,
 		ReservationVisitedCron: reservationVisitedCron,
+		EdgeReleasesRepo:       edgeReleasesRepo,
 	}, nil
 }
 
