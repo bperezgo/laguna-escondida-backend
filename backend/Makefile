@@ -1,6 +1,6 @@
 # Every target is a command, not a file: `test` would otherwise match the test/ directory and
 # make would report it "up to date" without running anything.
-.PHONY: new-migration migrate-up migrate-down run run-cloud run-edge build-cloud build-edge test test-ci test-acceptance test-acceptance-ci lint lint-fix pre-push install-hooks uninstall-hooks generate-mocks regenerate-mocks sync-up sync-logs sync-down sync-reset run-mcp build-mcp
+.PHONY: new-migration migrate-up migrate-down run run-cloud run-edge build-cloud build-edge test test-ci test-acceptance test-acceptance-ci lint lint-fix pre-push install-hooks uninstall-hooks generate-mocks regenerate-mocks sync-up sync-logs sync-down sync-reset sync-orgs sync-delete-org run-mcp build-mcp
 
 # Same gotestsum as CI; falls back to `go run` at that version when it isn't installed.
 GOTESTSUM_VERSION := v1.12.3
@@ -126,6 +126,17 @@ sync-down:
 sync-reset:
 	@echo "Stopping local sync rig and wiping volumes..."
 	docker compose -f docker-compose.sync.yml down -v
+
+# List the rig cloud's organizations
+sync-orgs:
+	@docker compose -f docker-compose.sync.yml exec -T cloud-db psql -U postgres -d laguna_escondida \
+		-c "SELECT id, slug, status, plan, created_at FROM organizations ORDER BY created_at"
+
+# Delete one organization and all its rows from the rig cloud, to sign up again (testing only)
+sync-delete-org:
+	@test -n "$(ORG)" || { echo "usage: make sync-delete-org ORG=<organization id>  (see make sync-orgs)"; exit 1; }
+	docker compose -f docker-compose.sync.yml exec -T cloud-db psql -U postgres -d laguna_escondida \
+		-v org=$(ORG) < scripts/dev/delete_org.sql
 
 # --- MCP server -----------------------------------------------------------
 # Exposes the backend API as MCP tools over Streamable HTTP for Claude Code.
