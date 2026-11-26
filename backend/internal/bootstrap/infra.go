@@ -23,6 +23,8 @@ type Infra struct {
 	// ElectronicInvoice is cloud-only; the edge leaves it nil.
 	ElectronicInvoice ports.ElectronicInvoiceClient
 	EventBus          *eventbus.GoChannelEventBus
+	// GoogleVerifier stands in for Google's in tests; nil builds the real one from GOOGLE_CLIENT_ID.
+	GoogleVerifier ports.GoogleIdentityVerifier
 }
 
 // NewInfra builds the clients shared by both modes.

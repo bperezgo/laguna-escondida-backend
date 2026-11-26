@@ -6,9 +6,9 @@ Create and maintain the organizations (restaurants) that share this POS, their s
 - **Admin API key.** Every route requires `X-API-Key: <ADMIN_API_KEY>`. A user JWT, of any role, is refused with `401`. (Tenancy step 3 replaces the key with a `platform_admin` check on the same paths.)
 - **No delete.** An organization's invoices are legal records. Retire an organization with `PATCH {"status": "suspended"}`.
 
-> ⚠️ **New organizations can't be used yet.** Creating an organization stores its settings, but nobody can sign in to it and no data can belong to it until tenancy steps 2–4 land (memberships, tenant columns, row-level security). See `docs/multi-tenancy-plan.md` §8.
+Restaurants can also create their own organization through [self-serve signup](./signup.md), on a 14-day trial.
 
-> ⚠️ **Settings are stored, not yet enforced.** They are returned to the frontend on [`GET /api/auth/me`](./auth.md#get-current-user), but the running organization still comes from `ORGANIZATION_ID`; the edge still prints from `BUSINESS_*` / `TICKET_*`; the timezone is read only to evaluate the ordering schedules in `settings` (and returned on `/api/auth/me`); a `suspended` organization is not blocked. Each consumer switches over in its own tenancy step.
+> **What changes runtime behavior.** Only the ordering `settings`, `status`, `trial_ends_at` and `plan`. A `suspended` organization, or one whose trial has ended, is refused in the cloud (users, API keys, box sync; see [Organization access refusals](./auth.md#organization-access-refusals)); `plan` decides the cloud features it reaches (see [Plans](#plans)) and whether its bills are sent to DIAN. Business info, receipt text and branding are returned on [`GET /api/auth/me`](./auth.md#get-current-user) and not read anywhere else yet.
 
 ## Organization Fields
 
@@ -17,7 +17,9 @@ Create and maintain the organizations (restaurants) that share this POS, their s
 | `id`                  | string (UUID)  | —        | generated (v7)   | Read-only                                                                  |
 | `name`                | string         | Yes      | —                | Not blank, at most 255 characters (trimmed)                                |
 | `slug`                | string         | Yes      | —                | `^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$`, unique, **immutable** after create |
-| `status`              | string         | No       | `active`         | `active` or `suspended`                                                    |
+| `status`              | string         | No       | `active`         | `trial`, `active` or `suspended`; `trial` needs a `trial_ends_at`, sent or stored |
+| `plan`                | string         | No       | `full`           | `starter`, `einvoicing` or `full`                                          |
+| `trial_ends_at`       | string \| null | No       | `null`           | RFC 3339. From this instant a `trial` organization is expired; an `active` one never expires |
 | `timezone`            | string         | No       | `America/Bogota` | A valid IANA time zone name                                                |
 | `country`             | string         | No       | `CO`             | Two uppercase letters (ISO 3166-1 alpha-2)                                 |
 | `locale`              | string         | No       | `es-CO`          | `ll-RR`, e.g. `es-CO`                                                      |
@@ -47,6 +49,18 @@ Create and maintain the organizations (restaurants) that share this POS, their s
   }
 }
 ```
+
+## Plans
+
+| Feature | Routes | `starter` | `einvoicing` | `full` |
+|---|---|---|---|---|
+| Core: orders, kitchen, products, stock, suppliers, purchases, expenses, bill owners, users, reports, financial summary, organization settings, box enrollment | every route not listed below | yes | yes | yes |
+| E-invoicing | `/api/invoices*`, `/api/support-documents*` | no | yes | yes |
+| Customer channels | `/api/reservations*`, `/api/sse/reservations`, `/api/contacts*`, `/api/feedback*`, `/api/delivery-zones*`, `/api/deliveries*`, `/api/notification-channels*`, `/api/notification-rules*` | no | no | yes |
+| Payments and integrations | `/api/organization/integrations*`, `/api/organization/payment-settings*` | no | no | yes |
+| Agents and MCP | `/api/organization/api-keys*`, any request with an organization API key, any request by a user with the agent role | no | no | yes |
+
+A refused request answers `403 {"code": "plan_required", "required_plan": "<plan>"}`. Bills received from a box while the plan excludes e-invoicing are stored but their pending invoice is marked `skipped` and never sent to DIAN, even after an upgrade. Changing the plan keeps every record and API key.
 
 ## Endpoints
 
@@ -123,6 +137,8 @@ Any field from [Organization Fields](#organization-fields) except the read-only 
   "name": "Restaurante X S.A.S",
   "slug": "restaurante-x",
   "status": "active",
+  "plan": "full",
+  "trial_ends_at": null,
   "timezone": "America/Bogota",
   "country": "CO",
   "locale": "es-CO",
@@ -172,6 +188,8 @@ Any field from [Organization Fields](#organization-fields) except the read-only 
   "name": "El Muelle S.A.S",
   "slug": "el-muelle",
   "status": "active",
+  "plan": "full",
+  "trial_ends_at": null,
   "timezone": "America/Bogota",
   "country": "CO",
   "locale": "es-CO",
@@ -241,6 +259,8 @@ GET /api/platform/organizations
       "name": "Laguna Escondida, Restaurante y Pesca S.A.S",
       "slug": "laguna-escondida",
       "status": "active",
+      "plan": "full",
+      "trial_ends_at": null,
       "timezone": "America/Bogota",
       "country": "CO",
       "locale": "es-CO",
@@ -273,6 +293,8 @@ GET /api/platform/organizations
       "name": "Restaurante X S.A.S",
       "slug": "restaurante-x",
       "status": "suspended",
+      "plan": "full",
+      "trial_ends_at": null,
       "timezone": "America/Bogota",
       "country": "CO",
       "locale": "es-CO",
@@ -329,7 +351,11 @@ PATCH /api/platform/organizations/:id
 
 - A field that is absent is left unchanged.
 - An **optional** field sent as `""` is cleared (becomes `null`).
-- `name`, `status`, `timezone`, `country`, `locale` and `currency` cannot be cleared: `""` is a `400`.
+- `name`, `status`, `plan`, `timezone`, `country`, `locale` and `currency` cannot be cleared: `""` is a `400`.
+- `trial_ends_at` sent as `""` is cleared, unless the organization stays in `trial` (`400`).
+- **Activate** a paying customer with `{"status": "active", "plan": "einvoicing"}`; an active organization never expires.
+- **Extend** a trial with a later `trial_ends_at`, e.g. `{"trial_ends_at": "2026-12-31T23:59:59-05:00"}`.
+- Changes apply within a minute to users and API keys, and within about 5 minutes to the box (its refusal backoff).
 - `slug` cannot be changed: a body containing `slug` is a `400`.
 - `updated_at` is always bumped.
 
@@ -375,6 +401,22 @@ The full updated organization, same shape as [Get Organization](#get-organizatio
 {
   "error": "invalid timezone: is required and cannot be cleared",
   "field": "timezone"
+}
+```
+
+**400 Bad Request** - Trial without an end, or an unknown plan
+
+```json
+{
+  "error": "invalid trial_ends_at: is required while the status is trial",
+  "field": "trial_ends_at"
+}
+```
+
+```json
+{
+  "error": "invalid plan: must be starter, einvoicing or full",
+  "field": "plan"
 }
 ```
 

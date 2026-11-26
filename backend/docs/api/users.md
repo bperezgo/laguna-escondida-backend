@@ -5,7 +5,9 @@ User management endpoints. Creating users is an **admin-only** operation guarded
 **Cloud only: user writes.** The box (edge) serves sign-in, `/api/auth/me`, `GET /api/admin/users`, `GET /api/admin/users/:id` and `GET /api/admin/roles`, and gets its users from the cloud's pull. These routes exist only in the cloud; on the box they return `404`:
 
 - `POST /api/users` (admin-key bootstrap)
-- `POST /api/admin/users`, `PUT /api/admin/users/:id`, `POST /api/admin/users/:id/reset-password`, `DELETE /api/admin/users/:id`
+- `POST /api/admin/users`, `PUT /api/admin/users/:id`, `POST /api/admin/users/:id/reset-password`, `POST /api/admin/users/:id/generate-password`, `DELETE /api/admin/users/:id`
+
+People who use the cloud app can also be brought in with an [invitation link](invitations.md).
 
 For authentication (sign in) and reading the current user, see [Authentication](auth.md).
 
@@ -14,6 +16,7 @@ For authentication (sign in) and reading the current user, see [Authentication](
 | Method | Endpoint      | Description         | Auth      |
 | ------ | ------------- | ------------------- | --------- |
 | POST   | `/api/users`  | Create a new user   | API Key   |
+| POST   | `/api/admin/users/:id/generate-password` | New random password for a user without an email | JWT (`users:update`) |
 
 ---
 
@@ -39,7 +42,7 @@ This is the bootstrap path, authenticated by the admin API key alone, so it name
 | organization | string   | Cloud: Yes; Edge: No | Slug of the organization the user belongs to. On an edge box it may be omitted (the box's organization is used); when sent it must be the box's. |
 | username     | string   | Yes                  | Username, unique within the organization (3–255 chars)            |
 | name         | string   | Yes                  | Display name of the user (1–255 chars)                             |
-| email        | string   | With a cloud role    | Up to 255 chars. Required when `role_ids` holds a cloud role (admin, manager, accountant, agent, courier); optional for floor staff. Stored trimmed and lowercased, and unique across **all** organizations, case-insensitively. Cloud users sign in with it |
+| email        | string   | Admin, accountant, agent, courier | Up to 255 chars. Required when `role_ids` holds admin, accountant, agent or courier; optional for a manager (a box-only manager, who signs in only on the box) and for floor staff. Stored trimmed and lowercased, and unique across **all** organizations, case-insensitively. Cloud users sign in with it |
 | password     | string   | Yes                  | Plain-text password (min 6 chars). Hashed before storage           |
 | role_ids     | number[] | Yes                  | At least one valid role ID. Every ID must exist (see Roles below)  |
 
@@ -132,11 +135,11 @@ The created user (without the password) together with its assigned roles.
 }
 ```
 
-**400 Bad Request** — A cloud role without an `email`
+**400 Bad Request** — Admin, accountant, agent or courier without an `email`
 
 ```json
 {
-  "error": "email is required for a user with a cloud role"
+  "error": "email is required for an admin, accountant, agent or courier"
 }
 ```
 
@@ -229,5 +232,42 @@ The created user (without the password) together with its assigned roles.
 ```
 
 - Omitted: the email is unchanged. `""`: the email is removed.
-- The rule is checked on the resulting user: if, after the update, the user holds a cloud role and has no email, the request is rejected with `400` `{"error": "email is required for a user with a cloud role"}` and nothing is stored. Promoting floor staff to manager therefore needs an email in the same request.
+- The rule is checked on the resulting user: if, after the update, the user holds admin, accountant, agent or courier and has no email, the request is rejected with `400` `{"error": "email is required for an admin, accountant, agent or courier"}` and nothing is stored. A manager may have no email; without one they sign in only on the box.
 - A taken email returns `409` `{"error": "Email is already in use"}`; an invalid one returns `400` with `"code": "USER_INVALID_EMAIL"`, as on create.
+
+---
+
+## Generate a Password
+
+`POST /api/admin/users/:id/generate-password` (JWT with `users:update`, cloud only)
+
+Sets a new random password for a user **without an email** of the caller's organization, such as the box user created at signup, and returns it. This response is the only place the password ever appears (`Cache-Control: no-store`); the previous password stops working, and the box gets the new one on its next pull. No body.
+
+### Example Response (200 OK)
+
+```json
+{
+  "username": "rosa.perez",
+  "password": "<14-character password>"
+}
+```
+
+14 characters from `23456789ABCDEFGHJKMNPQRSTUVWXYZ`.
+
+### Error Responses
+
+**400 Bad Request** — The user has an email (they reset their own password or use Google)
+
+```json
+{
+  "error": "Only a user without an email gets a generated password"
+}
+```
+
+**404 Not Found** — No such user in the caller's organization
+
+```json
+{
+  "error": "User not found"
+}
+```

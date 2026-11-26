@@ -32,8 +32,9 @@ tablets ──HTTPS:443──> Caddy ──:3000──> Next.js ──:8080─�
 
 ## 2. Install with the installer (the normal way)
 
-You need: the PC (64-bit Windows 10 or 11, 3 GB free on `C:`, internet) and the **email and password
-of an administrator of the restaurant's organization** in the cloud.
+You need: the PC (64-bit Windows 10 or 11, 3 GB free on `C:`, internet) and an **installation code**:
+an administrator of the restaurant gets it in the cloud app under **Instalar caja**. It is valid for
+30 minutes and works once; getting a new one cancels the previous one.
 
 1. Download `KuentaSetup-<version>.exe` and its `.sha256` from the newest `edge/v*` release of the
    monorepo (`manifest.json` also lists it under `components.installer`). Check the hash:
@@ -44,9 +45,9 @@ of an administrator of the restaurant's organization** in the cloud.
    Windows 10/11, not elevated, under 3 GB free, a program already using port 80, 443, 3000, 5432
    or 8080 (the message names the port and the program), scripts blocked by Group Policy, or no
    connection to the cloud.
-4. Type the administrator's email and password. A manager cannot install a box; a wrong password
-   lets you retry. If the organization already has a box, the wizard shows its name and last
-   sync and asks before replacing it — whatever that box had not synced is lost. Declining ends the
+4. Type the code (case, spaces and the hyphen don't matter) and the box's name, which defaults to the
+   PC's name. An invalid or expired code lets you retry with a new one. If the organization already has a box, the wizard shows its name and last
+   sync and asks before replacing it with the same code — whatever that box had not synced is lost. Declining ends the
    wizard with nothing installed.
 5. Wait. It writes the box's configuration, prepares the database, registers the services, checks
    them and waits up to 5 minutes for the first sync, so the restaurant's users can sign in. If the
@@ -57,9 +58,9 @@ of an administrator of the restaurant's organization** in the cloud.
 What the installer wrote, in case support needs it: `env\box.env` (the PC's LAN address and subnet),
 `env\edge-node.env` (the enrollment values and a generated database password; readable only by
 Administrators and SYSTEM), `logs\setup.log`. Ticket printing is off (`PRINTER_TRANSPORT=none`): the
-POS prints through the browser. The owner's password is never written anywhere.
+POS prints through the browser. The installation code is never written anywhere.
 
-**Running it again** on a PC that already has a box is a *repair*: no sign-in, no new enrollment,
+**Running it again** on a PC that already has a box is a *repair*: no code, no new enrollment,
 configuration and data untouched; services and the updater task are registered again and older
 programs are brought up to the installer's version (never downgraded). A PC with a database but no
 configuration is refused: contact support, nothing is changed.
@@ -71,7 +72,7 @@ programs and shortcuts, and keeps `env\`, the database, `backups\`, `caddy-data\
 **Assisted or scripted install** (also what CI does):
 
 ```powershell
-$env:KUENTA_SETUP_EMAIL = 'admin@restaurant.example'; $env:KUENTA_SETUP_PASSWORD = '...'
+$env:KUENTA_SETUP_CODE = 'K7F2-9QXM'      # from Instalar caja; optional $env:KUENTA_SETUP_BOX_NAME
 .\KuentaSetup-<version>.exe /VERYSILENT /SUPPRESSMSGBOXES /LOG=C:\kuenta-setup.log
 #   /REPLACE        replace the organization's existing box (otherwise a 409 fails the install)
 #   /CLOUDURL=URL   use another cloud than the one built in
@@ -123,10 +124,10 @@ cd C:\laguna-edge
 Configuration: instead of editing files, pipe an enrollment result into the same script the installer uses:
 
 ```powershell
-# enroll.ps1 reads {"email","password","replace","name","cloud_url"} on standard input and prints the
+# enroll.ps1 reads {"code","replace","name","cloud_url"} on standard input (the code from Instalar caja) and prints the
 # enrollment values; write-box-config.ps1 reads those on standard input and writes env\box.env and
 # env\edge-node.env. They read the process's stdin, so pipe between powershell.exe processes.
-'{"email":"admin@restaurant.example","password":"...","replace":false,"name":"CAJA-1","cloud_url":"https://api.example.com"}' |
+'{"code":"K7F2-9QXM","replace":false,"name":"CAJA-1","cloud_url":"https://api.example.com"}' |
   powershell -NoProfile -File .\scripts\enroll.ps1 |
   powershell -NoProfile -File .\scripts\write-box-config.ps1
 .\scripts\setup-box.ps1                                        # database, services, verification, shortcut

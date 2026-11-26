@@ -17,6 +17,8 @@ const (
 	PendingInvoiceStatusPendingCloud PendingInvoiceStatus = "pending_cloud"
 	PendingInvoiceStatusSubmitted    PendingInvoiceStatus = "submitted"
 	PendingInvoiceStatusFailed       PendingInvoiceStatus = "failed"
+	// PendingInvoiceStatusSkipped: received while the plan excluded e-invoicing; never submitted.
+	PendingInvoiceStatusSkipped PendingInvoiceStatus = "skipped"
 )
 
 // PendingInvoice is one queued electronic-invoice submission. It is enqueued in the same

@@ -61,3 +61,18 @@ test("sign-in is public, and skipped when already signed in", () => {
   assert.equal(guardRedirect("/signin", false), null);
   assert.equal(guardRedirect("/signin", true), "/home");
 });
+
+test("signup is public, and skipped when already signed in", () => {
+  assert.equal(guardRedirect("/registro", false), null);
+  assert.equal(guardRedirect("/registro", true), "/home");
+});
+
+test("an invitation link opens with or without a session", () => {
+  assert.equal(guardRedirect("/invitacion/q3L0Zx", false), null);
+  assert.equal(guardRedirect("/invitacion/q3L0Zx", true), null);
+  assert.equal(guardRedirect("/invitacionx", false), "/signin?redirect=%2Finvitacionx");
+});
+
+test("installing the box needs a session", () => {
+  assert.equal(guardRedirect("/ajustes/instalar-caja", false), "/signin?redirect=%2Fajustes%2Finstalar-caja");
+});

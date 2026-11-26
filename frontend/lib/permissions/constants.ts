@@ -115,6 +115,8 @@ export const PERMISSIONS = {
 
   // Edge appliance
   EDGE_UPDATE: "edge:update",
+  // Box enrollment (cloud only, admin only)
+  EDGE_ENROLL: "edge:enroll",
 
   // SSE (Real-time)
   SSE_COMMANDS_READ: "sse:commands:read",

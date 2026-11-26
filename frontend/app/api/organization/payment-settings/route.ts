@@ -6,7 +6,7 @@ import type { PaymentSettings } from "@/types/paymentSettings";
 async function errorResponse(response: Response, fallback: string) {
   const errorData = await response.json().catch(() => ({}));
   return NextResponse.json(
-    { error: errorData.error || fallback, code: errorData.code, field: errorData.field },
+    { error: errorData.error || fallback, code: errorData.code, field: errorData.field, required_plan: errorData.required_plan },
     { status: response.status }
   );
 }

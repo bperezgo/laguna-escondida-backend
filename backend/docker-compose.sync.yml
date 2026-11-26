@@ -39,6 +39,7 @@ x-app-env: &app-env
   ADMIN_API_KEY: "${ADMIN_API_KEY:-test-admin-key}"
   NODE_SYNC_KEY: "${NODE_SYNC_KEY:-test-sync-key}" # must match on both sides (cloud NodeAuth)
   PUBLIC_API_URL: "${PUBLIC_API_URL:-http://localhost:8080}" # cloud only; boxes sync against it
+  PUBLIC_APP_URL: "${PUBLIC_APP_URL:-http://localhost:3000}" # cloud only; invitation links point at it
   # Electronic-invoice API. Defaults are inert dummies (the sync tests never call it);
   # set these in .env to exercise real submission against a provider.
   ELECTRONIC_INVOICE_URL: "${ELECTRONIC_INVOICE_URL:-http://invoice.invalid}"

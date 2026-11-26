@@ -31,7 +31,7 @@ curl -s "$BASE_URL/auth/context"
 
 ### Sign In
 
-In the cloud, with an email (only admin, manager, accountant and agent users):
+In the cloud, with an email (admin, manager, accountant, agent and courier users that have one):
 
 ```bash
 curl -X POST "$BASE_URL/auth/signin" \
@@ -69,11 +69,92 @@ curl -X GET "$BASE_URL/auth/me" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-Only the organization (its branding, formatting and receipt settings):
+Only the organization (its branding, formatting, receipt settings, status, plan and trial end):
 
 ```bash
 curl -s "$BASE_URL/auth/me" \
   -H "Authorization: Bearer $TOKEN" | jq '.organization'
+```
+
+---
+
+## Signup, Google Sign-In and Trials (cloud only)
+
+`$GOOGLE_ID_TOKEN` is the credential Google Identity Services gives the browser.
+
+### Sign In with Google
+
+```bash
+curl -X POST "$BASE_URL/auth/google" \
+  -H "Content-Type: application/json" \
+  -d "{\"id_token\": \"$GOOGLE_ID_TOKEN\"}"
+```
+
+### Sign Up a Restaurant
+
+`201` with a token for the new admin, or `200` when the Google email is already registered:
+
+```bash
+curl -X POST "$BASE_URL/signup/google" \
+  -H "Content-Type: application/json" \
+  -d "{\"id_token\": \"$GOOGLE_ID_TOKEN\", \"restaurant_name\": \"Restaurante Doña Rosa\", \"plan\": \"einvoicing\"}"
+```
+
+### Activate, Change the Plan, Extend or Suspend (operator)
+
+```bash
+curl -X PATCH "$BASE_URL/platform/organizations/$ORG_ID" \
+  -H "X-API-Key: $ADMIN_API_KEY" -H "Content-Type: application/json" \
+  -d '{"status": "active", "plan": "einvoicing"}'
+
+curl -X PATCH "$BASE_URL/platform/organizations/$ORG_ID" \
+  -H "X-API-Key: $ADMIN_API_KEY" -H "Content-Type: application/json" \
+  -d '{"trial_ends_at": "2026-12-31T23:59:59-05:00"}'
+
+curl -X PATCH "$BASE_URL/platform/organizations/$ORG_ID" \
+  -H "X-API-Key: $ADMIN_API_KEY" -H "Content-Type: application/json" \
+  -d '{"status": "suspended"}'
+```
+
+### Invite a Person
+
+```bash
+curl -X POST "$BASE_URL/admin/invitations" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"email": "contadora@example.com", "name": "Marta Gómez", "role_ids": [5]}'
+
+curl -s "$BASE_URL/admin/invitations" -H "Authorization: Bearer $TOKEN"
+curl -X POST "$BASE_URL/admin/invitations/$INVITATION_ID/link" -H "Authorization: Bearer $TOKEN"
+curl -X DELETE "$BASE_URL/admin/invitations/$INVITATION_ID" -H "Authorization: Bearer $TOKEN"
+```
+
+### Accept an Invitation
+
+`$INVITE_TOKEN` is the last segment of the link (`…/invitacion/<token>`):
+
+```bash
+curl -s "$BASE_URL/invitations/$INVITE_TOKEN"
+
+curl -X POST "$BASE_URL/invitations/$INVITE_TOKEN/accept" \
+  -H "Content-Type: application/json" \
+  -d '{"password": "una-clave-segura"}'
+```
+
+### Install a Box with a Code
+
+```bash
+curl -X POST "$BASE_URL/edge/enrollment-codes" -H "Authorization: Bearer $TOKEN"
+
+curl -X POST "$BASE_URL/edge/enroll-with-code" \
+  -H "Content-Type: application/json" \
+  -d '{"code": "K7F2-9QXM", "name": "Caja principal"}'
+```
+
+### Generate the Box User's Password
+
+```bash
+curl -X POST "$BASE_URL/admin/users/$BOX_USER_ID/generate-password" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ---

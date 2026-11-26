@@ -8,8 +8,8 @@ begin
     13: Result := 'Un puerto que Kuenta necesita ya está en uso por otro programa.';
     14: Result := 'Windows tiene bloqueada la ejecución de scripts por una directiva de la organización.';
     15: Result := 'No hay conexión con Kuenta. Revise el internet e intente de nuevo.';
-    20: Result := 'El correo o la contraseña no son correctos.';
-    21: Result := 'Solo un administrador del restaurante puede instalar la caja.';
+    20: Result := 'El código no es válido o ya venció. Genere uno nuevo en Kuenta, en Instalar caja.';
+    21: Result := 'La cuenta del restaurante no está activa en Kuenta. Escríbanos para continuar.';
     22: Result := 'La organización ya tiene una caja instalada.';
     23: Result := 'No se pudo registrar la caja en Kuenta.';
     30: Result := 'Este equipo tiene datos de una caja pero no su configuración. Contacte a soporte; no se cambió nada.';

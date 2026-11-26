@@ -1,5 +1,7 @@
 # Support Documents (Documentos Soporte)
 
+> **Plan:** in the cloud these routes need the `einvoicing` plan or higher; otherwise `403 plan_required`. A suspended organization or an ended trial is refused first. See [Organization access refusals](./auth.md#organization-access-refusals).
+
 Support documents are Colombian tax documents for purchases from informal suppliers. They use the same electronic invoicing system but with a different prefix and require a mandatory provider (supplier) instead of an optional customer.
 
 ## Endpoints

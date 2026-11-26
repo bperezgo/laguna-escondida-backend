@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
@@ -50,7 +51,7 @@ func TestUserHandler_GetCurrentUser_IncludesTheOrganization(t *testing.T) {
 	displayName := "Laguna Escondida"
 	orgRepo.EXPECT().Get(mock.Anything, testOrganizationID).Return(&dto.Organization{
 		ID: testOrganizationID, Slug: "laguna-escondida", Name: "Laguna Escondida, Restaurante y Pesca S.A.S",
-		Status: dto.OrganizationStatusActive, Timezone: "America/Bogota", Country: "CO", Locale: "es-CO", Currency: "COP",
+		Status: dto.OrganizationStatusActive, Plan: "full", Timezone: "America/Bogota", Country: "CO", Locale: "es-CO", Currency: "COP",
 		DisplayName: &displayName,
 		EInvoicing:  &dto.EInvoicingSettings{InvoicePrefix: "LAG", SupportDocumentPrefix: "DS"},
 	}, nil)
@@ -64,12 +65,31 @@ func TestUserHandler_GetCurrentUser_IncludesTheOrganization(t *testing.T) {
 		"id": "`+testOrganizationID+`",
 		"slug": "laguna-escondida",
 		"name": "Laguna Escondida, Restaurante y Pesca S.A.S",
+		"status": "active", "plan": "full", "trial_ends_at": null,
 		"timezone": "America/Bogota", "country": "CO", "locale": "es-CO", "currency": "COP",
 		"legal_name": null, "nit": null, "address": null, "phone": null,
 		"ticket_footer": null, "ticket_legal_notice": null,
 		"display_name": "Laguna Escondida", "logo_url": null,
 		"primary_color": null, "secondary_color": null
 	}`, string(body["organization"]))
+}
+
+func TestUserHandler_GetCurrentUser_OrganizationOnTrial(t *testing.T) {
+	orgRepo := mocks.NewMockOrganizationRepository(t)
+	ends := time.Date(2026, 12, 6, 15, 0, 0, 0, time.UTC)
+	orgRepo.EXPECT().Get(mock.Anything, testOrganizationID).Return(&dto.Organization{
+		ID: testOrganizationID, Slug: "dona-rosa", Name: "Doña Rosa", Status: dto.OrganizationStatusTrial, Plan: "starter",
+		TrialEndsAt: &ends, Timezone: "America/Bogota", Country: "CO", Locale: "es-CO", Currency: "COP",
+	}, nil)
+
+	rec := serveCurrentUser(t, orgRepo, testOrganizationID)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var org map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(decodeBody(t, rec)["organization"], &org))
+	assert.JSONEq(t, `"trial"`, string(org["status"]))
+	assert.JSONEq(t, `"starter"`, string(org["plan"]))
+	assert.JSONEq(t, `"2026-12-06T15:00:00Z"`, string(org["trial_ends_at"]))
 }
 
 func TestUserHandler_GetCurrentUser_MissingOrganizationReturns500(t *testing.T) {

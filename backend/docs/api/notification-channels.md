@@ -1,5 +1,7 @@
 # Notification Channels API
 
+> **Plan:** in the cloud these routes need the `full` plan; otherwise `403 plan_required`. A suspended organization or an ended trial is refused first. See [Organization access refusals](./auth.md#organization-access-refusals).
+
 Send a message to a staff chat (Discord) when something happens: an order is created or paid, a reservation is requested or confirmed. A **channel** is where messages go (a Discord webhook). A **rule** says which events go to which channel, optionally narrowed by conditions.
 
 **Cloud only.** These routes exist only in the cloud binary; on the edge binary they return `404`. Orders replicated from the edge box produce no events.

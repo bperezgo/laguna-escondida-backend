@@ -14,12 +14,17 @@ RUN pnpm install --frozen-lockfile
 
 COPY . .
 
-# Only NEXT_PUBLIC_ORDER_ACTION_PIN is inlined into the browser bundle (fixed for now,
+# NEXT_PUBLIC_ORDER_ACTION_PIN (fixed for now,
 # same value as the Windows bundle). NEXT_PUBLIC_API_URL is read by the Next *server*
 # at runtime (the browser never calls the backend), so it is NOT baked in: the value
 # below only lets `next build` import the config module, and the task overrides it.
 ARG NEXT_PUBLIC_ORDER_ACTION_PIN=1234
+# Google sign-in button and support contact (cloud); empty hides the button and the mailto link.
+ARG NEXT_PUBLIC_GOOGLE_CLIENT_ID=
+ARG NEXT_PUBLIC_SUPPORT_EMAIL=
 ENV NEXT_PUBLIC_ORDER_ACTION_PIN=${NEXT_PUBLIC_ORDER_ACTION_PIN} \
+    NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID} \
+    NEXT_PUBLIC_SUPPORT_EMAIL=${NEXT_PUBLIC_SUPPORT_EMAIL} \
     NEXT_PUBLIC_API_URL=http://127.0.0.1:8080/api \
     NEXT_TELEMETRY_DISABLED=1
 RUN pnpm build

@@ -10,6 +10,7 @@ export async function integrationErrorResponse(response: Response, fallback: str
       code: errorData.code,
       field: errorData.field,
       required: errorData.required,
+      required_plan: errorData.required_plan,
     },
     { status: response.status }
   );

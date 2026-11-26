@@ -838,8 +838,11 @@ func TestUserService_CreateUser_Email(t *testing.T) {
 		{name: "manager with a mixed-case email", email: " Ana@Example.com ", roleIDs: []int{permissions.RoleManager}, wantEmail: strPtr("ana@example.com")},
 		{name: "floor staff without an email", roleIDs: []int{permissions.RoleServer}},
 		{name: "floor staff with an email", email: "cook@example.com", roleIDs: []int{permissions.RoleCooker}, wantEmail: strPtr("cook@example.com")},
-		{name: "cloud role without an email", roleIDs: []int{permissions.RoleServer, permissions.RoleAccountant}, noCreate: true, wantErr: domainError.ErrEmailRequired},
+		{name: "admin without an email", roleIDs: []int{permissions.RoleAdmin}, noCreate: true, wantErr: domainError.ErrEmailRequired},
+		{name: "accountant without an email", roleIDs: []int{permissions.RoleServer, permissions.RoleAccountant}, noCreate: true, wantErr: domainError.ErrEmailRequired},
+		{name: "agent without an email", roleIDs: []int{permissions.RoleAgent}, noCreate: true, wantErr: domainError.ErrEmailRequired},
 		{name: "courier without an email", roleIDs: []int{permissions.RoleCourier}, noCreate: true, wantErr: domainError.ErrEmailRequired},
+		{name: "manager without an email", roleIDs: []int{permissions.RoleManager}},
 		{name: "email taken in another organization", email: "ANA@example.com", roleIDs: []int{permissions.RoleManager}, createErr: domainError.ErrUserEmailTaken, wantErr: domainError.ErrUserEmailTaken},
 	}
 	for _, tc := range cases {
@@ -897,9 +900,13 @@ func TestUserService_UpdateUser_Email(t *testing.T) {
 		wantErr      error
 	}{
 		{name: "promote floor staff with an email", currentRole: permissions.RoleServer, req: &dto.UpdateUserRequest{RoleIDs: []int{permissions.RoleManager}, Email: strPtr("ANA@example.com")}, wantEmail: strPtr("ana@example.com")},
-		{name: "promote floor staff without an email", currentRole: permissions.RoleServer, req: &dto.UpdateUserRequest{RoleIDs: []int{permissions.RoleManager}}, wantErr: domainError.ErrEmailRequired},
-		{name: "clear a manager's email", currentEmail: strPtr("ana@example.com"), currentRole: permissions.RoleManager, req: &dto.UpdateUserRequest{Email: strPtr("")}, wantErr: domainError.ErrEmailRequired},
-		{name: "rename a manager who has no email yet", currentRole: permissions.RoleManager, req: &dto.UpdateUserRequest{Name: strPtr("Ana")}, wantErr: domainError.ErrEmailRequired},
+		{name: "promote floor staff to manager without an email", currentRole: permissions.RoleServer, req: &dto.UpdateUserRequest{RoleIDs: []int{permissions.RoleManager}}},
+		{name: "promote floor staff to accountant without an email", currentRole: permissions.RoleServer, req: &dto.UpdateUserRequest{RoleIDs: []int{permissions.RoleAccountant}}, wantErr: domainError.ErrEmailRequired},
+		{name: "promote a manager to admin without an email", currentRole: permissions.RoleManager, req: &dto.UpdateUserRequest{RoleIDs: []int{permissions.RoleAdmin}}, wantErr: domainError.ErrEmailRequired},
+		{name: "clear a manager's email", currentEmail: strPtr("ana@example.com"), currentRole: permissions.RoleManager, req: &dto.UpdateUserRequest{Email: strPtr("")}},
+		{name: "clear a courier's email", currentEmail: strPtr("ana@example.com"), currentRole: permissions.RoleCourier, req: &dto.UpdateUserRequest{Email: strPtr("")}, wantErr: domainError.ErrEmailRequired},
+		{name: "rename a manager who has no email", currentRole: permissions.RoleManager, req: &dto.UpdateUserRequest{Name: strPtr("Ana")}},
+		{name: "rename an agent who has no email yet", currentRole: permissions.RoleAgent, req: &dto.UpdateUserRequest{Name: strPtr("Ana")}, wantErr: domainError.ErrEmailRequired},
 		{name: "demote and clear the email together", currentEmail: strPtr("ana@example.com"), currentRole: permissions.RoleManager, req: &dto.UpdateUserRequest{RoleIDs: []int{permissions.RoleServer}, Email: strPtr("")}},
 		{name: "keep the email when the request omits it", currentEmail: strPtr("ana@example.com"), currentRole: permissions.RoleManager, req: &dto.UpdateUserRequest{Name: strPtr("Ana")}, wantEmail: strPtr("ana@example.com")},
 		{name: "email taken in another organization", currentRole: permissions.RoleServer, req: &dto.UpdateUserRequest{Email: strPtr("ana@example.com")}, updateErr: domainError.ErrUserEmailTaken, wantErr: domainError.ErrUserEmailTaken},

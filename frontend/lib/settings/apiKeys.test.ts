@@ -91,6 +91,6 @@ test("only a holder of api_keys:manage sees the card, so a manager does not", ()
   const manager = ["integrations:read", "users:read", "orders:create"];
   const admin = manager.concat("integrations:manage", "api_keys:manage");
 
-  assert.equal(showApiKeysCard((p) => manager.includes(p)), false);
-  assert.equal(showApiKeysCard((p) => admin.includes(p)), true);
+  assert.equal(showApiKeysCard((p) => manager.includes(p), "full", false), false);
+  assert.equal(showApiKeysCard((p) => admin.includes(p), "full", false), true);
 });

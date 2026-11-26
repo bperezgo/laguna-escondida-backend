@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { serverApiRequest } from "@/lib/api/server";
+import { fallbackErrorResponse, serverApiRequest } from "@/lib/api/server";
 import type {
   ElectronicInvoice,
   CreateElectronicInvoiceRequest,
@@ -33,10 +33,7 @@ export async function GET(request: NextRequest) {
     `/invoices?${queryParams.toString()}`
   );
   if (!response.ok) {
-    return NextResponse.json(
-      { error: "Failed to fetch invoices" },
-      { status: response.status }
-    );
+    return fallbackErrorResponse(response, "Failed to fetch invoices");
   }
   const data = await response.json();
   return NextResponse.json(data);
@@ -51,10 +48,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(body),
     });
     if (!response.ok) {
-      return NextResponse.json(
-        { error: "Failed to create invoice" },
-        { status: response.status }
-      );
+      return fallbackErrorResponse(response, "Failed to create invoice");
     }
     const data = await response.json();
     return NextResponse.json(data);

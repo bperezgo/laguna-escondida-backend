@@ -29,11 +29,11 @@
   },
   "20": {
     "key": "bad_credentials",
-    "message": "El correo o la contraseña no son correctos."
+    "message": "El código no es válido o ya venció. Genere uno nuevo en Kuenta, en Instalar caja."
   },
   "21": {
-    "key": "not_admin",
-    "message": "Solo un administrador del restaurante puede instalar la caja."
+    "key": "organization_inactive",
+    "message": "La cuenta del restaurante no está activa en Kuenta. Escríbanos para continuar."
   },
   "22": {
     "key": "box_already_enrolled",

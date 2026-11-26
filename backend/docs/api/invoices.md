@@ -1,5 +1,7 @@
 # Invoices API
 
+> **Plan:** in the cloud these routes need the `einvoicing` plan or higher; otherwise `403 plan_required`. A suspended organization or an ended trial is refused first. See [Organization access refusals](./auth.md#organization-access-refusals).
+
 Electronic invoices issued to customers (facturas electrónicas). Invoices are created from a bill (order) and submitted to the electronic invoicing provider. The provider returns a `CUFE` (Código Único de Factura Electrónica) and a `Tascode` that can be used to retrieve the PDF and XML documents.
 
 ## Endpoints

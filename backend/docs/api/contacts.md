@@ -1,5 +1,7 @@
 # Contacts API
 
+> **Plan:** in the cloud these routes need the `full` plan; otherwise `403 plan_required`. A suspended organization or an ended trial is refused first. See [Organization access refusals](./auth.md#organization-access-refusals).
+
 A contact is one guest phone within an organization. It is created by the guest's first [reservation](reservations.md) or customer-agent order, and kept up to date by the later ones: `last_seen_at` moves forward and a non-empty name replaces the old one. The first ad attribution ever seen becomes the contact's `first_touch` and never changes.
 
 **Cloud only.** Not served on the box (edge). Both routes need `reservations:read`. Contacts are never shared between organizations: the same phone in two restaurants is two contacts.

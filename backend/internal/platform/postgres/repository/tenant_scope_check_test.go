@@ -24,6 +24,7 @@ var globalTableFiles = map[string]bool{
 	"invoice_sequence.go":               true,
 	"lead_repository.go":                true,
 	"node_repository.go":                true,
+	"organization_access_reader.go":     true,
 	"organization_repository.go":        true,
 	"role_repository.go":                true,
 }
@@ -35,6 +36,11 @@ var unscopedByDesign = map[string]bool{
 	"api_key_repository.go FindByHash": true,
 	// The public QR image URL carries a random token and no organization.
 	"payment_qr_repository.go FindActiveByToken": true,
+	// An invitation link and an enrollment code are what name the organization; the row found is then updated by id.
+	"invitation_repository.go FindByTokenHash":          true,
+	"invitation_repository.go MarkAccepted":             true,
+	"enrollment_code_repository.go FindByHashForUpdate": true,
+	"enrollment_code_repository.go MarkUsed":            true,
 }
 
 // unscopedTenantAccess reports the functions in src that reach the database without the

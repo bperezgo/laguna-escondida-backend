@@ -22,6 +22,7 @@ type NodeAuthRecord struct {
 	Node
 	KeyHash            string
 	OrganizationStatus string
+	TrialEndsAt        *time.Time
 }
 
 type EnrollEdgeBoxRequest struct {

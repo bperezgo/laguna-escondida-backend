@@ -11,6 +11,7 @@ import (
 
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
+	"laguna-escondida/backend/internal/domain/plans"
 	"laguna-escondida/backend/internal/domain/ports"
 
 	"github.com/google/uuid"
@@ -54,12 +55,19 @@ func (s *OrganizationService) Create(ctx context.Context, req *dto.CreateOrganiz
 		return nil, err
 	}
 
+	var trialEndsAt *time.Time
+	if req.TrialEndsAt != "" {
+		parsed, _ := time.Parse(time.RFC3339, req.TrialEndsAt)
+		trialEndsAt = &parsed
+	}
 	now := time.Now().UTC()
 	org := &dto.Organization{
 		ID:                uuid.Must(uuid.NewV7()).String(),
 		Name:              strings.TrimSpace(req.Name),
 		Slug:              req.Slug,
 		Status:            orDefault(req.Status, dto.OrganizationStatusActive),
+		Plan:              orDefault(req.Plan, string(plans.Full)),
+		TrialEndsAt:       trialEndsAt,
 		Timezone:          orDefault(req.Timezone, defaultOrganizationTimezone),
 		Country:           orDefault(req.Country, defaultOrganizationCountry),
 		Locale:            orDefault(req.Locale, defaultOrganizationLocale),
@@ -123,6 +131,7 @@ func (s *OrganizationService) GetCurrent(ctx context.Context, id string) (*dto.C
 	}
 	return &dto.CurrentOrganization{
 		ID: org.ID, Slug: org.Slug, Name: org.Name,
+		Status: org.Status, Plan: org.Plan, TrialEndsAt: org.TrialEndsAt,
 		Timezone: org.Timezone, Country: org.Country, Locale: org.Locale, Currency: org.Currency,
 		LegalName: org.LegalName, NIT: org.NIT, Address: org.Address, Phone: org.Phone,
 		TicketFooter: org.TicketFooter, TicketLegalNotice: org.TicketLegalNotice,
@@ -135,6 +144,9 @@ func (s *OrganizationService) Update(ctx context.Context, id string, req *dto.Up
 	if err := validateUpdateOrganization(req); err != nil {
 		return nil, err
 	}
+	if err := s.validateTrialEnd(ctx, id, req); err != nil {
+		return nil, err
+	}
 	normalized := *req
 	if normalized.Name != nil {
 		name := strings.TrimSpace(*normalized.Name)
@@ -145,6 +157,26 @@ func (s *OrganizationService) Update(ctx context.Context, id string, req *dto.Up
 		return nil, fmt.Errorf("update organization: %w", err)
 	}
 	return org, nil
+}
+
+// validateTrialEnd keeps a trial from losing its end, whether the status or the end is what the request changes.
+func (s *OrganizationService) validateTrialEnd(ctx context.Context, id string, req *dto.UpdateOrganizationRequest) error {
+	settingTrial := req.Status != nil && *req.Status == dto.OrganizationStatusTrial
+	clearingEnd := req.TrialEndsAt != nil && *req.TrialEndsAt == ""
+	sendingEnd := req.TrialEndsAt != nil && *req.TrialEndsAt != ""
+	if sendingEnd || (!settingTrial && !clearingEnd) {
+		return nil
+	}
+	current, err := s.orgRepo.Get(ctx, id)
+	if err != nil {
+		return fmt.Errorf("update organization: %w", err)
+	}
+	staysTrial := settingTrial || (req.Status == nil && current.Status == dto.OrganizationStatusTrial)
+	hasEnd := !clearingEnd && current.TrialEndsAt != nil
+	if staysTrial && !hasEnd {
+		return invalidOrganizationField("trial_ends_at", "is required while the status is trial")
+	}
+	return nil
 }
 
 // SetEInvoicing replaces the prefixes in place; counters are per (organization, prefix), so a new prefix starts at 1.
@@ -178,10 +210,15 @@ func validateCreateOrganization(req *dto.CreateOrganizationRequest) error {
 		check        func(string, string) error
 	}{
 		{"status", req.Status, validateOrganizationStatus},
+		{"plan", req.Plan, validateOrganizationPlan},
+		{"trial_ends_at", req.TrialEndsAt, validateOrganizationTrialEnd},
 		{"timezone", req.Timezone, validateOrganizationTimezone},
 		{"country", req.Country, validateOrganizationCountry},
 		{"locale", req.Locale, validateOrganizationLocale},
 		{"currency", req.Currency, validateOrganizationCurrency},
+	}
+	if req.Status == dto.OrganizationStatusTrial && req.TrialEndsAt == "" {
+		return invalidOrganizationField("trial_ends_at", "is required while the status is trial")
 	}
 	for _, r := range required {
 		if r.value == "" {
@@ -225,10 +262,16 @@ func validateUpdateOrganization(req *dto.UpdateOrganizationRequest) error {
 		check func(string, string) error
 	}{
 		{"status", req.Status, validateOrganizationStatus},
+		{"plan", req.Plan, validateOrganizationPlan},
 		{"timezone", req.Timezone, validateOrganizationTimezone},
 		{"country", req.Country, validateOrganizationCountry},
 		{"locale", req.Locale, validateOrganizationLocale},
 		{"currency", req.Currency, validateOrganizationCurrency},
+	}
+	if req.TrialEndsAt != nil && *req.TrialEndsAt != "" {
+		if err := validateOrganizationTrialEnd("trial_ends_at", *req.TrialEndsAt); err != nil {
+			return err
+		}
 	}
 	for _, r := range required {
 		if r.value == nil {
@@ -273,8 +316,23 @@ func validateOrganizationName(name string) error {
 }
 
 func validateOrganizationStatus(field, value string) error {
-	if value != dto.OrganizationStatusActive && value != dto.OrganizationStatusSuspended {
-		return invalidOrganizationField(field, "must be active or suspended")
+	switch value {
+	case dto.OrganizationStatusTrial, dto.OrganizationStatusActive, dto.OrganizationStatusSuspended:
+		return nil
+	}
+	return invalidOrganizationField(field, "must be trial, active or suspended")
+}
+
+func validateOrganizationPlan(field, value string) error {
+	if !plans.Valid(value) {
+		return invalidOrganizationField(field, "must be starter, einvoicing or full")
+	}
+	return nil
+}
+
+func validateOrganizationTrialEnd(field, value string) error {
+	if _, err := time.Parse(time.RFC3339, value); err != nil {
+		return invalidOrganizationField(field, "must be an RFC 3339 timestamp")
 	}
 	return nil
 }

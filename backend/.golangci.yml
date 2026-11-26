@@ -52,6 +52,7 @@ linters:
     misspell:
       ignore-rules:
         - Corporativo
+        - invitacion
         # Add other Spanish words that are being flagged
     
     revive:

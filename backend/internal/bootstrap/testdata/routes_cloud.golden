@@ -1,11 +1,17 @@
+GET /api/admin/invitations laguna-escondida/backend/internal/platform/handler.(*InvitationHandler).ListHandler-fm
+POST /api/admin/invitations laguna-escondida/backend/internal/platform/handler.(*InvitationHandler).CreateHandler-fm
+DELETE /api/admin/invitations/:id laguna-escondida/backend/internal/platform/handler.(*InvitationHandler).RevokeHandler-fm
+POST /api/admin/invitations/:id/link laguna-escondida/backend/internal/platform/handler.(*InvitationHandler).NewLinkHandler-fm
 GET /api/admin/roles laguna-escondida/backend/internal/platform/handler.(*UserHandler).ListRolesHandler-fm
 GET /api/admin/users laguna-escondida/backend/internal/platform/handler.(*UserHandler).ListUsersHandler-fm
 POST /api/admin/users laguna-escondida/backend/internal/platform/handler.(*UserHandler).CreateUserHandler-fm
 DELETE /api/admin/users/:id laguna-escondida/backend/internal/platform/handler.(*UserHandler).DeleteUserHandler-fm
 GET /api/admin/users/:id laguna-escondida/backend/internal/platform/handler.(*UserHandler).GetUserHandler-fm
 PUT /api/admin/users/:id laguna-escondida/backend/internal/platform/handler.(*UserHandler).UpdateUserHandler-fm
+POST /api/admin/users/:id/generate-password laguna-escondida/backend/internal/platform/handler.(*UserHandler).GeneratePasswordHandler-fm
 POST /api/admin/users/:id/reset-password laguna-escondida/backend/internal/platform/handler.(*UserHandler).ResetPasswordHandler-fm
 GET /api/auth/context laguna-escondida/backend/internal/platform/handler.(*UserHandler).SignInContextHandler-fm
+POST /api/auth/google laguna-escondida/backend/internal/platform/handler.(*SignupHandler).GoogleSignInHandler-fm
 GET /api/auth/me laguna-escondida/backend/internal/platform/handler.(*UserHandler).GetCurrentUserHandler-fm
 POST /api/auth/signin laguna-escondida/backend/internal/platform/handler.(*UserHandler).SignInHandler-fm
 GET /api/bill-owners/:id laguna-escondida/backend/internal/platform/handler.(*BillOwnerHandler).GetByIDHandler-fm
@@ -24,6 +30,8 @@ DELETE /api/delivery-zones/:id laguna-escondida/backend/internal/platform/handle
 PUT /api/delivery-zones/:id laguna-escondida/backend/internal/platform/handler.(*DeliveryZoneHandler).UpdateHandler-fm
 GET /api/delivery-zones/check laguna-escondida/backend/internal/platform/handler.(*DeliveryZoneHandler).CheckHandler-fm
 POST /api/edge/enroll laguna-escondida/backend/internal/platform/handler.(*EdgeEnrollHandler).EnrollHandler-fm
+POST /api/edge/enroll-with-code laguna-escondida/backend/internal/platform/handler.(*EnrollmentCodeHandler).EnrollHandler-fm
+POST /api/edge/enrollment-codes laguna-escondida/backend/internal/platform/handler.(*EnrollmentCodeHandler).IssueHandler-fm
 GET /api/edge/status laguna-escondida/backend/internal/platform/handler.(*EdgeHandler).GetStatusHandler-fm
 GET /api/expense-categories laguna-escondida/backend/internal/platform/handler.(*ExpenseHandler).ListCategoriesHandler-fm
 POST /api/expense-categories laguna-escondida/backend/internal/platform/handler.(*ExpenseHandler).CreateCategoryHandler-fm
@@ -40,6 +48,8 @@ GET /api/feedback laguna-escondida/backend/internal/platform/handler.(*FeedbackH
 POST /api/feedback laguna-escondida/backend/internal/platform/handler.(*FeedbackHandler).RecordHandler-fm
 GET /api/financial/summary laguna-escondida/backend/internal/platform/handler.(*FinancialHandler).GetFinancialSummaryHandler-fm
 GET /api/health laguna-escondida/backend/internal/platform/handler.HealthCheckHandler
+GET /api/invitations/:token laguna-escondida/backend/internal/platform/handler.(*InvitationHandler).LookupHandler-fm
+POST /api/invitations/:token/accept laguna-escondida/backend/internal/platform/handler.(*InvitationHandler).AcceptHandler-fm
 GET /api/invoices laguna-escondida/backend/internal/platform/handler.(*InvoiceHandler).ListInvoicesHandler-fm
 POST /api/invoices laguna-escondida/backend/internal/platform/handler.(*InvoiceHandler).CreateElectronicInvoiceHandler-fm
 GET /api/invoices/export laguna-escondida/backend/internal/platform/handler.(*InvoiceHandler).ExportInvoicesCSVHandler-fm
@@ -134,6 +144,7 @@ POST /api/reservations/:id/cancel laguna-escondida/backend/internal/platform/han
 POST /api/reservations/:id/confirm laguna-escondida/backend/internal/platform/handler.(*ReservationHandler).ConfirmHandler-fm
 POST /api/reservations/:id/decline laguna-escondida/backend/internal/platform/handler.(*ReservationHandler).DeclineHandler-fm
 POST /api/reservations/:id/no-show laguna-escondida/backend/internal/platform/handler.(*ReservationHandler).NoShowHandler-fm
+POST /api/signup/google laguna-escondida/backend/internal/platform/handler.(*SignupHandler).GoogleSignupHandler-fm
 GET /api/sse/commands/:area laguna-escondida/backend/internal/platform/handler.(*SSEHandler).StreamCommandsHandler-fm
 GET /api/sse/open-bill-products/:area laguna-escondida/backend/internal/platform/handler.(*SSEHandler).StreamOpenBillProductsHandler-fm
 GET /api/sse/reservations laguna-escondida/backend/internal/platform/handler.(*ReservationStreamHandler).StreamHandler-fm

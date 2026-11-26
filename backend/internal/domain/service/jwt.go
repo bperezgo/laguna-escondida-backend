@@ -29,6 +29,7 @@ type JWTService struct {
 	secret  []byte
 	scope   tenant.Scope
 	apiKeys *APIKeyService
+	access  *OrganizationAccessService
 }
 
 // NewJWTService issues and validates tokens; a token whose organization is outside scope is invalid.
@@ -102,4 +103,15 @@ func (s *JWTService) AcceptAPIKeys(keys *APIKeyService) {
 // APIKeys is nil where keys are not accepted.
 func (s *JWTService) APIKeys() *APIKeyService {
 	return s.apiKeys
+}
+
+// EnforceOrganizationAccess makes every authenticated request pass the organization's status and plan.
+// Only the cloud calls it: plans and trials are not checked on an edge box.
+func (s *JWTService) EnforceOrganizationAccess(access *OrganizationAccessService) {
+	s.access = access
+}
+
+// OrganizationAccess is nil where organization access is not checked.
+func (s *JWTService) OrganizationAccess() *OrganizationAccessService {
+	return s.access
 }

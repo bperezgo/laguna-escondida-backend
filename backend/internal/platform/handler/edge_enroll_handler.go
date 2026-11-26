@@ -40,6 +40,10 @@ func (h *EdgeEnrollHandler) EnrollHandler(c *gin.Context) {
 }
 
 func (h *EdgeEnrollHandler) respondError(c *gin.Context, err error) {
+	respondEnrollError(c, err)
+}
+
+func respondEnrollError(c *gin.Context, err error) {
 	var conflict *domainError.BoxAlreadyEnrolledError
 	switch {
 	case errors.Is(err, domainError.ErrNodeNameRequired):

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Modal, Input, Button } from "@/components/ui";
-import { hasCloudRole, roleLabel } from "@/types/user";
+import { EMAIL_REQUIRED_MESSAGE, requiresEmail, roleLabel } from "@/types/user";
 import type {
   Role,
   UserWithRoles,
@@ -61,7 +61,7 @@ export default function UserForm({
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const needsEmail = hasCloudRole(
+  const needsEmail = requiresEmail(
     roles.filter((r) => selectedRoleIds.includes(r.id)).map((r) => r.name)
   );
 
@@ -117,8 +117,7 @@ export default function UserForm({
     }
 
     if (needsEmail && !email.trim()) {
-      next.email =
-        "El correo es obligatorio para Administrador, Gerente, Contador, Agente y Repartidor";
+      next.email = EMAIL_REQUIRED_MESSAGE;
     } else if (email.trim() && !EMAIL_PATTERN.test(email.trim())) {
       next.email = "Ingresa un correo válido";
     }
@@ -207,7 +206,7 @@ export default function UserForm({
           placeholder="correo@ejemplo.com"
           maxLength={255}
           autoComplete="off"
-          helper="Obligatorio para Administrador, Gerente, Contador, Agente y Repartidor: con él inician sesión en la nube."
+          helper="Obligatorio para Administrador, Contador, Agente y Repartidor: con él inician sesión en la nube. Un Gerente sin correo solo entra en la caja."
         />
 
         {!isEdit && (

@@ -225,7 +225,8 @@ Each channel has its own tag prefix and cadence; a bare `v*` tag does nothing.
   only in a cloud release that breaks the sync contract).
 - **Before self-serve signup opens** (`self-serve-signup-trial`): raise `MIN_EDGE_VERSION` to the
   `edge/v*` release that ships `expired-box-backoff`. Older boxes don't pause when refused, so an
-  expired trial box on them would keep calling the cloud every minute.
+  expired trial box on them would keep calling the cloud every minute. The full order, settings and
+  operator steps are in `backend/docs/playbooks/SELF_SERVE_SIGNUP_RUNBOOK.md`.
 - **Order.** Deploy the cloud first when an edge release raises `min_cloud`; otherwise the two
   channels are independent.
 

@@ -58,6 +58,7 @@ type nodeAuthRow struct {
 	RevokedAt          *time.Time `gorm:"column:revoked_at"`
 	LastSeenAt         *time.Time `gorm:"column:last_seen_at"`
 	OrganizationStatus string     `gorm:"column:organization_status"`
+	TrialEndsAt        *time.Time `gorm:"column:trial_ends_at"`
 }
 
 type NodeRepository struct {
@@ -77,7 +78,7 @@ func (r *NodeRepository) FindForAuth(ctx context.Context, id string) (*dto.NodeA
 	var row nodeAuthRow
 	result := postgres.GetTxOrDB(ctx, r.db).WithContext(ctx).Raw(`
 		SELECT n.id, n.name, n.kind, n.organization_id, n.key_hash,
-		       n.enrolled_at, n.revoked_at, n.last_seen_at, o.status AS organization_status
+		       n.enrolled_at, n.revoked_at, n.last_seen_at, o.status AS organization_status, o.trial_ends_at
 		FROM nodes n
 		JOIN organizations o ON o.id = n.organization_id
 		WHERE n.id = ?`, id).Scan(&row)
@@ -93,6 +94,7 @@ func (r *NodeRepository) FindForAuth(ctx context.Context, id string) (*dto.NodeA
 			EnrolledAt: row.EnrolledAt, RevokedAt: row.RevokedAt, LastSeenAt: row.LastSeenAt,
 		},
 		OrganizationStatus: row.OrganizationStatus,
+		TrialEndsAt:        row.TrialEndsAt,
 	}
 	if row.KeyHash != nil {
 		record.KeyHash = *row.KeyHash

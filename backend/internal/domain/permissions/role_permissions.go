@@ -28,6 +28,21 @@ func HasCloudRole(roleIDs []int) bool {
 	return false
 }
 
+// EmailRequiredRoles need an email. A manager may go without one: a box-only manager, like the
+// box user created at signup, who signs in only on the edge.
+var EmailRequiredRoles = []int{RoleAdmin, RoleAccountant, RoleAgent, RoleCourier}
+
+func RequiresEmail(roleIDs []int) bool {
+	for _, roleID := range roleIDs {
+		for _, required := range EmailRequiredRoles {
+			if roleID == required {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // RolePermissions maps role IDs to their permissions
 var RolePermissions = map[int][]Permission{
 	RoleServer: {

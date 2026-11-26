@@ -1,0 +1,135 @@
+---
+import Base from "../layouts/Base.astro";
+import { site, whatsappHref } from "../config/site.ts";
+
+const provider = site.legalName ?? site.productName;
+---
+
+<Base
+  title={`Términos del servicio | ${site.productName}`}
+  description={`Las condiciones para usar ${site.productName}: la prueba gratis, los planes, la facturación electrónica y tus datos.`}
+  path="/terminos"
+  ctaHref="/#demo"
+>
+  <article class="px-4 pt-28 md:pt-36">
+    <div class="mx-auto max-w-3xl">
+      <a href="/" class="body-5 text-primary underline underline-offset-4">Volver al inicio</a>
+      <h1 class="heading-2 mt-6">Términos del servicio</h1>
+      <p class="caption-2 text-muted mt-2">Última actualización: 25 de noviembre de 2026</p>
+
+      <div class="body-3 text-ink mt-8 flex flex-col gap-8 [&_h2]:heading-5 [&_h2]:mb-2 [&_p]:text-muted [&_ul]:text-muted [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:flex [&_ul]:flex-col [&_ul]:gap-1">
+        <section>
+          <h2>Qué es {site.productName}</h2>
+          <p>
+            {site.productName} es un software para restaurantes que presta {provider}: caja, inventario, domicilios, reservas, reportes y facturación
+            electrónica. Funciona en la nube y en una caja instalada en el restaurante, que sigue vendiendo sin internet y se sincroniza cuando vuelve la
+            conexión. Al crear una cuenta o usar el servicio aceptas estos términos y la
+            <a class="text-primary underline underline-offset-4" href="/privacidad">política de privacidad</a>.
+          </p>
+        </section>
+
+        <section>
+          <h2>Tu cuenta</h2>
+          <ul>
+            <li>Quien crea la cuenta es su administrador y debe tener autorización para hacerlo en nombre del restaurante.</li>
+            <li>El administrador decide quién entra, con qué rol, y responde por lo que hace su equipo en la aplicación.</li>
+            <li>Cuida tus credenciales y avísanos si crees que alguien entró a tu cuenta sin permiso.</li>
+            <li>La información que das al crear la cuenta debe ser verdadera.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>La prueba gratis</h2>
+          <p>
+            Una cuenta nueva tiene 14 días de prueba sin costo y sin tarjeta. Al terminar, la aplicación deja de estar disponible hasta que contrates un
+            plan; la caja sigue funcionando sin conexión, pero deja de sincronizarse con la nube. No borramos tus datos al terminar la prueba.
+          </p>
+        </section>
+
+        <section>
+          <h2>Planes y pagos</h2>
+          <p>
+            Cada plan incluye un conjunto de funciones. El precio, la forma de pago y el plan se acuerdan contigo antes de activarlo. Si cambias a un plan
+            que no incluye una función, conservas tus datos pero esa función deja de estar disponible. Podemos suspender el servicio si un pago no se hace a
+            tiempo, avisándote antes.
+          </p>
+        </section>
+
+        <section>
+          <h2>Facturación electrónica</h2>
+          <ul>
+            <li>Enviamos tus facturas a la DIAN a través de un proveedor tecnológico autorizado, solo si tu plan incluye facturación electrónica.</li>
+            <li>Si tu plan no la incluye, las ventas no se envían a la DIAN y tu restaurante debe cumplir esa obligación por su cuenta.</li>
+            <li>
+              Tu restaurante responde por sus obligaciones tributarias: su habilitación y numeración ante la DIAN, y que los datos de sus productos, impuestos y
+              clientes sean correctos.
+            </li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Tus datos</h2>
+          <p>
+            Lo que tu restaurante registra en {site.productName} es suyo. Lo usamos solo para prestarte el servicio, como se explica en la
+            <a class="text-primary underline underline-offset-4" href="/privacidad">política de privacidad</a>. Puedes pedirnos una copia de tus datos, o
+            pedirnos que los borremos al cerrar la cuenta, salvo lo que la ley nos obligue a conservar.
+          </p>
+        </section>
+
+        <section>
+          <h2>Uso permitido</h2>
+          <p>No puedes usar {site.productName} para:</p>
+          <ul class="mt-2">
+            <li>Actividades ilegales o para emitir facturas que no correspondan a ventas reales.</li>
+            <li>Registrar datos de personas sin su autorización.</li>
+            <li>Intentar entrar a cuentas o datos de otros restaurantes, o afectar el funcionamiento del servicio.</li>
+            <li>Copiar, revender o descompilar el software.</li>
+          </ul>
+          <p class="mt-2">Si lo haces, podemos suspender tu cuenta.</p>
+        </section>
+
+        <section>
+          <h2>Disponibilidad</h2>
+          <p>
+            Trabajamos para que el servicio esté siempre disponible, pero puede haber interrupciones por mantenimiento, fallas de internet o de nuestros
+            proveedores. Por eso la caja sigue vendiendo sin conexión. Actualizamos el software de la caja y de la nube para corregir fallas y agregar funciones.
+          </p>
+        </section>
+
+        <section>
+          <h2>Responsabilidad</h2>
+          <p>
+            Prestamos el servicio tal como está, con el cuidado debido. En la medida que la ley lo permita, no respondemos por pérdidas indirectas, como
+            ventas o ganancias perdidas, y nuestra responsabilidad total se limita a lo que nos pagaste en los tres meses anteriores al hecho. Nada de esto
+            limita los derechos que te da la ley colombiana.
+          </p>
+        </section>
+
+        <section>
+          <h2>Terminación</h2>
+          <p>
+            Puedes dejar de usar el servicio cuando quieras, avisándonos. Podemos terminarlo por incumplimiento de estos términos o por falta de pago. En ambos
+            casos puedes pedirnos una copia de tus datos.
+          </p>
+        </section>
+
+        <section>
+          <h2>Cambios y ley aplicable</h2>
+          <p>
+            Si cambiamos estos términos actualizamos la fecha de arriba y, si el cambio es importante, te avisamos en la aplicación o por correo antes de que
+            aplique. Estos términos se rigen por las leyes de Colombia.
+          </p>
+        </section>
+
+        <section>
+          <h2>Contacto</h2>
+          <ul>
+            {site.privacyEmail && <li>Por correo a <a class="text-primary underline underline-offset-4" href={`mailto:${site.privacyEmail}`}>{site.privacyEmail}</a>.</li>}
+            {whatsappHref && <li>Por <a class="text-primary underline underline-offset-4" href={whatsappHref} data-whatsapp>WhatsApp</a>.</li>}
+            {!site.privacyEmail && !whatsappHref && <li>Respondiendo al mensaje que te enviemos por WhatsApp.</li>}
+          </ul>
+        </section>
+      </div>
+    </div>
+  </article>
+</Base>

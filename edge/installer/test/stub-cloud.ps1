@@ -3,9 +3,9 @@
   the wizard by hand. Payloads follow backend/docs/api (auth.md, edge-enrollment.md, sync.md).
 
     GET  /api/auth/context     {"mode":"cloud"}
-    POST /api/auth/signin      200 + a token for the stub user, or 401 for any other password
-    POST /api/edge/enroll      201 once; 409 when -Conflict, or after the first call unless
-                               "replace":true; 403 for the email "manager@stub.test"
+    POST /api/edge/enroll-with-code   201 once for -Code (case, spaces and "-" ignored), 401 for
+                               any other code; 409 when -Conflict, or after the first call,
+                               unless "replace":true
     GET  /api/edge/status      {"version":"v0.0.0"}
     POST /api/sync/push, GET /api/sync/pull, GET /api/sync/pull/stock   empty valid pages
 
@@ -20,7 +20,7 @@ param(
   [string] $LogFile = (Join-Path $env:TEMP 'stub-cloud.log'),
   [string] $StopFile = (Join-Path $env:TEMP 'stub-cloud.stop'),
   [switch] $Conflict,
-  [string] $Password = 'stub-password'
+  [string] $Code = 'STUB-C0DE'
 )
 $ErrorActionPreference = 'Stop'
 $base = "http://127.0.0.1:$Port"
@@ -58,13 +58,9 @@ try {
     switch ("$method $path") {
       'GET /api/auth/context' { Send $ctx 200 @{ mode = 'cloud' } }
       'GET /api/edge/status'  { Send $ctx 200 @{ version = 'v0.0.0' } }
-      'POST /api/auth/signin' {
-        if ($body.password -ne $Password) { Send $ctx 401 @{ error = 'invalid credentials' } }
-        else { Send $ctx 200 @{ token = "stub-token-$($body.email)"; username = 'stub'; roles = @(); permissions = @() } }
-      }
-      'POST /api/edge/enroll' {
-        $auth = "$($ctx.Request.Headers['Authorization'])"
-        if ($auth -eq 'Bearer stub-token-manager@stub.test') { Send $ctx 403 @{ error = 'forbidden' } }
+      'POST /api/edge/enroll-with-code' {
+        $norm = { param($c) ("$c".ToUpper() -replace '[\s-]', '') }
+        if ((& $norm $body.code) -ne (& $norm $Code)) { Send $ctx 401 @{ error = 'invalid or expired code' } }
         elseif (($Conflict -or $enrolled) -and -not $body.replace) {
           Send $ctx 409 @{ error = 'organization already has an active box'; code = 'box_already_enrolled'
             active_box = @{ name = 'Caja principal'; enrolled_at = $epoch; last_seen_at = $null } }

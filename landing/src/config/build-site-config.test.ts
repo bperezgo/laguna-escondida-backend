@@ -20,6 +20,7 @@ test("a build with only the backend address works, with every optional tool off"
   assert.equal(config.whatsappNumber, undefined);
   assert.equal(config.legalName, undefined);
   assert.equal(config.privacyEmail, undefined);
+  assert.equal(config.signupUrl, undefined, "the trial call to action is hidden by default");
 });
 
 test("the privacy contact is passed through and a malformed email fails the build", () => {
@@ -77,4 +78,10 @@ test("the installer link is the configured backend's download endpoint, with or 
     installerDownloadUrl(buildSiteConfig({ PUBLIC_API_BASE_URL: "https://staging-api.example.com/" })),
     "https://staging-api.example.com/api/public/edge/installer",
   );
+});
+
+test("the signup address turns the trial call to action on, and a malformed one fails the build", () => {
+  assert.equal(buildSiteConfig({ ...base, PUBLIC_SIGNUP_URL: "https://app.kuenta.co/registro/" }).signupUrl, "https://app.kuenta.co/registro");
+  assert.equal(buildSiteConfig({ ...base, PUBLIC_SIGNUP_URL: "  " }).signupUrl, undefined);
+  assert.throws(() => buildSiteConfig({ ...base, PUBLIC_SIGNUP_URL: "app.kuenta.co/registro" }), /PUBLIC_SIGNUP_URL/);
 });

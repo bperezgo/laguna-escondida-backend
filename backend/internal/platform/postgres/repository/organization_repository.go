@@ -25,24 +25,26 @@ const (
 )
 
 type organizationModel struct {
-	ID                string  `gorm:"column:id;primaryKey"`
-	Name              string  `gorm:"column:name"`
-	Slug              string  `gorm:"column:slug"`
-	Status            string  `gorm:"column:status"`
-	Timezone          string  `gorm:"column:timezone"`
-	Country           string  `gorm:"column:country"`
-	Locale            string  `gorm:"column:locale"`
-	Currency          string  `gorm:"column:currency"`
-	LegalName         *string `gorm:"column:legal_name"`
-	NIT               *string `gorm:"column:nit"`
-	Address           *string `gorm:"column:address"`
-	Phone             *string `gorm:"column:phone"`
-	TicketFooter      *string `gorm:"column:ticket_footer"`
-	TicketLegalNotice *string `gorm:"column:ticket_legal_notice"`
-	DisplayName       *string `gorm:"column:display_name"`
-	LogoURL           *string `gorm:"column:logo_url"`
-	PrimaryColor      *string `gorm:"column:primary_color"`
-	SecondaryColor    *string `gorm:"column:secondary_color"`
+	ID                string     `gorm:"column:id;primaryKey"`
+	Name              string     `gorm:"column:name"`
+	Slug              string     `gorm:"column:slug"`
+	Status            string     `gorm:"column:status"`
+	Plan              string     `gorm:"column:plan;default:full"`
+	TrialEndsAt       *time.Time `gorm:"column:trial_ends_at"`
+	Timezone          string     `gorm:"column:timezone"`
+	Country           string     `gorm:"column:country"`
+	Locale            string     `gorm:"column:locale"`
+	Currency          string     `gorm:"column:currency"`
+	LegalName         *string    `gorm:"column:legal_name"`
+	NIT               *string    `gorm:"column:nit"`
+	Address           *string    `gorm:"column:address"`
+	Phone             *string    `gorm:"column:phone"`
+	TicketFooter      *string    `gorm:"column:ticket_footer"`
+	TicketLegalNotice *string    `gorm:"column:ticket_legal_notice"`
+	DisplayName       *string    `gorm:"column:display_name"`
+	LogoURL           *string    `gorm:"column:logo_url"`
+	PrimaryColor      *string    `gorm:"column:primary_color"`
+	SecondaryColor    *string    `gorm:"column:secondary_color"`
 	// Written only through OrganizationSettingsRepository; NULL on create reads as unconfigured.
 	Settings  []byte    `gorm:"column:settings;->"`
 	CreatedAt time.Time `gorm:"column:created_at"`
@@ -161,7 +163,7 @@ func (r *OrganizationRepository) Update(ctx context.Context, id string, req *dto
 	}
 	updates := map[string]any{"updated_at": time.Now()}
 	for column, value := range map[string]*string{
-		"name": req.Name, "status": req.Status, "timezone": req.Timezone,
+		"name": req.Name, "status": req.Status, "plan": req.Plan, "timezone": req.Timezone,
 		"country": req.Country, "locale": req.Locale, "currency": req.Currency,
 	} {
 		if value != nil {
@@ -183,6 +185,18 @@ func (r *OrganizationRepository) Update(ctx context.Context, id string, req *dto
 		}
 	}
 
+	if req.TrialEndsAt != nil {
+		if *req.TrialEndsAt == "" {
+			updates["trial_ends_at"] = nil
+		} else {
+			endsAt, err := time.Parse(time.RFC3339, *req.TrialEndsAt)
+			if err != nil {
+				return nil, &domainError.OrganizationValidationError{Field: "trial_ends_at", Reason: "must be an RFC 3339 timestamp"}
+			}
+			updates["trial_ends_at"] = endsAt
+		}
+	}
+
 	result := postgres.GetTxOrDB(ctx, r.db).Model(&organizationModel{}).Where("id = ?", id).Updates(updates)
 	if result.Error != nil {
 		return nil, fmt.Errorf("update organization: %w", result.Error)
@@ -195,7 +209,7 @@ func (r *OrganizationRepository) Update(ctx context.Context, id string, req *dto
 
 func organizationToModel(org *dto.Organization) *organizationModel {
 	return &organizationModel{
-		ID: org.ID, Name: org.Name, Slug: org.Slug, Status: org.Status,
+		ID: org.ID, Name: org.Name, Slug: org.Slug, Status: org.Status, Plan: org.Plan, TrialEndsAt: org.TrialEndsAt,
 		Timezone: org.Timezone, Country: org.Country, Locale: org.Locale, Currency: org.Currency,
 		LegalName: org.LegalName, NIT: org.NIT, Address: org.Address, Phone: org.Phone,
 		TicketFooter: org.TicketFooter, TicketLegalNotice: org.TicketLegalNotice,
@@ -207,7 +221,7 @@ func organizationToModel(org *dto.Organization) *organizationModel {
 
 func organizationToDTO(m *organizationModel) *dto.Organization {
 	return &dto.Organization{
-		ID: m.ID, Name: m.Name, Slug: m.Slug, Status: m.Status,
+		ID: m.ID, Name: m.Name, Slug: m.Slug, Status: m.Status, Plan: m.Plan, TrialEndsAt: m.TrialEndsAt,
 		Timezone: m.Timezone, Country: m.Country, Locale: m.Locale, Currency: m.Currency,
 		LegalName: m.LegalName, NIT: m.NIT, Address: m.Address, Phone: m.Phone,
 		TicketFooter: m.TicketFooter, TicketLegalNotice: m.TicketLegalNotice,

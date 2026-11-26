@@ -1,5 +1,7 @@
 # Deliveries API
 
+> **Plan:** in the cloud these routes need the `full` plan; otherwise `403 plan_required`. A suspended organization or an ended trial is refused first. See [Organization access refusals](./auth.md#organization-access-refusals).
+
 Tracks a paid takeaway or delivery order from the kitchen to the customer: which orders are ready, which courier has each one on the road, and whether it was delivered or why it failed.
 
 **Cloud only.** These routes are not served on the box (edge); every one returns `404` there. Till orders reach the cloud as `dine_in` and are not tracked.

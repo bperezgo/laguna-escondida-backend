@@ -1,8 +1,13 @@
 // Routes reachable without the access_token cookie. Everything else requires it.
-export const publicRoutes = ["/signin"];
+// A signed-in user is sent home from these.
+export const publicRoutes = ["/signin", "/registro"];
 
-function isPublicRoute(pathname: string): boolean {
-  return publicRoutes.some(
+// Reachable with or without a session: an invitation link opened in a signed-in browser still
+// shows the invitation.
+export const openRoutes = ["/invitacion"];
+
+function matches(routes: string[], pathname: string): boolean {
+  return routes.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`)
   );
 }
@@ -16,8 +21,9 @@ export function guardRedirect(
     return isAuthenticated ? "/home" : "/signin";
   }
 
-  if (isPublicRoute(pathname)) {
-    // Already signed in: the sign-in page has nothing to offer.
+  if (matches(openRoutes, pathname)) return null;
+
+  if (matches(publicRoutes, pathname)) {
     return isAuthenticated ? "/home" : null;
   }
 

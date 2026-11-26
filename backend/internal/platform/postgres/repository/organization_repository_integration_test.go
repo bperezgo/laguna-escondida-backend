@@ -221,3 +221,36 @@ func TestOrganizationRepository_CreateWithInvalidPrefixesRollsBack_Integration(t
 	_, err = repo.Get(ctx, org.ID)
 	assert.ErrorIs(t, err, domainError.ErrOrganizationNotFound, "the organization is not stored without its prefixes")
 }
+
+func TestOrganizationRepository_PlanAndTrial_Integration(t *testing.T) {
+	db := newApplierTestDB(t)
+	repo := NewOrganizationRepository(db.DB)
+	ctx := context.Background()
+
+	defaulted := newTestOrganization(t, db, "Plan defaulted")
+	require.NoError(t, repo.Create(ctx, defaulted))
+	got, err := repo.Get(ctx, defaulted.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "full", got.Plan, "an organization created without a plan gets full")
+	assert.Nil(t, got.TrialEndsAt)
+
+	trial := newTestOrganization(t, db, "On trial")
+	ends := time.Now().UTC().Add(14 * 24 * time.Hour).Truncate(time.Second)
+	trial.Status, trial.Plan, trial.TrialEndsAt = dto.OrganizationStatusTrial, "starter", &ends
+	require.NoError(t, repo.Create(ctx, trial))
+	got, err = repo.Get(ctx, trial.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "trial", got.Status)
+	assert.Equal(t, "starter", got.Plan)
+	require.NotNil(t, got.TrialEndsAt)
+	assert.True(t, ends.Equal(*got.TrialEndsAt))
+
+	later := ends.Add(7 * 24 * time.Hour).Format(time.RFC3339)
+	active, plan := dto.OrganizationStatusActive, "einvoicing"
+	updated, err := repo.Update(ctx, trial.ID, &dto.UpdateOrganizationRequest{Status: &active, Plan: &plan, TrialEndsAt: &later})
+	require.NoError(t, err)
+	assert.Equal(t, "active", updated.Status)
+	assert.Equal(t, "einvoicing", updated.Plan)
+	require.NotNil(t, updated.TrialEndsAt)
+	assert.Equal(t, later, updated.TrialEndsAt.UTC().Format(time.RFC3339))
+}

@@ -1,4 +1,5 @@
 import { PERMISSIONS } from "../permissions/constants.ts";
+import { featureVisible } from "../plans.ts";
 import type { IssuedOrganizationApiKey, OrganizationApiKey } from "../../types/organizationApiKeys.ts";
 
 export const API_KEY_MAX_NAME_LENGTH = 255;
@@ -62,8 +63,12 @@ export function mcpPublicUrl(raw: string | undefined): string | null {
   return url ? url : null;
 }
 
-export function showApiKeysCard(hasPermission: (permission: string) => boolean): boolean {
-  return hasPermission(PERMISSIONS.API_KEYS_MANAGE);
+export function showApiKeysCard(
+  hasPermission: (permission: string) => boolean,
+  plan: string | null | undefined,
+  isEdge: boolean
+): boolean {
+  return hasPermission(PERMISSIONS.API_KEYS_MANAGE) && featureVisible("agents", plan, isEdge);
 }
 
 export const API_KEY_SHOWN_ONCE_NOTE =

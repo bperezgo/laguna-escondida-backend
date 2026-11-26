@@ -2,6 +2,7 @@
 import { Icon } from "astro-icon/components";
 
 import ProductShot from "../ProductShot.astro";
+import { signupHref } from "../../config/site.ts";
 ---
 
 <section class="px-4 pt-24 pb-12 md:pt-36" aria-labelledby="hero-title">
@@ -17,6 +18,17 @@ import ProductShot from "../ProductShot.astro";
       >
         Pide una demo
       </a>
+      {
+        signupHref && (
+          <a
+            href={signupHref}
+            data-trial-cta
+            class="button-lg bg-surface text-primary border-primary hover:border-primary-strong hover:text-primary-strong motion-weighted rounded-lg border px-3 py-3 text-center active:scale-[0.98]"
+          >
+            Prueba 14 días
+          </a>
+        )
+      }
       <p class="body-5 text-muted flex items-center gap-2">
         <Icon name="ph:storefront" class="text-primary size-5 shrink-0" aria-hidden="true" />
         Funciona cada día en un restaurante real. Lo construyó su dueño.

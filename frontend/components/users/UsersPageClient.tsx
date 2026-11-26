@@ -14,6 +14,7 @@ import { PermissionGate } from "@/components/permissions";
 import UserList from "./UserList";
 import UserForm from "./UserForm";
 import ResetPasswordModal from "./ResetPasswordModal";
+import InvitationsSection from "./InvitationsSection";
 
 interface UsersPageClientProps {
   initialUsers: UserWithRoles[];
@@ -268,6 +269,8 @@ export default function UsersPageClient({
           onDelete={setDeleteConfirm}
           isLoading={loading}
         />
+
+        <InvitationsSection roles={roles} />
       </div>
 
       {/* Create / Edit Form */}

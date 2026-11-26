@@ -20,7 +20,7 @@ interface IntegrationsPageClientProps {
 }
 
 export default function IntegrationsPageClient({ wompi, marketingApp, payment, apiKeys, mcpUrl }: IntegrationsPageClientProps) {
-  const { hasPermission, isLoading } = usePermissions();
+  const { hasPermission, isLoading, organization, isEdge } = usePermissions();
   const canRead = hasPermission(PERMISSIONS.INTEGRATIONS_READ);
   const canManage = hasPermission(PERMISSIONS.INTEGRATIONS_MANAGE);
 
@@ -41,7 +41,7 @@ export default function IntegrationsPageClient({ wompi, marketingApp, payment, a
         <PaymentSettingsCard initialState={payment} canManage={canManage} wompiConfigured={wompi.kind === "configured"} />
         <WompiIntegrationCard initialState={wompi} canManage={canManage} />
         <MarketingAppIntegrationCard initialState={marketingApp} canManage={canManage} />
-        {showApiKeysCard(hasPermission) && <ApiKeysCard initialState={apiKeys} mcpUrl={mcpUrl} />}
+        {showApiKeysCard(hasPermission, organization?.plan, isEdge) && <ApiKeysCard initialState={apiKeys} mcpUrl={mcpUrl} />}
       </>
     );
   }
