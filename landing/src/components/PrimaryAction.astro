@@ -1,0 +1,20 @@
+---
+import { actions } from "../config/site.ts";
+
+interface Props {
+  size?: "sm" | "md" | "lg";
+  class?: string;
+}
+
+const { size = "lg", class: className } = Astro.props;
+const { primary } = actions;
+const sizes = { sm: "button-sm px-3 py-2", md: "button-md px-3 py-3", lg: "button-lg px-3 py-3" };
+---
+
+<a
+  href={primary.href}
+  data-trial-cta={primary.kind === "trial" ? "" : undefined}
+  class:list={["bg-primary text-on-primary hover:bg-primary-strong motion-weighted rounded-lg text-center active:scale-[0.98]", sizes[size], className]}
+>
+  {primary.label}
+</a>

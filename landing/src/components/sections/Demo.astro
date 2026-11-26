@@ -1,8 +1,9 @@
 ---
 import { Icon } from "astro-icon/components";
 
-import { whatsappHref } from "../../config/site.ts";
+import { actions, whatsappHref } from "../../config/site.ts";
 import LeadForm from "../LeadForm.astro";
+import PrimaryAction from "../PrimaryAction.astro";
 ---
 
 <section id="demo" class="px-4 py-16 md:py-24" aria-labelledby="demo-title">
@@ -15,6 +16,14 @@ import LeadForm from "../LeadForm.astro";
           <a href={whatsappHref} data-whatsapp class="button-md text-primary mt-6 inline-flex items-center gap-2 underline underline-offset-4">
             <Icon name="ph:whatsapp-logo" class="size-6" aria-hidden="true" /> Prefiero escribir por WhatsApp
           </a>
+        )
+      }
+      {
+        actions.primary.kind === "trial" && (
+          <div class="border-line mt-8 border-t pt-6">
+            <p class="body-3 text-muted">¿Prefieres probarlo por tu cuenta?</p>
+            <PrimaryAction size="md" class="mt-3 inline-block" />
+          </div>
         )
       }
     </div>

@@ -1,22 +1,56 @@
 ---
 import { Icon } from "astro-icon/components";
 
+import ProductShot from "../ProductShot.astro";
+import SequenceStep from "../SequenceStep.astro";
+
 const statement = "Se cae el internet y la caja sigue cobrando. La cocina sigue recibiendo pedidos. Cuando vuelve la conexión, todo se sincroniza.";
 const words = statement.split(" ");
+
+const steps = [
+  {
+    shot: "outage-1",
+    title: "Se cae el internet",
+    text: "La caja avisa que está sin conexión y sigue abierta.",
+    alt: "Las cuentas abiertas en la caja, con el aviso de sin conexión",
+  },
+  {
+    shot: "outage-2",
+    title: "Sigues tomando y cobrando pedidos",
+    text: "Las órdenes, los cobros y la cocina funcionan en la red del local.",
+    alt: "El cobro de una mesa en la caja mientras no hay conexión",
+  },
+  {
+    shot: "outage-3",
+    title: "Vuelve la conexión",
+    text: "Lo que hiciste se envía a la nube sin que nadie lo vuelva a digitar.",
+    alt: "La orden tomada sin conexión, ya visible en la nube junto a las demás",
+  },
+];
 ---
 
-<section class="bg-night text-on-night px-4 py-20 md:py-24" aria-labelledby="outage-title">
+<section id="sin-internet" class="bg-night text-on-night px-4 py-20 md:py-24" aria-labelledby="outage-title">
   <div class="mx-auto max-w-5xl">
     <p class="caption-3 text-accent flex items-center gap-2 tracking-wide uppercase">
       <Icon name="ph:wifi-slash" class="size-5" aria-hidden="true" /> Sin conexión
     </p>
     <h2 id="outage-title" class="sr-only">Vendes también cuando no hay internet</h2>
-    <p data-tagline class="heading-3 mt-6 max-w-[680px]" aria-label={statement}>
+    <p data-tagline class="heading-3 mt-6 max-w-[680px]">
+      <span class="sr-only">{statement}</span>
       {words.map((word) => <><span data-word aria-hidden="true">{word}</span>{" "}</>)}
     </p>
     <p class="body-3 mt-8 max-w-[680px] text-slate-300">
       Cada restaurante trabaja con un equipo propio dentro del local. Si la conexión falla, el servicio no se detiene: los pedidos, los cobros y la cocina
       siguen funcionando en tu red y se envían a la nube cuando regresa el internet.
     </p>
+    <ol class="mt-12 flex flex-col gap-10" data-reveal>
+      {
+        steps.map((step, index) => (
+          <SequenceStep number={index + 1} title={step.title} text={step.text} tone="night">
+            <ProductShot name={step.shot} alt={step.alt} />
+          </SequenceStep>
+        ))
+      }
+    </ol>
   </div>
 </section>

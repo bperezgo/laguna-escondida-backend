@@ -1,23 +1,27 @@
+import { formatCop, plans } from "../../config/plans.ts";
+
 export interface Faq {
   question: string;
   answer: string;
 }
 
+const prices = plans.map((plan) => `${plan.name} a ${formatCop(plan.monthly)}`);
+
 export const faqs: Faq[] = [
   {
     question: "¿Qué pasa si se cae el internet en medio del servicio?",
     answer:
-      "Sigues cobrando y la cocina sigue recibiendo pedidos, porque el sistema corre en un equipo dentro de tu local. Lo que no necesita conexión no se detiene, y todo se envía a la nube cuando vuelve el internet. Los pedidos por WhatsApp sí necesitan conexión para llegar.",
+      "Sigues cobrando y la cocina sigue recibiendo pedidos, porque el sistema corre en un equipo dentro de tu local. Lo que no necesita conexión no se detiene, y todo se envía a la nube cuando vuelve el internet. Los pedidos que llegan por internet sí necesitan conexión.",
   },
   {
     question: "¿La factura es válida ante la DIAN?",
     answer:
-      "El sistema emite facturas electrónicas y documentos soporte con tus prefijos de facturación. Los dejamos configurados contigo durante la puesta en marcha.",
+      "El sistema emite facturas electrónicas y documentos soporte con tus prefijos de facturación. Están en los planes Facturación electrónica y Completo.",
   },
   {
     question: "¿Es difícil cambiar de sistema?",
     answer:
-      "No empiezas solo. Cargamos tu menú y dejamos listo tu canal de WhatsApp antes de que abras con el sistema nuevo. Tú instalas el sistema en el computador del local con nuestro instalador.",
+      "No empiezas solo. Te acompañamos a cargar tu menú antes de que abras con el sistema nuevo. Tú instalas el sistema en el computador del local con nuestro instalador.",
   },
   {
     question: "¿Mi equipo va a aprender a usarlo?",
@@ -27,10 +31,15 @@ export const faqs: Faq[] = [
   {
     question: "¿Funciona para domicilios y para llevar?",
     answer:
-      "Sí. Defines tus zonas de domicilio en un mapa, y puedes pausar domicilios o pedidos para llevar y fijar sus horarios.",
+      "Sí. Los pedidos para llevar están en todos los planes. Con el plan Completo defines tus zonas de domicilio en un mapa, y puedes pausar domicilios o pedidos para llevar y fijar sus horarios.",
+  },
+  {
+    question: "¿El agente de WhatsApp viene incluido?",
+    answer:
+      "No. Es un producto aparte que se conecta con el sistema y se contrata por separado. El plan Completo permite esa conexión. Escríbenos y te contamos cómo funciona.",
   },
   {
     question: "¿Cuánto cuesta?",
-    answer: "En la demo te explicamos las condiciones según el tamaño de tu restaurante. No publicamos precios en esta página.",
+    answer: `Hay tres planes al mes, antes de IVA: ${prices[0]}, ${prices[1]} y ${prices[2]}. Si pagas el año, dos meses son gratis. El detalle de cada plan está en la sección de planes.`,
   },
 ];

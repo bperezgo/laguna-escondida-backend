@@ -1,0 +1,21 @@
+---
+interface Props {
+  number: number;
+  title: string;
+  text: string;
+  tone?: "light" | "night";
+}
+
+const { number, title, text, tone = "light" } = Astro.props;
+---
+
+<li class="grid gap-4 md:grid-cols-3 md:items-center md:gap-8">
+  <div class="flex items-start gap-3">
+    <span class="body-4 bg-primary text-on-primary flex size-8 shrink-0 items-center justify-center rounded-full" aria-hidden="true">{number}</span>
+    <div>
+      <h3 class="title-2">{title}</h3>
+      <p class:list={["body-6 mt-1", tone === "night" ? "text-slate-300" : "text-muted"]}>{text}</p>
+    </div>
+  </div>
+  <div class="md:col-span-2"><slot /></div>
+</li>

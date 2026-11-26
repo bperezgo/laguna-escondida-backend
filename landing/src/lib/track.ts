@@ -27,6 +27,12 @@ export function trackWhatsApp(): void {
   call("fbq", "track", "Contact");
 }
 
+/** A click, not a started trial: the app reports that one. Never awaited, so the signup page opens regardless. */
+export function trackTrialClick(): void {
+  call("gtag", "event", "trial_click");
+  call("fbq", "trackCustom", "TrialClick");
+}
+
 /** Never awaited by the link: the download must not wait on analytics. */
 export function trackInstallerDownload(): void {
   call("gtag", "event", "installer_download");

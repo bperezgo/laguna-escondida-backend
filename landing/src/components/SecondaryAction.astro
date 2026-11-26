@@ -1,0 +1,24 @@
+---
+import { actions } from "../config/site.ts";
+
+interface Props {
+  class?: string;
+}
+
+const { class: className } = Astro.props;
+const { secondary } = actions;
+---
+
+{
+  secondary && (
+    <a
+      href={secondary.href}
+      class:list={[
+        "button-lg bg-surface text-primary border-primary hover:border-primary-strong hover:text-primary-strong motion-weighted rounded-lg border px-3 py-3 text-center active:scale-[0.98]",
+        className,
+      ]}
+    >
+      {secondary.label}
+    </a>
+  )
+}
