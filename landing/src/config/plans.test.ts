@@ -8,6 +8,10 @@ test("the three plans cost 25000, 40000 and 100000 a month, in that order", () =
   assert.deepEqual(plans.map((p) => p.monthly), [25000, 40000, 100000]);
 });
 
+test("Facturación electrónica is the one recommended plan", () => {
+  assert.deepEqual(plans.filter((p) => p.recommended).map((p) => p.id), ["einvoicing"]);
+});
+
 test("a year costs ten months", () => {
   assert.deepEqual(plans.map(annualPrice), [250000, 400000, 1000000]);
 });

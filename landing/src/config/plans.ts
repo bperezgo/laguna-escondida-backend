@@ -4,6 +4,8 @@ export interface Plan {
   /** Colombian pesos per month, before IVA. */
   monthly: number;
   includes: string[];
+  /** The plan the pricing section points a visitor to. At most one. */
+  recommended?: boolean;
 }
 
 // Prices come from the owner. The same plans live in backend/docs/api/organizations.md#plans
@@ -25,6 +27,7 @@ export const plans: Plan[] = [
     id: "einvoicing",
     name: "Facturación electrónica",
     monthly: 40000,
+    recommended: true,
     includes: ["Todo lo del plan Básico", "Factura electrónica para la DIAN", "Documentos soporte de tus compras"],
   },
   {

@@ -85,12 +85,17 @@ The home page SHALL show the three plans with their names, their monthly price i
 | Facturación electrónica | $40.000 |
 | Completo | $100.000 |
 
-It SHALL say that prices are before IVA. It SHALL offer annual payment at ten times the monthly price, described as two months free, and SHALL show that annual price for each plan. It SHALL say that the system is installed on the computer the restaurant already has. Each plan SHALL carry the primary action. The section SHALL NOT offer a way to pay on the site.
+It SHALL say that prices are before IVA. It SHALL offer annual payment at ten times the monthly price, described as two months free, and SHALL show that annual price for each plan. It SHALL say that the system is installed on the computer the restaurant already has. Each plan SHALL carry the primary action. The Facturación electrónica plan SHALL be marked as the recommended one and set apart visually from the other two, without calling it the most chosen or citing any figure. The section SHALL NOT offer a way to pay on the site.
 
 #### Scenario: A visitor compares the plans
 
 - **WHEN** a visitor opens the plans section
 - **THEN** the three plans are shown with $25.000, $40.000 and $100.000 per month, what each includes, and a note that prices are before IVA
+
+#### Scenario: The recommended plan
+
+- **WHEN** a visitor opens the plans section
+- **THEN** the Facturación electrónica plan is labelled "Recomendado" and stands out from the other two
 
 #### Scenario: Annual payment
 
