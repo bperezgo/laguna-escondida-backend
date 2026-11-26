@@ -76,6 +76,9 @@ interface OrderTypeSectionProps {
   pinCheck: PinCheck;
   settings: OrganizationSettingsResponse | null;
   canReadZones: boolean;
+  types: OrderType[];
+  /** Shown where the table type would be; `installHref` links to the box installation. */
+  tableNote?: { installHref: string | null };
 }
 
 export default function OrderTypeSection({
@@ -87,6 +90,8 @@ export default function OrderTypeSection({
   pinCheck,
   settings,
   canReadZones,
+  types,
+  tableNote,
 }: OrderTypeSectionProps) {
   const checkLine = pinCheckLine(pinCheck);
 
@@ -103,7 +108,7 @@ export default function OrderTypeSection({
           borderRadius: "var(--radius-md)",
         }}
       >
-        {ORDER_TYPE_OPTIONS.map(({ type, label }) => {
+        {ORDER_TYPE_OPTIONS.filter(({ type }) => types.includes(type)).map(({ type, label }) => {
           const on = orderType === type;
           const reason = unavailableReason(type, settings);
           return (
@@ -147,6 +152,23 @@ export default function OrderTypeSection({
           );
         })}
       </div>
+
+      {tableNote && (
+        <p style={{ fontSize: "0.8rem", lineHeight: 1.4, color: "var(--color-text-secondary)", margin: 0 }}>
+          Las órdenes de mesa se toman en la caja del restaurante, que sigue funcionando sin internet.
+          {tableNote.installHref && (
+            <>
+              {" "}
+              <a
+                href={tableNote.installHref}
+                style={{ color: "var(--color-primary)", fontWeight: 600, textDecoration: "underline" }}
+              >
+                Instalar la caja
+              </a>
+            </>
+          )}
+        </p>
+      )}
 
       {orderType !== "dine_in" && (
         <details open>

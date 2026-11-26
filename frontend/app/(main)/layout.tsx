@@ -1,4 +1,4 @@
-import PageHeader from "@/components/layout/PageHeader";
+import AppShell from "@/components/layout/AppShell";
 import OrganizationBranding from "@/components/layout/OrganizationBranding";
 
 export default function MainLayout({
@@ -8,8 +8,7 @@ export default function MainLayout({
 }) {
   return (
     <OrganizationBranding>
-      <PageHeader />
-      {children}
+      <AppShell>{children}</AppShell>
     </OrganizationBranding>
   );
 }

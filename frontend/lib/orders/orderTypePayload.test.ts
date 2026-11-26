@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   buildCreateOrderRequest,
+  creatableOrderTypes,
   EMPTY_CONTACT,
   identifierPrefix,
   missingOrderFields,
@@ -91,4 +92,12 @@ test("an untouched prefix follows the type", () => {
 test("an identifier typed past the prefix is kept", () => {
   assert.equal(retypeIdentifier("MESA-12", "delivery"), "MESA-12");
   assert.equal(retypeIdentifier("Juan", "takeaway"), "Juan");
+});
+
+test("the cloud creates takeaway and delivery orders, never a table order", () => {
+  assert.deepEqual(creatableOrderTypes(false), ["takeaway", "delivery"]);
+});
+
+test("the box's form takes table orders, as before", () => {
+  assert.deepEqual(creatableOrderTypes(true), ["dine_in"]);
 });
