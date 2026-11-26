@@ -47,7 +47,11 @@ A user created by a signed-in user SHALL belong to the creator's organization, r
 
 ### Requirement: Users have a globally unique email
 
-A user MAY have an `email`. An email SHALL be unique across all organizations, compared case-insensitively, and SHALL be stored lowercased and trimmed. A user holding any cloud role (admin, manager, accountant, agent) SHALL have an email; a user holding only floor roles (server, cooker) MAY have none. The email SHALL be set when a user is created or updated in the cloud, SHALL be returned with the user, and SHALL NOT be sent to edge boxes.
+A user MAY have an `email`. An email SHALL be unique across all organizations, compared case-insensitively, and SHALL be stored lowercased and trimmed. The email SHALL be set when a user is created or updated in the cloud, SHALL be returned with the user, and SHALL NOT be sent to edge boxes.
+- A user holding the admin, accountant, agent or courier role SHALL have an email.
+- A manager MAY have none, which makes them a box-only manager, like the box user created at signup.
+- A user holding only floor roles (server, cooker) MAY have none.
+- A user without an email SHALL NOT sign in to the cloud.
 
 #### Scenario: Create a manager with an email
 
@@ -56,8 +60,15 @@ A user MAY have an `email`. An email SHALL be unique across all organizations, c
 
 #### Scenario: Cloud role without an email
 
-- **WHEN** a user is created, or updated to hold a cloud role, without an email
+- **WHEN** a user is created, or updated to hold the admin, accountant, agent or courier role, without an email
 - **THEN** the request is rejected with `400 Bad Request` and nothing is stored
+
+#### Scenario: Manager without an email
+
+- **WHEN** a user is created with only the manager role and no email
+- **THEN** the user is created
+- **AND** it signs in on the organization's box with its username and password
+- **AND** it cannot sign in to the cloud
 
 #### Scenario: Floor staff without an email
 
@@ -76,7 +87,7 @@ A user MAY have an `email`. An email SHALL be unique across all organizations, c
 
 ### Requirement: Cloud sign-in uses email
 
-In the cloud, `POST /api/auth/signin` SHALL take `email` and `password`. The organization SHALL be the user's own. The organization SHALL be active.
+In the cloud, `POST /api/auth/signin` SHALL take `email` and `password`. The organization SHALL be the user's own. The organization SHALL be active, or in a trial that has not expired.
 
 #### Scenario: Successful sign-in in the cloud
 
@@ -93,6 +104,11 @@ In the cloud, `POST /api/auth/signin` SHALL take `email` and `password`. The org
 
 - **WHEN** `POST /api/auth/signin` is called in the cloud without `email`
 - **THEN** the response is `400 Bad Request`
+
+#### Scenario: Organization in its trial
+
+- **WHEN** the admin of an organization created by signup 5 days ago signs in with a correct email and password
+- **THEN** the response is `200 OK`
 
 ### Requirement: Only cloud roles sign in to the cloud
 
@@ -140,6 +156,8 @@ On an edge box, `POST /api/auth/signin` SHALL take `username` and `password` and
 
 In the cloud, an unknown email, a suspended organization, an inactive user, a user without a cloud role and a wrong password SHALL all return `401 Unauthorized` with `{"error": "Invalid email or password"}`. On an edge box, an unknown username, an inactive user and a wrong password SHALL all return `401 Unauthorized` with `{"error": "Invalid username or password"}`. The response SHALL NOT reveal which emails, usernames or organizations exist. The specific reason SHALL be logged server-side.
 
+The one exception is in the cloud: when the email and password are correct, the user is active and holds a cloud role, and the organization's trial has expired, the response SHALL be `403 Forbidden` with `{"error": "Trial ended", "code": "trial_expired"}`. That way the person learns to contact us rather than retrying their password. The same applies to a Google sign-in whose account matches such a user.
+
 #### Scenario: Unknown email
 
 - **WHEN** cloud sign-in uses an email no user has
@@ -148,6 +166,16 @@ In the cloud, an unknown email, a suspended organization, an inactive user, a us
 #### Scenario: Suspended organization
 
 - **WHEN** a user of an organization whose status is `suspended` signs in to the cloud with a correct email and password
+- **THEN** the response is `401 Unauthorized` with `{"error": "Invalid email or password"}`
+
+#### Scenario: Expired trial with the correct password
+
+- **WHEN** the admin of an organization whose trial ended yesterday signs in with a correct email and password
+- **THEN** the response is `403 Forbidden` with code `trial_expired` and no token
+
+#### Scenario: Expired trial with a wrong password
+
+- **WHEN** someone signs in with that admin's email and a wrong password
 - **THEN** the response is `401 Unauthorized` with `{"error": "Invalid email or password"}`
 
 #### Scenario: Username of another organization
@@ -177,3 +205,37 @@ A token issued at sign-in SHALL carry the user's organization id as the claim `o
 
 - **WHEN** a user of organization B calls `GET /api/auth/me`
 - **THEN** the `organization` object is organization B's, not Laguna's
+
+### Requirement: Cloud sign-in with Google
+
+In the cloud, `POST /api/auth/google` SHALL take a Google ID token. It SHALL sign in the user whose email equals the token's email.
+- **Token checks:** the token SHALL be accepted only when Google's signature is valid, its audience is the cloud's configured Google client id, it is unexpired, and its email is marked verified by Google.
+- **Response:** on success, the same `200` body as `POST /api/auth/signin`.
+- **Failures:** an invalid token, an unknown email, a suspended organization, an inactive user and a user without a cloud role SHALL all return `401 Unauthorized` with `{"error": "Google sign-in failed"}`. An expired trial follows the exception in "Sign-in failures are opaque in each mode".
+- **Who can use it:** any user with an email, whichever way they signed up or were invited, so a person who set a password may also use Google with the same email.
+- **Edge:** the route SHALL NOT exist on an edge box. Edge sign-in stays username and password.
+
+#### Scenario: Google sign-in of a Google signup
+
+- **WHEN** the admin who signed up with Google calls `POST /api/auth/google` with a valid ID token for their email
+- **THEN** the response is `200 OK` with a token for that admin
+
+#### Scenario: Password user signs in with Google
+
+- **WHEN** a manager who set a password signs in with a Google account of the same, Google-verified email
+- **THEN** the response is `200 OK`
+
+#### Scenario: Unverified Google email
+
+- **WHEN** the ID token's email is not marked verified by Google
+- **THEN** the response is `401 Unauthorized` with `{"error": "Google sign-in failed"}`
+
+#### Scenario: No account
+
+- **WHEN** the token's email belongs to no user
+- **THEN** the response is `401 Unauthorized` with `{"error": "Google sign-in failed"}`
+
+#### Scenario: Edge box
+
+- **WHEN** `POST /api/auth/google` is called on an edge box
+- **THEN** the route is not found
