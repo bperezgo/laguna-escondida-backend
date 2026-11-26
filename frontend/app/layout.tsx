@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import "@fontsource-variable/manrope/wght.css";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import UpdateBanner from "@/components/layout/UpdateBanner";
@@ -23,7 +24,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="es-CO">
       <body suppressHydrationWarning>
         <Providers>
           <UpdateBanner />

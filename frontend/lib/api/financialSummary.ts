@@ -12,4 +12,10 @@ export const financialSummaryApi = {
     params.set('end_date', `${filters.end_date}T23:59:59Z`);
     return apiRequest<FinancialSummary>(`/financial/summary?${params}`);
   },
+
+  /** Summary between two instants (RFC3339), e.g. the bounds a daily close reports. */
+  async getSummaryBetween(start: string, end: string): Promise<FinancialSummary> {
+    const params = new URLSearchParams({ start_date: start, end_date: end });
+    return apiRequest<FinancialSummary>(`/financial/summary?${params}`);
+  },
 };

@@ -7,6 +7,12 @@ export const ORDER_TYPE_OPTIONS: { type: OrderType; label: string }[] = [
   { type: "delivery", label: "Domicilio" },
 ];
 
+// What the create form offers: the box's form has no type selector and takes table orders;
+// the cloud takes the rest. The backend still accepts a table order in the cloud.
+export function creatableOrderTypes(isEdge: boolean): OrderType[] {
+  return isEdge ? ["dine_in"] : ["takeaway", "delivery"];
+}
+
 // Frontend-only convention: the backend accepts any temporal identifier.
 const IDENTIFIER_PREFIX: Record<OrderType, string> = {
   dine_in: "MESA-",

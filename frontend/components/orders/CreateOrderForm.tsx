@@ -26,6 +26,7 @@ import type { OrganizationSettingsResponse } from "@/types/organizationSettings"
 import {
   buildCreateOrderRequest,
   EMPTY_CONTACT,
+  creatableOrderTypes,
   identifierPrefix,
   missingOrderFields,
   retypeIdentifier,
@@ -60,13 +61,14 @@ export default function CreateOrderForm({
   // Takeaway and delivery are taken in the cloud; the box keeps today's dine-in form.
   const typeSelectable = !permissionsLoading && !isEdge;
   const canReadOrdering = hasPermission(PERMISSIONS.ORDERING_READ);
-  const [orderType, setOrderType] = useState<OrderType>("dine_in");
+  const creatableTypes = creatableOrderTypes(isEdge);
+  const [orderType, setOrderType] = useState<OrderType>(() => creatableOrderTypes(isEdge)[0]);
   const [contact, setContact] = useState<OrderContact>(EMPTY_CONTACT);
   const [pinCheck, schedulePinCheck] = useDeliveryPinCheck();
   const [orderingSettings, setOrderingSettings] =
     useState<OrganizationSettingsResponse | null>(null);
   const [temporalIdentifier, setTemporalIdentifier] = useState(
-    identifierPrefix("dine_in")
+    () => identifierPrefix(creatableOrderTypes(isEdge)[0])
   );
   const identifierPrefixForType = identifierPrefix(orderType);
   const [descriptor, setDescriptor] = useState("");
@@ -476,6 +478,10 @@ export default function CreateOrderForm({
           pinCheck={pinCheck}
           settings={orderingSettings}
           canReadZones={hasPermission(PERMISSIONS.DELIVERY_ZONES_READ)}
+          types={creatableTypes}
+          tableNote={{
+            installHref: hasPermission(PERMISSIONS.EDGE_ENROLL) ? "/ajustes/instalar-caja" : null,
+          }}
         />
       )}
       <Input
