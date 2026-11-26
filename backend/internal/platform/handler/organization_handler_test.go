@@ -40,6 +40,7 @@ func newOrganizationRouter(t *testing.T) (*gin.Engine, *mocks.MockOrganizationRe
 	router.GET("/api/platform/organizations", h.ListHandler)
 	router.GET("/api/platform/organizations/:id", h.GetHandler)
 	router.PATCH("/api/platform/organizations/:id", h.UpdateHandler)
+	router.POST("/api/platform/organizations/:id/start-trial", h.StartTrialHandler)
 	router.PUT("/api/platform/organizations/:id/einvoicing", h.SetEInvoicingHandler)
 	return router, orgRepo, einvoicingRepo
 }

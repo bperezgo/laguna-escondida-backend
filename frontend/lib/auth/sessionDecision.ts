@@ -24,3 +24,14 @@ export async function sessionDecision(response: Response, fallbackError: string)
 
   return { status: response.status, body: { success: true }, token: data.token };
 }
+
+// A new signup answers 201 waiting for approval, with no token: no session is set for it.
+export async function signupDecision(response: Response, fallbackError: string): Promise<SessionDecision> {
+  if (response.status !== 201) return sessionDecision(response, fallbackError);
+  const data = await response.json().catch(() => ({}));
+  const body: Record<string, unknown> = {};
+  for (const key of ["status", "organization_name", "plan"]) {
+    if (typeof data[key] === "string") body[key] = data[key];
+  }
+  return { status: 201, body };
+}

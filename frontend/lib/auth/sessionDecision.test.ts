@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sessionDecision } from "./sessionDecision.ts";
+import { sessionDecision, signupDecision } from "./sessionDecision.ts";
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -43,4 +43,23 @@ test("a success without a token is a server error", async () => {
   const decision = await sessionDecision(json(200, {}), "x");
   assert.equal(decision.status, 500);
   assert.equal(decision.token, undefined);
+});
+
+test("a pending signup's 201 passes through with no token, so no cookie is set", async () => {
+  const decision = await signupDecision(
+    json(201, { status: "pending", organization_name: "Doña Rosa", plan: "einvoicing" }),
+    "x"
+  );
+  assert.equal(decision.token, undefined);
+  assert.deepEqual(decision, { status: 201, body: { status: "pending", organization_name: "Doña Rosa", plan: "einvoicing" } });
+});
+
+test("a signup of an existing approved account still sets the session", async () => {
+  const decision = await signupDecision(json(200, { token: "jwt" }), "x");
+  assert.deepEqual(decision, { status: 200, body: { success: true }, token: "jwt" });
+});
+
+test("a signup's pending_approval passes through with its code", async () => {
+  const decision = await signupDecision(json(403, { error: "Approval pending", code: "pending_approval" }), "x");
+  assert.deepEqual(decision, { status: 403, body: { error: "Approval pending", code: "pending_approval" } });
 });

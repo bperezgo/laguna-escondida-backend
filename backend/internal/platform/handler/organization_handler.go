@@ -41,7 +41,7 @@ func (h *OrganizationHandler) CreateHandler(c *gin.Context) {
 }
 
 func (h *OrganizationHandler) ListHandler(c *gin.Context) {
-	orgs, err := h.orgService.List(c.Request.Context())
+	orgs, err := h.orgService.List(c.Request.Context(), c.Query("status"))
 	if err != nil {
 		h.respondError(c, "listing organizations", err)
 		return
@@ -76,6 +76,15 @@ func (h *OrganizationHandler) UpdateHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, org)
 }
 
+func (h *OrganizationHandler) StartTrialHandler(c *gin.Context) {
+	org, err := h.orgService.StartTrial(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		h.respondError(c, "starting organization trial", err)
+		return
+	}
+	c.JSON(http.StatusOK, org)
+}
+
 func (h *OrganizationHandler) SetEInvoicingHandler(c *gin.Context) {
 	var req dto.SetEInvoicingRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -97,6 +106,8 @@ func (h *OrganizationHandler) respondError(c *gin.Context, action string, err er
 		c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error(), "field": validationErr.Field})
 	case errors.Is(err, domainError.ErrOrganizationNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "Organization not found"})
+	case errors.Is(err, domainError.ErrOrganizationNotPending):
+		c.JSON(http.StatusConflict, gin.H{"error": "Organization is not pending approval", "code": "not_pending"})
 	case errors.Is(err, domainError.ErrOrganizationSlugTaken):
 		c.JSON(http.StatusConflict, gin.H{"error": "Organization slug is already taken", "field": "slug"})
 	default:

@@ -9,6 +9,8 @@ var (
 	ErrOrganizationNotFound  = errors.New("organization not found")
 	ErrOrganizationSlugTaken = errors.New("organization slug is already taken")
 	ErrOrganizationRequired  = errors.New("organization is required")
+	// ErrOrganizationNotPending: only a pending organization can start its trial.
+	ErrOrganizationNotPending = errors.New("organization is not pending")
 	// ErrOrganizationMismatch: an edge box was asked to act for an organization other than its own.
 	ErrOrganizationMismatch = errors.New("organization does not match this box's")
 )

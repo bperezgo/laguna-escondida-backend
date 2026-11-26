@@ -149,6 +149,15 @@ Same body in both modes.
 }
 ```
 
+**403 Forbidden** — Cloud: the email and password are correct, the user is active and holds a cloud role, but the organization is waiting for the operator to approve its signup. No token is returned. A wrong password for the same email still gets the `401` above.
+
+```json
+{
+  "error": "Approval pending",
+  "code": "pending_approval"
+}
+```
+
 **403 Forbidden** — Cloud: the email and password are correct, the user is active and holds a cloud role, but the organization's trial has ended. No token is returned. A wrong password for the same email still gets the `401` above.
 
 ```json
@@ -201,6 +210,15 @@ The same body as `POST /api/auth/signin`.
 ```json
 {
   "error": "Google sign-in failed"
+}
+```
+
+**403 Forbidden** — the account matches an active cloud user whose organization is waiting for approval.
+
+```json
+{
+  "error": "Approval pending",
+  "code": "pending_approval"
 }
 ```
 
@@ -357,7 +375,7 @@ A token without `org_id` is rejected with `401 Unauthorized`. Tokens issued befo
 
 ### Organization API Keys (`Bearer lgk_…`)
 
-In the cloud, every endpoint that takes `Authorization: Bearer <jwt_token>` also takes an organization API key, `Authorization: Bearer lgk_…`. A key works only for an organization on the `full` plan (otherwise `403 plan_required`). A key is not a JWT and carries no claims: the server looks it up on every request and acts as the key's user in the key's organization, with that user's current roles. It stops working as soon as it is revoked, its user is deactivated or deleted, or its organization is suspended; each of those returns the same `401` body as an invalid token. Edge boxes refuse every key with `401`. Keys are issued only for agent users; see [Organization API Keys](./api-keys.md).
+In the cloud, every endpoint that takes `Authorization: Bearer <jwt_token>` also takes an organization API key, `Authorization: Bearer lgk_…`. A key works only for an organization on the `full` plan (otherwise `403 plan_required`). A key is not a JWT and carries no claims: the server looks it up on every request and acts as the key's user in the key's organization, with that user's current roles. It stops working as soon as it is revoked, its user is deactivated or deleted, or its organization is not `active` (suspended or pending included); each of those returns the same `401` body as an invalid token. Edge boxes refuse every key with `401`. Keys are issued only for agent users; see [Organization API Keys](./api-keys.md).
 
 ### Organization Access Refusals
 
@@ -367,6 +385,12 @@ In the cloud, every request with a JWT or an API key is checked against its orga
 
 ```json
 { "error": "Organization suspended", "code": "organization_suspended" }
+```
+
+**403 Forbidden** — the organization is waiting for its signup to be approved
+
+```json
+{ "error": "Approval pending", "code": "pending_approval" }
 ```
 
 **403 Forbidden** — the organization's trial has ended, whenever the token was issued

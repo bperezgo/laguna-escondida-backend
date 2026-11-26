@@ -74,8 +74,21 @@ func (r *InvalidatingOrganizationRepository) Update(ctx context.Context, id stri
 	if err != nil {
 		return nil, err
 	}
+	r.invalidate(ctx, id)
+	return org, nil
+}
+
+func (r *InvalidatingOrganizationRepository) StartTrial(ctx context.Context, id string, trialEndsAt time.Time) (*dto.Organization, error) {
+	org, err := r.OrganizationRepository.StartTrial(ctx, id, trialEndsAt)
+	if err != nil {
+		return nil, err
+	}
+	r.invalidate(ctx, id)
+	return org, nil
+}
+
+func (r *InvalidatingOrganizationRepository) invalidate(ctx context.Context, id string) {
 	if delErr := r.cache.Delete(ctx, organizationAccessKey(id)); delErr != nil {
 		r.logger.WarnContext(ctx, "organization access cache invalidation failed", "organization_id", id, "error", delErr)
 	}
-	return org, nil
 }

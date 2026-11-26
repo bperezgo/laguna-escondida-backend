@@ -27,7 +27,7 @@ func newSignupDeps(t *testing.T) signupDeps {
 	t.Helper()
 	d := signupDeps{signInDeps: newSignInDeps(t, tenant.AnyOrganization()), google: mocks.NewMockGoogleIdentityVerifier(t)}
 	users := service.NewUserService(d.userRepo, d.roleRepo, d.userRoleRepo, d.orgRepo, service.NewJWTService("test-secret", tenant.AnyOrganization()), immediateUnitOfWork{}, tenant.AnyOrganization())
-	h := NewSignupHandler(service.NewSignupService(d.google, users, d.orgRepo, d.userRepo, d.roleRepo, d.userRoleRepo, immediateUnitOfWork{}), slog.New(slog.DiscardHandler))
+	h := NewSignupHandler(service.NewSignupService(d.google, users, d.orgRepo, d.userRepo, d.userRoleRepo, immediateUnitOfWork{}), slog.New(slog.DiscardHandler))
 	d.router.POST("/api/auth/google", h.GoogleSignInHandler)
 	d.router.POST("/api/signup/google", h.GoogleSignupHandler)
 	return d
@@ -85,6 +85,10 @@ func TestSignupHandler_GoogleSignIn(t *testing.T) {
 			d.googleSays("ana@example.com")
 			d.anaIs(t, &dto.Organization{ID: testOrganizationID, Status: "trial", TrialEndsAt: &past}, permissions.RoleAdmin, true)
 		}, http.StatusForbidden, `{"error":"Trial ended","code":"trial_expired"}`},
+		{"pending organization", func(t *testing.T, d signupDeps) {
+			d.googleSays("ana@example.com")
+			d.anaIs(t, &dto.Organization{ID: testOrganizationID, Status: "pending"}, permissions.RoleAdmin, true)
+		}, http.StatusForbidden, `{"error":"Approval pending","code":"pending_approval"}`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -117,12 +121,24 @@ func TestSignupHandler_GoogleSignup_Created(t *testing.T) {
 	d.orgRepo.EXPECT().Create(mock.Anything, mock.Anything).Return(nil)
 	d.userRepo.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Times(2)
 	d.userRoleRepo.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Times(2)
-	d.roleRepo.EXPECT().FindByIDs(mock.Anything, []int{permissions.RoleAdmin}).Return([]*dto.Role{{ID: permissions.RoleAdmin, Name: "admin"}}, nil)
 
 	rec := d.do(http.MethodPost, "/api/signup/google", `{"id_token":"tok","restaurant_name":"Doña Rosa","plan":"starter"}`)
 
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
-	assert.Contains(t, decodeBody(t, rec), "token")
+	assert.JSONEq(t, `{"status":"pending","organization_name":"Doña Rosa","plan":"starter"}`, rec.Body.String())
+	assert.Empty(t, rec.Header().Values("Set-Cookie"))
+}
+
+func TestSignupHandler_GoogleSignup_AgainWhilePending(t *testing.T) {
+	d := newSignupDeps(t)
+	d.googleSays("ana@example.com")
+	d.anaIs(t, &dto.Organization{ID: testOrganizationID, Status: "pending"}, permissions.RoleAdmin, true)
+
+	rec := d.do(http.MethodPost, "/api/signup/google", `{"id_token":"tok","restaurant_name":"Doña Rosa","plan":"starter"}`)
+
+	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+	assert.JSONEq(t, `{"error":"Approval pending","code":"pending_approval"}`, rec.Body.String())
+	d.orgRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 }
 
 func TestSignupHandler_GoogleSignup_InvalidField(t *testing.T) {

@@ -368,7 +368,7 @@ func (s *UserService) SignIn(ctx context.Context, req *dto.SignInRequest) (*dto.
 }
 
 // SignInWithGoogle signs in the cloud user whose email the verified Google identity carries.
-// Every refusal but an expired trial wraps ErrGoogleSignInFailed.
+// Every refusal but a pending organization or an expired trial wraps ErrGoogleSignInFailed.
 func (s *UserService) SignInWithGoogle(ctx context.Context, email string) (*dto.SignInResponse, error) {
 	if _, pinned := s.scope.Pinned(); pinned {
 		return nil, domainError.ErrGoogleSignInFailed
@@ -384,7 +384,7 @@ func (s *UserService) SignInWithGoogle(ctx context.Context, email string) (*dto.
 			return resp, nil
 		}
 	}
-	if errors.Is(err, domainError.ErrTrialExpired) {
+	if errors.Is(err, domainError.ErrTrialExpired) || errors.Is(err, domainError.ErrOrganizationPending) {
 		return nil, err
 	}
 	if errors.Is(err, domainError.ErrInvalidCredentials) || errors.Is(err, domainError.ErrSignInEmailRequired) {
@@ -409,7 +409,10 @@ func (s *UserService) completeSignIn(ctx context.Context, userDTO *dto.User, org
 		if !permissions.HasCloudRole(roleIDs) {
 			return nil, fmt.Errorf("%w: %w", domainError.ErrInvalidCredentials, domainError.ErrCloudAccessDenied)
 		}
-		// Not opaque: the person proved who they are, and should contact us rather than retry.
+		// Not opaque: the person proved who they are, and should wait or contact us rather than retry.
+		if org.Status == dto.OrganizationStatusPending {
+			return nil, domainError.ErrOrganizationPending
+		}
 		if plans.Expired(org.Status, org.TrialEndsAt, s.now()) {
 			return nil, domainError.ErrTrialExpired
 		}

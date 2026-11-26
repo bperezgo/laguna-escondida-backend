@@ -126,6 +126,7 @@ func TestOrganizationService_Update_ExtendATrial(t *testing.T) {
 	svc, orgRepo, _ := createTestOrganizationService(t)
 	later := time.Now().Add(7 * 24 * time.Hour).UTC().Truncate(time.Second)
 	req := &dto.UpdateOrganizationRequest{TrialEndsAt: strPtr(later.Format(time.RFC3339))}
+	orgRepo.EXPECT().Get(mock.Anything, "org-1").Return(&dto.Organization{ID: "org-1", Status: "trial"}, nil)
 	orgRepo.EXPECT().Update(mock.Anything, "org-1", req).Return(&dto.Organization{Status: "trial", TrialEndsAt: &later}, nil)
 
 	org, err := svc.Update(context.Background(), "org-1", req)

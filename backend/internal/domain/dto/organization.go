@@ -3,6 +3,7 @@ package dto
 import "time"
 
 const (
+	OrganizationStatusPending   = "pending"
 	OrganizationStatusTrial     = "trial"
 	OrganizationStatusActive    = "active"
 	OrganizationStatusSuspended = "suspended"

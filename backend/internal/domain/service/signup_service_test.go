@@ -43,7 +43,7 @@ func newSignupFixture(t *testing.T, rolledBack *bool) *signupFixture {
 	if rolledBack != nil {
 		uow.rolledBack = rolledBack
 	}
-	f.service = NewSignupService(f.google, f.userServiceFixture.service, f.orgRepo, f.userRepo, f.roleRepo, f.userRoleRepo, uow)
+	f.service = NewSignupService(f.google, f.userServiceFixture.service, f.orgRepo, f.userRepo, f.userRoleRepo, uow)
 	f.service.now = func() time.Time { return signupNow }
 	return f
 }
@@ -66,7 +66,6 @@ func (f *signupFixture) expectNewAccount(takenSlugs ...string) {
 		f.created = append(f.created, u)
 	}).Return(nil)
 	f.userRoleRepo.On("Create", mock.Anything, mock.Anything).Return(nil)
-	f.roleRepo.On("FindByIDs", mock.Anything, []int{permissions.RoleAdmin}).Return([]*dto.Role{createTestRole(permissions.RoleAdmin, "admin")}, nil)
 }
 
 func signupReq(name, plan string) *dto.GoogleSignupRequest {
@@ -81,13 +80,14 @@ func TestSignupService_SignUpWithGoogle_DonaRosa(t *testing.T) {
 	result, err := f.service.SignUpWithGoogle(context.Background(), signupReq("  Restaurante Doña Rosa ", "einvoicing"))
 
 	require.NoError(t, err)
-	assert.True(t, result.Created)
+	assert.Equal(t, &dto.GoogleSignupCreated{Status: "pending", OrganizationName: "Restaurante Doña Rosa", Plan: "einvoicing"}, result.Created)
+	assert.Nil(t, result.SignIn, "a pending account gets no token")
 	assert.Equal(t, "restaurante-dona-rosa", f.org.Slug)
 	assert.Equal(t, "Restaurante Doña Rosa", f.org.Name)
 	assert.Equal(t, "Restaurante Doña Rosa", *f.org.DisplayName)
-	assert.Equal(t, "trial", f.org.Status)
+	assert.Equal(t, "pending", f.org.Status)
 	assert.Equal(t, "einvoicing", f.org.Plan)
-	assert.Equal(t, signupNow.Add(14*24*time.Hour), *f.org.TrialEndsAt)
+	assert.Nil(t, f.org.TrialEndsAt)
 	assert.Equal(t, []string{"America/Bogota", "CO", "es-CO", "COP"}, []string{f.org.Timezone, f.org.Country, f.org.Locale, f.org.Currency})
 	assert.Nil(t, f.org.LegalName)
 	assert.Nil(t, f.org.EInvoicing)
@@ -108,12 +108,6 @@ func TestSignupService_SignUpWithGoogle_DonaRosa(t *testing.T) {
 	f.userRoleRepo.AssertCalled(t, "Create", mock.MatchedBy(inOrg(f.org.ID)), mock.MatchedBy(func(r *dto.UserRole) bool {
 		return r.UserID == box.ID && r.RoleID == permissions.RoleManager
 	}))
-
-	claims, err := f.jwt.ValidateToken(result.SignIn.Token)
-	require.NoError(t, err)
-	assert.Equal(t, admin.ID, claims.UserID)
-	assert.Equal(t, f.org.ID, claims.OrgID)
-	assert.Equal(t, []int{permissions.RoleAdmin}, claims.RoleIDs)
 }
 
 func TestSignupService_SignUpWithGoogle_TakenSlugGetsASuffix(t *testing.T) {
@@ -136,12 +130,11 @@ func TestSignupService_SignUpWithGoogle_SlugRaceTriesTheNext(t *testing.T) {
 	f.orgRepo.On("Create", mock.Anything, mock.MatchedBy(func(o *dto.Organization) bool { return o.Slug == "casa-2" })).Return(nil).Once()
 	f.userRepo.On("Create", mock.Anything, mock.Anything).Return(nil)
 	f.userRoleRepo.On("Create", mock.Anything, mock.Anything).Return(nil)
-	f.roleRepo.On("FindByIDs", mock.Anything, mock.Anything).Return([]*dto.Role{createTestRole(permissions.RoleAdmin, "admin")}, nil)
 
 	result, err := f.service.SignUpWithGoogle(context.Background(), signupReq("Casa", "full"))
 
 	require.NoError(t, err)
-	assert.True(t, result.Created)
+	assert.NotNil(t, result.Created)
 }
 
 func TestSignupService_SignUpWithGoogle_ShortEmailBoxUserIsCaja(t *testing.T) {
@@ -165,10 +158,24 @@ func TestSignupService_SignUpWithGoogle_ExistingEmailIsASignIn(t *testing.T) {
 	result, err := f.service.SignUpWithGoogle(context.Background(), signupReq("Otro restaurante", "full"))
 
 	require.NoError(t, err)
-	assert.False(t, result.Created)
+	assert.Nil(t, result.Created)
 	claims, err := f.jwt.ValidateToken(result.SignIn.Token)
 	require.NoError(t, err)
 	assert.Equal(t, testOrgA, claims.OrgID)
+	f.orgRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+}
+
+func TestSignupService_SignUpWithGoogle_AgainWhilePending(t *testing.T) {
+	f := newSignupFixture(t, nil)
+	f.googleSays("ana@example.com", "Ana")
+	f.userRepo.On("FindByEmail", mock.Anything, "ana@example.com").Return(anaFound(t, "password123", true), nil)
+	f.orgRepo.On("Get", mock.Anything, testOrgA).Return(pendingOrg(), nil)
+	f.userRoleRepo.On("FindRolesByUserID", mock.Anything, "bob-id").Return([]*dto.Role{createTestRole(permissions.RoleAdmin, "admin")}, nil)
+
+	result, err := f.service.SignUpWithGoogle(context.Background(), signupReq("Otro restaurante", "full"))
+
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, domainError.ErrOrganizationPending)
 	f.orgRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 }
 
@@ -204,7 +211,7 @@ func TestSignupService_SignUpWithGoogle_EmailRaceIsASignIn(t *testing.T) {
 	result, err := f.service.SignUpWithGoogle(context.Background(), signupReq("Ana", "full"))
 
 	require.NoError(t, err)
-	assert.False(t, result.Created)
+	assert.Nil(t, result.Created)
 	assert.NotEmpty(t, result.SignIn.Token)
 }
 

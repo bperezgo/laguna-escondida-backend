@@ -44,6 +44,20 @@ func TestOrganizationAccessService_Check_SuspendedComesBeforeExpired(t *testing.
 	assert.ErrorIs(t, s.Check(context.Background(), testOrgA, accessManager, "/api/invoices"), domainError.ErrOrganizationSuspended)
 }
 
+func TestOrganizationAccessService_Check_PendingComesBeforePlan(t *testing.T) {
+	s := newAccessService(t, &dto.OrganizationAccess{Status: "pending", Plan: "starter"})
+	assert.ErrorIs(t, s.Check(context.Background(), testOrgA, accessManager, "/api/invoices"), domainError.ErrOrganizationPending)
+	assert.ErrorIs(t, s.Check(context.Background(), testOrgA, accessManager, "/api/products"), domainError.ErrOrganizationPending)
+	assert.ErrorIs(t, s.Check(context.Background(), testOrgA, AccessPrincipal{APIKey: true}, "/api/products"), domainError.ErrOrganizationPending)
+}
+
+func TestOrganizationAccessService_Check_SuspendedIsNotReportedAsPending(t *testing.T) {
+	s := newAccessService(t, &dto.OrganizationAccess{Status: "suspended", Plan: "full"})
+	err := s.Check(context.Background(), testOrgA, accessManager, "/api/products")
+	assert.ErrorIs(t, err, domainError.ErrOrganizationSuspended)
+	assert.NotErrorIs(t, err, domainError.ErrOrganizationPending)
+}
+
 func TestOrganizationAccessService_Check_ExpiredComesBeforePlan(t *testing.T) {
 	s := newAccessService(t, &dto.OrganizationAccess{Status: "trial", Plan: "starter", TrialEndsAt: accessAt(-time.Hour)})
 	assert.ErrorIs(t, s.Check(context.Background(), testOrgA, accessManager, "/api/invoices"), domainError.ErrTrialExpired)
@@ -115,6 +129,7 @@ func TestOrganizationAccessService_Usable(t *testing.T) {
 		{"trial in progress", &dto.OrganizationAccess{Status: "trial", Plan: "starter", TrialEndsAt: accessAt(time.Hour)}, nil},
 		{"trial expired", &dto.OrganizationAccess{Status: "trial", Plan: "starter", TrialEndsAt: accessAt(-time.Hour)}, domainError.ErrOrganizationInactive},
 		{"suspended", &dto.OrganizationAccess{Status: "suspended", Plan: "full"}, domainError.ErrOrganizationInactive},
+		{"pending", &dto.OrganizationAccess{Status: "pending", Plan: "full"}, domainError.ErrOrganizationInactive},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

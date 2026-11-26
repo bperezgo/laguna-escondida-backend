@@ -68,6 +68,8 @@ func TestJWTAuthMiddleware_OrganizationAccess_Codes(t *testing.T) {
 		wantPlan string
 	}{
 		{"suspended", dto.OrganizationAccess{Status: "suspended", Plan: "full"}, "/api/products", "organization_suspended", ""},
+		{"pending", dto.OrganizationAccess{Status: "pending", Plan: "full"}, "/api/products", "pending_approval", ""},
+		{"pending starter on invoices gets pending_approval", dto.OrganizationAccess{Status: "pending", Plan: "starter"}, "/api/invoices", "pending_approval", ""},
 		{"expired starter on invoices gets trial_expired", dto.OrganizationAccess{Status: "trial", Plan: "starter", TrialEndsAt: &past}, "/api/invoices", "trial_expired", ""},
 		{"starter on invoices", dto.OrganizationAccess{Status: "active", Plan: "starter"}, "/api/invoices", "plan_required", "einvoicing"},
 		{"einvoicing on reservations", dto.OrganizationAccess{Status: "active", Plan: "einvoicing"}, "/api/reservations", "plan_required", "full"},

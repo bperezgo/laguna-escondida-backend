@@ -35,15 +35,14 @@ type SignupService struct {
 	users    *UserService
 	orgRepo  ports.OrganizationRepository
 	userRepo ports.UserRepository
-	roleRepo ports.RoleRepository
 	userRole ports.UserRoleRepository
 	uow      ports.UnitOfWork
 	now      func() time.Time
 }
 
 func NewSignupService(google ports.GoogleIdentityVerifier, users *UserService, orgRepo ports.OrganizationRepository,
-	userRepo ports.UserRepository, roleRepo ports.RoleRepository, userRole ports.UserRoleRepository, uow ports.UnitOfWork) *SignupService {
-	return &SignupService{google: google, users: users, orgRepo: orgRepo, userRepo: userRepo, roleRepo: roleRepo,
+	userRepo ports.UserRepository, userRole ports.UserRoleRepository, uow ports.UnitOfWork) *SignupService {
+	return &SignupService{google: google, users: users, orgRepo: orgRepo, userRepo: userRepo,
 		userRole: userRole, uow: uow, now: time.Now}
 }
 
@@ -87,10 +86,10 @@ func (s *SignupService) SignUpWithGoogle(ctx context.Context, req *dto.GoogleSig
 		} else if !errors.Is(err, domainError.ErrOrganizationNotFound) {
 			return nil, fmt.Errorf("signup: check slug: %w", err)
 		}
-		resp, err := s.create(ctx, name, slug, req.Plan, *email, identity.Name)
+		created, err := s.create(ctx, name, slug, req.Plan, *email, identity.Name)
 		switch {
 		case err == nil:
-			return &dto.GoogleSignupResult{SignIn: resp, Created: true}, nil
+			return &dto.GoogleSignupResult{Created: created}, nil
 		case errors.Is(err, domainError.ErrOrganizationSlugTaken):
 			continue
 		case errors.Is(err, domainError.ErrUserEmailTaken):
@@ -111,12 +110,13 @@ func (s *SignupService) signInInstead(ctx context.Context, email string) (*dto.G
 	return &dto.GoogleSignupResult{SignIn: resp}, nil
 }
 
-func (s *SignupService) create(ctx context.Context, name, slug, plan, email, googleName string) (*dto.SignInResponse, error) {
+// create stores the account as pending with no trial end and issues no token: the trial clock
+// starts only when the trial is started (OrganizationService.StartTrial).
+func (s *SignupService) create(ctx context.Context, name, slug, plan, email, googleName string) (*dto.GoogleSignupCreated, error) {
 	now := s.now().UTC()
-	trialEnds := now.Add(plans.TrialLength)
 	org := &dto.Organization{
 		ID: uuid.Must(uuid.NewV7()).String(), Name: name, Slug: slug, DisplayName: &name,
-		Status: dto.OrganizationStatusTrial, Plan: plan, TrialEndsAt: &trialEnds,
+		Status: dto.OrganizationStatusPending, Plan: plan,
 		Timezone: defaultOrganizationTimezone, Country: defaultOrganizationCountry,
 		Locale: defaultOrganizationLocale, Currency: defaultOrganizationCurrency,
 		CreatedAt: now, UpdatedAt: now,
@@ -142,7 +142,6 @@ func (s *SignupService) create(ctx context.Context, name, slug, plan, email, goo
 	box := &dto.User{ID: uuid.Must(uuid.NewV7()).String(), Username: BoxUsername(email), Name: boxUserName,
 		Password: boxHash, Active: true, CreatedAt: now, UpdatedAt: now}
 
-	var adminRoles []*dto.Role
 	err = s.uow.Do(ctx, func(ctx context.Context) error {
 		if createErr := s.orgRepo.Create(ctx, org); createErr != nil {
 			return createErr
@@ -159,14 +158,12 @@ func (s *SignupService) create(ctx context.Context, name, slug, plan, email, goo
 				return fmt.Errorf("signup: assign role: %w", roleErr)
 			}
 		}
-		roles, rolesErr := s.roleRepo.FindByIDs(ctx, []int{permissions.RoleAdmin})
-		adminRoles = roles
-		return rolesErr
+		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return s.users.issueSignIn(admin, org.ID, adminRoles)
+	return &dto.GoogleSignupCreated{Status: org.Status, OrganizationName: org.Name, Plan: org.Plan}, nil
 }
 
 // SlugFromName lowercases, strips accents and joins alphanumeric runs with "-", cut to 40.

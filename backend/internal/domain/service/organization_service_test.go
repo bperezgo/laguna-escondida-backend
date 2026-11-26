@@ -363,7 +363,7 @@ func TestOrganizationService_List_PassesThrough(t *testing.T) {
 	orgs := []*dto.Organization{{ID: "a", Name: "A"}, {ID: "b", Name: "B", Status: "suspended"}}
 	orgRepo.EXPECT().List(mock.Anything).Return(orgs, nil)
 
-	got, err := svc.List(context.Background())
+	got, err := svc.List(context.Background(), "")
 
 	require.NoError(t, err)
 	assert.Equal(t, orgs, got)
@@ -373,7 +373,7 @@ func TestOrganizationService_List_Error(t *testing.T) {
 	svc, orgRepo, _ := createTestOrganizationService(t)
 	orgRepo.EXPECT().List(mock.Anything).Return(nil, errors.New("db down"))
 
-	_, err := svc.List(context.Background())
+	_, err := svc.List(context.Background(), "")
 
 	assert.ErrorContains(t, err, "db down")
 }

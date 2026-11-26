@@ -7,10 +7,11 @@ import { Card, CardBody, Input, Button } from "@/components/ui";
 import {
   LEGACY_EDGE_CONTEXT,
   parseSignInContext,
-  signInFailure,
+  signInOutcome,
   type SignInContext,
   type SignInFailure,
 } from "@/lib/signIn";
+import { PENDING_PATH } from "@/lib/signup";
 import { supportEmail } from "@/lib/support";
 import GoogleSignInButton from "./GoogleSignInButton";
 import NoticeMessage from "./NoticeMessage";
@@ -48,8 +49,13 @@ export default function SignInForm() {
           body: JSON.stringify(body),
         });
         const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          setError(signInFailure(data, supportEmail()));
+        const outcome = signInOutcome(response.ok, data, supportEmail());
+        if (outcome.next === "pending") {
+          router.push(PENDING_PATH);
+          return;
+        }
+        if (outcome.next === "failure") {
+          setError(outcome.failure);
           return;
         }
         await fetchPermissions();

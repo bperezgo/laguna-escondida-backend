@@ -40,6 +40,7 @@ type OrganizationService struct {
 	orgRepo        ports.OrganizationRepository
 	einvoicingRepo ports.EInvoicingSettingsRepository
 	uow            ports.UnitOfWork
+	now            func() time.Time
 }
 
 func NewOrganizationService(
@@ -47,7 +48,7 @@ func NewOrganizationService(
 	einvoicingRepo ports.EInvoicingSettingsRepository,
 	uow ports.UnitOfWork,
 ) *OrganizationService {
-	return &OrganizationService{orgRepo: orgRepo, einvoicingRepo: einvoicingRepo, uow: uow}
+	return &OrganizationService{orgRepo: orgRepo, einvoicingRepo: einvoicingRepo, uow: uow, now: time.Now}
 }
 
 func (s *OrganizationService) Create(ctx context.Context, req *dto.CreateOrganizationRequest) (*dto.Organization, error) {
@@ -108,8 +109,21 @@ func (s *OrganizationService) Create(ctx context.Context, req *dto.CreateOrganiz
 	return org, nil
 }
 
-func (s *OrganizationService) List(ctx context.Context) ([]*dto.Organization, error) {
-	orgs, err := s.orgRepo.List(ctx)
+// List returns every organization, or only those with status when it is not empty.
+func (s *OrganizationService) List(ctx context.Context, status string) ([]*dto.Organization, error) {
+	if status == "" {
+		orgs, err := s.orgRepo.List(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("list organizations: %w", err)
+		}
+		return orgs, nil
+	}
+	switch status {
+	case dto.OrganizationStatusPending, dto.OrganizationStatusTrial, dto.OrganizationStatusActive, dto.OrganizationStatusSuspended:
+	default:
+		return nil, invalidOrganizationField("status", "must be pending, trial, active or suspended")
+	}
+	orgs, err := s.orgRepo.ListByStatus(ctx, status)
 	if err != nil {
 		return nil, fmt.Errorf("list organizations: %w", err)
 	}
@@ -144,7 +158,7 @@ func (s *OrganizationService) Update(ctx context.Context, id string, req *dto.Up
 	if err := validateUpdateOrganization(req); err != nil {
 		return nil, err
 	}
-	if err := s.validateTrialEnd(ctx, id, req); err != nil {
+	if err := s.validateStatusChange(ctx, id, req); err != nil {
 		return nil, err
 	}
 	normalized := *req
@@ -159,24 +173,50 @@ func (s *OrganizationService) Update(ctx context.Context, id string, req *dto.Up
 	return org, nil
 }
 
-// validateTrialEnd keeps a trial from losing its end, whether the status or the end is what the request changes.
-func (s *OrganizationService) validateTrialEnd(ctx context.Context, id string, req *dto.UpdateOrganizationRequest) error {
+// validateStatusChange keeps a trial from losing its end, and a pending organization out of a trial
+// that start-trial did not start, whether the status or the end is what the request changes.
+func (s *OrganizationService) validateStatusChange(ctx context.Context, id string, req *dto.UpdateOrganizationRequest) error {
 	settingTrial := req.Status != nil && *req.Status == dto.OrganizationStatusTrial
 	clearingEnd := req.TrialEndsAt != nil && *req.TrialEndsAt == ""
 	sendingEnd := req.TrialEndsAt != nil && *req.TrialEndsAt != ""
-	if sendingEnd || (!settingTrial && !clearingEnd) {
+	if !settingTrial && req.TrialEndsAt == nil {
 		return nil
 	}
 	current, err := s.orgRepo.Get(ctx, id)
 	if err != nil {
 		return fmt.Errorf("update organization: %w", err)
 	}
+	if current.Status == dto.OrganizationStatusPending {
+		if settingTrial {
+			return invalidOrganizationField("status", "a pending organization's trial is started with start-trial")
+		}
+		if sendingEnd && req.Status == nil {
+			return invalidOrganizationField("trial_ends_at", "is not accepted while the organization is pending")
+		}
+		return nil
+	}
 	staysTrial := settingTrial || (req.Status == nil && current.Status == dto.OrganizationStatusTrial)
-	hasEnd := !clearingEnd && current.TrialEndsAt != nil
+	hasEnd := sendingEnd || (!clearingEnd && current.TrialEndsAt != nil)
 	if staysTrial && !hasEnd {
 		return invalidOrganizationField("trial_ends_at", "is required while the status is trial")
 	}
 	return nil
+}
+
+// StartTrial is the one way a pending organization becomes a trial, whoever starts it.
+func (s *OrganizationService) StartTrial(ctx context.Context, id string) (*dto.Organization, error) {
+	current, err := s.orgRepo.Get(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("start trial: %w", err)
+	}
+	if current.Status != dto.OrganizationStatusPending {
+		return nil, domainError.ErrOrganizationNotPending
+	}
+	org, err := s.orgRepo.StartTrial(ctx, id, s.now().UTC().Add(plans.TrialLength))
+	if err != nil {
+		return nil, fmt.Errorf("start trial: %w", err)
+	}
+	return org, nil
 }
 
 // SetEInvoicing replaces the prefixes in place; counters are per (organization, prefix), so a new prefix starts at 1.
@@ -320,6 +360,7 @@ func validateOrganizationStatus(field, value string) error {
 	case dto.OrganizationStatusTrial, dto.OrganizationStatusActive, dto.OrganizationStatusSuspended:
 		return nil
 	}
+	// pending is set only by signup.
 	return invalidOrganizationField(field, "must be trial, active or suspended")
 }
 

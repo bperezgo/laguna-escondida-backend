@@ -317,7 +317,7 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 	registerInvitationRoutes(c.router, c.jwtService, handler.NewInvitationHandler(invitationService, logger))
 	if google != nil {
 		signupService := service.NewSignupService(google, c.userService, cloudOrganizations,
-			repository.NewUserRepository(db), repository.NewRoleRepository(db), repository.NewUserRoleRepository(db), c.unitOfWork)
+			repository.NewUserRepository(db), repository.NewUserRoleRepository(db), c.unitOfWork)
 		registerSignupRoutes(c.router, handler.NewSignupHandler(signupService, logger),
 			signupRouteOptions{googleEnabled: true, signupEnabled: cfg.Signup.Enabled})
 	} else {

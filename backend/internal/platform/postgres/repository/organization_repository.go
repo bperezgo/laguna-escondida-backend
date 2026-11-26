@@ -119,9 +119,18 @@ func (r *OrganizationRepository) getWhere(ctx context.Context, query, value stri
 }
 
 func (r *OrganizationRepository) List(ctx context.Context) ([]*dto.Organization, error) {
+	return r.list(ctx, postgres.GetTxOrDB(ctx, r.db))
+}
+
+func (r *OrganizationRepository) ListByStatus(ctx context.Context, status string) ([]*dto.Organization, error) {
+	db := postgres.GetTxOrDB(ctx, r.db)
+	return r.list(ctx, db.Where("status = ?", status))
+}
+
+func (r *OrganizationRepository) list(ctx context.Context, query *gorm.DB) ([]*dto.Organization, error) {
 	db := postgres.GetTxOrDB(ctx, r.db)
 	var models []organizationModel
-	if err := db.Order("name, id").Find(&models).Error; err != nil {
+	if err := query.Order("name, id").Find(&models).Error; err != nil {
 		return nil, fmt.Errorf("list organizations: %w", err)
 	}
 	if len(models) == 0 {
@@ -203,6 +212,25 @@ func (r *OrganizationRepository) Update(ctx context.Context, id string, req *dto
 	}
 	if result.RowsAffected == 0 {
 		return nil, domainError.ErrOrganizationNotFound
+	}
+	return r.Get(ctx, id)
+}
+
+func (r *OrganizationRepository) StartTrial(ctx context.Context, id string, trialEndsAt time.Time) (*dto.Organization, error) {
+	if uuid.Validate(id) != nil {
+		return nil, domainError.ErrOrganizationNotFound
+	}
+	result := postgres.GetTxOrDB(ctx, r.db).Model(&organizationModel{}).
+		Where("id = ? AND status = ?", id, dto.OrganizationStatusPending).
+		Updates(map[string]any{"status": dto.OrganizationStatusTrial, "trial_ends_at": trialEndsAt, "updated_at": time.Now()})
+	if result.Error != nil {
+		return nil, fmt.Errorf("start trial: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		if _, err := r.Get(ctx, id); err != nil {
+			return nil, err
+		}
+		return nil, domainError.ErrOrganizationNotPending
 	}
 	return r.Get(ctx, id)
 }

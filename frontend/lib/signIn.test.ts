@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LEGACY_EDGE_CONTEXT, parseSignInContext, signInBody, signInErrorMessage, signInFailure } from "./signIn.ts";
+import { LEGACY_EDGE_CONTEXT, parseSignInContext, signInBody, signInErrorMessage, signInFailure, signInOutcome } from "./signIn.ts";
 import { supportEmail } from "./support.ts";
 
 test("the cloud context needs no organization", () => {
@@ -65,4 +65,21 @@ test("other sign-in failures read in Spanish without a link", () => {
     mailto: null,
   });
   assert.equal(signInFailure({ error: "Google sign-in failed" }, null).message, "No pudimos iniciar sesión con esa cuenta de Google.");
+});
+
+test("a pending account goes to the pending page", () => {
+  assert.deepEqual(signInOutcome(false, { error: "Approval pending", code: "pending_approval" }, null), { next: "pending" });
+});
+
+test("a successful sign-in goes home", () => {
+  assert.deepEqual(signInOutcome(true, {}, null), { next: "home" });
+});
+
+test("an ended trial is still a failure with its notice", () => {
+  const outcome = signInOutcome(false, { error: "Trial ended", code: "trial_expired" }, supportEmail("soporte@kuenta.co"));
+  assert.equal(outcome.next, "failure");
+  if (outcome.next === "failure") {
+    assert.equal(outcome.failure.message, "Tu prueba terminó. Escríbenos para continuar");
+    assert.ok(outcome.failure.mailto);
+  }
 });

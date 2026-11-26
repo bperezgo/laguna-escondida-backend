@@ -57,12 +57,12 @@ func (h *SignupHandler) GoogleSignupHandler(c *gin.Context) {
 		h.respondGoogleError(c, err)
 		return
 	}
-	if !result.Created {
+	if result.Created == nil {
 		c.JSON(http.StatusOK, result.SignIn)
 		return
 	}
 	h.logger.InfoContext(c.Request.Context(), "organization signed up", slog.String("plan", req.Plan))
-	c.JSON(http.StatusCreated, result.SignIn)
+	c.JSON(http.StatusCreated, result.Created)
 }
 
 // Opaque, so the response can't tell which emails or organizations exist; the reason goes to the log.
@@ -70,6 +70,8 @@ func (h *SignupHandler) respondGoogleError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, domainError.ErrTrialExpired):
 		respondTrialExpired(c)
+	case errors.Is(err, domainError.ErrOrganizationPending):
+		respondPendingApproval(c)
 	case errors.Is(err, domainError.ErrGoogleSignInFailed), errors.Is(err, domainError.ErrGoogleTokenInvalid):
 		h.logger.WarnContext(c.Request.Context(), "google sign-in rejected", slog.String("reason", err.Error()))
 		c.JSON(http.StatusUnauthorized, googleSignInFailedBody)

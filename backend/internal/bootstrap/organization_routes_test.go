@@ -20,6 +20,7 @@ var platformOrganizationRoutes = []struct{ method, path string }{
 	{http.MethodGet, "/api/platform/organizations"},
 	{http.MethodGet, "/api/platform/organizations/:id"},
 	{http.MethodPatch, "/api/platform/organizations/:id"},
+	{http.MethodPost, "/api/platform/organizations/:id/start-trial"},
 	{http.MethodPut, "/api/platform/organizations/:id/einvoicing"},
 	{http.MethodPost, "/api/platform/organizations/:id/api-keys"},
 	{http.MethodGet, "/api/platform/organizations/:id/api-keys"},
