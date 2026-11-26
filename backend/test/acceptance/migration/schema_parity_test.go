@@ -37,9 +37,12 @@ var edgeTables = []string{
 	"roles", "schema_migrations", "stock", "sync_outbox", "sync_state", "user_roles", "users",
 }
 
-// cloudOnlyConstraints are the differences the edge is allowed: it has no delivery zones.
+// cloudOnlyConstraints are the differences the edge is allowed: it has no delivery zones, and it
+// never sees a pending organization (box auth reports one as suspended).
 var cloudOnlyConstraints = map[string]bool{
-	"open_bills constraint fk_open_bills_delivery_zone": true,
+	"open_bills constraint fk_open_bills_delivery_zone":                  true,
+	"organizations constraint organizations_status_check":                true,
+	"organizations constraint organizations_pending_trial_ends_at_check": true,
 }
 
 func TestEdgeCloudSharedSchemaParity(t *testing.T) {
