@@ -1,17 +1,28 @@
 ---
 import "../styles/global.css";
 
+import { Icon } from "astro-icon/components";
+
+import manrope from "@fontsource-variable/manrope/files/manrope-latin-wght-normal.woff2?url";
+
 import Analytics from "../components/Analytics.astro";
-import { site, whatsappHref } from "../config/site.ts";
+import PrimaryAction from "../components/PrimaryAction.astro";
+import { actions, site, whatsappHref } from "../config/site.ts";
 
 interface Props {
   title: string;
   description: string;
   path?: string;
-  ctaHref?: string;
 }
 
-const { title, description, path = "/", ctaHref = "#demo" } = Astro.props;
+const { title, description, path = "/" } = Astro.props;
+const links = [
+  { label: "Sin internet", href: "/#sin-internet" },
+  { label: "Agente de WhatsApp", href: "/#whatsapp" },
+  { label: "Planes", href: "/#precios" },
+  { label: "Preguntas", href: "/#preguntas" },
+  ...(actions.signIn ? [{ label: actions.signIn.label, href: actions.signIn.href }] : []),
+];
 const canonical = new URL(path.endsWith("/") ? path : `${path}/`, site.siteUrl).toString();
 const image = new URL("/og.png", site.siteUrl).toString();
 ---
@@ -25,6 +36,7 @@ const image = new URL("/og.png", site.siteUrl).toString();
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href={manrope} as="font" type="font/woff2" crossorigin />
     <meta name="theme-color" content="#fbfaf7" />
     <script is:inline>document.documentElement.classList.add("js");</script>
     <meta property="og:type" content="website" />
@@ -52,18 +64,25 @@ const image = new URL("/og.png", site.siteUrl).toString();
     <header class="fixed inset-x-0 top-2 z-40 px-4">
       <nav
         aria-label="Principal"
-        class="bg-surface/80 border-line mx-auto flex max-w-5xl items-center justify-between rounded-2xl border px-3 py-2 backdrop-blur-md"
+        class="bg-surface/80 border-line relative mx-auto flex max-w-5xl items-center gap-4 rounded-2xl border px-3 py-2 backdrop-blur-md"
       >
         <a href="/" class="title-3 flex items-center gap-2" aria-label={`${site.productName}, inicio`}>
           <img src="/favicon.svg" alt="" width="32" height="32" class="size-8" />
           {site.productName}
         </a>
-        <a
-          href={ctaHref}
-          class="button-sm bg-primary text-on-primary hover:bg-primary-strong motion-weighted rounded-lg px-3 py-2 active:scale-[0.98]"
-        >
-          Pide una demo
-        </a>
+        <ul class="body-5 text-muted ml-auto hidden items-center gap-6 lg:flex">
+          {links.map((link) => <li><a href={link.href} class="hover:text-ink motion-weighted">{link.label}</a></li>)}
+        </ul>
+        <PrimaryAction size="sm" class="ml-auto lg:ml-0" />
+        <details data-menu class="lg:hidden">
+          <summary class="hover:bg-page flex size-10 cursor-pointer list-none items-center justify-center rounded-lg [&::-webkit-details-marker]:hidden">
+            <Icon name="ph:list" class="size-6" aria-hidden="true" />
+            <span class="sr-only">Menú</span>
+          </summary>
+          <ul class="bg-surface border-line body-2 absolute inset-x-0 top-full mt-2 flex flex-col rounded-2xl border p-3">
+            {links.map((link) => <li><a href={link.href} class="hover:bg-page block rounded-lg px-3 py-3">{link.label}</a></li>)}
+          </ul>
+        </details>
       </nav>
     </header>
     <main id="contenido">
@@ -89,7 +108,7 @@ const image = new URL("/og.png", site.siteUrl).toString();
     <script>
       import { browserStorage, capture, currentPage } from "../lib/attribution.ts";
       import { initMobileBar, initReveals, initTagline } from "../lib/reveal.ts";
-      import { trackInstallerDownload, trackWhatsApp } from "../lib/track.ts";
+      import { trackInstallerDownload, trackTrialClick, trackWhatsApp } from "../lib/track.ts";
 
       capture(currentPage(), browserStorage());
       initReveals();
@@ -99,6 +118,8 @@ const image = new URL("/og.png", site.siteUrl).toString();
         const target = event.target as Element | null;
         if (target?.closest("[data-whatsapp]")) trackWhatsApp();
         if (target?.closest("[data-installer-download]")) trackInstallerDownload();
+        if (target?.closest("[data-trial-cta]")) trackTrialClick();
+        target?.closest("[data-menu] a")?.closest("details")?.removeAttribute("open");
       });
     </script>
     <Analytics />

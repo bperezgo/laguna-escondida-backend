@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 
-import { trackInstallerDownload, trackLead, trackWhatsApp } from "./track.ts";
+import { trackInstallerDownload, trackLead, trackTrialClick, trackWhatsApp } from "./track.ts";
 
 const globals = globalThis as Record<string, unknown>;
 
@@ -21,6 +21,7 @@ test("calls do not throw when both tools are missing", () => {
   assert.doesNotThrow(() => trackLead("0b9c1c3e-6a1f-4c1e-9d55-3f2a8b7c1d10"));
   assert.doesNotThrow(() => trackWhatsApp());
   assert.doesNotThrow(() => trackInstallerDownload());
+  assert.doesNotThrow(() => trackTrialClick());
 });
 
 test("calls do not throw when a tool throws", () => {
@@ -33,6 +34,7 @@ test("calls do not throw when a tool throws", () => {
   assert.doesNotThrow(() => trackLead("0b9c1c3e-6a1f"));
   assert.doesNotThrow(() => trackWhatsApp());
   assert.doesNotThrow(() => trackInstallerDownload());
+  assert.doesNotThrow(() => trackTrialClick());
 });
 
 test("a lead reports generate_lead and Lead with the same event id", () => {
@@ -65,6 +67,16 @@ test("an installer download reports installer_download and InstallerDownload, on
   ]);
 });
 
+test("a trial click reports trial_click and TrialClick, once each", () => {
+  const calls = install();
+  trackTrialClick();
+
+  assert.deepEqual(calls, [
+    ["gtag", "event", "trial_click"],
+    ["fbq", "trackCustom", "TrialClick"],
+  ]);
+});
+
 test("an installer download with one tool missing still reaches the other", () => {
   const calls: unknown[][] = [];
   globals.gtag = (...args: unknown[]) => calls.push(["gtag", ...args]);
@@ -86,6 +98,7 @@ test("no event carries a name, restaurant or phone", () => {
   trackLead("0b9c1c3e-6a1f");
   trackWhatsApp();
   trackInstallerDownload();
+  trackTrialClick();
 
   const sent = JSON.stringify(calls);
   assert.doesNotMatch(sent, /name|restaurant|phone|\+57/i);

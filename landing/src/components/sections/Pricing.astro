@@ -1,0 +1,45 @@
+---
+import { Icon } from "astro-icon/components";
+
+import PrimaryAction from "../PrimaryAction.astro";
+import { annualPrice, formatCop, plans } from "../../config/plans.ts";
+---
+
+<section id="precios" class="px-4 py-16 md:py-24" aria-labelledby="pricing-title">
+  <div class="mx-auto max-w-5xl" data-reveal>
+    <p class="caption-3 text-primary flex items-center gap-2 tracking-wide uppercase">
+      <Icon name="ph:tag" class="size-5" aria-hidden="true" /> Planes
+    </p>
+    <h2 id="pricing-title" class="heading-2 mt-3 max-w-[680px]">Un precio fijo al mes, según lo que necesitas</h2>
+    <p class="body-3 text-muted mt-4 max-w-[680px] md:text-lg">
+      Precios en pesos colombianos, antes de IVA. Si pagas el año, dos meses son gratis.
+    </p>
+    <ul class="mt-8 grid gap-4 md:grid-cols-3">
+      {
+        plans.map((plan) => (
+          <li class="bg-surface border-line flex flex-col rounded-2xl border p-6">
+            <h3 class="title-1">{plan.name}</h3>
+            <p class="mt-3">
+              <span class="heading-4">{formatCop(plan.monthly)}</span>
+              <span class="body-6 text-muted"> al mes</span>
+            </p>
+            <p class="body-6 text-muted mt-1">o {formatCop(annualPrice(plan))} al año, con 2 meses gratis</p>
+            <ul class="mt-6 mb-6 flex flex-col gap-3">
+              {plan.includes.map((line) => (
+                <li class="body-6 flex items-start gap-2">
+                  <Icon name="ph:check" class="text-primary mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                  {line}
+                </li>
+              ))}
+            </ul>
+            <PrimaryAction size="md" class="mt-auto block" />
+          </li>
+        ))
+      }
+    </ul>
+    <p class="body-5 text-muted mt-6 flex items-start gap-2">
+      <Icon name="ph:desktop" class="text-primary size-5 shrink-0" aria-hidden="true" />
+      El sistema se instala en el computador que ya tienes en el restaurante, con Windows 10 u 11.
+    </p>
+  </div>
+</section>

@@ -17,7 +17,7 @@
 | Icons | Phosphor, Solar, Iconamoon | **Phosphor** through `astro-icon` (`ph:` set), inlined at build. |
 | Heading sizes on phones | Heading 1 = `text-6xl` | Below `md`, Heading 1 uses the `text-4xl` step and Heading 2 the `text-3xl` step, so a Spanish headline fits 360 pixels. Still scale steps, never arbitrary sizes. |
 | Social proof | logos, testimonials, numbers | **None.** The proof line is a fact: it runs a real restaurant every day and was built by its owner. |
-| Cookie consent | where required | No banner (Colombian audience). The privacy page names both tools. See `openspec/changes/landing-lead-capture/design.md`, risks. |
+| Cookie consent | where required | No banner (Colombian audience). The privacy page names both tools. See `openspec/changes/archive/2026-11-26-landing-lead-capture/design.md`, risks. |
 
 ## Spacing
 
@@ -25,7 +25,7 @@ Only these Tailwind steps (the skill's table): `0`, `0.5`, `1`, `2`, `3`, `4`, `
 
 ## The primary action
 
-One label everywhere: **Pide una demo**. It is an anchor to `#demo`. On phones a bar fixed to the bottom carries it and hides while the form is on screen. Contrast of the button text must stay at 4.5:1 or better; `src/styles/tokens.test.ts` checks it.
+Two actions, decided in `src/config/actions.ts`: with signup open, the primary is **Prueba 14 días** (to the app's signup page) and the secondary is **Pide una demo** (to `/#demo`); before signup opens, the demo request is the primary and there is no secondary. Only the primary is filled, through `PrimaryAction.astro`; the secondary is outlined, through `SecondaryAction.astro`. Each label is the same everywhere. On phones a bar fixed to the bottom carries the primary and hides while the form is on screen. Prices come only from `src/config/plans.ts`. Contrast of the button text must stay at 4.5:1 or better; `src/styles/tokens.test.ts` checks it.
 
 ## Tokens
 

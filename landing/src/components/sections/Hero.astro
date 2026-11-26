@@ -1,39 +1,25 @@
 ---
 import { Icon } from "astro-icon/components";
 
+import PrimaryAction from "../PrimaryAction.astro";
 import ProductShot from "../ProductShot.astro";
-import { signupHref } from "../../config/site.ts";
+import SecondaryAction from "../SecondaryAction.astro";
 ---
 
 <section class="px-4 pt-24 pb-12 md:pt-36" aria-labelledby="hero-title">
   <div class="mx-auto max-w-5xl">
     <h1 id="hero-title" class="heading-1 max-w-[680px]">Tu restaurante sigue vendiendo aunque se caiga el internet</h1>
     <p class="body-3 text-muted mt-4 max-w-[680px] md:text-lg">
-      Caja, cocina, pedidos por WhatsApp y factura electrónica para restaurantes en Colombia.
+      Caja, cocina, domicilios y factura electrónica para restaurantes en Colombia.
     </p>
     <div class="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center">
-      <a
-        href="#demo"
-        class="button-lg bg-primary text-on-primary hover:bg-primary-strong motion-weighted rounded-lg px-3 py-3 text-center active:scale-[0.98]"
-      >
-        Pide una demo
-      </a>
-      {
-        signupHref && (
-          <a
-            href={signupHref}
-            data-trial-cta
-            class="button-lg bg-surface text-primary border-primary hover:border-primary-strong hover:text-primary-strong motion-weighted rounded-lg border px-3 py-3 text-center active:scale-[0.98]"
-          >
-            Prueba 14 días
-          </a>
-        )
-      }
+      <PrimaryAction />
+      <SecondaryAction />
       <p class="body-5 text-muted flex items-center gap-2">
         <Icon name="ph:storefront" class="text-primary size-5 shrink-0" aria-hidden="true" />
         Funciona cada día en un restaurante real. Lo construyó su dueño.
       </p>
     </div>
-    <ProductShot name="hero" alt="Pantalla de caja del sistema con una cuenta abierta" class="mt-10" />
+    <ProductShot name="hero" alt="Pantalla de órdenes de la caja con tres cuentas de mesa abiertas" class="mt-10" loading="eager" />
   </div>
 </section>

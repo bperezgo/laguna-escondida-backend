@@ -2,7 +2,7 @@
 import { Icon } from "astro-icon/components";
 
 import Base from "../layouts/Base.astro";
-import { installerHref, site } from "../config/site.ts";
+import { actions, installerHref, site } from "../config/site.ts";
 import { whatsappLink } from "../config/build-site-config.ts";
 
 const helpHref = whatsappLink(site, `Hola, no pude descargar el instalador de ${site.productName}.`);
@@ -24,7 +24,6 @@ const steps = [
   title={`Descargar ${site.productName} | Instalador para Windows`}
   description={`Descarga el instalador de ${site.productName} para el computador de tu restaurante. Necesitas la cuenta de tu restaurante para terminar.`}
   path="/descargar"
-  ctaHref="/#demo"
 >
   <section class="px-4 pt-28 pb-12 md:pt-36" aria-labelledby="download-title">
     <div class="mx-auto max-w-5xl">
@@ -92,7 +91,12 @@ const steps = [
         </h3>
         <p class="body-6 text-muted mt-2">
           La instalación termina cuando entras con la cuenta de tu restaurante.
-          <a href="/#demo" class="text-primary underline underline-offset-4">Pide una demo</a> y te la creamos.
+          <a
+            href={actions.primary.href}
+            data-trial-cta={actions.primary.kind === "trial" ? "" : undefined}
+            class="text-primary underline underline-offset-4">{actions.primary.label}</a
+          >
+          {actions.primary.kind === "trial" ? " y crea la tuya." : " y te la creamos."}
         </p>
       </div>
     </div>

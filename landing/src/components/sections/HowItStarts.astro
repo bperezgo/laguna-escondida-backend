@@ -1,9 +1,17 @@
 ---
-import { site } from "../../config/site.ts";
+import { actions, site } from "../../config/site.ts";
+
+const first =
+  actions.primary.kind === "trial"
+    ? { title: "Creas tu cuenta", text: "Empiezas la prueba de 14 días. Si prefieres verlo primero con nosotros, pide una demo." }
+    : { title: "Pides una demo", text: "Nos dejas tus datos y te escribimos por WhatsApp para acordar el día." };
 
 const steps = [
-  { title: "Pides una demo", text: "Nos dejas tus datos y te escribimos por WhatsApp para acordar el día." },
-  { title: "Lo configuramos contigo", text: `Dejamos listos tu menú, tus prefijos de facturación y tu canal de WhatsApp. Tú instalas ${site.productName} en el computador del local con nuestro instalador.` },
+  first,
+  {
+    title: "Lo dejas listo",
+    text: `Cargas tu menú y, si facturas, tus prefijos de facturación. Instalas ${site.productName} en el computador del local con nuestro instalador.`,
+  },
   { title: "Empiezas a vender", text: "Tu equipo cobra, la cocina recibe pedidos y la factura sale desde el primer día." },
 ];
 ---

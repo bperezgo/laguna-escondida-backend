@@ -162,7 +162,7 @@
 
 /* Tagline reveal: words start muted and take the full colour one at a time. */
 .js [data-tagline] [data-word] {
-  opacity: 0.3;
+  opacity: 0.4;
   transition: opacity 500ms var(--ease-weighted);
 }
 .js [data-tagline] [data-word].is-lit {

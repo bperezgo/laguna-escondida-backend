@@ -2,35 +2,67 @@
 import { Icon } from "astro-icon/components";
 
 import ProductShot from "../ProductShot.astro";
+import SequenceStep from "../SequenceStep.astro";
+import { agentHref, site } from "../../config/site.ts";
+
+const chat = [
+  { from: "cliente", text: "Hola, quiero una bandeja paisa y una limonada para recoger a la 1." },
+  { from: "agente", text: "Listo. Tu pedido para llevar queda para la 1:00 p. m. ¿A nombre de quién?" },
+  { from: "cliente", text: "Camila." },
+];
 ---
 
-<section class="px-4 py-16 md:py-24" aria-labelledby="whatsapp-title">
+<section id="whatsapp" class="px-4 py-16 md:py-24" aria-labelledby="whatsapp-title">
   <div class="mx-auto max-w-5xl" data-reveal>
-    <p class="caption-3 text-primary flex items-center gap-2 tracking-wide uppercase">
-      <Icon name="ph:whatsapp-logo" class="size-5" aria-hidden="true" /> WhatsApp
-    </p>
-    <h2 id="whatsapp-title" class="heading-2 mt-3 max-w-[680px]">Pedidos y reservas que llegan solos por WhatsApp</h2>
+    <div class="flex flex-wrap items-center gap-3">
+      <p class="caption-3 text-primary flex items-center gap-2 tracking-wide uppercase">
+        <Icon name="ph:whatsapp-logo" class="size-5" aria-hidden="true" /> Agente de WhatsApp
+      </p>
+      <p class="caption-3 border-highlight text-ink rounded-full border px-3 py-1">Complemento que se contrata aparte</p>
+    </div>
+    <h2 id="whatsapp-title" class="heading-2 mt-3 max-w-[680px]">Un agente que toma pedidos y reservas por WhatsApp</h2>
     <p class="body-3 text-muted mt-4 max-w-[680px] md:text-lg">
-      Un agente atiende a tus clientes en tu número, toma el pedido o la reserva y lo deja en el sistema. Tu equipo ve cada pedido en la cocina y
-      confirma o rechaza las reservas desde una sola pantalla.
+      El agente es un producto aparte que se conecta con {site.productName}. Atiende a tus clientes en tu número, toma el pedido o la reserva y lo deja en el
+      sistema. La conexión está disponible en el plan Completo.
     </p>
-    <ul class="mt-8 grid gap-4 md:grid-cols-3">
-      <li class="bg-surface border-line rounded-2xl border p-6">
-        <Icon name="ph:chat-circle-text" class="text-primary size-8" aria-hidden="true" />
-        <h3 class="title-2 mt-3">Pedidos para llevar y domicilios</h3>
-        <p class="body-6 text-muted mt-2">El cliente escribe como siempre y el pedido entra a la cocina sin que nadie lo digite.</p>
-      </li>
-      <li class="bg-surface border-line rounded-2xl border p-6">
-        <Icon name="ph:calendar-check" class="text-primary size-8" aria-hidden="true" />
-        <h3 class="title-2 mt-3">Reservas con tu aprobación</h3>
-        <p class="body-6 text-muted mt-2">Cada reserva llega como solicitud. Tú la confirmas o la rechazas y el cliente recibe la respuesta.</p>
-      </li>
-      <li class="bg-surface border-line rounded-2xl border p-6">
-        <Icon name="ph:address-book" class="text-primary size-8" aria-hidden="true" />
-        <h3 class="title-2 mt-3">Tus clientes, guardados</h3>
-        <p class="body-6 text-muted mt-2">Cada conversación suma a una lista de contactos para que sepas quién te escribe y cuántas veces.</p>
-      </li>
-    </ul>
-    <ProductShot name="whatsapp" alt="Lista de reservas recibidas por WhatsApp con sus estados" class="mt-10" />
+    <ol class="mt-10 flex flex-col gap-10">
+      <SequenceStep number={1} title="Tu cliente escribe" text="Pide como siempre, por WhatsApp, y el agente le responde.">
+        <figure class="bg-surface border-line rounded-2xl border p-4">
+          <ul class="flex flex-col gap-2">
+            {
+              chat.map((message) => (
+                <li
+                  class:list={[
+                    "body-6 max-w-[85%] rounded-2xl px-3 py-2",
+                    message.from === "cliente" ? "bg-page border-line self-start border" : "bg-primary text-on-primary self-end",
+                  ]}
+                >
+                  <span class="sr-only">{message.from === "cliente" ? "Cliente: " : "Agente: "}</span>
+                  {message.text}
+                </li>
+              ))
+            }
+          </ul>
+          <figcaption class="caption-4 text-muted mt-3">Ejemplo de una conversación.</figcaption>
+        </figure>
+      </SequenceStep>
+      <SequenceStep number={2} title="El pedido entra al sistema" text="Queda en Órdenes como un pedido para llevar, sin que nadie lo digite.">
+        <ProductShot name="whatsapp-2" alt="El pedido para llevar en la pantalla de órdenes, junto a las cuentas de las mesas" />
+      </SequenceStep>
+      <SequenceStep number={3} title="La cocina lo recibe" text="Cuando el pedido se paga, la comanda aparece en la pantalla de cocina con lo que hay que preparar.">
+        <ProductShot name="whatsapp-3" alt="La comanda de ese pedido en la pantalla de cocina, junto a las de las mesas" />
+      </SequenceStep>
+    </ol>
+    <p class="body-3 text-muted mt-10 max-w-[680px]">
+      Las reservas llegan como solicitudes. Tu equipo las confirma o las rechaza desde una sola pantalla.
+    </p>
+    <ProductShot name="whatsapp" alt="Lista de reservas confirmadas y por confirmar, con su origen" class="mt-6" />
+    <a
+      href={agentHref ?? "#demo"}
+      data-whatsapp={agentHref ? "" : undefined}
+      class="button-md text-primary mt-8 inline-flex items-center gap-2 underline underline-offset-4"
+    >
+      <Icon name="ph:chat-circle-text" class="size-6" aria-hidden="true" /> Pregunta por el agente
+    </a>
   </div>
 </section>
