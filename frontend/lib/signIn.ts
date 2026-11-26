@@ -67,3 +67,11 @@ export function signInFailure(
   }
   return { message: signInErrorMessage(body.error || "No se pudo iniciar sesión"), mailto: null };
 }
+
+export type SignInOutcome = { next: "home" } | { next: "pending" } | { next: "failure"; failure: SignInFailure };
+
+export function signInOutcome(ok: boolean, body: { error?: string; code?: string }, email: string | null): SignInOutcome {
+  if (ok) return { next: "home" };
+  if (body.code === "pending_approval") return { next: "pending" };
+  return { next: "failure", failure: signInFailure(body, email) };
+}

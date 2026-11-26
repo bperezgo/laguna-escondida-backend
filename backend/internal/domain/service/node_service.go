@@ -104,8 +104,9 @@ func (s *NodeService) Authenticate(ctx context.Context, nodeID, key string) (str
 		return "", fmt.Errorf("authenticate node %s: %w", nodeID, err)
 	}
 	status := record.OrganizationStatus
-	// An expired trial stops the box exactly as a suspension does, backoff included.
-	if plans.Expired(status, record.TrialEndsAt, s.now()) {
+	// An expired trial or a pending signup stops the box exactly as a suspension does, backoff
+	// included; the edge's own status constraint has no pending.
+	if status == dto.OrganizationStatusPending || plans.Expired(status, record.TrialEndsAt, s.now()) {
 		status = dto.OrganizationStatusSuspended
 	}
 	auth := cachedNodeAuth{

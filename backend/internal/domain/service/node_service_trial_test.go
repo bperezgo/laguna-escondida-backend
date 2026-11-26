@@ -27,6 +27,17 @@ func TestNodeService_Authenticate_ExpiredTrialIsRefusedAsSuspended(t *testing.T)
 	}
 }
 
+func TestNodeService_Authenticate_PendingOrganizationIsRefusedAsSuspended(t *testing.T) {
+	const key = "lgn_right"
+	f, _ := newCachedNodeFixture(t)
+	f.nodes.On("FindForAuth", mock.Anything, nodeTestID).Return(authRecord(key, func(r *dto.NodeAuthRecord) {
+		r.OrganizationStatus, r.TrialEndsAt = dto.OrganizationStatusPending, nil
+	}), nil).Once()
+
+	_, err := f.service.Authenticate(context.Background(), nodeTestID, key)
+	require.ErrorIs(t, err, domainError.ErrNodeOrganizationSuspended)
+}
+
 func TestNodeService_Authenticate_TrialInProgressIsAccepted(t *testing.T) {
 	const key = "lgn_right"
 	future := time.Now().Add(time.Hour)

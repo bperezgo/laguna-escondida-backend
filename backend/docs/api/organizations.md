@@ -6,9 +6,9 @@ Create and maintain the organizations (restaurants) that share this POS, their s
 - **Admin API key.** Every route requires `X-API-Key: <ADMIN_API_KEY>`. A user JWT, of any role, is refused with `401`. (Tenancy step 3 replaces the key with a `platform_admin` check on the same paths.)
 - **No delete.** An organization's invoices are legal records. Retire an organization with `PATCH {"status": "suspended"}`.
 
-Restaurants can also create their own organization through [self-serve signup](./signup.md), on a 14-day trial.
+Restaurants can also create their own organization through [self-serve signup](./signup.md). It waits as `pending` until the operator [approves it](#approving-a-signup); its 14-day trial starts then.
 
-> **What changes runtime behavior.** Only the ordering `settings`, `status`, `trial_ends_at` and `plan`. A `suspended` organization, or one whose trial has ended, is refused in the cloud (users, API keys, box sync; see [Organization access refusals](./auth.md#organization-access-refusals)); `plan` decides the cloud features it reaches (see [Plans](#plans)) and whether its bills are sent to DIAN. Business info, receipt text and branding are returned on [`GET /api/auth/me`](./auth.md#get-current-user) and not read anywhere else yet.
+> **What changes runtime behavior.** Only the ordering `settings`, `status`, `trial_ends_at` and `plan`. A `suspended` or `pending` organization, or one whose trial has ended, is refused in the cloud (users, API keys, box sync; see [Organization access refusals](./auth.md#organization-access-refusals)); `plan` decides the cloud features it reaches (see [Plans](#plans)) and whether its bills are sent to DIAN. Business info, receipt text and branding are returned on [`GET /api/auth/me`](./auth.md#get-current-user) and not read anywhere else yet.
 
 ## Organization Fields
 
@@ -17,9 +17,9 @@ Restaurants can also create their own organization through [self-serve signup](.
 | `id`                  | string (UUID)  | —        | generated (v7)   | Read-only                                                                  |
 | `name`                | string         | Yes      | —                | Not blank, at most 255 characters (trimmed)                                |
 | `slug`                | string         | Yes      | —                | `^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$`, unique, **immutable** after create |
-| `status`              | string         | No       | `active`         | `trial`, `active` or `suspended`; `trial` needs a `trial_ends_at`, sent or stored |
+| `status`              | string         | No       | `active`         | `trial`, `active` or `suspended`; `trial` needs a `trial_ends_at`, sent or stored. Reads may also return `pending` (a signup waiting for approval), which can't be sent |
 | `plan`                | string         | No       | `full`           | `starter`, `einvoicing` or `full`                                          |
-| `trial_ends_at`       | string \| null | No       | `null`           | RFC 3339. From this instant a `trial` organization is expired; an `active` one never expires |
+| `trial_ends_at`       | string \| null | No       | `null`           | RFC 3339. From this instant a `trial` organization is expired; an `active` one never expires. Always `null` and not accepted while `pending` |
 | `timezone`            | string         | No       | `America/Bogota` | A valid IANA time zone name                                                |
 | `country`             | string         | No       | `CO`             | Two uppercase letters (ISO 3166-1 alpha-2)                                 |
 | `locale`              | string         | No       | `es-CO`          | `ll-RR`, e.g. `es-CO`                                                      |
@@ -70,6 +70,7 @@ A refused request answers `403 {"code": "plan_required", "required_plan": "<plan
 | GET    | `/api/platform/organizations`                   | List all organizations                    |
 | GET    | `/api/platform/organizations/:id`               | Get an organization                       |
 | PATCH  | `/api/platform/organizations/:id`               | Partially update an organization          |
+| POST   | `/api/platform/organizations/:id/start-trial`   | Start the 14-day trial of a pending signup |
 | PUT    | `/api/platform/organizations/:id/einvoicing`    | Create or replace the e-invoicing prefixes |
 
 ### Common Errors
@@ -243,10 +244,24 @@ Any field from [Organization Fields](#organization-fields) except the read-only 
 
 ## List Organizations
 
-Returns every organization, active and suspended, ordered by name, each with its e-invoicing prefixes or `null` and its `settings`. Not paginated.
+Returns every organization, whatever its status, ordered by name, each with its e-invoicing prefixes or `null` and its `settings`. Not paginated.
 
 ```
 GET /api/platform/organizations
+GET /api/platform/organizations?status=pending
+```
+
+| Query    | Description |
+| -------- | ----------- |
+| `status` | Optional. `pending`, `trial`, `active` or `suspended`: only organizations with that status. `?status=pending` lists the signups waiting for approval, each with its `plan` and `created_at`. |
+
+**400 Bad Request** — an unknown `status`
+
+```json
+{
+  "error": "invalid status: must be pending, trial, active or suspended",
+  "field": "status"
+}
 ```
 
 ### Example Response (200 OK)
@@ -355,6 +370,7 @@ PATCH /api/platform/organizations/:id
 - `trial_ends_at` sent as `""` is cleared, unless the organization stays in `trial` (`400`).
 - **Activate** a paying customer with `{"status": "active", "plan": "einvoicing"}`; an active organization never expires.
 - **Extend** a trial with a later `trial_ends_at`, e.g. `{"trial_ends_at": "2026-12-31T23:59:59-05:00"}`.
+- **`pending`** can't be sent, on create or update: only signup creates it. A `pending` organization can move to `active` or `suspended` here, and its `plan` and other fields can change (it stays `pending`). It can't be moved to `trial` here, nor given a `trial_ends_at`: use [Start a Trial](#start-a-trial).
 - Changes apply within a minute to users and API keys, and within about 5 minutes to the box (its refusal backoff).
 - `slug` cannot be changed: a body containing `slug` is a `400`.
 - `updated_at` is always bumped.
@@ -420,7 +436,83 @@ The full updated organization, same shape as [Get Organization](#get-organizatio
 }
 ```
 
+**400 Bad Request** - A pending organization patched into a trial, or `status: pending`
+
+```json
+{
+  "error": "invalid status: a pending organization's trial is started with start-trial",
+  "field": "status"
+}
+```
+
+```json
+{
+  "error": "invalid status: must be trial, active or suspended",
+  "field": "status"
+}
+```
+
+**400 Bad Request** - A `trial_ends_at` on an organization that stays pending
+
+```json
+{
+  "error": "invalid trial_ends_at: is not accepted while the organization is pending",
+  "field": "trial_ends_at"
+}
+```
+
 **404 Not Found** - No organization has that id
+
+---
+
+## Start a Trial
+
+Moves a `pending` organization (a signup) to `trial`, with `trial_ends_at` 14 days after this call and its stored `plan` unchanged. This is the only way a pending organization becomes a trial; a future payment confirmation will go through the same operation. Its users can sign in at once on this replica, and within a minute on the others.
+
+```
+POST /api/platform/organizations/:id/start-trial
+```
+
+No request body.
+
+### Example Response (200 OK)
+
+The full updated organization, same shape as [Get Organization](#get-organization).
+
+```json
+{
+  "id": "019a1b2c-3d4e-7f00-8a1b-2c3d4e5f6a7b",
+  "slug": "restaurante-dona-rosa",
+  "name": "Restaurante Doña Rosa",
+  "status": "trial",
+  "plan": "einvoicing",
+  "trial_ends_at": "2026-12-15T15:00:00Z"
+}
+```
+
+(other fields omitted)
+
+### Error Responses
+
+**409 Conflict** - The organization is not `pending` (already in trial, active or suspended); nothing changes
+
+```json
+{
+  "error": "Organization is not pending approval",
+  "code": "not_pending"
+}
+```
+
+**404 Not Found** - No organization has that id
+
+### Approving a Signup
+
+1. Find waiting signups: `GET /api/platform/organizations?status=pending`.
+2. Either start the trial: `POST /api/platform/organizations/:id/start-trial`,
+3. or skip the trial for a paying customer: `PATCH /api/platform/organizations/:id` with `{"status": "active"}`,
+4. or reject it: `PATCH` with `{"status": "suspended"}`.
+
+Nobody is notified; the restaurant finds out by signing in.
 
 ---
 

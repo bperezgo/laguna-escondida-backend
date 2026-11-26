@@ -68,6 +68,7 @@ func registerCloudRoutes(router *gin.Engine, adminAPIKey string, jwtService *ser
 	organizations.GET("", h.organization.ListHandler)
 	organizations.GET("/:id", h.organization.GetHandler)
 	organizations.PATCH("/:id", h.organization.UpdateHandler)
+	organizations.POST("/:id/start-trial", h.organization.StartTrialHandler)
 	organizations.PUT("/:id/einvoicing", h.organization.SetEInvoicingHandler)
 	organizations.POST("/:id/api-keys", h.apiKey.IssueHandler)
 	organizations.GET("/:id/api-keys", h.apiKey.ListHandler)

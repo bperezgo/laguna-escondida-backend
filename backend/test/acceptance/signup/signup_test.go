@@ -24,16 +24,27 @@ type me struct {
 	} `json:"organization"`
 }
 
+// signUp creates a pending account, has the operator start its trial, and signs its admin in.
 func (c *cloud) signUp(email, restaurant, plan string) (token, orgID string) {
+	c.t.Helper()
+	orgID = c.signUpPending(email, restaurant, plan)
+	require.Equal(c.t, http.StatusOK, c.operator(http.MethodPost, "/api/platform/organizations/"+orgID+"/start-trial", nil).status)
+	resp := c.call(http.MethodPost, "/api/auth/google", nil, map[string]string{"id_token": googleToken(email, "Rosa Pérez")})
+	require.Equal(c.t, http.StatusOK, resp.status, string(resp.body))
+	var signIn dto.SignInResponse
+	resp.decode(c.t, &signIn)
+	return signIn.Token, orgID
+}
+
+func (c *cloud) signUpPending(email, restaurant, plan string) (orgID string) {
 	c.t.Helper()
 	resp := c.call(http.MethodPost, "/api/signup/google", nil, map[string]string{
 		"id_token": googleToken(email, "Rosa Pérez"), "restaurant_name": restaurant, "plan": plan})
 	require.Equal(c.t, http.StatusCreated, resp.status, string(resp.body))
-	var signIn dto.SignInResponse
-	resp.decode(c.t, &signIn)
-	var m me
-	c.as(signIn.Token, http.MethodGet, "/api/auth/me", nil).decode(c.t, &m)
-	return signIn.Token, m.Organization.ID
+	assert.JSONEq(c.t, `{"status":"pending","organization_name":"`+restaurant+`","plan":"`+plan+`"}`, string(resp.body))
+	require.NoError(c.t, cloudDB.Raw("SELECT organization_id FROM users WHERE email = ?", email).Scan(&orgID).Error)
+	require.NotEmpty(c.t, orgID)
+	return orgID
 }
 
 func unique(prefix string) string { return prefix + "-" + uuid.NewString()[:8] + "@example.com" }
@@ -74,6 +85,58 @@ func TestSignup_TrialPlanAndExpiry(t *testing.T) {
 	assert.Equal(t, http.StatusOK, c.as(token, http.MethodGet, "/api/products", nil).status, "activated: access returns")
 	assert.NotEqual(t, http.StatusForbidden, c.as(token, http.MethodGet, "/api/invoices", nil).status, "einvoicing now reaches invoices")
 	assert.Equal(t, http.StatusOK, c.call(http.MethodPost, "/api/auth/google", nil, map[string]string{"id_token": googleToken(email, "Rosa")}).status)
+}
+
+func TestSignup_PendingUntilTheTrialStarts(t *testing.T) {
+	c := newCloud(t)
+	email := unique("pendiente")
+	orgID := c.signUpPending(email, "Casa Pendiente", "einvoicing")
+
+	var stored struct {
+		Status      string
+		TrialEndsAt *time.Time
+	}
+	require.NoError(t, cloudDB.Raw("SELECT status, trial_ends_at FROM organizations WHERE id = ?", orgID).Scan(&stored).Error)
+	assert.Equal(t, "pending", stored.Status)
+	assert.Nil(t, stored.TrialEndsAt)
+
+	resp := c.call(http.MethodPost, "/api/auth/google", nil, map[string]string{"id_token": googleToken(email, "Rosa")})
+	assert.Equal(t, http.StatusForbidden, resp.status)
+	assert.Equal(t, "pending_approval", resp.code(t))
+	resp = c.call(http.MethodPost, "/api/signup/google", nil, map[string]string{
+		"id_token": googleToken(email, "Rosa"), "restaurant_name": "Otra", "plan": "full"})
+	assert.Equal(t, http.StatusForbidden, resp.status, "signing up again while pending creates nothing")
+	assert.Equal(t, "pending_approval", resp.code(t))
+
+	resp = c.operator(http.MethodGet, "/api/platform/organizations?status=pending", nil)
+	require.Equal(t, http.StatusOK, resp.status)
+	var list struct{ Organizations []dto.Organization }
+	resp.decode(t, &list)
+	ids := map[string]string{}
+	for _, o := range list.Organizations {
+		assert.Equal(t, "pending", o.Status)
+		ids[o.ID] = o.Plan
+	}
+	assert.Equal(t, "einvoicing", ids[orgID], "the waiting signup is listed with its plan")
+
+	resp = c.operator(http.MethodPatch, "/api/platform/organizations/"+orgID, map[string]string{"status": "trial", "trial_ends_at": "2026-12-31T23:59:59-05:00"})
+	assert.Equal(t, http.StatusBadRequest, resp.status, "a trial is started only by start-trial")
+
+	resp = c.operator(http.MethodPost, "/api/platform/organizations/"+orgID+"/start-trial", nil)
+	require.Equal(t, http.StatusOK, resp.status, string(resp.body))
+	var started dto.Organization
+	resp.decode(t, &started)
+	assert.Equal(t, "trial", started.Status)
+	assert.Equal(t, "einvoicing", started.Plan)
+	require.NotNil(t, started.TrialEndsAt)
+	assert.WithinDuration(t, time.Now().Add(14*24*time.Hour), *started.TrialEndsAt, time.Minute)
+
+	resp = c.operator(http.MethodPost, "/api/platform/organizations/"+orgID+"/start-trial", nil)
+	assert.Equal(t, http.StatusConflict, resp.status)
+	assert.Equal(t, "not_pending", resp.code(t))
+
+	assert.Equal(t, http.StatusOK, c.call(http.MethodPost, "/api/auth/google", nil, map[string]string{"id_token": googleToken(email, "Rosa")}).status,
+		"approved: the admin signs in at once")
 }
 
 func TestSignup_InviteAcceptAndSignIn(t *testing.T) {

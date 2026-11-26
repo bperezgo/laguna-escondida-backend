@@ -29,7 +29,7 @@ func NewOrganizationAccessService(reader ports.OrganizationAccessReader) *Organi
 	return &OrganizationAccessService{reader: reader, now: time.Now}
 }
 
-// Check refuses, in this order: a suspended organization, an expired trial, then a feature the plan excludes.
+// Check refuses, in this order: a suspended organization, a pending one, an expired trial, then a feature the plan excludes.
 func (s *OrganizationAccessService) Check(ctx context.Context, orgID string, principal AccessPrincipal, routePath string) error {
 	access, err := s.reader.GetAccess(ctx, orgID)
 	if err != nil {
@@ -37,6 +37,9 @@ func (s *OrganizationAccessService) Check(ctx context.Context, orgID string, pri
 	}
 	if access.Status == dto.OrganizationStatusSuspended {
 		return domainError.ErrOrganizationSuspended
+	}
+	if access.Status == dto.OrganizationStatusPending {
+		return domainError.ErrOrganizationPending
 	}
 	if plans.Expired(access.Status, access.TrialEndsAt, s.now()) {
 		return domainError.ErrTrialExpired
@@ -51,13 +54,14 @@ func (s *OrganizationAccessService) Check(ctx context.Context, orgID string, pri
 	return nil
 }
 
-// Usable reports whether an organization may still act: not suspended and not in an expired trial.
+// Usable reports whether an organization may still act: not suspended, not pending and not in an expired trial.
 func (s *OrganizationAccessService) Usable(ctx context.Context, orgID string) error {
 	access, err := s.reader.GetAccess(ctx, orgID)
 	if err != nil {
 		return fmt.Errorf("organization access: %w", err)
 	}
-	if access.Status == dto.OrganizationStatusSuspended || plans.Expired(access.Status, access.TrialEndsAt, s.now()) {
+	if access.Status == dto.OrganizationStatusSuspended || access.Status == dto.OrganizationStatusPending ||
+		plans.Expired(access.Status, access.TrialEndsAt, s.now()) {
 		return domainError.ErrOrganizationInactive
 	}
 	return nil

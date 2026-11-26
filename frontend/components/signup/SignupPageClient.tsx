@@ -9,7 +9,7 @@ import PublicShell from "@/components/auth/PublicShell";
 import { usePermissions } from "@/lib/permissions";
 import { googleClientId } from "@/lib/google";
 import { PLAN_CARDS, type Plan } from "@/lib/plans";
-import { signupBody, signupFailure, validateSignup, type SignupErrors, type SignupFailure } from "@/lib/signup";
+import { PENDING_PATH, signupBody, signupOutcome, validateSignup, type SignupErrors, type SignupFailure } from "@/lib/signup";
 import { supportEmail } from "@/lib/support";
 
 export default function SignupPageClient() {
@@ -38,8 +38,13 @@ export default function SignupPageClient() {
           body: JSON.stringify(signupBody(idToken, current)),
         });
         const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          const f = signupFailure(response.status, data, supportEmail());
+        const outcome = signupOutcome(response.status, data, supportEmail());
+        if (outcome.next === "pending") {
+          router.push(PENDING_PATH);
+          return;
+        }
+        if (outcome.next === "failure") {
+          const f = outcome.failure;
           if (f.field) setErrors({ [f.field]: f.message });
           setFailure(f);
           return;

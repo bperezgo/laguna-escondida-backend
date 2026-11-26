@@ -138,6 +138,10 @@ func TestJWTAuthMiddleware_APIKey_EveryRefusalLooksTheSame(t *testing.T) {
 			name: "organization suspended", wantLogged: "organization suspended",
 			record: func(r *dto.APIKeyRecord) { r.OrganizationStatus = dto.OrganizationStatusSuspended },
 		},
+		{
+			name: "organization pending", wantLogged: "organization pending",
+			record: func(r *dto.APIKeyRecord) { r.OrganizationStatus = dto.OrganizationStatusPending },
+		},
 	}
 	var bodies []string
 	for _, tc := range cases {

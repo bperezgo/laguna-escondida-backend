@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { config } from "@/lib/config/config";
-import { sessionDecision } from "./sessionDecision";
+import { sessionDecision, type SessionDecision } from "./sessionDecision";
 
 export async function backendSessionResponse(
   endpoint: string,
   body: unknown,
-  fallbackError: string
+  fallbackError: string,
+  decide: (response: Response, fallbackError: string) => Promise<SessionDecision> = sessionDecision
 ): Promise<NextResponse> {
   try {
     const response = await fetch(`${config.apiUrl}${endpoint}`, {
@@ -13,7 +14,7 @@ export async function backendSessionResponse(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    const decision = await sessionDecision(response, fallbackError);
+    const decision = await decide(response, fallbackError);
     const res = NextResponse.json(decision.body, { status: decision.status });
     if (decision.token) {
       res.cookies.set("access_token", decision.token, {

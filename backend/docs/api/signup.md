@@ -10,7 +10,7 @@ A restaurant creates its own account with its Google account. There is no passwo
 
 | Method | Endpoint             | Auth            | Description                                   |
 | ------ | -------------------- | --------------- | --------------------------------------------- |
-| POST   | `/api/signup/google` | Google ID token | Create the organization, its admin and its box user, or sign in |
+| POST   | `/api/signup/google` | Google ID token | Create a pending organization, its admin and its box user, or sign in |
 
 ---
 
@@ -40,26 +40,29 @@ The ID token comes from Google Identity Services in the browser. It is accepted 
 
 All together, or nothing:
 
-- **Organization**: `name` and `display_name` are the restaurant name; `slug` is derived from it (lowercase, accents removed, other characters joined by `-`, cut to 40, `-2`, `-3`… when taken); `status` `trial` with `trial_ends_at` 14 days ahead; the chosen `plan`; `America/Bogota`, `CO`, `es-CO`, `COP`. Business info, receipt text, branding and e-invoicing prefixes stay unset; the operator sets them.
+- **Organization**: `name` and `display_name` are the restaurant name; `slug` is derived from it (lowercase, accents removed, other characters joined by `-`, cut to 40, `-2`, `-3`… when taken); `status` `pending` with no `trial_ends_at`; the chosen `plan`, which is the plan its trial starts on; `America/Bogota`, `CO`, `es-CO`, `COP`. Business info, receipt text, branding and e-invoicing prefixes stay unset; the operator sets them.
 - **Admin**: the Google name and email, the admin role, username = email. It has no usable password: it signs in with Google (or an admin sets a password with reset-password).
 - **Box user**: name `Caja`, the manager role, no email. Username is the email's part before `@`, keeping letters, digits, `.`, `_` and `-` (`caja` when fewer than 3 remain). Its random password is never returned here; get one with [`POST /api/admin/users/:id/generate-password`](./users.md#generate-a-password).
 
+### Approval
+
+A new account waits as `pending` and gets **no token**: its users are refused with `403 pending_approval` until the operator starts its trial with [`POST /api/platform/organizations/:id/start-trial`](./organizations.md#start-a-trial) (14 days from that moment) or activates it with `PATCH {"status": "active"}`. Nobody is notified; the operator finds waiting signups with `GET /api/platform/organizations?status=pending`.
+
 ### Example Response (201 Created)
 
-A new account: the same body as `POST /api/auth/signin`, for the new admin.
+A new account, waiting for approval. No token is returned and no session should be set.
 
 ```json
 {
-  "token": "<JWT>",
-  "username": "rosa.perez@example.com",
-  "roles": [{ "id": 2, "name": "admin", "created_at": "2024-01-01T00:00:00Z" }],
-  "permissions": ["orders:read", "orders:create", "users:create", "edge:enroll"]
+  "status": "pending",
+  "organization_name": "Restaurante Doña Rosa",
+  "plan": "einvoicing"
 }
 ```
 
 ### Example Response (200 OK)
 
-The Google email already belongs to a user: nothing is created and the response is exactly that of [`POST /api/auth/google`](./auth.md#sign-in-with-google), errors included.
+The Google email already belongs to a user: nothing is created and the response is exactly that of [`POST /api/auth/google`](./auth.md#sign-in-with-google), errors included. Signing up again before approval therefore answers `403 pending_approval`.
 
 ### Error Responses
 
@@ -84,6 +87,15 @@ The Google email already belongs to a user: nothing is created and the response 
 ```json
 {
   "error": "Google sign-in failed"
+}
+```
+
+**403 Forbidden** — The email belongs to a user whose organization is waiting for approval, including the same person signing up again. Nothing is created.
+
+```json
+{
+  "error": "Approval pending",
+  "code": "pending_approval"
 }
 ```
 

@@ -11,9 +11,16 @@ type GoogleSignupRequest struct {
 }
 
 // GoogleSignupResult tells a new account from a Google account that was already registered.
+// A new account carries Created and no SignIn: it waits as pending until its trial is started.
 type GoogleSignupResult struct {
 	SignIn  *SignInResponse
-	Created bool
+	Created *GoogleSignupCreated
+}
+
+type GoogleSignupCreated struct {
+	Status           string `json:"status"`
+	OrganizationName string `json:"organization_name"`
+	Plan             string `json:"plan"`
 }
 
 type GeneratedPasswordResponse struct {

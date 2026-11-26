@@ -104,6 +104,7 @@ func Expired(status string, trialEndsAt *time.Time, now time.Time) bool {
 }
 
 const (
+	StatusPending   = "pending"
 	StatusTrial     = "trial"
 	StatusActive    = "active"
 	StatusSuspended = "suspended"

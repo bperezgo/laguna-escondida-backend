@@ -60,6 +60,40 @@ func TestUserService_SignIn_TrialInProgress(t *testing.T) {
 	assert.NotEmpty(t, result.Token)
 }
 
+func pendingOrg() *dto.Organization {
+	return &dto.Organization{ID: testOrgA, Slug: "dona-rosa", Status: dto.OrganizationStatusPending, Plan: "einvoicing"}
+}
+
+func TestUserService_SignIn_PendingWithTheCorrectPassword(t *testing.T) {
+	f := trialFixture(t, pendingOrg(), "password123")
+
+	result, err := cloudSignIn(f)
+
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, domainError.ErrOrganizationPending)
+	assert.NotErrorIs(t, err, domainError.ErrInvalidCredentials)
+}
+
+func TestUserService_SignIn_PendingWithAWrongPassword(t *testing.T) {
+	f := trialFixture(t, pendingOrg(), "other-password")
+
+	_, err := cloudSignIn(f)
+
+	assert.ErrorIs(t, err, domainError.ErrInvalidCredentials)
+	assert.NotErrorIs(t, err, domainError.ErrOrganizationPending)
+}
+
+func TestUserService_SignIn_PendingButNoCloudRoleStaysOpaque(t *testing.T) {
+	f := newUserServiceFixture(t, tenant.AnyOrganization())
+	f.userRepo.On("FindByEmail", mock.Anything, "ana@example.com").Return(anaFound(t, "password123", true), nil)
+	f.orgRepo.On("Get", mock.Anything, testOrgA).Return(pendingOrg(), nil)
+	f.userRoleRepo.On("FindRolesByUserID", mock.Anything, "bob-id").Return([]*dto.Role{createTestRole(permissions.RoleServer, "server")}, nil)
+
+	_, err := cloudSignIn(f)
+
+	assert.ErrorIs(t, err, domainError.ErrInvalidCredentials)
+}
+
 func TestUserService_SignIn_ExpiredTrialButNoCloudRoleStaysOpaque(t *testing.T) {
 	f := newUserServiceFixture(t, tenant.AnyOrganization())
 	f.service.now = func() time.Time { return signInNow }
@@ -85,6 +119,12 @@ func TestUserService_SignInWithGoogle(t *testing.T) {
 		f := trialFixture(t, trialOrg(-time.Hour), "irrelevant")
 		_, err := f.service.SignInWithGoogle(context.Background(), "ana@example.com")
 		assert.ErrorIs(t, err, domainError.ErrTrialExpired)
+	})
+	t.Run("pending organization", func(t *testing.T) {
+		f := trialFixture(t, pendingOrg(), "irrelevant")
+		_, err := f.service.SignInWithGoogle(context.Background(), "ana@example.com")
+		assert.ErrorIs(t, err, domainError.ErrOrganizationPending)
+		assert.NotErrorIs(t, err, domainError.ErrGoogleSignInFailed)
 	})
 	t.Run("suspended organization is opaque", func(t *testing.T) {
 		f := trialFixture(t, lagunaOrg(dto.OrganizationStatusSuspended), "irrelevant")

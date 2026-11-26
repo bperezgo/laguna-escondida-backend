@@ -111,6 +111,7 @@ DELETE /api/platform/organizations/:id/integrations/:provider laguna-escondida/b
 GET /api/platform/organizations/:id/integrations/:provider laguna-escondida/backend/internal/platform/handler.(*OrganizationIntegrationHandler).GetHandler-fm
 PUT /api/platform/organizations/:id/integrations/:provider laguna-escondida/backend/internal/platform/handler.(*OrganizationIntegrationHandler).PutHandler-fm
 POST /api/platform/organizations/:id/integrations/:provider/secret laguna-escondida/backend/internal/platform/handler.(*OrganizationIntegrationHandler).GenerateSecretHandler-fm
+POST /api/platform/organizations/:id/start-trial laguna-escondida/backend/internal/platform/handler.(*OrganizationHandler).StartTrialHandler-fm
 POST /api/product-responsibilities laguna-escondida/backend/internal/platform/handler.(*ProductHandler).CreateProductResponsibilityHandler-fm
 DELETE /api/product-responsibilities/:id laguna-escondida/backend/internal/platform/handler.(*ProductHandler).DeleteProductResponsibilityHandler-fm
 GET /api/product-responsibilities/:id laguna-escondida/backend/internal/platform/handler.(*ProductHandler).GetProductResponsibilityByIDHandler-fm

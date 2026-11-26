@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { signupBody, signupFailure, validateSignup } from "./signup.ts";
+import { signupBody, signupFailure, signupOutcome, validateSignup } from "./signup.ts";
 
 test("a trimmed name and a chosen plan are valid", () => {
   assert.deepEqual(validateSignup({ restaurantName: "  Doña Rosa ", plan: "einvoicing" }), {});
@@ -40,4 +40,22 @@ test("an existing account on an ended trial shows the trial message", () => {
   assert.equal(failure.message, "Tu prueba terminó. Escríbenos para continuar");
   assert.ok(failure.mailto);
   assert.equal(signupFailure(403, { code: "trial_expired" }, null).mailto, null);
+});
+
+test("a new pending signup goes to the pending page", () => {
+  assert.deepEqual(signupOutcome(201, { status: "pending" }, null), { next: "pending" });
+});
+
+test("a repeated signup before approval goes to the pending page", () => {
+  assert.deepEqual(signupOutcome(403, { error: "Approval pending", code: "pending_approval" }, null), { next: "pending" });
+});
+
+test("an existing approved account signs in", () => {
+  assert.deepEqual(signupOutcome(200, {}, null), { next: "home" });
+});
+
+test("an ended trial still produces its notice", () => {
+  const outcome = signupOutcome(403, { code: "trial_expired" }, "soporte@kuenta.co");
+  assert.equal(outcome.next, "failure");
+  if (outcome.next === "failure") assert.equal(outcome.failure.message, "Tu prueba terminó. Escríbenos para continuar");
 });

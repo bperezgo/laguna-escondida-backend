@@ -159,6 +159,8 @@ func PushNodeIDFromBody() gin.HandlerFunc {
 // response can't tell which keys, users or organizations exist.
 var invalidTokenBody = gin.H{"error": "Invalid or expired token"}
 
+var pendingApprovalBody = gin.H{"error": "Approval pending", "code": "pending_approval"}
+
 // APIKeyIDContextKey is set only when the bearer was an organization API key.
 const APIKeyIDContextKey = "api_key_id"
 
@@ -249,6 +251,8 @@ func abortOrganizationAccess(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, domainError.ErrOrganizationSuspended):
 		c.JSON(http.StatusForbidden, gin.H{"error": "Organization suspended", "code": "organization_suspended"})
+	case errors.Is(err, domainError.ErrOrganizationPending):
+		c.JSON(http.StatusForbidden, pendingApprovalBody)
 	case errors.Is(err, domainError.ErrTrialExpired):
 		c.JSON(http.StatusForbidden, gin.H{"error": "Trial ended", "code": "trial_expired"})
 	case errors.As(err, &planErr):

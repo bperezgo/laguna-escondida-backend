@@ -60,3 +60,20 @@ export function signupFailure(
   }
   return { message: "No pudimos crear la cuenta. Intenta de nuevo.", mailto: null };
 }
+
+export const PENDING_PATH = "/registro/pendiente";
+
+// Where a signup response sends the person: a new pending account and a repeated signup before
+// approval both wait on the pending page; only an existing approved account gets a session.
+export type SignupOutcome = { next: "home" } | { next: "pending" } | { next: "failure"; failure: SignupFailure };
+
+export function signupOutcome(
+  status: number,
+  body: { error?: string; code?: string; field?: string; status?: string },
+  email: string | null
+): SignupOutcome {
+  if (status === 201 && body.status === "pending") return { next: "pending" };
+  if (body.code === "pending_approval") return { next: "pending" };
+  if (status >= 200 && status < 300) return { next: "home" };
+  return { next: "failure", failure: signupFailure(status, body, email) };
+}

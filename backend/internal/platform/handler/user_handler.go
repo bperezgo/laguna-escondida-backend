@@ -99,6 +99,11 @@ func (h *UserHandler) SignInHandler(c *gin.Context) {
 			respondTrialExpired(c)
 			return
 		}
+		if errors.Is(err, domainError.ErrOrganizationPending) {
+			h.logger.InfoContext(ctx, "sign-in refused: approval pending", slog.String("email", req.Email))
+			respondPendingApproval(c)
+			return
+		}
 		if errors.Is(err, domainError.ErrInvalidCredentials) {
 			h.logger.WarnContext(ctx, "sign-in rejected",
 				slog.String("email", req.Email),
@@ -127,6 +132,10 @@ func (h *UserHandler) SignInHandler(c *gin.Context) {
 
 func respondTrialExpired(c *gin.Context) {
 	c.JSON(http.StatusForbidden, gin.H{"error": "Trial ended", "code": "trial_expired"})
+}
+
+func respondPendingApproval(c *gin.Context) {
+	c.JSON(http.StatusForbidden, pendingApprovalBody)
 }
 
 // Opaque per mode, so the response can't tell which emails, usernames or organizations exist.

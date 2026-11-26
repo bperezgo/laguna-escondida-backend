@@ -28,6 +28,11 @@ func TestUserHandler_SignIn_Trial(t *testing.T) {
 			http.StatusUnauthorized, `{"error":"Invalid email or password"}`},
 		{"suspended", &dto.Organization{ID: testOrganizationID, Status: "suspended"}, "password123",
 			http.StatusUnauthorized, `{"error":"Invalid email or password"}`},
+		{"pending, correct password", &dto.Organization{ID: testOrganizationID, Status: "pending"}, "password123",
+			http.StatusForbidden, `{"error":"Approval pending","code":"pending_approval"}`},
+		{"pending, wrong password", &dto.Organization{ID: testOrganizationID, Status: "pending"}, "wrong-password",
+			http.StatusUnauthorized, `{"error":"Invalid email or password"}`},
+		{"active", &dto.Organization{ID: testOrganizationID, Status: "active"}, "password123", http.StatusOK, ""},
 		{"in trial", &dto.Organization{ID: testOrganizationID, Status: "trial", TrialEndsAt: &future}, "password123", http.StatusOK, ""},
 	}
 	for _, tc := range cases {

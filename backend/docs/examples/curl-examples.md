@@ -100,6 +100,18 @@ curl -X POST "$BASE_URL/signup/google" \
   -d "{\"id_token\": \"$GOOGLE_ID_TOKEN\", \"restaurant_name\": \"Restaurante Doña Rosa\", \"plan\": \"einvoicing\"}"
 ```
 
+### Approve a Signup (operator)
+
+```bash
+# Signups waiting for approval
+curl -X GET "$BASE_URL/platform/organizations?status=pending" \
+  -H "X-API-Key: $ADMIN_API_KEY"
+
+# Start its 14-day trial (409 not_pending if it isn't pending)
+curl -X POST "$BASE_URL/platform/organizations/$ORG_ID/start-trial" \
+  -H "X-API-Key: $ADMIN_API_KEY"
+```
+
 ### Activate, Change the Plan, Extend or Suspend (operator)
 
 ```bash

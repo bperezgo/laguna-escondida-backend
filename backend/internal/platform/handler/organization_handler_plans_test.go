@@ -60,6 +60,7 @@ func TestOrganizationHandler_Update_ActivateAndExtend(t *testing.T) {
 		return *req.Status == "active" && *req.Plan == "einvoicing"
 	})).Return(&dto.Organization{ID: testOrganizationID, Status: "active", Plan: "einvoicing"}, nil)
 	later := time.Date(2026, 12, 30, 0, 0, 0, 0, time.UTC)
+	orgRepo.EXPECT().Get(mock.Anything, testOrganizationID).Return(&dto.Organization{ID: testOrganizationID, Status: "active"}, nil)
 	orgRepo.EXPECT().Update(mock.Anything, testOrganizationID, mock.MatchedBy(func(req *dto.UpdateOrganizationRequest) bool {
 		return req.TrialEndsAt != nil && *req.TrialEndsAt == "2026-12-30T00:00:00Z"
 	})).Return(&dto.Organization{ID: testOrganizationID, Status: "trial", Plan: "full", TrialEndsAt: &later}, nil)
