@@ -41,7 +41,7 @@
 
 ## 7. Landing: page and form
 
-- [ ] 7.1 Capture product screenshots from the operations UI running on demo data only, and add them optimised to `public/`. Verify by reviewing each image for real names, phones and addresses
+- 7.1 Moved to `landing-pricing-and-product-proof`, which makes the screenshots required and fails the build without them. Was: Capture product screenshots from the operations UI running on demo data only, and add them optimised to `public/`. Verify by reviewing each image for real names, phones and addresses
 - [x] 7.2 Build the sections of design D3 in `src/components/sections/` and `src/pages/index.astro`, in Spanish, following the skill and `DESIGN.md`, with `Pide una demo` as the only primary label and the fixed bottom bar on phones. Verify at 360 by 640 that the headline and action are visible without scrolling, and that the page has no invented testimonial, logo, price or figure
 - [x] 7.3 Add `LeadForm.astro` and `src/lib/lead-form.ts`: three fields, consent unchecked with the policy link, the off-screen `website` honeypot, a disabled control while sending, success replacing the form, a field error on `400`, and the general error with the WhatsApp action otherwise. Verify with `node --test` for the request body and the response mapping, and by hand against a local backend for each scenario of "The lead form" in the `landing-site` spec
 - [x] 7.4 Add the WhatsApp action (hidden when no number is configured) and call `trackWhatsApp()` on it; call `trackLead` only after a `201`. Verify in the browser's network panel that a failed submission sends no lead event and that no event carries a name or phone
@@ -49,11 +49,15 @@
 
 ## 8. CI
 
-- [ ] 8.1 Add `.github/workflows/landing-ci.yml` from `frontend-ci.yml`, filtered to `landing/**`: install, `astro check`, test, build with a placeholder `PUBLIC_API_BASE_URL`. Verify that the workflow passes on the pull request and does not run for a backend-only change
-- [ ] 8.2 Check that `security.yml` covers `landing/` (dependency and secret scans). Verify from the workflow's run on the pull request
+- [x] 8.1 Add `.github/workflows/landing-ci.yml` from `frontend-ci.yml`, filtered to `landing/**`: install, `astro check`, test, build with a placeholder `PUBLIC_API_BASE_URL`. Verify that the workflow passes on the pull request and does not run for a backend-only change
+  - Done: the workflow exists and passed on PR #72 and on the installer-download PR; it did not run for the backend-only PR #73 (`fix/sync-compose-signup-env` ran Backend CI, Edge fingerprint and Security only).
+- [x] 8.2 Check that `security.yml` covers `landing/` (dependency and secret scans). Verify from the workflow's run on the pull request
+  - Done: `security.yml` runs on every pull request, repo-wide. Its run on the installer-download PR shows gitleaks scanning the whole history ("no leaks found") and Trivy listing `landing/pnpm-lock.yaml` with 0 findings.
 
 ## 9. End to end
 
-- [ ] 9.1 With the cloud binary and the built site running locally, submit a lead that arrived with `?utm_source=facebook&utm_campaign=test&fbclid=abc` after visiting the policy page. Verify the stored row's attribution and `event_id`, the alert in a test Discord channel, and `GET /api/platform/leads` with the admin API key
-- [ ] 9.2 Run a mobile Lighthouse audit on the built home page. Verify performance and accessibility scores of at least 90, and fix what falls short
+- [x] 9.1 With the cloud binary and the built site running locally, submit a lead that arrived with `?utm_source=facebook&utm_campaign=test&fbclid=abc` after visiting the policy page. Verify the stored row's attribution and `event_id`, the alert in a test Discord channel, and `GET /api/platform/leads` with the admin API key
+  - Status (2026-11-26, local sync rig and `astro dev`): a lead that arrived with those parameters, visited the policy page and then submitted was answered `201` and stored with `utm_source` facebook, `utm_campaign` test, `fbclid` abc, the landing URL and an `event_id`; `GET /api/platform/leads` with the admin key returns it. The Discord alert was not checked end to end: the rig passes no lead-alert webhook to the cloud, and the owner put that check off on 2026-11-26 because lead follow-up may move to a CRM.
+- [x] 9.2 Run a mobile Lighthouse audit on the built home page. Verify performance and accessibility scores of at least 90, and fix what falls short
+  - Result (2026-11-26, `pnpm build` + `pnpm preview`, Lighthouse 13 mobile): performance 98, accessibility 92. Two accessibility findings remain, both on the outage tagline: an `aria-label` on a `<p>`, and the dimmed words before they light up (contrast 2.62). `landing-pricing-and-product-proof` rewrites that section and re-audits.
 - [x] 9.3 Run `openspec validate landing-lead-capture --strict`. Verify it passes
