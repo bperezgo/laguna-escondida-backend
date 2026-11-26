@@ -1,5 +1,7 @@
 # Feedback API
 
+> **Plan:** in the cloud these routes need the `full` plan; otherwise `403 plan_required`. A suspended organization or an ended trial is refused first. See [Organization access refusals](./auth.md#organization-access-refusals).
+
 Guests are asked how their visit went the morning after a reservation, and their answer is recorded here. Ratings of 1–3 are flagged for a manager. When the restaurant turns it on, every guest's answer, whatever the rating, returns the Google review link.
 
 **Cloud only.** Not served on the box (edge).

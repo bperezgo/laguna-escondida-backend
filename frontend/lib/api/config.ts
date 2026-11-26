@@ -1,3 +1,5 @@
+import { apiErrorMessage } from "./errorMessage";
+
 export interface ApiErrorBody {
   error?: string;
   message?: string;
@@ -7,6 +9,8 @@ export interface ApiErrorBody {
   order_type?: string;
   paused_reason?: string | null;
   next_opens_at?: string | null;
+  /** On a 403 plan_required: the cheapest plan that includes the refused feature. */
+  required_plan?: string;
 }
 
 /** Keeps the backend's status and body so callers can branch on `code`. */
@@ -51,7 +55,7 @@ export async function apiRequest<T>(
       .json()
       .catch(() => ({ message: response.statusText }));
     throw new ApiError(
-      error.error || error.message || `HTTP error! status: ${response.status}`,
+      apiErrorMessage(response.status, error),
       response.status,
       error,
     );

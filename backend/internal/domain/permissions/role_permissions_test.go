@@ -389,3 +389,14 @@ func TestGetPermissionsForRoles_EdgeEnrollOnlyForAdmin(t *testing.T) {
 		assert.NotContains(t, GetPermissionsForRoles([]int{role}), EdgeEnroll, "role %d", role)
 	}
 }
+
+func TestRequiresEmail(t *testing.T) {
+	assert.True(t, RequiresEmail([]int{RoleAdmin}))
+	assert.True(t, RequiresEmail([]int{RoleAccountant}))
+	assert.True(t, RequiresEmail([]int{RoleAgent}))
+	assert.True(t, RequiresEmail([]int{RoleCourier}))
+	assert.True(t, RequiresEmail([]int{RoleManager, RoleCourier}))
+	assert.False(t, RequiresEmail([]int{RoleManager}))
+	assert.False(t, RequiresEmail([]int{RoleServer, RoleCooker}))
+	assert.False(t, RequiresEmail(nil))
+}

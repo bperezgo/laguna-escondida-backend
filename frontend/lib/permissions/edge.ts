@@ -18,6 +18,7 @@ export const CLOUD_ONLY_PERMISSIONS: readonly string[] = [
   PERMISSIONS.DELIVERIES_READ,
   PERMISSIONS.DELIVERIES_MANAGE,
   PERMISSIONS.DELIVERIES_CARRY,
+  PERMISSIONS.EDGE_ENROLL,
 ];
 
 export function effectivePermissions(permissions: string[], isEdge: boolean): string[] {

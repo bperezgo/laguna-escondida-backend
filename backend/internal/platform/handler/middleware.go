@@ -206,6 +206,15 @@ func JWTAuthMiddleware(jwtService *service.JWTService, requiredRoles ...int) gin
 			principal = bearerPrincipal{userID: claims.UserID, orgID: claims.OrgID, username: claims.Username, roleIDs: claims.RoleIDs}
 		}
 
+		if access := jwtService.OrganizationAccess(); access != nil {
+			err := access.Check(c.Request.Context(), principal.orgID,
+				service.AccessPrincipal{APIKey: principal.apiKeyID != "", RoleIDs: principal.roleIDs}, c.FullPath())
+			if err != nil {
+				abortOrganizationAccess(c, err)
+				return
+			}
+		}
+
 		if len(requiredRoles) > 0 {
 			hasRequiredRole := false
 			for _, requiredRole := range requiredRoles {
@@ -232,6 +241,24 @@ func JWTAuthMiddleware(jwtService *service.JWTService, requiredRoles ...int) gin
 		c.Request = c.Request.WithContext(tenant.WithOrg(c.Request.Context(), principal.orgID))
 		c.Next()
 	}
+}
+
+func abortOrganizationAccess(c *gin.Context, err error) {
+	_ = c.Error(err)
+	var planErr *domainError.PlanRequiredError
+	switch {
+	case errors.Is(err, domainError.ErrOrganizationSuspended):
+		c.JSON(http.StatusForbidden, gin.H{"error": "Organization suspended", "code": "organization_suspended"})
+	case errors.Is(err, domainError.ErrTrialExpired):
+		c.JSON(http.StatusForbidden, gin.H{"error": "Trial ended", "code": "trial_expired"})
+	case errors.As(err, &planErr):
+		c.JSON(http.StatusForbidden, gin.H{"error": "Your plan does not include this feature", "code": "plan_required", "required_plan": planErr.RequiredPlan})
+	case errors.Is(err, domainError.ErrOrganizationNotFound):
+		c.JSON(http.StatusUnauthorized, invalidTokenBody)
+	default:
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to authenticate"})
+	}
+	c.Abort()
 }
 
 // authenticateAPIKey writes the response itself on failure. The reason goes to the access log

@@ -48,7 +48,7 @@ func (h *UserHandler) CreateUserHandler(c *gin.Context) {
 			return
 		}
 		if errors.Is(err, domainError.ErrEmailRequired) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "email is required for a user with a cloud role"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "email is required for an admin, accountant, agent or courier"})
 			return
 		}
 		if errors.Is(err, domainError.ErrOrganizationRequired) {
@@ -94,6 +94,11 @@ func (h *UserHandler) SignInHandler(c *gin.Context) {
 
 	signInResponse, err := h.userService.SignIn(ctx, &req)
 	if err != nil {
+		if errors.Is(err, domainError.ErrTrialExpired) {
+			h.logger.InfoContext(ctx, "sign-in refused: trial ended", slog.String("email", req.Email))
+			respondTrialExpired(c)
+			return
+		}
 		if errors.Is(err, domainError.ErrInvalidCredentials) {
 			h.logger.WarnContext(ctx, "sign-in rejected",
 				slog.String("email", req.Email),
@@ -118,6 +123,10 @@ func (h *UserHandler) SignInHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, signInResponse)
+}
+
+func respondTrialExpired(c *gin.Context) {
+	c.JSON(http.StatusForbidden, gin.H{"error": "Trial ended", "code": "trial_expired"})
 }
 
 // Opaque per mode, so the response can't tell which emails, usernames or organizations exist.
@@ -203,6 +212,16 @@ func (h *UserHandler) ResetPasswordHandler(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+func (h *UserHandler) GeneratePasswordHandler(c *gin.Context) {
+	generated, err := h.userService.GeneratePassword(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		h.respondUserError(c, err)
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	c.JSON(http.StatusOK, generated)
+}
+
 func (h *UserHandler) DeleteUserHandler(c *gin.Context) {
 	actingUserID, ok := getActingUserID(c)
 	if !ok {
@@ -241,7 +260,9 @@ func (h *UserHandler) respondUserError(c *gin.Context, err error) {
 	case errors.Is(err, domainError.ErrUserEmailTaken):
 		c.JSON(http.StatusConflict, gin.H{"error": "Email is already in use"})
 	case errors.Is(err, domainError.ErrEmailRequired):
-		c.JSON(http.StatusBadRequest, gin.H{"error": "email is required for a user with a cloud role"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "email is required for an admin, accountant, agent or courier"})
+	case errors.Is(err, domainError.ErrUserHasEmail):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Only a user without an email gets a generated password"})
 	case errors.Is(err, domainError.ErrRoleNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "One or more roles not found"})
 	case errors.Is(err, domainError.ErrInvalidRoleIDs):

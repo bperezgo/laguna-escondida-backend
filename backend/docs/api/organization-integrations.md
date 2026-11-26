@@ -1,5 +1,7 @@
 # Organization Integrations
 
+> **Plan:** in the cloud these routes need the `full` plan; otherwise `403 plan_required`. A suspended organization or an ended trial is refused first. See [Organization access refusals](./auth.md#organization-access-refusals).
+
 An organization's credentials for a third-party provider, set by the platform operator or by the organization's admin, so a restaurant can be connected without changing the cloud's environment. Two providers:
 
 - `wompi`: its private key creates the organization's [payment links](orders.md#payment-links-agent-orders) and its events secret verifies its [Wompi events](wompi-webhook.md).

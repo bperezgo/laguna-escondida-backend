@@ -1,3 +1,5 @@
+import { trialExpiredNotice } from "./support.ts";
+
 // The cloud signs in by email; an edge box signs its own restaurant's users in by username.
 // GET /api/auth/context says which, so the form never asks for the restaurant.
 
@@ -44,4 +46,24 @@ const INVALID_CREDENTIALS: Record<string, string> = {
 
 export function signInErrorMessage(message: string): string {
   return INVALID_CREDENTIALS[message] ?? message;
+}
+
+export interface SignInFailure {
+  message: string;
+  /** Set for an ended trial when a support email is configured. */
+  mailto: string | null;
+}
+
+export function signInFailure(
+  body: { error?: string; code?: string },
+  email: string | null
+): SignInFailure {
+  if (body.code === "trial_expired") {
+    const notice = trialExpiredNotice(email);
+    return { message: notice.message, mailto: notice.mailto };
+  }
+  if (body.error === "Google sign-in failed") {
+    return { message: "No pudimos iniciar sesión con esa cuenta de Google.", mailto: null };
+  }
+  return { message: signInErrorMessage(body.error || "No se pudo iniciar sesión"), mailto: null };
 }

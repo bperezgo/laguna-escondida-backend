@@ -8,7 +8,10 @@ Handles user authentication and current user information.
 | ------ | ------------------- | ------------------------------------------------ |
 | GET    | `/api/auth/context` | Which sign-in form to show (public)              |
 | POST   | `/api/auth/signin`  | Authenticate user and get token                  |
+| POST   | `/api/auth/google`  | Sign in with a Google ID token (cloud only)      |
 | GET    | `/api/auth/me`      | Get current authenticated user                   |
+
+Self-serve signup is in [Signup](./signup.md); accepting an invitation is in [Invitations](./invitations.md).
 
 ---
 
@@ -146,7 +149,71 @@ Same body in both modes.
 }
 ```
 
-The responses never reveal which emails, usernames or organizations exist; the specific reason is logged server-side.
+**403 Forbidden** — Cloud: the email and password are correct, the user is active and holds a cloud role, but the organization's trial has ended. No token is returned. A wrong password for the same email still gets the `401` above.
+
+```json
+{
+  "error": "Trial ended",
+  "code": "trial_expired"
+}
+```
+
+The responses never reveal which emails, usernames or organizations exist; the specific reason is logged server-side. A user without an email (a box-only manager) can't sign in to the cloud.
+
+---
+
+## Sign In with Google
+
+Signs in the cloud user whose email equals the Google account's. Any user with an email can use it, whether they signed up with Google, accepted an invitation or set a password. Cloud only, and only when the cloud has a Google client id (`GOOGLE_CLIENT_ID`); otherwise `404`. Rate-limited per client address (30 per 10 minutes).
+
+`POST /api/auth/google`
+
+The ID token comes from Google Identity Services in the browser. It is accepted only when Google's signature is valid, its audience is the cloud's client id, it is unexpired and its email is verified by Google.
+
+### Request Body
+
+| Field      | Type   | Required | Description         |
+| ---------- | ------ | -------- | ------------------- |
+| `id_token` | string | Yes      | Google ID token (JWT) |
+
+```json
+{
+  "id_token": "<ID token from Google>"
+}
+```
+
+### Example Response (200 OK)
+
+The same body as `POST /api/auth/signin`.
+
+### Error Responses
+
+**400 Bad Request** — no `id_token`
+
+```json
+{
+  "error": "id_token is required"
+}
+```
+
+**401 Unauthorized** — an invalid token, an unknown email, a suspended organization, an inactive user or a user without a cloud role. All return the same body.
+
+```json
+{
+  "error": "Google sign-in failed"
+}
+```
+
+**403 Forbidden** — the account matches an active cloud user whose organization's trial has ended.
+
+```json
+{
+  "error": "Trial ended",
+  "code": "trial_expired"
+}
+```
+
+**429 Too Many Requests** — over the per-address limit, with `Retry-After`.
 
 ---
 
@@ -200,6 +267,9 @@ Returns the currently authenticated user's information including roles and permi
     "id": "bb0cad3e-be13-4bad-9a37-bba9525bfece",
     "slug": "laguna-escondida",
     "name": "Laguna Escondida, Restaurante y Pesca S.A.S",
+    "status": "active",
+    "plan": "full",
+    "trial_ends_at": null,
     "timezone": "America/Bogota",
     "country": "CO",
     "locale": "es-CO",
@@ -225,6 +295,9 @@ Returns the currently authenticated user's information including roles and permi
 | `id`                  | string (UUID)  | Organization id                                         |
 | `slug`                | string         | Unique, URL-safe identifier                             |
 | `name`                | string         | Legal or commercial name                                |
+| `status`              | string         | `trial`, `active` or `suspended`                        |
+| `plan`                | string         | `starter`, `einvoicing` or `full`; hide what it excludes (see [Plans](./organizations.md#plans)) |
+| `trial_ends_at`       | string \| null | RFC 3339; set while `status` is `trial`. Show the days left |
 | `timezone`            | string         | IANA time zone for the business day, e.g. `America/Bogota` |
 | `country`             | string         | ISO 3166-1 alpha-2, e.g. `CO`                           |
 | `locale`              | string         | Number and date formatting, e.g. `es-CO`                |
@@ -284,7 +357,31 @@ A token without `org_id` is rejected with `401 Unauthorized`. Tokens issued befo
 
 ### Organization API Keys (`Bearer lgk_…`)
 
-In the cloud, every endpoint that takes `Authorization: Bearer <jwt_token>` also takes an organization API key, `Authorization: Bearer lgk_…`. A key is not a JWT and carries no claims: the server looks it up on every request and acts as the key's user in the key's organization, with that user's current roles. It stops working as soon as it is revoked, its user is deactivated or deleted, or its organization is suspended; each of those returns the same `401` body as an invalid token. Edge boxes refuse every key with `401`. Keys are issued only for agent users; see [Organization API Keys](./api-keys.md).
+In the cloud, every endpoint that takes `Authorization: Bearer <jwt_token>` also takes an organization API key, `Authorization: Bearer lgk_…`. A key works only for an organization on the `full` plan (otherwise `403 plan_required`). A key is not a JWT and carries no claims: the server looks it up on every request and acts as the key's user in the key's organization, with that user's current roles. It stops working as soon as it is revoked, its user is deactivated or deleted, or its organization is suspended; each of those returns the same `401` body as an invalid token. Edge boxes refuse every key with `401`. Keys are issued only for agent users; see [Organization API Keys](./api-keys.md).
+
+### Organization Access Refusals
+
+In the cloud, every request with a JWT or an API key is checked against its organization after authentication and before permissions, in this order. Edge boxes never check plans or trials.
+
+**403 Forbidden** — the organization is suspended
+
+```json
+{ "error": "Organization suspended", "code": "organization_suspended" }
+```
+
+**403 Forbidden** — the organization's trial has ended, whenever the token was issued
+
+```json
+{ "error": "Trial ended", "code": "trial_expired" }
+```
+
+**403 Forbidden** — the plan doesn't include the route's feature, or the request uses an API key or comes from the agent role on a plan without agents. `required_plan` is the cheapest plan that includes it.
+
+```json
+{ "error": "Your plan does not include this feature", "code": "plan_required", "required_plan": "einvoicing" }
+```
+
+A change to an organization's status, plan or trial end applies within 60 seconds.
 
 ### Token Expiration
 

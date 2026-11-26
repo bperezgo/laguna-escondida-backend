@@ -3,6 +3,7 @@ package dto
 import "time"
 
 const (
+	OrganizationStatusTrial     = "trial"
 	OrganizationStatusActive    = "active"
 	OrganizationStatusSuspended = "suspended"
 )
@@ -13,6 +14,8 @@ type Organization struct {
 	Name              string              `json:"name"`
 	Slug              string              `json:"slug"`
 	Status            string              `json:"status"`
+	Plan              string              `json:"plan"`
+	TrialEndsAt       *time.Time          `json:"trial_ends_at"`
 	Timezone          string              `json:"timezone"`
 	Country           string              `json:"country"`
 	Locale            string              `json:"locale"`
@@ -34,25 +37,28 @@ type Organization struct {
 	UpdatedAt time.Time            `json:"updated_at"`
 }
 
-// CurrentOrganization is what a signed-in user sees of their organization: settings, not status or e-invoicing.
+// CurrentOrganization is what a signed-in user sees of their organization: settings and access, not e-invoicing.
 type CurrentOrganization struct {
-	ID                string  `json:"id"`
-	Slug              string  `json:"slug"`
-	Name              string  `json:"name"`
-	Timezone          string  `json:"timezone"`
-	Country           string  `json:"country"`
-	Locale            string  `json:"locale"`
-	Currency          string  `json:"currency"`
-	LegalName         *string `json:"legal_name"`
-	NIT               *string `json:"nit"`
-	Address           *string `json:"address"`
-	Phone             *string `json:"phone"`
-	TicketFooter      *string `json:"ticket_footer"`
-	TicketLegalNotice *string `json:"ticket_legal_notice"`
-	DisplayName       *string `json:"display_name"`
-	LogoURL           *string `json:"logo_url"`
-	PrimaryColor      *string `json:"primary_color"`
-	SecondaryColor    *string `json:"secondary_color"`
+	ID                string     `json:"id"`
+	Slug              string     `json:"slug"`
+	Name              string     `json:"name"`
+	Status            string     `json:"status"`
+	Plan              string     `json:"plan"`
+	TrialEndsAt       *time.Time `json:"trial_ends_at"`
+	Timezone          string     `json:"timezone"`
+	Country           string     `json:"country"`
+	Locale            string     `json:"locale"`
+	Currency          string     `json:"currency"`
+	LegalName         *string    `json:"legal_name"`
+	NIT               *string    `json:"nit"`
+	Address           *string    `json:"address"`
+	Phone             *string    `json:"phone"`
+	TicketFooter      *string    `json:"ticket_footer"`
+	TicketLegalNotice *string    `json:"ticket_legal_notice"`
+	DisplayName       *string    `json:"display_name"`
+	LogoURL           *string    `json:"logo_url"`
+	PrimaryColor      *string    `json:"primary_color"`
+	SecondaryColor    *string    `json:"secondary_color"`
 }
 
 // CreateOrganizationRequest leaves a field empty to take its default (required settings) or stay unset (optional ones).
@@ -60,6 +66,8 @@ type CreateOrganizationRequest struct {
 	Name              string                `json:"name"`
 	Slug              string                `json:"slug"`
 	Status            string                `json:"status"`
+	Plan              string                `json:"plan"`
+	TrialEndsAt       string                `json:"trial_ends_at"`
 	Timezone          string                `json:"timezone"`
 	Country           string                `json:"country"`
 	Locale            string                `json:"locale"`
@@ -81,6 +89,8 @@ type CreateOrganizationRequest struct {
 type UpdateOrganizationRequest struct {
 	Name              *string `json:"name"`
 	Status            *string `json:"status"`
+	Plan              *string `json:"plan"`
+	TrialEndsAt       *string `json:"trial_ends_at"`
 	Timezone          *string `json:"timezone"`
 	Country           *string `json:"country"`
 	Locale            *string `json:"locale"`
@@ -100,4 +110,11 @@ type UpdateOrganizationRequest struct {
 type SetEInvoicingRequest struct {
 	InvoicePrefix         string `json:"invoice_prefix"`
 	SupportDocumentPrefix string `json:"support_document_prefix"`
+}
+
+// OrganizationAccess is what decides whether an organization may use the cloud.
+type OrganizationAccess struct {
+	Status      string
+	Plan        string
+	TrialEndsAt *time.Time
 }

@@ -1,5 +1,7 @@
 # Reservations API
 
+> **Plan:** in the cloud these routes need the `full` plan; otherwise `403 plan_required`. A suspended organization or an ended trial is refused first. See [Organization access refusals](./auth.md#organization-access-refusals).
+
 Table reservations, from a guest's WhatsApp request or entered by staff. Staff answer requests, and an optional [auto-confirm policy](#auto-confirm-policy) confirms ordinary WhatsApp requests at once. There are no tables or time slots; the only capacity check is the policy's daily guest cap.
 
 **Cloud only.** These routes are not served on the box (edge); every one returns `404` there.

@@ -21,6 +21,7 @@ import (
 	"laguna-escondida/backend/internal/platform/cron"
 	"laguna-escondida/backend/internal/platform/crypto"
 	platformeventbus "laguna-escondida/backend/internal/platform/eventbus"
+	"laguna-escondida/backend/internal/platform/googleauth"
 	"laguna-escondida/backend/internal/platform/handler"
 	"laguna-escondida/backend/internal/platform/httpclient"
 	"laguna-escondida/backend/internal/platform/postgres/repository"
@@ -49,6 +50,8 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 	settingsCache := memory.New()
 	// Bounded so a flood of random node ids can't grow memory; overflow just reads the database.
 	nodeRefusalCache := memory.New(memory.WithMaxEntries(nodeRefusalCacheMaxEntries))
+	organizationAccessReader := cache.NewCachedOrganizationAccessReader(repository.NewOrganizationAccessReader(infra.DB), settingsCache, infra.Logger)
+	organizationAccess := service.NewOrganizationAccessService(organizationAccessReader)
 
 	// Contacts and marketing events are cloud-only: the box never takes agent orders or reservations.
 	db := infra.DB
@@ -127,6 +130,9 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		StockAuthoring:              true,
 		DeliveryEnabled:             true,
 		EInvoicingEnabled:           true,
+		WrapOrganizations: func(inner ports.OrganizationRepository) ports.OrganizationRepository {
+			return cache.NewInvalidatingOrganizationRepository(inner, settingsCache, logger)
+		},
 		WrapOrganizationSettings: func(inner ports.OrganizationSettingsRepository) ports.OrganizationSettingsRepository {
 			return cache.NewCachedOrganizationSettingsRepository(inner, settingsCache, logger)
 		},
@@ -156,7 +162,7 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 			repository.NewOpenBillSyncApplier(db), repository.NewOrderOriginReader(db), marketingEvents),
 		dto.SyncEntityPurchaseEntry:  repository.NewPurchaseEntrySyncApplier(db),
 		dto.SyncEntityBill:           repository.NewBillSyncApplier(db),
-		dto.SyncEntityPendingInvoice: repository.NewPendingInvoiceSyncApplier(db),
+		dto.SyncEntityPendingInvoice: repository.NewPlanAwarePendingInvoiceSyncApplier(db, organizationAccessReader),
 		// Stock stays registered although it no longer writes an amount: an edge that
 		// predates this change still emits snapshot ops, and an unregistered entity type
 		// fails the whole push — which would stall that edge's outbox behind an op nobody
@@ -299,6 +305,24 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		repository.NewUserRepository(db), repository.NewUserRoleRepository(db), c.unitOfWork, logger,
 	)
 	c.jwtService.AcceptAPIKeys(apiKeyService)
+	c.jwtService.EnforceOrganizationAccess(organizationAccess)
+
+	google := infra.GoogleVerifier
+	if google == nil && cfg.Signup.GoogleEnabled() {
+		google = googleauth.New(cfg.Signup.GoogleClientID)
+	}
+	invitationService := service.NewInvitationService(repository.NewInvitationRepository(db), repository.NewUserRepository(db),
+		repository.NewUserRoleRepository(db), repository.NewRoleRepository(db), cloudOrganizations, organizationAccess, c.userService,
+		google, c.unitOfWork, cfg.Signup.PublicAppURL)
+	registerInvitationRoutes(c.router, c.jwtService, handler.NewInvitationHandler(invitationService, logger))
+	if google != nil {
+		signupService := service.NewSignupService(google, c.userService, cloudOrganizations,
+			repository.NewUserRepository(db), repository.NewRoleRepository(db), repository.NewUserRoleRepository(db), c.unitOfWork)
+		registerSignupRoutes(c.router, handler.NewSignupHandler(signupService, logger),
+			signupRouteOptions{googleEnabled: true, signupEnabled: cfg.Signup.Enabled})
+	} else {
+		logger.Info("Google sign-in and signup disabled: set GOOGLE_CLIENT_ID to enable them")
+	}
 
 	leadRepo := repository.NewLeadRepository(db)
 	leadService := service.NewLeadService(leadRepo, cfg.LeadAlerts.Enabled(), logger, nil)
@@ -317,6 +341,8 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 
 	nodeService := service.NewNodeService(repository.NewNodeRepository(db), cloudOrganizations, c.unitOfWork, logger, cfg.PublicAPIURL,
 		service.WithNodeRefusalCache(nodeRefusalCache, service.NodeRefusalCacheTTL))
+	registerEnrollmentCodeRoutes(c.router, c.jwtService, handler.NewEnrollmentCodeHandler(
+		service.NewEnrollmentCodeService(repository.NewEnrollmentCodeRepository(db), nodeService, organizationAccess, c.unitOfWork)))
 	releaseCatalog := httpclient.NewCachedReleaseCatalog(
 		httpclient.NewGitHubReleaseCatalog(infra.HTTPClient, cfg.EdgeReleasesRepo, logger), logger, nil)
 	registerCloudRoutes(c.router, cfg.AdminAPIKey, c.jwtService, cloudHandlers{

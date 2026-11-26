@@ -16,6 +16,8 @@ export interface SiteConfig {
   legalName: string | undefined;
   /** Where data requests go. Unset leaves WhatsApp, when configured, as the only channel. */
   privacyEmail: string | undefined;
+  /** The app's signup page. Unset hides the trial call to action until signup opens. */
+  signupUrl: string | undefined;
 }
 
 function blankToUndefined(value: string | undefined): string | undefined {
@@ -31,6 +33,10 @@ function absoluteUrl(name: string, raw: string): string {
   } catch {
     throw new Error(`${name} must be an absolute http(s) URL, got "${raw}"`);
   }
+}
+
+function optionalAbsoluteUrl(name: string, raw: string | undefined): string | undefined {
+  return raw === undefined ? undefined : absoluteUrl(name, raw);
 }
 
 function matching(name: string, raw: string | undefined, pattern: RegExp, hint: string): string | undefined {
@@ -56,6 +62,7 @@ export function buildSiteConfig(env: Env): SiteConfig {
     legalName: blankToUndefined(env.PUBLIC_LEGAL_NAME),
     privacyEmail: matching("PUBLIC_PRIVACY_EMAIL", blankToUndefined(env.PUBLIC_PRIVACY_EMAIL), /^[^\s@]+@[^\s@]+\.[^\s@]+$/, "an email address"),
     whatsappNumber: matching("PUBLIC_WHATSAPP_NUMBER", whatsapp, /^\d{8,15}$/, "country code and digits, like 573001234567"),
+    signupUrl: optionalAbsoluteUrl("PUBLIC_SIGNUP_URL", blankToUndefined(env.PUBLIC_SIGNUP_URL)),
   };
 }
 

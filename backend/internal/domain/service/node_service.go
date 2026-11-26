@@ -17,6 +17,7 @@ import (
 
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
+	"laguna-escondida/backend/internal/domain/plans"
 	"laguna-escondida/backend/internal/domain/ports"
 	"laguna-escondida/backend/internal/domain/tenant"
 
@@ -102,12 +103,17 @@ func (s *NodeService) Authenticate(ctx context.Context, nodeID, key string) (str
 	if err != nil {
 		return "", fmt.Errorf("authenticate node %s: %w", nodeID, err)
 	}
+	status := record.OrganizationStatus
+	// An expired trial stops the box exactly as a suspension does, backoff included.
+	if plans.Expired(status, record.TrialEndsAt, s.now()) {
+		status = dto.OrganizationStatusSuspended
+	}
 	auth := cachedNodeAuth{
 		Found:              true,
 		OrganizationID:     record.OrganizationID,
 		KeyHash:            record.KeyHash,
 		Revoked:            record.RevokedAt != nil,
-		OrganizationStatus: record.OrganizationStatus,
+		OrganizationStatus: status,
 	}
 	orgID, err := evaluateNodeAuth(auth, key)
 	if err != nil {

@@ -47,3 +47,32 @@ export async function serverApiRequest<T>(
     status: response.status,
   });
 }
+
+/**
+ * Forwards the backend's status and body unchanged (error `code`s included), never cached:
+ * for responses that carry a secret shown once (links, codes, passwords).
+ */
+export async function serverApiPassthrough(
+  endpoint: string,
+  options?: RequestInit
+): Promise<NextResponse> {
+  const headers = { "Cache-Control": "no-store" };
+  try {
+    const response = await serverApiRequest<unknown>(endpoint, options);
+    if (response.status === 204) return new NextResponse(null, { status: 204, headers });
+    return NextResponse.json(await response.json(), { status: response.status, headers });
+  } catch (error) {
+    console.error(`Request to ${endpoint} failed:`, error);
+    return NextResponse.json({ error: "Backend unavailable" }, { status: 502, headers });
+  }
+}
+
+/** A route's own error message, keeping a plan refusal's code so the page can name the plan. */
+export async function fallbackErrorResponse(response: Response, fallback: string): Promise<NextResponse> {
+  const data = await response.json().catch(() => ({}));
+  const body =
+    data.code === "plan_required"
+      ? { error: fallback, code: data.code, required_plan: data.required_plan }
+      : { error: fallback };
+  return NextResponse.json(body, { status: response.status });
+}

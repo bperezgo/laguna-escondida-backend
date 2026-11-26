@@ -1,153 +1,12 @@
 "use client";
 
-import { usePermissions, PERMISSIONS } from "@/lib/permissions";
+import { usePermissions } from "@/lib/permissions";
+import { visibleNavItems } from "@/lib/home/navItems";
 import { organizationDisplayName, organizationLogoUrl } from "@/lib/organization";
-import { PermissionGate } from "@/components/permissions";
 import { Card, CardBody, Button } from "@/components/ui";
 
-// Navigation items with their required permissions.
-// cloudAdminOnly: true means the card is hidden on cloud for non-admin roles.
-// cloudOnly: true means the card is hidden on the edge, where the routes don't exist.
-const navItems = [
-  {
-    href: "/orders",
-    title: "Órdenes",
-    description: "Administra las órdenes de los clientes",
-    permission: PERMISSIONS.ORDERS_READ,
-    accent: "var(--color-primary)",
-    cloudAdminOnly: true,
-  },
-  {
-    href: "/products",
-    title: "Productos",
-    description: "Ver y editar productos",
-    permission: PERMISSIONS.PRODUCTS_READ,
-    accent: "var(--color-primary)",
-  },
-  {
-    href: "/stock",
-    title: "Inventario",
-    description: "Administrar inventario",
-    permission: PERMISSIONS.STOCK_READ,
-    accent: "var(--color-primary)",
-  },
-  {
-    href: "/invoices",
-    title: "Facturas",
-    description: "Ver facturas",
-    permission: PERMISSIONS.INVOICES_READ,
-    accent: "var(--color-primary)",
-    cloudOnly: true,
-  },
-  {
-    href: "/support-documents",
-    title: "Documentos Soporte",
-    description: "Crear y administrar documentos soporte",
-    permission: PERMISSIONS.SUPPORT_DOCUMENTS_READ,
-    accent: "var(--color-primary)",
-    cloudOnly: true,
-  },
-  {
-    href: "/kitchen",
-    title: "Cocina",
-    description: "Ver comandas en tiempo real",
-    permission: PERMISSIONS.COMMANDS_READ,
-    accent: "var(--color-secondary)",
-    cloudAdminOnly: true,
-  },
-  {
-    href: "/suppliers",
-    title: "Proveedores",
-    description: "Administrar proveedores y catálogos",
-    permission: PERMISSIONS.SUPPLIERS_READ,
-    accent: "var(--color-primary)",
-    cloudOnly: true,
-  },
-  {
-    href: "/purchase-entries",
-    title: "Entradas de Compra",
-    description: "Registrar recepción de productos",
-    permission: PERMISSIONS.PURCHASE_ENTRIES_READ,
-    accent: "var(--color-primary)",
-    cloudOnly: true,
-  },
-  {
-    href: "/expenses",
-    title: "Gastos",
-    description: "Registrar gastos, inversiones y servicios",
-    permission: PERMISSIONS.EXPENSES_READ,
-    accent: "var(--color-warning)",
-    cloudOnly: true,
-  },
-  {
-    href: "/financial",
-    title: "Finanzas",
-    description: "Resumen financiero — ingresos, gastos y utilidad",
-    permission: PERMISSIONS.FINANCIAL_SUMMARY_READ,
-    accent: "var(--color-success)",
-    cloudOnly: true,
-  },
-  {
-    href: "/close",
-    title: "Cierre de Caja",
-    description: "Cuadre diario del dinero por método de pago",
-    permission: PERMISSIONS.FINANCIAL_SUMMARY_READ,
-    accent: "var(--color-success)",
-    cloudAdminOnly: true,
-    cloudOnly: true,
-  },
-  {
-    href: "/deliveries",
-    title: "Domicilios",
-    description: "Pedidos en camino, pausas, horarios y zonas de domicilios y pedidos para llevar",
-    // Any of them: an accountant sees the hours, a zone-only role the zones.
-    permissions: [PERMISSIONS.DELIVERIES_READ, PERMISSIONS.ORDERING_READ, PERMISSIONS.DELIVERY_ZONES_READ],
-    accent: "var(--color-secondary)",
-    cloudOnly: true,
-  },
-  {
-    href: "/my-deliveries",
-    title: "Mis entregas",
-    description: "Pedidos listos para llevar y los que tienes en camino",
-    permissions: [PERMISSIONS.DELIVERIES_CARRY],
-    accent: "var(--color-primary)",
-    cloudOnly: true,
-  },
-  {
-    href: "/reservations",
-    title: "Reservas",
-    description: "Reservas del día en tiempo real: confirmar, rechazar y marcar quién no llegó",
-    permission: PERMISSIONS.RESERVATIONS_READ,
-    accent: "var(--color-secondary)",
-    cloudOnly: true,
-  },
-  {
-    href: "/feedback",
-    title: "Opiniones",
-    description: "Lo que calificaron los clientes después de su visita",
-    permission: PERMISSIONS.FEEDBACK_READ,
-    accent: "var(--color-success)",
-    cloudOnly: true,
-  },
-  {
-    href: "/users",
-    title: "Usuarios",
-    description: "Crear y administrar usuarios del sistema",
-    permission: PERMISSIONS.USERS_READ,
-    accent: "var(--color-primary)",
-  },
-  {
-    href: "/ajustes",
-    title: "Ajustes",
-    description: "Integraciones y notificaciones del restaurante",
-    permissions: [PERMISSIONS.INTEGRATIONS_READ, PERMISSIONS.NOTIFICATION_CHANNELS_READ],
-    accent: "var(--color-secondary)",
-    cloudOnly: true,
-  },
-];
-
 export default function HomePage() {
-  const { user, organization, isLoading, isAdmin, isEdge } = usePermissions();
+  const { user, organization, isLoading, isAdmin, isEdge, hasPermission } = usePermissions();
   const businessName = organization
     ? organizationDisplayName(organization)
     : "Laguna Escondida";
@@ -244,19 +103,9 @@ export default function HomePage() {
               gap: "1rem",
             }}
           >
-            {navItems
-              .filter(
-                (item) =>
-                  (!item.cloudAdminOnly || isEdge || isAdmin) &&
-                  (!item.cloudOnly || !isEdge)
-              )
-              .map((item) => (
-              <PermissionGate
-                key={item.href}
-                permission={"permission" in item ? item.permission : undefined}
-                permissions={"permissions" in item ? item.permissions : undefined}
-              >
+            {visibleNavItems({ hasPermission, plan: organization?.plan, isEdge, isAdmin }).map((item) => (
                 <a
+                  key={item.href}
                   href={item.href}
                   style={{
                     textDecoration: "none",
@@ -306,7 +155,6 @@ export default function HomePage() {
                     </CardBody>
                   </Card>
                 </a>
-              </PermissionGate>
             ))}
           </div>
         )}

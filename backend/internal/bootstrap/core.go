@@ -39,6 +39,8 @@ type ModeOptions struct {
 	EInvoicingEnabled bool
 	// WrapOrganizationSettings puts the cloud's cache in front of the settings read; nil on the box.
 	WrapOrganizationSettings func(ports.OrganizationSettingsRepository) ports.OrganizationSettingsRepository
+	// WrapOrganizations lets the cloud drop its cached organization access when the operator updates one; nil on the box.
+	WrapOrganizations func(ports.OrganizationRepository) ports.OrganizationRepository
 	// OrderOptions are the cloud's contacts and marketing events for agent orders; none on the box.
 	OrderOptions []service.OrderServiceOption
 }
@@ -73,6 +75,7 @@ type core struct {
 	syncIdentity               dto.SyncIdentity
 	stockReconciliationService *service.StockReconciliationService
 	organizationService        *service.OrganizationService
+	userService                *service.UserService
 	organizationRunner         *service.OrganizationRunner
 	orderService               *service.OrderService
 	syncStatusTracker          *syncstatus.Tracker
@@ -163,6 +166,9 @@ func buildCore(cfg *config.Shared, infra Infra, opts ModeOptions) (*core, error)
 	if opts.EInvoicingEnabled {
 		organizationRepo = repository.NewOrganizationRepository(db)
 	}
+	if opts.WrapOrganizations != nil {
+		organizationRepo = opts.WrapOrganizations(organizationRepo)
+	}
 	userService := service.NewUserService(userRepo, roleRepo, userRoleRepo, organizationRepo, jwtService, unitOfWork, opts.Tenancy)
 	einvoicingSettingsRepo := repository.NewEInvoicingSettingsRepository(db)
 	organizationService := service.NewOrganizationService(organizationRepo, einvoicingSettingsRepo, unitOfWork)
@@ -228,6 +234,7 @@ func buildCore(cfg *config.Shared, infra Infra, opts ModeOptions) (*core, error)
 	registerAPIRoutes(router, jwtService, handlers, opts.StockAuthoring)
 
 	return &core{
+		userService:                userService,
 		router:                     router,
 		handlers:                   handlers,
 		publisher:                  publisher,

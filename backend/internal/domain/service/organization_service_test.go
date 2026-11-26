@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
@@ -401,7 +402,7 @@ func TestOrganizationService_GetCurrent_MapsTenantFacingFields(t *testing.T) {
 	svc, orgRepo, _ := createTestOrganizationService(t)
 	footer, color := "Gracias", "#0E7C86"
 	orgRepo.EXPECT().Get(mock.Anything, "org-1").Return(&dto.Organization{
-		ID: "org-1", Slug: "laguna-escondida", Name: "Laguna", Status: dto.OrganizationStatusSuspended,
+		ID: "org-1", Slug: "laguna-escondida", Name: "Laguna", Status: dto.OrganizationStatusActive, Plan: "full",
 		Timezone: "America/Bogota", Country: "CO", Locale: "es-CO", Currency: "COP",
 		TicketFooter: &footer, PrimaryColor: &color,
 		EInvoicing: &dto.EInvoicingSettings{InvoicePrefix: "LAG", SupportDocumentPrefix: "DS"},
@@ -411,10 +412,26 @@ func TestOrganizationService_GetCurrent_MapsTenantFacingFields(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, &dto.CurrentOrganization{
-		ID: "org-1", Slug: "laguna-escondida", Name: "Laguna",
+		ID: "org-1", Slug: "laguna-escondida", Name: "Laguna", Status: "active", Plan: "full",
 		Timezone: "America/Bogota", Country: "CO", Locale: "es-CO", Currency: "COP",
 		TicketFooter: &footer, PrimaryColor: &color,
 	}, got)
+}
+
+func TestOrganizationService_GetCurrent_OrganizationOnTrial(t *testing.T) {
+	svc, orgRepo, _ := createTestOrganizationService(t)
+	ends := time.Now().UTC().Add(11 * 24 * time.Hour)
+	orgRepo.EXPECT().Get(mock.Anything, "org-2").Return(&dto.Organization{
+		ID: "org-2", Slug: "dona-rosa", Name: "Doña Rosa", Status: dto.OrganizationStatusTrial, Plan: "starter", TrialEndsAt: &ends,
+	}, nil)
+
+	got, err := svc.GetCurrent(context.Background(), "org-2")
+
+	require.NoError(t, err)
+	assert.Equal(t, "trial", got.Status)
+	assert.Equal(t, "starter", got.Plan)
+	require.NotNil(t, got.TrialEndsAt)
+	assert.True(t, ends.Equal(*got.TrialEndsAt))
 }
 
 func TestOrganizationService_GetCurrent_NotFound(t *testing.T) {

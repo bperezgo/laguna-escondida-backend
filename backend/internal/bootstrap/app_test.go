@@ -38,6 +38,7 @@ func testCloudConfig() *config.Cloud {
 	return &config.Cloud{
 		Shared: testSharedConfig(), AdminAPIKey: "admin-key", PublicAPIURL: "https://api.example.com",
 		TelemetryForwardURL: "http://127.0.0.1:4319", TelemetryTenantID: "tenant",
+		Signup: config.Signup{Enabled: true, GoogleClientID: "test.apps.googleusercontent.com", PublicAppURL: "https://app.example.com"},
 	}
 }
 

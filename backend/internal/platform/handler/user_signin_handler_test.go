@@ -193,17 +193,20 @@ func TestUserHandler_CreateUser_EmailErrors(t *testing.T) {
 	cases := []struct {
 		name      string
 		body      string
+		roleID    int
 		createErr error
 		code      int
 		want      string
 	}{
 		{
-			name: "manager without an email",
-			body: `{"username": "ana", "name": "Ana", "password": "password123", "role_ids": [3]}`,
-			code: http.StatusBadRequest, want: `{"error": "email is required for a user with a cloud role"}`,
+			name:   "accountant without an email",
+			body:   `{"username": "ana", "name": "Ana", "password": "password123", "role_ids": [5]}`,
+			roleID: permissions.RoleAccountant,
+			code:   http.StatusBadRequest, want: `{"error": "email is required for an admin, accountant, agent or courier"}`,
 		},
 		{
 			name:      "email taken",
+			roleID:    permissions.RoleManager,
 			body:      `{"username": "ana", "name": "Ana", "email": "ana@example.com", "password": "password123", "role_ids": [3]}`,
 			createErr: domainError.ErrUserEmailTaken,
 			code:      http.StatusConflict, want: `{"error": "Email is already in use"}`,
@@ -213,7 +216,7 @@ func TestUserHandler_CreateUser_EmailErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			d := newSignInDeps(t, tenant.AnyOrganization())
 			d.userRepo.EXPECT().FindByUsername(mock.Anything, "ana").Return(nil, domainError.ErrUserNotFound)
-			d.roleRepo.EXPECT().FindByIDs(mock.Anything, []int{permissions.RoleManager}).Return([]*dto.Role{{ID: permissions.RoleManager, Name: "manager"}}, nil)
+			d.roleRepo.EXPECT().FindByIDs(mock.Anything, []int{tc.roleID}).Return([]*dto.Role{{ID: tc.roleID, Name: "role"}}, nil)
 			if tc.createErr != nil {
 				d.userRepo.EXPECT().Create(mock.Anything, mock.AnythingOfType("*dto.User")).Return(tc.createErr)
 			}

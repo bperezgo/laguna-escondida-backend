@@ -1,5 +1,7 @@
 # Payment Settings API
 
+> **Plan:** in the cloud these routes need the `full` plan; otherwise `403 plan_required`. A suspended organization or an ended trial is refused first. See [Organization access refusals](./auth.md#organization-access-refusals).
+
 How the calling organization's agent orders (WhatsApp takeaway and delivery) are paid: confirmed by staff after a transfer (`manual`), or by Wompi (`wompi`). See [Orders → Payment strategies](./orders.md#payment-strategies-agent-orders).
 
 **Cloud only.** These routes exist only in the cloud binary; on the edge binary they return `404`.

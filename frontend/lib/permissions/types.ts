@@ -19,6 +19,11 @@ export interface Organization {
   id: string;
   slug: string;
   name: string;
+  /** Absent from a backend older than plans and trials. */
+  status?: "trial" | "active" | "suspended";
+  plan?: "starter" | "einvoicing" | "full";
+  /** RFC 3339; set while status is trial. */
+  trial_ends_at?: string | null;
   /** IANA time zone of the business day, e.g. America/Bogota. */
   timezone: string;
   /** ISO 3166-1 alpha-2, e.g. CO. */

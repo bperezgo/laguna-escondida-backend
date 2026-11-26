@@ -5,3 +5,5 @@ export const site = buildSiteConfig(import.meta.env);
 export const whatsappHref = whatsappLink(site, `Hola, quiero ver una demo de ${site.productName} para mi restaurante.`);
 
 export const installerHref = installerDownloadUrl(site);
+
+export const signupHref = site.signupUrl;

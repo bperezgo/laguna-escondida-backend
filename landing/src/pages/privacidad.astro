@@ -7,7 +7,7 @@ const responsible = site.legalName ?? site.productName;
 
 <Base
   title={`Política de privacidad | ${site.productName}`}
-  description={`Qué datos recoge ${site.productName} cuando pides una demo, para qué los usa y cómo corregirlos o borrarlos.`}
+  description={`Qué datos recoge ${site.productName} en esta página y en la aplicación, para qué los usa y cómo corregirlos o borrarlos.`}
   path="/privacidad"
   ctaHref="/#demo"
 >
@@ -15,20 +15,25 @@ const responsible = site.legalName ?? site.productName;
     <div class="mx-auto max-w-3xl">
       <a href="/" class="body-5 text-primary underline underline-offset-4">Volver al inicio</a>
       <h1 class="heading-2 mt-6">Política de privacidad</h1>
-      <p class="caption-2 text-muted mt-2">Última actualización: 18 de noviembre de 2026</p>
+      <p class="caption-2 text-muted mt-2">Última actualización: 25 de noviembre de 2026</p>
 
-      <div class="body-3 text-ink mt-8 flex flex-col gap-8 [&_h2]:heading-5 [&_h2]:mb-2 [&_p]:text-muted [&_ul]:text-muted [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:flex [&_ul]:flex-col [&_ul]:gap-1">
+      <div class="body-3 text-ink mt-8 flex flex-col gap-8 [&_h2]:heading-5 [&_h2]:mb-2 [&_h3]:heading-6 [&_h3]:mt-4 [&_h3]:mb-1 [&_p]:text-muted [&_ul]:text-muted [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:flex [&_ul]:flex-col [&_ul]:gap-1">
         <section>
           <h2>Quién es responsable de tus datos</h2>
           <p>
-            {responsible} es el responsable del tratamiento de los datos que dejas en esta página, conforme a la Ley 1581 de 2012 de protección de datos
-            personales de Colombia.
+            {responsible} trata tus datos personales conforme a la Ley 1581 de 2012 de protección de datos personales de Colombia y sus decretos
+            reglamentarios. Esta política cubre esta página y la aplicación {site.productName}, en la nube y en la caja instalada en tu restaurante.
+          </p>
+          <p class="mt-2">
+            Somos responsables de los datos de quien pide una demo y de quien crea una cuenta. Los datos que tu restaurante registra en la aplicación (ventas,
+            clientes, domicilios) son de tu restaurante: allí tu restaurante es el responsable y nosotros los tratamos solo por su cuenta, como encargados, para
+            prestarle el servicio.
           </p>
         </section>
 
         <section>
-          <h2>Qué datos recogemos y para qué</h2>
-          <p>Cuando pides una demo, el formulario recoge:</p>
+          <h2>Cuando pides una demo</h2>
+          <p>El formulario de esta página recoge:</p>
           <ul>
             <li>Tu nombre, el nombre de tu restaurante y tu número de WhatsApp, para contactarte y acordar la demo.</li>
             <li>La fecha y hora en que aceptaste esta política.</li>
@@ -41,31 +46,104 @@ const responsible = site.legalName ?? site.productName;
         </section>
 
         <section>
-          <h2>Google Analytics y Meta Pixel</h2>
+          <h2>Google Analytics y Meta Pixel en esta página</h2>
           <p>
             Esta página usa Google Analytics y el Pixel de Meta para medir las visitas y saber cuándo un anuncio termina en una solicitud de demo. Ambas
             herramientas pueden usar cookies o identificadores del navegador. Les informamos las visitas, el envío del formulario, el clic en WhatsApp y la descarga del instalador.
             Nunca les enviamos tu nombre, el de tu restaurante ni tu teléfono. Puedes bloquearlas desde tu navegador o con una extensión, y la página sigue
-            funcionando igual.
+            funcionando igual. La aplicación no usa ninguna de las dos.
+          </p>
+        </section>
+
+        <section id="google">
+          <h2>Cuando entras con Google</h2>
+          <p>
+            Si creas tu cuenta o entras con tu cuenta de Google, Google nos comparte solo tu nombre y tu correo electrónico, y nos confirma que el correo es
+            tuyo. No pedimos acceso a tus contactos, tu calendario, tus archivos ni a ningún otro dato de tu cuenta de Google.
+          </p>
+          <ul class="mt-2">
+            <li>Usamos tu correo para identificarte cuando entras y tu nombre para mostrarlo en la aplicación y en lo que registras.</li>
+            <li>No vendemos estos datos, no los usamos para publicidad y no los compartimos con nadie, salvo cuando la ley nos lo exija.</li>
+            <li>No guardamos ninguna contraseña ni credencial de Google.</li>
+          </ul>
+          <p class="mt-2">
+            El uso que hacemos de la información recibida de las API de Google cumple la
+            <a class="text-primary underline underline-offset-4" href="https://developers.google.com/terms/api-services-user-data-policy">política de datos de usuario de los servicios de API de Google</a>,
+            incluidos sus requisitos de uso limitado.
           </p>
         </section>
 
         <section>
-          <h2>Cuánto tiempo guardamos tus datos</h2>
-          <p>Mientras sean necesarios para contactarte, o hasta que nos pidas borrarlos.</p>
+          <h2>Cuando usas la aplicación</h2>
+          <h3>Tu cuenta y la de tu equipo</h3>
+          <ul>
+            <li>El nombre de tu restaurante, que das al crear la cuenta.</li>
+            <li>De cada persona de tu equipo: su nombre, su correo o su usuario, su rol y su contraseña, que guardamos cifrada con un algoritmo de un solo sentido, de modo que nadie puede leerla.</li>
+            <li>Los correos de las personas a quienes invitas, para enviarles la invitación.</li>
+            <li>Una cookie de sesión, necesaria para mantenerte dentro de la aplicación. No usamos cookies de publicidad ni de medición en la aplicación.</li>
+          </ul>
+          <h3>Lo que tu restaurante registra</h3>
+          <p>
+            Productos, inventario, ventas, pagos, reservas y domicilios, y los datos de los clientes de tu restaurante que tu equipo anote: nombre, documento de
+            identidad, correo, teléfono y dirección de entrega. Los usamos solo para prestar el servicio: guardarlos, sincronizarlos entre la caja y la nube,
+            emitir las facturas electrónicas y mostrar los reportes. Tu restaurante debe contar con la autorización de sus clientes para registrarlos.
+          </p>
+        </section>
+
+        <section>
+          <h2>Con quién compartimos los datos</h2>
+          <p>Solo con quienes nos ayudan a prestar el servicio, y solo lo necesario para ello:</p>
+          <ul class="mt-2">
+            <li>Amazon Web Services, donde se alojan la aplicación y sus datos.</li>
+            <li>Google, para que puedas entrar con tu cuenta de Google.</li>
+            <li>Nuestro proveedor tecnológico de facturación electrónica y la DIAN, cuando tu plan incluye facturación electrónica.</li>
+            <li>Wompi, cuando tu restaurante activa los cobros con Wompi.</li>
+            <li>WhatsApp (Meta), cuando tu restaurante envía mensajes a sus clientes desde la aplicación.</li>
+            <li>Nuestras herramientas de monitoreo, que reciben registros técnicos para detectar fallas.</li>
+          </ul>
+          <p class="mt-2">No vendemos datos personales.</p>
+        </section>
+
+        <section>
+          <h2>Dónde guardamos los datos</h2>
+          <p>
+            Los servidores de la aplicación están en Estados Unidos (Amazon Web Services). Al aceptar esta política autorizas esa transferencia internacional,
+            que hacemos con un proveedor que aplica medidas de seguridad adecuadas. Los datos viajan cifrados entre tu navegador, la caja y la nube.
+          </p>
+        </section>
+
+        <section>
+          <h2>Cuánto tiempo guardamos los datos</h2>
+          <ul>
+            <li>Los de una solicitud de demo: mientras sean necesarios para contactarte, o hasta que nos pidas borrarlos.</li>
+            <li>
+              Los de la aplicación: mientras tu cuenta exista. Cuando termina la prueba o se suspende la cuenta no los borramos, para que puedas continuar.
+              Si nos pides cerrar la cuenta los borramos, salvo lo que la ley nos obligue a conservar, como las facturas electrónicas.
+            </li>
+          </ul>
         </section>
 
         <section id="derechos">
-          <h2>Cómo corregir o borrar tus datos</h2>
+          <h2>Cómo conocer, corregir o borrar tus datos</h2>
           <p>
-            Tienes derecho a conocer, actualizar, corregir y suprimir tus datos, y a revocar tu autorización en cualquier momento. Para hacerlo, escríbenos
-            indicando el número de WhatsApp con el que pediste la demo:
+            Tienes derecho a conocer, actualizar, corregir y suprimir tus datos, a pedir prueba de tu autorización, a saber cómo los usamos, a revocar tu
+            autorización en cualquier momento y a presentar una queja ante la Superintendencia de Industria y Comercio. Para ejercerlos, escríbenos indicando
+            el correo de tu cuenta o el número de WhatsApp con el que pediste la demo:
           </p>
           <ul class="mt-2">
             {site.privacyEmail && <li>Por correo a <a class="text-primary underline underline-offset-4" href={`mailto:${site.privacyEmail}`}>{site.privacyEmail}</a>.</li>}
             {whatsappHref && <li>Por <a class="text-primary underline underline-offset-4" href={whatsappHref} data-whatsapp>WhatsApp</a>.</li>}
             {!site.privacyEmail && !whatsappHref && <li>Respondiendo al mensaje que te enviemos por WhatsApp.</li>}
           </ul>
+          <p class="mt-2">
+            Respondemos las consultas en un máximo de diez días hábiles y los reclamos en un máximo de quince días hábiles. Si eres cliente de un restaurante que
+            usa {site.productName}, dirige tu solicitud primero al restaurante, que es el responsable de tus datos; nosotros le ayudamos a atenderla.
+          </p>
+        </section>
+
+        <section>
+          <h2>Cambios a esta política</h2>
+          <p>Si la cambiamos, actualizamos la fecha de arriba y, si el cambio es importante, te avisamos en la aplicación o por correo.</p>
         </section>
       </div>
     </div>

@@ -1,5 +1,7 @@
 # Delivery Zones API
 
+> **Plan:** in the cloud these routes need the `full` plan; otherwise `403 plan_required`. A suspended organization or an ended trial is refused first. See [Organization access refusals](./auth.md#organization-access-refusals).
+
 Define the areas where the restaurant delivers. A `delivery` order is accepted only when its pin falls inside an **active** zone (see [Orders → Order types](./orders.md#order-types-dine-in-takeaway-and-delivery)). No active zone means no delivery is accepted.
 
 **Cloud only.** These routes exist only in the cloud binary; on the edge binary they return `404`.

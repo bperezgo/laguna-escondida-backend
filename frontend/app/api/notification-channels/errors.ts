@@ -10,6 +10,7 @@ export async function notificationErrorResponse(response: Response, fallback: st
       code: errorData.code,
       field: errorData.field,
       destination_status: errorData.destination_status,
+      required_plan: errorData.required_plan,
     },
     { status: response.status }
   );

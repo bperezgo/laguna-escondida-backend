@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import UpdateBanner from "@/components/layout/UpdateBanner";
+import TrialBanner from "@/components/layout/TrialBanner";
 
 export const metadata: Metadata = {
   title: "Kuenta",
@@ -26,6 +27,7 @@ export default function RootLayout({
       <body suppressHydrationWarning>
         <Providers>
           <UpdateBanner />
+          <TrialBanner />
           {children}
         </Providers>
       </body>

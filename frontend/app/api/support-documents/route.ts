@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { serverApiRequest } from "@/lib/api/server";
+import { fallbackErrorResponse, serverApiRequest } from "@/lib/api/server";
 import type { CreateSupportDocumentRequest } from "@/types/support-document";
 
 // GET /api/support-documents - Get all support documents with optional filters
@@ -32,10 +32,7 @@ export async function GET(request: NextRequest) {
     `/support-documents?${queryParams.toString()}`
   );
   if (!response.ok) {
-    return NextResponse.json(
-      { error: "Failed to fetch support documents" },
-      { status: response.status }
-    );
+    return fallbackErrorResponse(response, "Failed to fetch support documents");
   }
   const data = await response.json();
   return NextResponse.json(data);
@@ -50,10 +47,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(body),
     });
     if (!response.ok) {
-      return NextResponse.json(
-        { error: "Failed to create support document" },
-        { status: response.status }
-      );
+      return fallbackErrorResponse(response, "Failed to create support document");
     }
     return response;
   } catch (error) {

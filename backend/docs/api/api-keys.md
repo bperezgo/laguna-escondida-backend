@@ -1,5 +1,7 @@
 # Organization API Keys
 
+> **Plan:** in the cloud these routes need the `full` plan; otherwise `403 plan_required`. A suspended organization or an ended trial is refused first. See [Organization access refusals](./auth.md#organization-access-refusals).
+
 Long-lived, revocable credentials for a system outside the POS, such as the WhatsApp agent, to act for one organization's agent user without holding a password. A key is sent as `Authorization: Bearer lgk_…` wherever a user's token is accepted, and the request acts as the key's user in the key's organization.
 
 - **Cloud only.** The edge does not serve these routes (`404`), never receives keys, and refuses every `lgk_` bearer with `401`.

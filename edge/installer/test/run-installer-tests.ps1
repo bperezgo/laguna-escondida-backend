@@ -3,8 +3,9 @@
   and by release-edge.yml before a release may publish. Needs an elevated Windows machine with
   the appliance ports free and nothing installed at C:\laguna-edge.
 
-  Cases: busy port; box already enrolled (409, no /REPLACE); fresh install; re-run as repair
-  (still one enroll call); uninstall keeps data; reinstall keeps data (still one enroll call).
+  Cases: busy port; invalid code; box already enrolled (409, no /REPLACE); fresh install; re-run as
+  repair (still one enroll call); uninstall keeps data; reinstall keeps data (still one enroll call);
+  enroll.ps1 alone: a valid code, an invalid code, and a 409 then replace with the same code.
   -KeepInstalled leaves the reinstalled box running for the caller's next steps.
 #>
 [CmdletBinding()]
@@ -16,7 +17,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $root = 'C:\laguna-edge'
-$password = 'stub-password'
+$code = 'STUB-C0DE'
 $stub = Join-Path $PSScriptRoot 'stub-cloud.ps1'
 New-Item -ItemType Directory -Force -Path $Work | Out-Null
 function Step($m) { Write-Host ("`n==> " + $m) -ForegroundColor Cyan }
@@ -36,20 +37,34 @@ function Start-Stub([int] $p, [switch] $Conflict) {
 function Stop-Stub($s) { New-Item $s.stop -ItemType File -Force | Out-Null; $s.proc | Wait-Process -Timeout 15 -ErrorAction SilentlyContinue }
 function Enroll-Calls($s) {
   if (-not (Test-Path $s.log)) { return 0 }
-  @(Get-Content $s.log | ConvertFrom-Json | Where-Object { $_.path -eq '/api/edge/enroll' }).Count
+  @(Get-Content $s.log | ConvertFrom-Json | Where-Object { $_.path -eq '/api/edge/enroll-with-code' }).Count
 }
-function Install($s, [string] $name, [string[]] $extra = @()) {
-  $env:KUENTA_SETUP_EMAIL = 'owner@stub.test'; $env:KUENTA_SETUP_PASSWORD = $password
+function Install($s, [string] $name, [string[]] $extra = @(), [string] $useCode = $code) {
+  $env:KUENTA_SETUP_CODE = $useCode
   $log = Join-Path $Work "$name.log"
   $p = Start-Process $Installer -Wait -PassThru -ArgumentList (@('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/CLOUDURL=$($s.url)", "/LOG=$log") + $extra)
-  Remove-Item Env:\KUENTA_SETUP_EMAIL, Env:\KUENTA_SETUP_PASSWORD -ErrorAction SilentlyContinue
+  Remove-Item Env:\KUENTA_SETUP_CODE -ErrorAction SilentlyContinue
   return @{ code = $p.ExitCode; log = $log }
+}
+function Run-Enroll($s, [string] $useCode, [bool] $replace) {
+  $line = @{ code = $useCode; replace = $replace; name = 'Caja CI'; cloud_url = $s.url } | ConvertTo-Json -Compress
+  $out = $line | powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot '..\..\scripts\enroll.ps1')
+  return @{ code = $LASTEXITCODE; out = ($out | Out-String) | ConvertFrom-Json }
 }
 function NodeId { ((Get-Content "$root\env\edge-node.env" | Where-Object { $_ -match '^NODE_ID=' }) -split '=', 2)[1] }
 
 $ok = Start-Stub $Port
 $conflict = Start-Stub ($Port + 1) -Conflict
 try {
+  Step 'enroll.ps1 against the stub cloud'
+  $e = Run-Enroll $conflict 'wrng-c0de' $false
+  Assert ($e.code -eq 20 -and $e.out.error -eq 'bad_credentials') "an invalid code is bad_credentials ($($e.code))"
+  $e = Run-Enroll $conflict 'stub c0de' $false
+  Assert ($e.code -eq 22 -and $e.out.active_box.name -eq 'Caja principal') "a 409 reports the active box ($($e.code))"
+  $e = Run-Enroll $conflict 'STUB-C0DE' $true
+  Assert ($e.code -eq 0 -and $e.out.node_key) "the same code with replace enrolls ($($e.code))"
+  Assert (-not ($e.out | ConvertTo-Json | Select-String -Pattern 'C0DE' -SimpleMatch -Quiet)) 'the output never echoes the code'
+
   Step 'Busy port: refused before anything is installed'
   $l = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Any, 5432); $l.Start()
   try { $r = Install $ok 'busy-port' } finally { $l.Stop() }
@@ -57,6 +72,12 @@ try {
   Assert (-not (Test-Path $root)) 'nothing under C:\laguna-edge'
   Assert (Select-String -Path $r.log -Pattern '5432' -Quiet) 'the log names port 5432'
   Assert ((Enroll-Calls $ok) -eq 0) 'no enroll call was made'
+
+  Step 'Invalid code: the bad-credentials exit code, nothing installed'
+  $r = Install $conflict 'bad-code' @() 'WRNG-C0DE'
+  Assert ($r.code -ne 0) "an invalid code exits non-zero ($($r.code))"
+  Assert (-not (Test-Path $root)) 'nothing under C:\laguna-edge'
+  Assert (Select-String -Path $r.log -Pattern 'bad_credentials' -Quiet) 'the log names bad_credentials'
 
   Step 'Box already enrolled, no /REPLACE'
   $r = Install $conflict 'conflict'
@@ -75,9 +96,9 @@ try {
   $nodeId = NodeId
   $hits = Get-ChildItem $root -Recurse -File -ErrorAction SilentlyContinue |
     Where-Object { $_.Length -lt 5MB -and $_.Extension -in '.env', '.log', '.json', '.xml', '.txt', '.out', '.err' } |
-    Select-String -Pattern $password, 'stub-token-' -SimpleMatch -List
-  $hits += Select-String -Path $r.log -Pattern $password, 'stub-token-' -SimpleMatch -List
-  Assert (-not $hits) 'no file or log holds the password or the user token'
+    Select-String -Pattern $code -SimpleMatch -List
+  $hits += Select-String -Path $r.log -Pattern $code -SimpleMatch -List
+  Assert (-not $hits) 'no file or log holds the enrollment code'
   Assert ((Test-Path "$env:PUBLIC\Desktop\Kuenta.lnk") -or (Test-Path "$env:PUBLIC\Desktop\Kuenta.url")) 'the Kuenta shortcut exists'
   $dbPw = ((Get-Content "$root\env\edge-node.env" | Where-Object { $_ -match '^DB_PASSWORD=' }) -split '=', 2)[1]
   $env:PGPASSWORD = $dbPw
@@ -111,6 +132,7 @@ try {
   $v = (& "$root\artifacts\postgres\bin\psql.exe" -h 127.0.0.1 -U laguna -d laguna_escondida -w -tAc 'SELECT v FROM ci_marker' | Out-String).Trim()
   Assert ($v -eq '42') 'the marker row survived uninstall and reinstall'
   Remove-Item Env:\PGPASSWORD -ErrorAction SilentlyContinue
+
 }
 finally {
   Stop-Stub $conflict

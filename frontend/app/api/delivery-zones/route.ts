@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { serverApiRequest } from "@/lib/api/server";
+import { fallbackErrorResponse, serverApiRequest } from "@/lib/api/server";
 import type {
   CreateDeliveryZoneRequest,
   DeliveryZone,
@@ -11,10 +11,7 @@ export async function GET() {
   const response =
     await serverApiRequest<DeliveryZoneListResponse>("/delivery-zones");
   if (!response.ok) {
-    return NextResponse.json(
-      { error: "Failed to fetch delivery zones" },
-      { status: response.status }
-    );
+    return fallbackErrorResponse(response, "Failed to fetch delivery zones");
   }
   const data = await response.json();
   return NextResponse.json(data);

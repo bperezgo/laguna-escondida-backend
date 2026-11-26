@@ -61,6 +61,7 @@ jobs:
           PUBLIC_WHATSAPP_NUMBER: ${{ vars.PUBLIC_WHATSAPP_NUMBER }}
           PUBLIC_LEGAL_NAME: ${{ vars.PUBLIC_LEGAL_NAME }}
           PUBLIC_PRIVACY_EMAIL: ${{ vars.PUBLIC_PRIVACY_EMAIL }}
+          PUBLIC_SIGNUP_URL: ${{ vars.PUBLIC_SIGNUP_URL }}
         run: pnpm build
 
       - name: Package + checksum

@@ -14,7 +14,7 @@ var (
 	ErrCannotDeactivateSelf   = errors.New("cannot deactivate your own user")
 	ErrCannotRemoveLastAdmin  = errors.New("cannot remove the last active admin")
 	ErrUserEmailTaken         = errors.New("email is already in use")
-	ErrEmailRequired          = errors.New("email is required for a user with a cloud role")
+	ErrEmailRequired          = errors.New("email is required for an admin, accountant, agent or courier")
 	ErrCloudAccessDenied      = errors.New("user holds no cloud role")
 	ErrSignInEmailRequired    = errors.New("email is required")
 	ErrSignInUsernameRequired = errors.New("username is required")

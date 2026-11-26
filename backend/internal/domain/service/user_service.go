@@ -11,6 +11,7 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/permissions"
+	"laguna-escondida/backend/internal/domain/plans"
 	"laguna-escondida/backend/internal/domain/ports"
 	"laguna-escondida/backend/internal/domain/tenant"
 )
@@ -23,6 +24,7 @@ type UserService struct {
 	jwtService   *JWTService
 	unitOfWork   ports.UnitOfWork
 	scope        tenant.Scope
+	now          func() time.Time
 }
 
 func NewUserService(userRepo ports.UserRepository, roleRepo ports.RoleRepository, userRoleRepo ports.UserRoleRepository, orgRepo ports.OrganizationRepository, jwtService *JWTService, unitOfWork ports.UnitOfWork, scope tenant.Scope) *UserService {
@@ -34,6 +36,7 @@ func NewUserService(userRepo ports.UserRepository, roleRepo ports.RoleRepository
 		jwtService:   jwtService,
 		unitOfWork:   unitOfWork,
 		scope:        scope,
+		now:          time.Now,
 	}
 }
 
@@ -65,7 +68,7 @@ func (s *UserService) CreateUser(ctx context.Context, req *dto.CreateUserRequest
 		return nil, domainError.ErrInvalidRoleIDs
 	}
 
-	if permissions.HasCloudRole(req.RoleIDs) && strings.TrimSpace(req.Email) == "" {
+	if permissions.RequiresEmail(req.RoleIDs) && strings.TrimSpace(req.Email) == "" {
 		return nil, domainError.ErrEmailRequired
 	}
 
@@ -220,7 +223,7 @@ func (s *UserService) UpdateUser(ctx context.Context, actingUserID, id string, r
 			return nil, err
 		}
 	}
-	if permissions.HasCloudRole(newRoleIDs) && newEmail == nil {
+	if permissions.RequiresEmail(newRoleIDs) && newEmail == nil {
 		return nil, domainError.ErrEmailRequired
 	}
 
@@ -269,6 +272,31 @@ func (s *UserService) ResetPassword(ctx context.Context, id, newPassword string)
 	return s.userRepo.UpdatePassword(ctx, id, hashedPassword)
 }
 
+const generatedPasswordLength = 14
+
+// GeneratePassword is for box-only users, who have no email to receive one; the result is shown once.
+func (s *UserService) GeneratePassword(ctx context.Context, id string) (*dto.GeneratedPasswordResponse, error) {
+	current, err := s.findStaffUser(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if current.Email != nil {
+		return nil, domainError.ErrUserHasEmail
+	}
+	password, err := randomReadable(generatedPasswordLength)
+	if err != nil {
+		return nil, err
+	}
+	hashed, err := user.HashPassword(password)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.userRepo.UpdatePassword(ctx, id, hashed); err != nil {
+		return nil, err
+	}
+	return &dto.GeneratedPasswordResponse{Username: current.Username, Password: password}, nil
+}
+
 func (s *UserService) DeleteUser(ctx context.Context, actingUserID, id string) error {
 	if actingUserID == id {
 		return domainError.ErrCannotDeleteSelf
@@ -313,12 +341,12 @@ func (s *UserService) SignIn(ctx context.Context, req *dto.SignInRequest) (*dto.
 	boxOrgID, pinned := s.scope.Pinned()
 
 	var userDTO *dto.User
-	orgID := boxOrgID
+	var org *dto.Organization
 	var err error
 	if pinned {
 		userDTO, err = s.edgeSignInUser(ctx, boxOrgID, req.Username)
 	} else {
-		userDTO, orgID, err = s.cloudSignInUser(ctx, req.Email)
+		userDTO, org, err = s.cloudSignInUser(ctx, req.Email)
 	}
 	if err != nil {
 		return nil, err
@@ -326,13 +354,47 @@ func (s *UserService) SignIn(ctx context.Context, req *dto.SignInRequest) (*dto.
 	if userDTO.APIKeyManaged {
 		return nil, fmt.Errorf("%w: user %s exists only for an api key", domainError.ErrInvalidCredentials, userDTO.ID)
 	}
-	ctx = tenant.WithOrg(ctx, orgID)
 
 	userAggregate := user.NewAggregateFromDTO(userDTO)
 	if err = userAggregate.ComparePassword(req.Password); err != nil {
 		return nil, fmt.Errorf("%w: %w", domainError.ErrInvalidCredentials, err)
 	}
 
+	orgID := boxOrgID
+	if !pinned {
+		orgID = org.ID
+	}
+	return s.completeSignIn(tenant.WithOrg(ctx, orgID), userDTO, orgID, org)
+}
+
+// SignInWithGoogle signs in the cloud user whose email the verified Google identity carries.
+// Every refusal but an expired trial wraps ErrGoogleSignInFailed.
+func (s *UserService) SignInWithGoogle(ctx context.Context, email string) (*dto.SignInResponse, error) {
+	if _, pinned := s.scope.Pinned(); pinned {
+		return nil, domainError.ErrGoogleSignInFailed
+	}
+	userDTO, org, err := s.cloudSignInUser(ctx, email)
+	if err == nil && userDTO.APIKeyManaged {
+		err = fmt.Errorf("%w: user %s exists only for an api key", domainError.ErrInvalidCredentials, userDTO.ID)
+	}
+	if err == nil {
+		var resp *dto.SignInResponse
+		resp, err = s.completeSignIn(tenant.WithOrg(ctx, org.ID), userDTO, org.ID, org)
+		if err == nil {
+			return resp, nil
+		}
+	}
+	if errors.Is(err, domainError.ErrTrialExpired) {
+		return nil, err
+	}
+	if errors.Is(err, domainError.ErrInvalidCredentials) || errors.Is(err, domainError.ErrSignInEmailRequired) {
+		return nil, fmt.Errorf("%w: %w", domainError.ErrGoogleSignInFailed, err)
+	}
+	return nil, err
+}
+
+// completeSignIn runs once the person is identified. org is nil on an edge box, where plans and trials aren't checked.
+func (s *UserService) completeSignIn(ctx context.Context, userDTO *dto.User, orgID string, org *dto.Organization) (*dto.SignInResponse, error) {
 	if !userDTO.Active {
 		return nil, fmt.Errorf("%w: %w", domainError.ErrInvalidCredentials, domainError.ErrUserInactive)
 	}
@@ -343,23 +405,31 @@ func (s *UserService) SignIn(ctx context.Context, req *dto.SignInRequest) (*dto.
 	}
 	roleIDs := roleIDsOf(roles)
 
-	if !pinned && !permissions.HasCloudRole(roleIDs) {
-		return nil, fmt.Errorf("%w: %w", domainError.ErrInvalidCredentials, domainError.ErrCloudAccessDenied)
+	if org != nil {
+		if !permissions.HasCloudRole(roleIDs) {
+			return nil, fmt.Errorf("%w: %w", domainError.ErrInvalidCredentials, domainError.ErrCloudAccessDenied)
+		}
+		// Not opaque: the person proved who they are, and should contact us rather than retry.
+		if plans.Expired(org.Status, org.TrialEndsAt, s.now()) {
+			return nil, domainError.ErrTrialExpired
+		}
 	}
 
+	return s.issueSignIn(userDTO, orgID, roles)
+}
+
+func (s *UserService) issueSignIn(userDTO *dto.User, orgID string, roles []*dto.Role) (*dto.SignInResponse, error) {
+	roleIDs := roleIDsOf(roles)
 	token, err := s.jwtService.GenerateToken(userDTO.ID, orgID, userDTO.Username, roleIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
 
-	perms := permissions.GetPermissionsForRoles(roleIDs)
-	permStrings := permissions.PermissionStrings(perms)
-
 	return &dto.SignInResponse{
 		Token:       token,
 		Username:    userDTO.Username,
 		Roles:       roles,
-		Permissions: permStrings,
+		Permissions: permissions.PermissionStrings(permissions.GetPermissionsForRoles(roleIDs)),
 	}, nil
 }
 
@@ -382,28 +452,28 @@ func (s *UserService) edgeSignInUser(ctx context.Context, boxOrgID, username str
 	return userDTO, nil
 }
 
-func (s *UserService) cloudSignInUser(ctx context.Context, rawEmail string) (*dto.User, string, error) {
+func (s *UserService) cloudSignInUser(ctx context.Context, rawEmail string) (*dto.User, *dto.Organization, error) {
 	if strings.TrimSpace(rawEmail) == "" {
-		return nil, "", domainError.ErrSignInEmailRequired
+		return nil, nil, domainError.ErrSignInEmailRequired
 	}
 	email, err := user.NormalizeEmail(rawEmail)
 	if err != nil {
-		return nil, "", fmt.Errorf("%w: %w", domainError.ErrInvalidCredentials, err)
+		return nil, nil, fmt.Errorf("%w: %w", domainError.ErrInvalidCredentials, err)
 	}
 
 	found, err := s.userRepo.FindByEmail(ctx, *email)
 	if err != nil {
-		return nil, "", signInLookupError(err)
+		return nil, nil, signInLookupError(err)
 	}
 
 	org, err := s.orgRepo.Get(ctx, found.OrganizationID)
 	if err != nil {
-		return nil, "", fmt.Errorf("sign-in: failed to load the user's organization: %w", err)
+		return nil, nil, fmt.Errorf("sign-in: failed to load the user's organization: %w", err)
 	}
 	if err = checkActive(org); err != nil {
-		return nil, "", err
+		return nil, nil, err
 	}
-	return found.User, org.ID, nil
+	return found.User, org, nil
 }
 
 // An infrastructure error must not be masked as invalid credentials, so it surfaces as a 500.

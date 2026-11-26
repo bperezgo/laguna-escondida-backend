@@ -184,8 +184,8 @@ begin
   else Result := '';
 end;
 
-// Runs a script with its stdin fed from Input. The password travels only through that pipe: it is
-// never an argument, never an environment variable, and never logged.
+// Runs a script with its stdin fed from Input. The enrollment code travels only through that pipe: it is
+// never an argument and never logged.
 function RunPS(const Script, Args, Input: String; var Output: String; Live: Boolean): Integer;
 var Sh, Ex: Variant; Line, Lbl: String;
 begin
@@ -276,24 +276,24 @@ begin
   if Result <> 0 then Log('preflight failed: ' + Msg);
 end;
 
-function DoEnroll(const Email, Password: String; ReplaceBox: Boolean; var Output: String): Integer;
+function DoEnroll(const Code, BoxName: String; ReplaceBox: Boolean; var Output: String): Integer;
 var Input, Flag: String;
 begin
   ExtractTemporaryFile('enroll.ps1');
   if ReplaceBox then Flag := 'true' else Flag := 'false';
-  Input := '{"email":"' + JsonEscape(Email) + '","password":"' + JsonEscape(Password) + '","replace":' + Flag +
-           ',"name":"' + JsonEscape(GetComputerNameString) + '","cloud_url":"' + JsonEscape(CloudUrl) + '"}';
+  Input := '{"code":"' + JsonEscape(Code) + '","replace":' + Flag +
+           ',"name":"' + JsonEscape(BoxName) + '","cloud_url":"' + JsonEscape(CloudUrl) + '"}';
   Result := RunPS(ExpandConstant('{tmp}\enroll.ps1'), '', Input, Output, False);
 end;
 
-// Signs in and enrolls; on a 409 asks (or reads /REPLACE) before replacing. Msg is '' when the
-// owner declined, so the caller can end the wizard instead of showing an error.
-function TryEnroll(const Email, Password: String; var Msg: String): Boolean;
+// Enrolls with the code; on a 409 asks (or reads /REPLACE) before replacing with the same code. Msg is
+// '' when the owner declined, so the caller can end the wizard instead of showing an error.
+function TryEnroll(const EnrollCode, BoxName: String; var Msg: String): Boolean;
 var Output, Seen, Box: String; Code: Integer; Confirmed: Boolean;
 begin
   Result := False;
   Msg := '';
-  Code := DoEnroll(Email, Password, Replace, Output);
+  Code := DoEnroll(EnrollCode, BoxName, Replace, Output);
   if Code = 22 then
   begin
     Seen := JsonField(Output, 'last_seen_at');
@@ -312,7 +312,7 @@ begin
       Exit;
     end;
     Replace := True;
-    Code := DoEnroll(Email, Password, True, Output);
+    Code := DoEnroll(EnrollCode, BoxName, True, Output);
   end;
   if Code = 0 then
   begin
@@ -342,11 +342,12 @@ end;
 
 procedure InitializeWizard;
 begin
-  SignInPage := CreateInputQueryPage(wpWelcome, 'Inicie sesión en Kuenta',
-    'Use la cuenta de administrador de su restaurante',
-    'Escriba su correo y su contraseña de Kuenta. La contraseña no se guarda en este equipo.');
-  SignInPage.Add('Correo:', False);
-  SignInPage.Add('Contraseña:', True);
+  SignInPage := CreateInputQueryPage(wpWelcome, 'Conecte la caja a Kuenta',
+    'Escriba el código de instalación de su restaurante',
+    'Encuéntralo en la nube: Instalar caja. El código vale 30 minutos y sirve una sola vez.');
+  SignInPage.Add('Código:', False);
+  SignInPage.Add('Nombre de la caja:', False);
+  SignInPage.Values[1] := GetComputerNameString;
   if Mode = 'repair' then
     WizardForm.WelcomeLabel2.Caption := 'Este equipo ya tiene una caja de Kuenta. Se repetirá la instalación de los programas ' +
       'y servicios; sus datos y su configuración no cambian.' + #13#10#13#10 + 'Haga clic en Siguiente para continuar.';
@@ -377,13 +378,13 @@ begin
   end
   else if CurPageID = SignInPage.ID then
   begin
-    if (Trim(SignInPage.Values[0]) = '') or (SignInPage.Values[1] = '') then
+    if (Trim(SignInPage.Values[0]) = '') or (Trim(SignInPage.Values[1]) = '') then
     begin
-      MsgBox('Escriba su correo y su contraseña.', mbError, MB_OK);
+      MsgBox('Escriba el código y el nombre de la caja.', mbError, MB_OK);
       Result := False;
       Exit;
     end;
-    if not TryEnroll(Trim(SignInPage.Values[0]), SignInPage.Values[1], Msg) then
+    if not TryEnroll(Trim(SignInPage.Values[0]), Trim(SignInPage.Values[1]), Msg) then
     begin
       Result := False;
       if DeclinedReplace then
@@ -394,7 +395,7 @@ begin
       else
         MsgBox(Msg, mbError, MB_OK);
     end;
-    SignInPage.Values[1] := '';
+    if Result then SignInPage.Values[0] := '';
   end;
 end;
 
@@ -404,7 +405,7 @@ begin
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
-var Msg, Email, Password: String; RC: Integer;
+var Msg, EnrollCode, BoxName: String; RC: Integer;
 begin
   Result := '';
   if WizardSilent then
@@ -416,15 +417,16 @@ begin
     end;
     if Mode = 'fresh' then
     begin
-      Email := GetEnv('KUENTA_SETUP_EMAIL');
-      Password := GetEnv('KUENTA_SETUP_PASSWORD');
-      if (Email = '') or (Password = '') then
+      EnrollCode := GetEnv('KUENTA_SETUP_CODE');
+      BoxName := GetEnv('KUENTA_SETUP_BOX_NAME');
+      if BoxName = '' then BoxName := GetComputerNameString;
+      if EnrollCode = '' then
       begin
-        Result := 'Faltan KUENTA_SETUP_EMAIL y KUENTA_SETUP_PASSWORD.';
+        Result := 'Falta KUENTA_SETUP_CODE.';
         Log(Result);
         Exit;
       end;
-      if not TryEnroll(Email, Password, Msg) then
+      if not TryEnroll(EnrollCode, BoxName, Msg) then
       begin
         Result := Msg;
         Exit;

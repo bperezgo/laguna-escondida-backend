@@ -1,21 +1,25 @@
 "use client";
 
-import { useEffect, useState, FormEvent } from "react";
+import { useCallback, useEffect, useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { usePermissions } from "@/lib/permissions";
 import { Card, CardBody, Input, Button } from "@/components/ui";
 import {
   LEGACY_EDGE_CONTEXT,
   parseSignInContext,
-  signInErrorMessage,
+  signInFailure,
   type SignInContext,
+  type SignInFailure,
 } from "@/lib/signIn";
+import { supportEmail } from "@/lib/support";
+import GoogleSignInButton from "./GoogleSignInButton";
+import NoticeMessage from "./NoticeMessage";
 
 export default function SignInForm() {
   const [context, setContext] = useState<SignInContext | null>(null);
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<SignInFailure | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { fetchPermissions } = usePermissions();
@@ -33,39 +37,44 @@ export default function SignInForm() {
 
   const isCloud = context?.mode === "cloud";
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setError("");
-    setIsLoading(true);
-
-    try {
-      const response = await fetch("/api/auth/signin", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(
-          isCloud ? { email: login, password } : { username: login, password }
-        ),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(signInErrorMessage(data.error || "Failed to sign in"));
+  const submit = useCallback(
+    async (endpoint: string, body: Record<string, string>) => {
+      setError(null);
+      setIsLoading(true);
+      try {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          setError(signInFailure(data, supportEmail()));
+          return;
+        }
+        await fetchPermissions();
+        router.push("/home");
+      } catch {
+        setError({ message: "No se pudo conectar. Intenta de nuevo.", mailto: null });
+      } finally {
+        setIsLoading(false);
       }
+    },
+    [fetchPermissions, router]
+  );
 
-      // Fetch user permissions with the new cookie before navigating
-      await fetchPermissions();
-
-      // Redirect to home on success
-      router.push("/home");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
-    } finally {
-      setIsLoading(false);
-    }
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    submit(
+      "/api/auth/signin",
+      isCloud ? { email: login, password } : { username: login, password }
+    );
   };
+
+  const handleGoogle = useCallback(
+    (idToken: string) => submit("/api/auth/google", { id_token: idToken }),
+    [submit]
+  );
 
   return (
     <div
@@ -164,21 +173,7 @@ export default function SignInForm() {
                 disabled={isLoading}
               />
 
-              {error && (
-                <div
-                  style={{
-                    borderRadius: "var(--radius-md)",
-                    backgroundColor: "var(--color-danger-light)",
-                    border: "1px solid var(--color-danger)",
-                    color: "var(--color-danger)",
-                    padding: "0.75rem 1rem",
-                    fontSize: "0.875rem",
-                    fontWeight: 500,
-                  }}
-                >
-                  {error}
-                </div>
-              )}
+              {error && <NoticeMessage message={error.message} mailto={error.mailto} />}
 
               <Button
                 type="submit"
@@ -189,6 +184,11 @@ export default function SignInForm() {
                 {isLoading ? "Iniciando sesión..." : "Iniciar sesión"}
               </Button>
             </form>
+            {isCloud && (
+              <div style={{ marginTop: "1.25rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                <GoogleSignInButton onCredential={handleGoogle} disabled={isLoading} />
+              </div>
+            )}
           </CardBody>
         </Card>
       </div>
