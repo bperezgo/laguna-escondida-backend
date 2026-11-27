@@ -37,7 +37,26 @@ context: |
 rules:
   proposal:
     - Keep proposals under 500 words
-    
+    - "In Impact, say whether the change touches a trust boundary: auth/session, roles, tenant (organization) scoping, public or unauthenticated endpoints, webhooks, payments, file uploads/archives, edge↔cloud sync, secrets, or MCP tools"
+  design:
+    - >-
+      Include a "## Security" section before "Risks / Trade-offs", following the security-audit skill's core principles
+      (~/.claude/skills/security-audit/SKILL.md). For each trust boundary the change adds or alters, state: the lower-trust
+      principal, the input or action it controls, the intended control and the file/function where it is enforced,
+      the protected principal or resource, and the outcome if the control fails. Read the matching companion file
+      (WEB-PROTOCOL-AND-AUTH.md, DATA-ISOLATION-AND-LIFECYCLE.md, CLIENT-SIDE.md, PROTOCOLS-RPC-AND-MESSAGING.md,
+      RESOURCE-EXHAUSTION-AND-AVAILABILITY.md, SUPPLY-CHAIN-AND-RELEASE.md, AI-AND-LLM.md) and name the attack classes considered.
+    - In the Security section, mark facts that live outside the repo (proxy, AWS, provider settings, Wompi config) as "needs validation" with how to check them; never assume them
+    - If no trust boundary is touched, write "## Security — N/A" with a one-line reason
+  specs:
+    - For every trust boundary in design.md Security, add at least one negative scenario (wrong role, other organization's data, unauthenticated caller, forged/replayed webhook, oversized or malformed input) with the expected rejection
+  tasks:
+    - >-
+      When design.md has a Security section that isn't N/A, add a last task group "Security review": run the security-audit
+      skill in guidance mode (focused review, not the full audit) over the change's diff against the Security section;
+      fix confirmed findings, and record needs-validation items in design.md
+    - Each negative security scenario in specs gets a test task (backend acceptance or handler test)
+
 operations:
   apply:
     guidance:
