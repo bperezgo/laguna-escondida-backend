@@ -273,7 +273,7 @@ begin
              '". Ciérrelo e intente de nuevo.';
     end;
   end;
-  if Result <> 0 then Log('preflight failed: ' + Msg);
+  if Result <> 0 then Log('preflight failed: ' + Msg + ' ' + Trim(Output));
 end;
 
 function DoEnroll(const Code, BoxName: String; ReplaceBox: Boolean; var Output: String): Integer;
