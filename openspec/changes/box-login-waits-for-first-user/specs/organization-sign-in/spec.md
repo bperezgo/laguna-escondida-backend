@@ -60,7 +60,7 @@
 On an edge box, while the sign-in context reports `users_ready: false`, the sign-in page SHALL show a waiting screen instead of the sign-in form. The screen SHALL say "Esperando a que lleguen los usuarios desde la nube…" and SHALL give guidance that depends on `sync`:
 - `waiting`: the users arrive within a minute or two; if it takes longer, check that a box user exists in the cloud under Usuarios
 - `offline`: the box has no internet connection; check the network
-- `failed`: the box could not receive the data from the cloud; contact support
+- `failed`: the box could not receive the data from the cloud; contact support, and the logs are in `C:\kuentapos\logs`
 - `replaced` or `suspended`: the same reason the POS already shows for that state
 
 The page SHALL check the context again at most every 5 seconds and SHALL switch to the form by itself when `users_ready` becomes `true`. The waiting screen SHALL offer a link that shows the form anyway.
@@ -75,7 +75,8 @@ The page SHALL show the form when `users_ready` is `true`, when the response has
 #### Scenario: Pull failing on a fresh box
 
 - **WHEN** the context reports `users_ready: false` and `sync: "failed"`
-- **THEN** the waiting screen says the box could not receive the data from the cloud, not that the password is wrong and not that there is no internet
+- **THEN** the waiting screen says the box could not receive the data from the cloud, tells the person to contact support, and names `C:\kuentapos\logs`
+- **AND** it does not say that the password is wrong or that there is no internet
 
 #### Scenario: Box with users goes offline
 

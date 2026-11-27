@@ -23,5 +23,5 @@ A freshly installed box shows the sign-in form before any user has reached it fr
 
 - `backend/`: the sign-in context service and handler, the edge sync scheduler and status tracker (failure kind), the pull service (marks apply failures), a user repository `EXISTS` query. Docs: `docs/api/auth.md` (Sign-In Context).
 - `frontend/`: `lib/signIn.ts` (parsing), `components/auth/SignInForm.tsx` (waiting screen and polling).
-- Depends on the separate fix that gives the box its organizations row. Without it the box still never gets users; with this change the page says the pull is failing instead of looking like a wrong password.
+- Depends on PR #88, which ensures the box's organizations row at edge-node startup (in `bootstrap.Main`, after migrations). With #88, a new box gets its users and `/api/auth/context` no longer returns `500`. Without it the box still never gets users; with this change the page says the pull is failing instead of looking like a wrong password.
 - Trust boundary: this touches a **public, unauthenticated endpoint** on the box (LAN-reachable through Caddy). It adds a boolean and a five-value enum, and no counts, usernames, error text or cloud details. It touches no auth decision: sign-in itself is unchanged.

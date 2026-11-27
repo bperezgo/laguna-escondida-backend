@@ -6,7 +6,7 @@ The box's sign-in page (`frontend/app/signin/page.tsx` → `components/auth/Sign
 
 So a pull that reached the cloud but could not be applied on the box looks the same as no internet.
 
-`PullChanges` (`sync_pull_service.go:46`) has a clear seam. The fetch fails with `"pull from cloud: %w"`, while the upserts fail inside the apply transaction (`"upsert users: %w"`, …). On the owner's test box every pull failed in that apply step on `users_organization_id_fkey`, because the box has no row for its organization. That bug is fixed in a separate change. The same missing row also makes `SignInContext` return `500` today, since it loads the organization first.
+`PullChanges` (`sync_pull_service.go:46`) has a clear seam. The fetch fails with `"pull from cloud: %w"`, while the upserts fail inside the apply transaction (`"upsert users: %w"`, …). On the owner's test box every pull failed in that apply step on `users_organization_id_fkey`, because the box has no row for its organization. That bug is fixed by PR #88, which ensures the row at edge-node startup in `bootstrap.Main`, after migrations. Before #88 the missing row also made `SignInContext` return `500`, since it loads the organization first. With #88 that no longer happens on a new box.
 
 `GET /api/edge/status` is also public. It already reports `online` and `sync_blocked`, but it is not on the sign-in page's path, and it carries outbox counts that the sign-in page does not need.
 
@@ -19,7 +19,7 @@ So a pull that reached the cloud but could not be applied on the box looks the s
 
 **Non-Goals:**
 - Showing progress after the first user: later users and password changes keep arriving silently.
-- Fixing the missing organization row (separate change).
+- Fixing the missing organization row (PR #88, a dependency).
 - Telling the cloud's Instalar caja page that the box got its users. That is a possible follow-up.
 - Changing `GET /api/edge/status` or the sign-in endpoint.
 
@@ -53,7 +53,7 @@ The service gets the tracker's state through a small port (`ports.SyncStateReade
 
 ### D4. A missing organization no longer fails the context
 
-`SignInContext` computes `users_ready` and `sync` first. If loading the organization fails, it logs the error and returns them with no `organization`. The page then still shows the waiting screen with `failed`, instead of falling back to a form that cannot work. A box without its organization row cannot be pulling successfully, so `sync` will be `failed`.
+`SignInContext` computes `users_ready` and `sync` first. If loading the organization fails, it logs the error and returns them with no `organization`. The page then still shows the waiting screen with `failed`, instead of falling back to a form that cannot work. With PR #88 this should not happen on a new box. It remains a defensive path, for example if the startup ensure fails: a box without its organization row cannot be pulling successfully, so `sync` will be `failed`.
 
 ### D5. The page waits, polls, and fails open
 
@@ -63,7 +63,7 @@ The service gets the tracker's state through a small port (`ports.SyncStateReade
 - Texts (es-CO):
   - `waiting`: "Los usuarios llegan en uno o dos minutos. Si tarda más, revisa en la nube, en Usuarios, que exista el usuario de la caja."
   - `offline`: "La caja no tiene conexión a internet. Revisa la red; los usuarios llegarán cuando vuelva."
-  - `failed`: "La caja no pudo recibir los datos de la nube. Contacta a soporte."
+  - `failed`: "La caja no pudo recibir los datos de la nube. Contacta a soporte; los registros están en C:\kuentapos\logs."
   - `replaced` and `suspended`: the existing `lib/edge/syncBlocked.ts` messages
 
 ## Security
@@ -97,4 +97,4 @@ No data migration. The cloud response is unchanged. An older box keeps answering
 
 ## Open Questions
 
-- Should `failed` point to the logs folder (`C:\kuentapos\logs`) as well as support? It's left as "contact support" for now, since the owner is not expected to read logs.
+(none)
