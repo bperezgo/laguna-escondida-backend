@@ -170,6 +170,7 @@ function Assert-Samples([string] $when) {
   foreach ($c in ($cmds | Sort-Object Pid -Unique)) { Write-Host "  cmd.exe $($c.Pid) parent $($c.ParentPid): $($c.Cmd)" }
   Assert (-not @($cmds | Where-Object { $setupPids -contains $_.ParentPid })) "$when : setup started no cmd.exe"
   if ([Environment]::UserInteractive) {
+    foreach ($v in ($s | Where-Object { $_.Visible } | Sort-Object Pid -Unique)) { Write-Host "  visible window: $($v.Name) $($v.Pid) parent $($v.ParentPid): $($v.Cmd)" }
     Assert (-not @($s | Where-Object { $_.Visible })) "$when : no window of setup's processes was visible"
   } else { Write-Host '  no desktop: visibility not checked' -ForegroundColor Yellow }
   foreach ($secret in $script:Secrets) {
