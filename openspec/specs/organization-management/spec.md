@@ -9,9 +9,9 @@ Lets the platform operator create and maintain the organizations (restaurants) t
 
 An organization SHALL have:
 - an id (UUID), a `name`, and a `slug` that is unique across organizations
-- a `status` of `trial`, `active` or `suspended`
+- a `status` of `pending`, `trial`, `active` or `suspended`
 - a `plan` of `starter`, `einvoicing` or `full` (see `organization-plans`)
-- a `trial_ends_at` timestamp, set when the status is `trial` and otherwise optional
+- a `trial_ends_at` timestamp, set when the status is `trial`, unset when it is `pending`, and otherwise optional
 - `timezone`, `country`, `locale` and `currency`
 - optional business info: `legal_name`, `nit`, `address`, `phone`
 - optional receipt text: `ticket_footer`, `ticket_legal_notice`
@@ -30,14 +30,20 @@ An organization SHALL have:
 - **WHEN** the migration that adds `settings` has run on a database with existing organizations
 - **THEN** each of them reads as delivery and takeaway not paused, with empty schedules
 
+#### Scenario: Pending organization has no trial end
+
+- **WHEN** an organization is stored with status `pending` and a `trial_ends_at`
+- **THEN** the database refuses it
+
 ### Requirement: Organization fields are validated
 
 Every create and update SHALL validate each field it sets and reject the whole request with a validation error, storing nothing, when any field is invalid:
 - `name`: not empty after trimming, at most 255 characters
 - `slug`: matches `^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$` (3–40 lowercase letters, digits or hyphens, with no leading or trailing hyphen)
-- `status`: `trial`, `active` or `suspended`; `trial` only together with a `trial_ends_at`, sent or already stored
+- `status`: `trial`, `active` or `suspended`; `trial` only together with a `trial_ends_at`, sent or already stored. `pending` SHALL NOT be accepted on a create or an update: only signup creates it.
+- `status` on a `pending` organization: only `active` or `suspended`; moving it to `trial` is done by start-trial (see `organization-plans`)
+- `trial_ends_at`: an RFC 3339 timestamp, and not accepted while the organization stays `pending`
 - `plan`: `starter`, `einvoicing` or `full`
-- `trial_ends_at`: an RFC 3339 timestamp
 - `timezone`: a valid IANA time zone name
 - `country`: two uppercase letters (ISO 3166-1 alpha-2)
 - `locale`: a language and region tag of the form `ll-RR`
@@ -67,6 +73,21 @@ Every create and update SHALL validate each field it sets and reject the whole r
 
 - **WHEN** an organization is updated with `plan` `premium`
 - **THEN** the request fails with a validation error
+
+#### Scenario: Patching a pending organization into a trial
+
+- **WHEN** the operator patches `{"status": "trial", "trial_ends_at": "2026-12-31T23:59:59-05:00"}` on a `pending` organization
+- **THEN** the request fails with a validation error on `status` and the organization stays `pending`
+
+#### Scenario: Setting pending by hand
+
+- **WHEN** the operator patches `{"status": "pending"}` on an `active` organization, or creates one with status `pending`
+- **THEN** the request fails with a validation error on `status` and nothing changes
+
+#### Scenario: Changing a pending organization's plan
+
+- **WHEN** the operator patches `{"plan": "full"}` on a `pending` organization
+- **THEN** it stays `pending` with plan `full`
 
 ### Requirement: The platform operator creates an organization
 
@@ -99,12 +120,22 @@ Every create and update SHALL validate each field it sets and reject the whole r
 
 ### Requirement: The platform operator lists and reads organizations
 
-`GET /api/platform/organizations` SHALL return every organization (active and suspended), ordered by name, each with its e-invoicing prefixes or `null` and its `settings`. `GET /api/platform/organizations/:id` SHALL return one organization in the same shape, or `404` when no organization has that id.
+`GET /api/platform/organizations` SHALL return every organization, whatever its status, ordered by name, each with its e-invoicing prefixes or `null` and its `settings`. An optional `status` query parameter SHALL keep only the organizations with that status; an unknown value SHALL answer `400` naming `status`. `GET /api/platform/organizations/:id` SHALL return one organization in the same shape, or `404` when no organization has that id.
 
 #### Scenario: List includes suspended organizations
 
 - **WHEN** one organization is active and another is suspended
 - **THEN** the list returns both, ordered by name, each with its status
+
+#### Scenario: Signups waiting for approval
+
+- **WHEN** two organizations are `pending` and Laguna is `active`, and the operator calls `GET /api/platform/organizations?status=pending`
+- **THEN** the list returns the two pending organizations only, each with its plan and `created_at`
+
+#### Scenario: Unknown status filter
+
+- **WHEN** the operator calls `GET /api/platform/organizations?status=waiting`
+- **THEN** the response is `400` with `field` `status`
 
 #### Scenario: Unknown id
 

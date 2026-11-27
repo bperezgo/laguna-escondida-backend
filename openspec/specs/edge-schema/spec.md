@@ -21,7 +21,7 @@ The edge box SHALL NOT serve any endpoint for expenses, expense categories, purc
 - **THEN** the cloud creates the expense as before
 
 ### Requirement: The box is read-only for data the cloud owns
-The box SHALL serve reads of products, product categories, product ingredients, side-dish options, product responsibilities, users and roles. It SHALL serve sign-in and `/api/auth/me`. It SHALL NOT serve any endpoint that creates, updates, deletes or bulk-creates products, ingredients, side-dish settings or product responsibilities. It SHALL NOT serve any endpoint that creates, updates, deletes or resets the password of a user, including the admin-key user bootstrap. A request to one of those write endpoints on the box SHALL get `404 Not Found`. The box SHALL get these records only from the cloud's pull.
+The box SHALL serve reads of products, product categories, product ingredients, plate option slots, product responsibilities, users and roles. It SHALL serve sign-in and `/api/auth/me`. It SHALL NOT serve any endpoint that creates, updates, deletes or bulk-creates products, ingredients, plate option slots or product responsibilities. It SHALL NOT serve any endpoint that creates, updates, deletes or resets the password of a user, including the admin-key user bootstrap. A request to one of those write endpoints on the box SHALL get `404 Not Found`. The box SHALL get these records only from the cloud's pull.
 
 #### Scenario: Reading the catalog on the box
 - **WHEN** a signed-in server sends `GET /api/products` to the box
@@ -30,6 +30,10 @@ The box SHALL serve reads of products, product categories, product ingredients, 
 #### Scenario: Editing a product on the box
 - **WHEN** a signed-in admin sends `PUT /api/products/:id` to the box
 - **THEN** the box responds `404 Not Found` and the product is unchanged
+
+#### Scenario: Editing a plate's option slots on the box
+- **WHEN** a signed-in admin sends `PUT /api/products/:id/option-slots` to the box
+- **THEN** the box responds `404 Not Found` and the plate's slots are unchanged
 
 #### Scenario: Creating a user on the box
 - **WHEN** an admin sends `POST /api/admin/users` or the admin-key `POST /api/users` to the box
