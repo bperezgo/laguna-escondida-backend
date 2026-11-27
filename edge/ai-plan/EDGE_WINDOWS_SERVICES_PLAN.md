@@ -131,10 +131,10 @@ mislabels a server-only value.
 
 | Service id | Runs | Binds | Depends on | Notes |
 |---|---|---|---|---|
-| `laguna-postgres` | portable/installed Postgres 16 | 127.0.0.1:5432 | — | data dir persisted |
-| `laguna-edge-node` | `edge-node.exe` (Go backend) | 127.0.0.1:8080 | postgres | `APP_MODE=edge`; migrations auto-run; printing built in |
-| `laguna-next` | bundled `node.exe server.js` | 127.0.0.1:3000 | edge-node | Next standalone bundle |
-| `laguna-caddy` | `caddy.exe` | **:443 / :80 (LAN)** | next | only LAN-exposed service; internal-CA TLS |
+| `kuentapos-postgres` | portable/installed Postgres 16 | 127.0.0.1:5432 | — | data dir persisted |
+| `kuentapos-edge-node` | `edge-node.exe` (Go backend) | 127.0.0.1:8080 | postgres | `APP_MODE=edge`; migrations auto-run; printing built in |
+| `kuentapos-next` | bundled `node.exe server.js` | 127.0.0.1:3000 | edge-node | Next standalone bundle |
+| `kuentapos-caddy` | `caddy.exe` | **:443 / :80 (LAN)** | next | only LAN-exposed service; internal-CA TLS |
 
 Boot order: **Postgres → edge-node → next → caddy**. Everything but Caddy binds `127.0.0.1`.
 
@@ -229,7 +229,7 @@ final install location** (don't build then move `artifacts\next`).
 - [x] `init-postgres.ps1` inits the cluster, creates role `laguna` + db `laguna_escondida`,
       prints the random superuser password once. Verified: the `laguna` role connects over TCP
       to its db and can create/insert/select/drop (exit 0).
-- [x] `services/postgres.xml` serves `artifacts\postgres\data` as `laguna-postgres`
+- [x] `services/postgres.xml` serves `artifacts\postgres\data` as `kuentapos-postgres`
       (`postgres.exe -D ...\data -h 127.0.0.1 -p 5432`); edge-node `<depend>`s on it.
 - [ ] Operator: set `DB_PASSWORD` in `env\edge-node.env` to the password passed to
       `init-postgres.ps1` (other `DB_*` already match the script defaults).
@@ -271,7 +271,7 @@ fails fast instead of hanging on a prompt with no TTY.
 - [x] Fixed `install.ps1` firewall default `192.168.10.0/24` → **`192.168.101.0/24`** to match
       the Caddyfile `@notlan` guard and this LAN.
 - [x] **`scripts\install.ps1` (elevated) brings all four up as services.** Verified end state:
-      `laguna-postgres` (NetworkService) / `laguna-edge-node` / `laguna-next` / `laguna-caddy` all
+      `kuentapos-postgres` (NetworkService) / `kuentapos-edge-node` / `kuentapos-next` / `kuentapos-caddy` all
       **Running**; ports 5432/8080/3000/443 listening; postgres serving real queries; edge-node
       migrations clean + cloud-sync pull returns 200. HTTPS over the internal CA verified:
       `GET https://192.168.101.49/` → 307 (auth redirect), `GET …/api/products` → 401
@@ -307,7 +307,7 @@ by `services\postgres.xml` + `scripts\install.ps1`, so a fresh box just works �
 
 > NB: `artifacts\next` was built in place, and pnpm junctions store **absolute** targets — keep
 > the repo at `C:\Users\USER\dev\laguna-escondida-edge` (do not move it after build, or rebuild
-> `next` at the new location). Caddy stores its CA at `C:\laguna-edge\caddy-data` (created on
+> `next` at the new location). Caddy stores its CA at `C:\kuentapos\caddy-data` (created on
 > first run; independent of repo location — back this dir up, §Phase 5).
 
 ### Phase 5 — Harden for the business install

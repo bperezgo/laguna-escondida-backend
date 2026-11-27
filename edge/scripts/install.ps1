@@ -1,6 +1,6 @@
 #requires -RunAsAdministrator
 <#
-  install.ps1 — register the Laguna Escondida edge appliance as Windows services
+  install.ps1 — register the Kuenta edge appliance as Windows services
   and lock down the firewall.
 
   Run from an ELEVATED PowerShell (Run as Administrator):
@@ -112,7 +112,7 @@ New-Item -ItemType Directory -Force -Path (Split-Path $EnvDst) | Out-Null
 Copy-Item $EnvSrc $EnvDst -Force
 Write-Host "Staged edge-node config -> $EnvDst"
 
-# --- 1c. Grant NetworkService (S-1-5-20) what laguna-postgres needs ---------------
+# --- 1c. Grant NetworkService (S-1-5-20) what kuentapos-postgres needs ---------------
 # postgres.exe refuses privileged accounts. SIDs, not names, so non-English Windows works.
 $PgDir = Join-Path $Root 'artifacts\postgres'
 if (Test-Path $PgDir) {
@@ -218,9 +218,9 @@ $order = 'postgres','edge-node','next','caddy'
 if ($InstallAlloy) { $order = @('alloy') + $order }
 
 # On a re-run, stop everything first, dependents before what they depend on: SCM refuses to
-# stop laguna-postgres while laguna-edge-node is running, which left postgres.exe locked.
+# stop kuentapos-postgres while kuentapos-edge-node is running, which left postgres.exe locked.
 foreach ($name in 'caddy','next','edge-node','postgres','alloy') {
-  $svcId = "laguna-$name"
+  $svcId = "kuentapos-$name"
   if (-not (Get-CimInstance Win32_Service -Filter "Name='$svcId'" -ErrorAction SilentlyContinue)) { continue }
   Write-Host "Stopping $svcId before reinstall"
   & sc.exe stop $svcId | Out-Null
@@ -232,7 +232,7 @@ foreach ($name in $order) {
   $xml = Join-Path $Services "$name.xml"
   if (-not (Test-Path $xml)) { throw "Missing service definition: $xml" }
   $exe   = Join-Path $Services "$name.exe"
-  $svcId = "laguna-$name"
+  $svcId = "kuentapos-$name"
   # Remove any existing registration via sc.exe, which works even if the wrapper exe is gone.
   if (Get-CimInstance Win32_Service -Filter "Name='$svcId'" -ErrorAction SilentlyContinue) {
     Write-Host "Service $svcId already exists; removing before reinstall"
@@ -254,18 +254,18 @@ foreach ($name in $order) {
   & $exe install | Out-Host
 }
 
-# --- 2b. Run laguna-postgres as NetworkService -------------------------------------
+# --- 2b. Run kuentapos-postgres as NetworkService -------------------------------------
 # WinSW 2.x ignores <serviceaccount> for built-in accounts, and sc.exe config hits error 1639
 # from PowerShell, so use Win32_Service.Change().
-Write-Host "Setting laguna-postgres logon account -> NT AUTHORITY\NetworkService"
-$pgSvc = Get-CimInstance Win32_Service -Filter "Name='laguna-postgres'"
-if (-not $pgSvc) { throw "laguna-postgres service not found after install." }
+Write-Host "Setting kuentapos-postgres logon account -> NT AUTHORITY\NetworkService"
+$pgSvc = Get-CimInstance Win32_Service -Filter "Name='kuentapos-postgres'"
+if (-not $pgSvc) { throw "kuentapos-postgres service not found after install." }
 $chg = Invoke-CimMethod -InputObject $pgSvc -MethodName Change -Arguments @{
   StartName     = 'NT AUTHORITY\NetworkService'
   StartPassword = ''
 }
 if ($chg.ReturnValue -ne 0) {
-  throw "Failed to set laguna-postgres logon account (Win32_Service.Change returned $($chg.ReturnValue))."
+  throw "Failed to set kuentapos-postgres logon account (Win32_Service.Change returned $($chg.ReturnValue))."
 }
 
 # --- 3. Start services ------------------------------------------------------------
@@ -276,41 +276,41 @@ foreach ($name in $order) {
 
 # --- 3b. Verify Caddy came up (an unresolved {$...} placeholder crash-loops it) -----
 Start-Sleep -Seconds 3
-$caddyState = (Get-Service laguna-caddy -ErrorAction SilentlyContinue).Status
+$caddyState = (Get-Service kuentapos-caddy -ErrorAction SilentlyContinue).Status
 if ($caddyState -ne 'Running') {
   $logTail = ''
   $errLog = Join-Path $Logs 'caddy.err.log'
   if (Test-Path $errLog) { $logTail = (Get-Content $errLog -Tail 15) -join "`n" }
-  throw ("laguna-caddy is '$caddyState', not Running. The Caddyfile {`$EDGE_SITE_ADDR}/{`$EDGE_LAN_CIDR} " +
+  throw ("kuentapos-caddy is '$caddyState', not Running. The Caddyfile {`$EDGE_SITE_ADDR}/{`$EDGE_LAN_CIDR} " +
          "placeholders likely didn't resolve. Confirm the machine env vars, then re-run.`n--- caddy.err.log ---`n$logTail")
 }
-Write-Host "laguna-caddy is Running."
+Write-Host "kuentapos-caddy is Running."
 
 # --- 3c. Verify the telemetry sidecar --------------------------------------------
 # Warn, don't throw: a broken sidecar must never fail an otherwise working install.
 if ($InstallAlloy) {
   Start-Sleep -Seconds 3
-  $alloyState = (Get-Service laguna-alloy -ErrorAction SilentlyContinue).Status
+  $alloyState = (Get-Service kuentapos-alloy -ErrorAction SilentlyContinue).Status
   if ($alloyState -ne 'Running') {
     $logTail = ''
     $errLog = Join-Path $Logs 'alloy.err.log'
     if (Test-Path $errLog) { $logTail = (Get-Content $errLog -Tail 15) -join "`n" }
-    Write-Warning "laguna-alloy is '$alloyState', not Running. Telemetry will not reach the cloud; the POS is unaffected.`n--- alloy.err.log ---`n$logTail"
+    Write-Warning "kuentapos-alloy is '$alloyState', not Running. Telemetry will not reach the cloud; the POS is unaffected.`n--- alloy.err.log ---`n$logTail"
   } else {
     $otlpPorts = 4317, 4318
     $missing = @($otlpPorts | Where-Object {
       -not (Get-NetTCPConnection -State Listen -LocalPort $_ -ErrorAction SilentlyContinue)
     })
     if ($missing) {
-      Write-Warning "laguna-alloy is Running but not listening on: $($missing -join ', '). Check logs\alloy.err.log."
+      Write-Warning "kuentapos-alloy is Running but not listening on: $($missing -join ', '). Check logs\alloy.err.log."
     } else {
-      Write-Host "laguna-alloy is Running and listening on 127.0.0.1:4317 / :4318."
+      Write-Host "kuentapos-alloy is Running and listening on 127.0.0.1:4317 / :4318."
     }
   }
 }
 
 # --- 3d. Updater task: scripts\updater.ps1 as SYSTEM every minute (docs\UPDATE_PROTOCOL.md) ---
-$UpdaterTask = 'Laguna Updater'
+$UpdaterTask = 'Kuenta Updater'
 $action    = New-ScheduledTaskAction -Execute 'powershell.exe' `
   -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$PSScriptRoot\updater.ps1`""
 $trigger   = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 1)
@@ -323,7 +323,7 @@ Register-ScheduledTask -TaskName $UpdaterTask -Action $action -Trigger $trigger 
 Write-Host "Registered scheduled task '$UpdaterTask' (offers updates in the POS, installs them on request)."
 
 # --- 4. Windows Firewall: allow :443/:80 ONLY from known tablet IPs ----------------
-$ruleName = 'Laguna POS - Caddy (LAN tablets)'
+$ruleName = 'Kuenta - Caddy (LAN tablets)'
 Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue | Remove-NetFirewallRule
 New-NetFirewallRule -DisplayName $ruleName `
   -Direction Inbound -Action Allow -Protocol TCP `
@@ -332,9 +332,9 @@ Write-Host "Firewall rule set. Allowed: $($AllowedTabletIPs -join ', ')"
 
 # --- 5. Export Caddy's internal root CA and trust it on this box --------------------
 # Caddy writes the root on its first cert, so poll. $CaddyData must match the Caddyfile storage root.
-$CaddyData  = 'C:\laguna-edge\caddy-data'
+$CaddyData  = 'C:\kuentapos\caddy-data'
 $RootCrt    = Join-Path $CaddyData 'pki\authorities\local\root.crt'
-$RootExport = 'C:\laguna-edge\laguna-root-ca.crt'
+$RootExport = 'C:\kuentapos\kuentapos-root-ca.crt'
 $deadline   = (Get-Date).AddSeconds(30)
 while (-not (Test-Path $RootCrt) -and (Get-Date) -lt $deadline) { Start-Sleep -Seconds 2 }
 if (Test-Path $RootCrt) {
@@ -352,7 +352,7 @@ $primaryHost = if ($LanHost) { ($LanHost -split ',')[0].Trim() } else { $LanIp }
 $altNote     = if ($LanHost) { " (or https://$LanIp)" } else { "" }
 Write-Host "Done. Next steps:"
 Write-Host "  - Dev PCs / tablets: install $RootExport as a Trusted Root CA, then open https://$primaryHost$altNote"
-Write-Host "      Windows client:  Import-Certificate -FilePath laguna-root-ca.crt -CertStoreLocation Cert:\LocalMachine\Root"
+Write-Host "      Windows client:  Import-Certificate -FilePath kuentapos-root-ca.crt -CertStoreLocation Cert:\LocalMachine\Root"
 Write-Host "  - See provisioning\README.md and certs\README.md"
 if ($InstallAlloy) {
   Write-Host "  - Telemetry: set OBSERVABILITY_ENABLED=true and OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4317"

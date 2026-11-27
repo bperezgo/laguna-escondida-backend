@@ -38,7 +38,7 @@ $free = (Get-PSDrive -Name $Drive.TrimEnd(':') -PSProvider FileSystem).Free
 if ($free -lt $MinFreeBytes) { Stop-With 12 'disk' "$([math]::Round($free / 1GB, 1)) GB free" }
 
 # 4. Ports, ignoring the appliance's own services (a repair runs with them up).
-$ownPids = @(Get-CimInstance Win32_Service -Filter "Name LIKE 'laguna-%'" | Where-Object ProcessId | ForEach-Object ProcessId)
+$ownPids = @(Get-CimInstance Win32_Service -Filter "Name LIKE 'kuentapos-%'" | Where-Object ProcessId | ForEach-Object ProcessId)
 # winsw wrappers own a child process; include the children of our service wrappers too.
 $ownPids += @(Get-CimInstance Win32_Process | Where-Object { $ownPids -contains $_.ParentProcessId } | ForEach-Object ProcessId)
 $busy = Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |

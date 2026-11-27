@@ -10,7 +10,7 @@ The install root also inherits the permissions of `C:\`. On that test PC, `NT AU
 - The Windows service ids become `kuentapos-postgres`, `kuentapos-edge-node`, `kuentapos-next`, `kuentapos-caddy` and `kuentapos-alloy`, with display names "Kuenta - …".
 - The scheduled task becomes "Kuenta Updater", the firewall rule "Kuenta - Caddy (LAN tablets)", and the CA export `kuentapos-root-ca.crt`.
 - Every script, the service definitions, the `Caddyfile`, the Alloy defaults, the installer and its messages, CI and the docs use the new root and names.
-- Before it copies any file, the installer makes Administrators the owner of the install root. It gives full control only to Administrators and SYSTEM and read and execute to Users, with no inheritance from `C:\`. It also clears program folders a non-admin may have pre-created. The grants a box needs (NetworkService for Postgres and logs, the restricted `env\`) still apply.
+- Before it copies any file, the installer makes Administrators the owner of the install root. It gives full control only to Administrators and SYSTEM and read and execute to Users, with no inheritance from `C:\`. It also empties a root a non-admin may have pre-created, and keeps `caddy-data\` (the tablets' CA key) restricted like `env\`. The grants a box needs (NetworkService for Postgres and logs, the restricted `env\`) still apply.
 - Not changing: the database name `laguna_escondida`, the DB role `laguna`, the repository name, and the updater mutex name. None of these is visible on the PC.
 
 ## Capabilities

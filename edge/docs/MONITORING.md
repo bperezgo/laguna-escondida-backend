@@ -5,7 +5,7 @@
 schedule so the box tells you when something breaks — important because there's no one watching
 it at the restaurant.
 
-> Install root `C:\laguna-edge`, LAN IP `192.168.0.123` (this box's `EDGE_LAN_IP` from
+> Install root `C:\kuentapos`, LAN IP `192.168.0.123` (this box's `EDGE_LAN_IP` from
 > `env\box.env`). All commands are PowerShell on the box.
 
 ---
@@ -13,11 +13,11 @@ it at the restaurant.
 ## 1. Service health at a glance
 
 ```powershell
-Get-Service laguna-* | Sort-Object Name | Format-Table Name, Status, StartType
+Get-Service kuentapos-* | Sort-Object Name | Format-Table Name, Status, StartType
 ```
 
 All services have `onfailure action="restart" delay="10 sec"` in their WinSW XML, so a
-crashed process is auto-restarted. (`laguna-alloy`, the telemetry sidecar, only exists on
+crashed process is auto-restarted. (`kuentapos-alloy`, the telemetry sidecar, only exists on
 boxes where telemetry is enabled — see [`TELEMETRY_RUNBOOK.md`](TELEMETRY_RUNBOOK.md).) A service that keeps **flapping** (restarting in a loop) is
 the thing to catch — you'll see it as repeated start/stop lines in the wrapper log (§2) and a
 recent `StartTime`:
@@ -35,7 +35,7 @@ Get-CimInstance Win32_Service -Filter "Name like 'laguna-%'" |
 
 ## 2. Logs — where they are and how to read them
 
-WinSW writes per-service logs into `C:\laguna-edge\logs\`, rolling by size. Caps differ:
+WinSW writes per-service logs into `C:\kuentapos\logs\`, rolling by size. Caps differ:
 postgres/next/caddy keep **8 × 10 MB** per stream; edge-node and alloy keep **4 × 5 MB**,
 because those two ship their logs to the cloud and the on-box copy is only an offline tail.
 Either way the total is bounded — WinSW deletes the oldest file past `keepFiles`.
@@ -50,20 +50,20 @@ File base name = the service's wrapper name:
 where `<svc>` ∈ `postgres`, `edge-node`, `next`, `caddy`, `alloy`. Confirm the actual names once:
 
 ```powershell
-Get-ChildItem C:\laguna-edge\logs | Sort-Object LastWriteTime -Desc | Format-Table Name, Length, LastWriteTime
+Get-ChildItem C:\kuentapos\logs | Sort-Object LastWriteTime -Desc | Format-Table Name, Length, LastWriteTime
 ```
 
 **Live tail** a log (Ctrl+C to stop):
 
 ```powershell
-Get-Content C:\laguna-edge\logs\edge-node.out.log -Wait -Tail 30
-Get-Content C:\laguna-edge\logs\caddy.err.log     -Wait -Tail 30
+Get-Content C:\kuentapos\logs\edge-node.out.log -Wait -Tail 30
+Get-Content C:\kuentapos\logs\caddy.err.log     -Wait -Tail 30
 ```
 
 **Scan all error logs for recent problems:**
 
 ```powershell
-Get-ChildItem C:\laguna-edge\logs\*.err.log |
+Get-ChildItem C:\kuentapos\logs\*.err.log |
   ForEach-Object { Select-String -Path $_ -Pattern 'error|fatal|panic|denied|refused' -SimpleMatch } |
   Select-Object -Last 40 Path, LineNumber, Line
 ```
@@ -103,10 +103,10 @@ Three dirs grow or must never be lost. Postgres data growing unbounded, or the s
 filling, will take the box down.
 
 ```powershell
-"{0,-16} {1,8:N1} MB" -f 'logs',       ((Get-ChildItem C:\laguna-edge\logs       -Recurse | Measure-Object Length -Sum).Sum/1MB)
-"{0,-16} {1,8:N1} MB" -f 'alloy-buffer',((Get-ChildItem C:\laguna-edge\alloy-data -Recurse -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum/1MB)
-"{0,-16} {1,8:N1} MB" -f 'postgres-data',((Get-ChildItem C:\laguna-edge\artifacts\postgres\data -Recurse | Measure-Object Length -Sum).Sum/1MB)
-"{0,-16} {1,8:N1} MB" -f 'caddy-data',  ((Get-ChildItem C:\laguna-edge\caddy-data -Recurse | Measure-Object Length -Sum).Sum/1MB)
+"{0,-16} {1,8:N1} MB" -f 'logs',       ((Get-ChildItem C:\kuentapos\logs       -Recurse | Measure-Object Length -Sum).Sum/1MB)
+"{0,-16} {1,8:N1} MB" -f 'alloy-buffer',((Get-ChildItem C:\kuentapos\alloy-data -Recurse -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum/1MB)
+"{0,-16} {1,8:N1} MB" -f 'postgres-data',((Get-ChildItem C:\kuentapos\artifacts\postgres\data -Recurse | Measure-Object Length -Sum).Sum/1MB)
+"{0,-16} {1,8:N1} MB" -f 'caddy-data',  ((Get-ChildItem C:\kuentapos\caddy-data -Recurse | Measure-Object Length -Sum).Sum/1MB)
 Get-PSDrive C | Select-Object Used, Free
 ```
 
@@ -128,7 +128,7 @@ If `CLOUD_SYNC_URL` is set, edge-node pushes/pulls on a cron (default every minu
 log for sync results:
 
 ```powershell
-Select-String -Path C:\laguna-edge\logs\edge-node.out.log -Pattern 'sync' -SimpleMatch | Select-Object -Last 20
+Select-String -Path C:\kuentapos\logs\edge-node.out.log -Pattern 'sync' -SimpleMatch | Select-Object -Last 20
 ```
 
 > **Known issue (non-blocking):** the PULL leg can fail with
@@ -144,7 +144,7 @@ Drop this script on the box and run it from Task Scheduler every few minutes. It
 heartbeat line and only shouts (event log) when something is actually wrong — so the box is
 self-reporting even though nobody's watching it.
 
-Save as `C:\laguna-edge\scripts\healthcheck.ps1`:
+Save as `C:\kuentapos\scripts\healthcheck.ps1`:
 
 ```powershell
 $ErrorActionPreference = 'SilentlyContinue'
@@ -152,13 +152,13 @@ $stamp  = Get-Date -Format 's'
 $bad    = @()
 
 # 1. all services Running?
-foreach ($s in 'laguna-postgres','laguna-edge-node','laguna-next','laguna-caddy') {
+foreach ($s in 'kuentapos-postgres','kuentapos-edge-node','kuentapos-next','kuentapos-caddy') {
   if ((Get-Service $s).Status -ne 'Running') { $bad += "$s not Running" }
 }
 # Telemetry sidecar: only check it on boxes where it is installed. Its being down is not
 # a POS outage, so it is reported but must not be treated as one.
-if (Get-Service laguna-alloy -ErrorAction SilentlyContinue) {
-  if ((Get-Service laguna-alloy).Status -ne 'Running') { $bad += "laguna-alloy not Running (telemetry only)" }
+if (Get-Service kuentapos-alloy -ErrorAction SilentlyContinue) {
+  if ((Get-Service kuentapos-alloy).Status -ne 'Running') { $bad += "kuentapos-alloy not Running (telemetry only)" }
 }
 # 2. edge path answers 200 on /signin?
 $code = (curl.exe -k -s -o NUL -w "%{http_code}" https://192.168.0.123/signin)
@@ -168,7 +168,7 @@ $free = (Get-PSDrive C).Free / 1GB
 if ($free -lt 2) { $bad += ("C: free {0:N1} GB" -f $free) }
 
 $line = if ($bad) { "$stamp UNHEALTHY: $($bad -join '; ')" } else { "$stamp OK" }
-Add-Content C:\laguna-edge\logs\healthcheck.log $line
+Add-Content C:\kuentapos\logs\healthcheck.log $line
 if ($bad) {
   # Surface to the Windows event log so it's visible in Event Viewer / any monitoring agent.
   Write-EventLog -LogName Application -Source 'Laguna POS' -EventId 9001 -EntryType Warning `
@@ -183,7 +183,7 @@ Register it (one-time, elevated):
 New-EventLog -LogName Application -Source 'Laguna POS' -ErrorAction SilentlyContinue
 
 $action  = New-ScheduledTaskAction -Execute 'powershell.exe' `
-  -Argument '-NoProfile -ExecutionPolicy Bypass -File C:\laguna-edge\scripts\healthcheck.ps1'
+  -Argument '-NoProfile -ExecutionPolicy Bypass -File C:\kuentapos\scripts\healthcheck.ps1'
 $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) `
   -RepetitionInterval (New-TimeSpan -Minutes 5)
 Register-ScheduledTask -TaskName 'Laguna POS Healthcheck' -Action $action -Trigger $trigger `
@@ -193,7 +193,7 @@ Register-ScheduledTask -TaskName 'Laguna POS Healthcheck' -Action $action -Trigg
 Read the heartbeat any time:
 
 ```powershell
-Get-Content C:\laguna-edge\logs\healthcheck.log -Tail 20
+Get-Content C:\kuentapos\logs\healthcheck.log -Tail 20
 ```
 
 ---
@@ -204,8 +204,8 @@ Editing the `Caddyfile` (e.g. tweaking the redirect fix or headers) doesn't need
 restart — reload in place so existing connections aren't dropped:
 
 ```powershell
-& C:\laguna-edge\artifacts\caddy\caddy.exe validate --config C:\laguna-edge\Caddyfile --adapter caddyfile
-& C:\laguna-edge\artifacts\caddy\caddy.exe reload   --config C:\laguna-edge\Caddyfile --adapter caddyfile
+& C:\kuentapos\artifacts\caddy\caddy.exe validate --config C:\kuentapos\Caddyfile --adapter caddyfile
+& C:\kuentapos\artifacts\caddy\caddy.exe reload   --config C:\kuentapos\Caddyfile --adapter caddyfile
 ```
 
 `validate` first — a reload with a broken config is rejected and the old config keeps serving.

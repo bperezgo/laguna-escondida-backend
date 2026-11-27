@@ -275,7 +275,7 @@ jobs:
           Get-ChildItem "$env:RUNNER_TEMP\installer-test" -Filter *.log -ErrorAction SilentlyContinue | ForEach-Object {
             Write-Host "::group::$($_.Name)"; Get-Content $_.FullName -Tail 60; Write-Host '::endgroup::'
           }
-          Get-ChildItem C:\laguna-edge\logs -Filter *.log -ErrorAction SilentlyContinue | ForEach-Object {
+          Get-ChildItem C:\kuentapos\logs -Filter *.log -ErrorAction SilentlyContinue | ForEach-Object {
             Write-Host "::group::$($_.Name)"; Get-Content $_.FullName -Tail 60; Write-Host '::endgroup::'
           }
 

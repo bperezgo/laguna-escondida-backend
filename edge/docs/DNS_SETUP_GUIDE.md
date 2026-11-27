@@ -141,7 +141,7 @@ In the router admin (**http://192.168.0.1**):
 
 ### Step 6 — The phone
 
-- Install the root certificate **`certs\laguna-root.crt`** (transfer it to the phone first):
+- Install the root certificate **`certs\kuentapos-root-ca.crt`** (transfer it to the phone first):
   - **Android:** Settings → Security → Encryption & credentials → Install a certificate →
     **CA certificate** → accept the warning.
   - **iPhone:** install the profile, then Settings → General → About →
@@ -174,6 +174,6 @@ only allows real LAN devices. Test the page from the phone, not the box.)
 | Box MAC | `6C-62-6D-B0-97-8C` |
 | Router admin | http://192.168.0.1 |
 | Hostname | `pos.laguna.lan` |
-| Root cert for phones | `certs\laguna-root.crt` |
+| Root cert for phones | `certs\kuentapos-root-ca.crt` |
 | Setup script | `scripts\dev-test-here.ps1` |
 | Restore guide | `docs\DNS_RESTORE_GUIDE.md` |

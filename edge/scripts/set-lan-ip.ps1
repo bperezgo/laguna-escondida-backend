@@ -14,7 +14,7 @@
 
     1. env\box.env            — the repo's source of truth (install.ps1 preflights against it)
     2. machine env vars       — what the Caddy service ACTUALLY resolves {$EDGE_LAN_IP} from
-    3. the laguna-caddy service — only re-reads the env vars on process start, not on reload
+    3. the kuentapos-caddy service — only re-reads the env vars on process start, not on reload
 
   Editing box.env alone does nothing. `caddy reload` alone does nothing (it re-reads the
   file, not the environment). This script does all three, then proves it worked by reading
@@ -41,7 +41,7 @@ $BoxEnv   = Join-Path $Root 'env\box.env'
 $CaddyExe = Join-Path $Root 'services\caddy.exe'
 
 if (-not (Test-Path $BoxEnv))   { throw "Missing $BoxEnv. Copy env\box.env.example to env\box.env first." }
-if (-not (Test-Path $CaddyExe)) { throw "laguna-caddy is not installed (no $CaddyExe). Run scripts\install.ps1 first." }
+if (-not (Test-Path $CaddyExe)) { throw "kuentapos-caddy is not installed (no $CaddyExe). Run scripts\install.ps1 first." }
 
 # --- helpers ------------------------------------------------------------------------
 # Same big-endian -> UInt32 conversion install.ps1 uses, so both agree on subnet math.
@@ -161,7 +161,7 @@ Write-Host "Updated machine env vars"
 # A new host address inside the same /24 is already covered by the existing rule. A new
 # subnet is not, and would lock every tablet out at the packet level.
 if ($cidrChanged) {
-  $ruleName = 'Laguna POS - Caddy (LAN tablets)'
+  $ruleName = 'Kuenta - Caddy (LAN tablets)'
   $rule = Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue
   if (-not $rule) {
     Write-Warning "Firewall rule '$ruleName' not found. Run install.ps1 to create it."
@@ -181,19 +181,19 @@ if ($cidrChanged) {
 }
 
 # --- 5. Restart Caddy (the ONLY service that carries the network identity) -------------
-# Nothing depends on laguna-caddy, so this leaves Postgres / edge-node / Next untouched —
+# Nothing depends on kuentapos-caddy, so this leaves Postgres / edge-node / Next untouched —
 # no order lost, no session dropped beyond the few seconds of proxy downtime.
-Write-Host "Restarting laguna-caddy ..."
-Restart-Service laguna-caddy -Force
+Write-Host "Restarting kuentapos-caddy ..."
+Restart-Service kuentapos-caddy -Force
 Start-Sleep -Seconds 4
-$state = (Get-Service laguna-caddy).Status
+$state = (Get-Service kuentapos-caddy).Status
 if ($state -ne 'Running') {
   $errLog = Join-Path $Root 'logs\caddy.err.log'
   $tail = ''
   if (Test-Path $errLog) { $tail = (Get-Content $errLog -Tail 15) -join "`n" }
-  throw "laguna-caddy is '$state', not Running.`n--- caddy.err.log ---`n$tail"
+  throw "kuentapos-caddy is '$state', not Running.`n--- caddy.err.log ---`n$tail"
 }
-Write-Host "laguna-caddy is Running."
+Write-Host "kuentapos-caddy is Running."
 
 # --- 6. Prove it — read the cert Caddy is actually serving -----------------------------
 # The service being "Running" proves nothing; it ran fine on the stale IP too. The cert SAN is

@@ -1,6 +1,6 @@
 # Telemetry — shipping this box's logs, traces and metrics to Grafana Cloud
 
-The box runs a **Grafana Alloy sidecar** (`laguna-alloy`) next to the app. The app emits to
+The box runs a **Grafana Alloy sidecar** (`kuentapos-alloy`) next to the app. The app emits to
 it on localhost; Alloy buffers to disk while the box is offline and forwards everything to
 the **cloud backend's telemetry ingest**, which stamps the tenant context and relays it to
 Grafana Cloud.
@@ -19,7 +19,7 @@ edge-node ──OTLP 127.0.0.1:4317──▶ ┌─────────┐ �
                                    alloy-data\buffer
 ```
 
-Install root is **`C:\laguna-edge`**. All commands are PowerShell on the box.
+Install root is **`C:\kuentapos`**. All commands are PowerShell on the box.
 
 ---
 
@@ -48,7 +48,7 @@ Do not skip this. It is the one prerequisite that cannot be fixed after the fact
 ### 2.1 Fetch the Alloy binary
 
 ```powershell
-cd C:\laguna-edge
+cd C:\kuentapos
 .\scripts\fetch-artifacts.ps1 -Only alloy
 # -> artifacts\alloy\alloy.exe
 ```
@@ -104,19 +104,19 @@ into two in Grafana.
 
 `install.ps1` writes the node key to `env\alloy-node-key` (readable only by SYSTEM and
 Administrators), exports the rest as machine environment variables, validates
-`alloy\config.alloy`, then registers and starts `laguna-alloy`.
+`alloy\config.alloy`, then registers and starts `kuentapos-alloy`.
 
 ### 2.5 Verify
 
 ```powershell
-Get-Service laguna-alloy | Format-Table Name, Status, StartType     # Running / Automatic
+Get-Service kuentapos-alloy | Format-Table Name, Status, StartType     # Running / Automatic
 
 # Listening where the app expects it:
 Get-NetTCPConnection -State Listen -LocalPort 4317,4318 | Format-Table LocalAddress, LocalPort
 
 # The app is exporting (no OTLP errors) and the sidecar is quiet:
-Get-Content C:\laguna-edge\logs\edge-node.out.log -Tail 20
-Get-Content C:\laguna-edge\logs\alloy.err.log     -Tail 20
+Get-Content C:\kuentapos\logs\edge-node.out.log -Tail 20
+Get-Content C:\kuentapos\logs\alloy.err.log     -Tail 20
 ```
 
 Then in Grafana Cloud, filter by this box:
@@ -134,7 +134,7 @@ its own:
 ```powershell
 Restart-Computer
 # after it comes back:
-Get-Service laguna-alloy
+Get-Service kuentapos-alloy
 Get-NetTCPConnection -State Listen -LocalPort 4317,4318
 ```
 
@@ -180,7 +180,7 @@ That line means the cap is doing its job, not that the box is broken. If you see
 
 The app talks to the sidecar over localhost, which is up even when the box is not, and its
 exporter is asynchronous. **The POS is never slowed or blocked by telemetry** — not when the
-internet is down, not when the buffer is full, not when `laguna-alloy` is stopped entirely.
+internet is down, not when the buffer is full, not when `kuentapos-alloy` is stopped entirely.
 Nothing depends on the sidecar service, so it also cannot hold up a boot.
 
 ---
@@ -189,7 +189,7 @@ Nothing depends on the sidecar service, so it also cannot hold up a boot.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `laguna-alloy` won't start; `alloy.err.log` names a public-preview component | The `stability.level` flag was removed from `services\alloy.xml` | Restore it — the disk buffer needs it. Re-run `install.ps1`. |
+| `kuentapos-alloy` won't start; `alloy.err.log` names a public-preview component | The `stability.level` flag was removed from `services\alloy.xml` | Restore it — the disk buffer needs it. Re-run `install.ps1`. |
 | Service starts, nothing in Grafana, ingest returns **401/403** | Node key mismatch, or a stray newline in `env\alloy-node-key` | Confirm `EDGE_NODE_KEY` == `NODE_SYNC_KEY`, then re-run `install.ps1` (it rewrites the key file with no BOM and no trailing newline). |
 | Logs and traces arrive, **metrics don't** | The `/metrics` scrape is failing | `curl.exe http://127.0.0.1:9090/metrics` — if empty, check `METRICS_PORT` in `env\edge-node.env` matches `EDGE_METRICS_ADDRESS`. |
 | Metrics arrive but under a **different node** than the logs | `EDGE_NODE_ID` ≠ the app's `NODE_ID` | Make them equal and re-run `install.ps1`. (A fresh install can't hit this — the preflight blocks it.) |
@@ -205,11 +205,11 @@ Useful one-liners:
 curl.exe -s -o NUL -w "alloy %{http_code}`n" http://127.0.0.1:12345/-/ready
 
 # How big is the buffer right now?
-Get-ChildItem C:\laguna-edge\alloy-data -Recurse | Measure-Object Length -Sum |
+Get-ChildItem C:\kuentapos\alloy-data -Recurse | Measure-Object Length -Sum |
   ForEach-Object { "{0:N1} MB" -f ($_.Sum/1MB) }
 
 # Re-validate the config after hand-editing it (does not restart anything)
-& C:\laguna-edge\artifacts\alloy\alloy.exe validate --stability.level=public-preview C:\laguna-edge\alloy\config.alloy
+& C:\kuentapos\artifacts\alloy\alloy.exe validate --stability.level=public-preview C:\kuentapos\alloy\config.alloy
 ```
 
 ---
@@ -224,7 +224,7 @@ Three levels, least to most invasive. None of them touch the POS.
 .\scripts\update.ps1 -Service edge-node
 
 # 2. Stop the sidecar (the app tolerates it being gone; buffer is kept on disk):
-Stop-Service laguna-alloy
+Stop-Service kuentapos-alloy
 
 # 3. Remove the sidecar entirely:
 Remove-Item env\alloy.env        # so install.ps1 stops registering it

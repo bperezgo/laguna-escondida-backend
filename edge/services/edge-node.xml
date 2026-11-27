@@ -1,6 +1,6 @@
 <service>
-  <id>laguna-edge-node</id>
-  <name>Laguna Escondida - Edge Node (API)</name>
+  <id>kuentapos-edge-node</id>
+  <name>Kuenta - Edge Node (API)</name>
   <description>Go backend API in edge mode. Bound to 127.0.0.1:8080. Talks to local Postgres, syncs to the cloud, and drives ticket printing. Migrations are embedded in the binary and auto-run on startup.</description>
 
   <executable>%BASE%\..\artifacts\edge-node\edge-node.exe</executable>
@@ -9,7 +9,7 @@
   <!-- Config is the .env in the working dir, staged by scripts\install.ps1. No <env> here. -->
   <workingdirectory>%BASE%\..\artifacts\edge-node</workingdirectory>
 
-  <depend>laguna-postgres</depend>
+  <depend>kuentapos-postgres</depend>
 
   <startmode>Automatic</startmode>
   <onfailure action="restart" delay="10 sec"/>

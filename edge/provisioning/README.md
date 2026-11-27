@@ -15,7 +15,7 @@ Do these once per box and once per tablet. Order matters: router first, then eac
 
 ## B. Edge box (once)
 
-1. Deploy this repo to `C:\laguna-edge`.
+1. Deploy this repo to `C:\kuentapos`.
 2. `scripts\fetch-artifacts.ps1`
 3. `scripts\install.ps1 -AllowedTabletIPs '<tablet IPs>'`  (elevated)
 4. Export the Caddy root cert — see `../certs/README.md`.

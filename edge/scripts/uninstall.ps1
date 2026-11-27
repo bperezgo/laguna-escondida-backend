@@ -12,10 +12,10 @@ $Services = Join-Path $Root 'services'
 $order    = 'caddy','next','edge-node','postgres','alloy'
 
 # First, so the updater cannot start an install while the services are being removed.
-Unregister-ScheduledTask -TaskName 'Laguna Updater' -Confirm:$false -ErrorAction SilentlyContinue
+Unregister-ScheduledTask -TaskName 'Kuenta Updater' -Confirm:$false -ErrorAction SilentlyContinue
 
 foreach ($name in $order) {
-  $svcId = "laguna-$name"
+  $svcId = "kuentapos-$name"
   $exe   = Join-Path $Services "$name.exe"
 
   # Stop via SCM, not the wrapper exe, so a registration whose exe is already gone is still removed.
@@ -38,7 +38,7 @@ foreach ($name in $order) {
   }
 }
 
-Get-NetFirewallRule -DisplayName 'Laguna POS - Caddy (LAN tablets)' -ErrorAction SilentlyContinue |
+Get-NetFirewallRule -DisplayName 'Kuenta - Caddy (LAN tablets)' -ErrorAction SilentlyContinue |
   Remove-NetFirewallRule
 
 Write-Host "Uninstalled. (artifacts\, caddy-data\, alloy-data\, state\ and backups\ left intact.)"

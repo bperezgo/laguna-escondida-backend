@@ -2,7 +2,7 @@
   verify-install.ps1 -- automated "is the box serving?" check after an install or update.
   The scripted subset of docs\VALIDATION.md, bottom-up so the first failure names the layer:
 
-    1. every laguna-* service is Running
+    1. every kuentapos-* service is Running
     2. edge-node answers /api/edge/status in edge mode, running the installed release
     3. Next answers on 127.0.0.1:3000
     4. Caddy serves HTTPS on EDGE_LAN_IP (and EDGE_LAN_HOST, if set) with a cert this box
@@ -83,8 +83,8 @@ $LanHost = if ($box['EDGE_LAN_HOST']) { ($box['EDGE_LAN_HOST'] -split ',')[0].Tr
 
 # --- 1. services --------------------------------------------------------------------
 Step "Services"
-$expected = 'laguna-postgres','laguna-edge-node','laguna-next','laguna-caddy'
-if (Get-Service laguna-alloy -ErrorAction SilentlyContinue) { $expected += 'laguna-alloy' }
+$expected = 'kuentapos-postgres','kuentapos-edge-node','kuentapos-next','kuentapos-caddy'
+if (Get-Service kuentapos-alloy -ErrorAction SilentlyContinue) { $expected += 'kuentapos-alloy' }
 foreach ($svc in $expected) {
   $ok = Wait-Until { (Get-Service $svc -ErrorAction SilentlyContinue).Status -eq 'Running' } 60
   if ($ok) { Pass "$svc Running" } else { Fail "$svc is '$((Get-Service $svc -ErrorAction SilentlyContinue).Status)'" }

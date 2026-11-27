@@ -1,11 +1,13 @@
 <#
   run-installer-tests.ps1 -- the installer's silent-mode test, run by edge-ci.yml on every PR
   and by release-edge.yml before a release may publish. Needs an elevated Windows machine with
-  the appliance ports free and nothing installed at C:\laguna-edge.
+  the appliance ports free and nothing installed at C:\kuentapos.
 
   Cases: busy port; invalid code; box already enrolled (409, no /REPLACE); fresh install; re-run as
   repair (still one enroll call); uninstall keeps data; reinstall keeps data (still one enroll call);
   enroll.ps1 alone: a valid code, an invalid code, and a 409 then replace with the same code.
+  A local standard user pre-creates the root with planted files and a link before the fresh install,
+  and after the fresh install and the repair can neither change what SYSTEM runs nor read env\.
   -KeepInstalled leaves the reinstalled box running for the caller's next steps.
 #>
 [CmdletBinding()]
@@ -17,7 +19,7 @@ param(
   [switch] $KeepInstalled
 )
 $ErrorActionPreference = 'Stop'
-$root = 'C:\laguna-edge'
+$root = 'C:\kuentapos'
 $code = 'STUB-C0DE'
 $stub = Join-Path $PSScriptRoot 'stub-cloud.ps1'
 New-Item -ItemType Directory -Force -Path $Work | Out-Null
@@ -70,11 +72,67 @@ function Run-Enroll($s, [string] $useCode, [bool] $replace) {
   $out = $line | powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot '..\..\scripts\enroll.ps1')
   return @{ code = $LASTEXITCODE; out = ($out | Out-String) | ConvertFrom-Json }
 }
+
+# The standard user's probes run in this process under its network-logon token: a child process
+# would get the admin's token, and Windows Server denies Users an interactive logon.
+Add-Type -Namespace Ci -Name Native -MemberDefinition @'
+[DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+public static extern bool LogonUser(string user, string domain, string password, int type, int provider,
+  out Microsoft.Win32.SafeHandles.SafeAccessTokenHandle token);
+'@
+function New-StandardUser {
+  $name = 'kuentaci'
+  $pw = 'Aa1!' + [guid]::NewGuid().ToString('N')
+  & net.exe user $name /delete 2>&1 | Out-Null
+  & net.exe user $name $pw /add 2>&1 | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw "could not create the local user $name" }
+  $sid = ([Security.Principal.NTAccount] $name).Translate([Security.Principal.SecurityIdentifier]).Value
+  return @{ name = $name; pw = $pw; sid = $sid }
+}
+function As-User($u, [scriptblock] $block) {
+  $tok = $null
+  if (-not [Ci.Native]::LogonUser($u.name, '.', $u.pw, 3, 0, [ref] $tok)) {
+    throw "LogonUser failed ($([Runtime.InteropServices.Marshal]::GetLastWin32Error()))"
+  }
+  try { [Security.Principal.WindowsIdentity]::RunImpersonated($tok, [Func[object]] $block) } finally { $tok.Dispose() }
+}
+# 'allowed', 'denied', or the error. Probes never change an existing file's content.
+function Probe($u, [string] $kind, [string] $path) {
+  As-User $u ({
+    try {
+      switch ($kind) {
+        'write'  { [IO.File]::Open($path, 'Open', 'Write', 'ReadWrite').Dispose() }
+        'create' { [IO.File]::Open($path, 'CreateNew', 'Write').Dispose() }
+        'read'   { [IO.File]::OpenRead($path).Dispose() }
+      }
+      'allowed'
+    } catch {
+      $ex = $_.Exception; while ($ex.InnerException) { $ex = $ex.InnerException }
+      if ($ex -is [UnauthorizedAccessException]) { 'denied' } else { "error: $($ex.Message)" }
+    }
+  }.GetNewClosure())
+}
+function Assert-Locked($u, [string] $when) {
+  foreach ($t in @(
+      @('write', "$root\scripts\updater.ps1"), @('write', "$root\services\edge-node.xml"),
+      @('create', "$root\artifacts\postgres\bin\ci-probe.dll"), @('create', "$root\scripts\ci-probe.ps1"),
+      @('read', "$root\env\edge-node.env"), @('read', "$root\env\alloy-node-key"),
+      @('read', "$root\caddy-data\pki\authorities\local\root.key"))) {
+    $got = Probe $u $t[0] $t[1]
+    if ($got -eq 'allowed' -and $t[0] -eq 'create') { Remove-Item $t[1] -Force }
+    Assert ($got -eq 'denied') "$when, a standard user's $($t[0]) of $($t[1]) is denied ($got)"
+  }
+}
+function Owner([string] $path) { (Get-Acl $path).GetOwner([Security.Principal.SecurityIdentifier]).Value }
+
 function NodeId { ((Get-Content "$root\env\edge-node.env" | Where-Object { $_ -match '^NODE_ID=' }) -split '=', 2)[1] }
 
 $ok = Start-Stub $Port
 $conflict = Start-Stub ($Port + 1) -Conflict
+$user = $null
+$canary = 'C:\ci-canary'
 try {
+  $user = New-StandardUser
   Step 'enroll.ps1 against the stub cloud'
   $e = Run-Enroll $conflict 'wrng-c0de' $false
   Assert ($e.code -eq 20 -and $e.out.error -eq 'bad_credentials') "an invalid code is bad_credentials ($($e.code))"
@@ -88,21 +146,37 @@ try {
   $l = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Any, 5432); $l.Start()
   try { $r = Install $ok 'busy-port' } finally { $l.Stop() }
   Assert ($r.code -ne 0) "busy port exits non-zero ($($r.code))"
-  Assert (-not (Test-Path $root)) 'nothing under C:\laguna-edge'
+  Assert (-not (Test-Path $root)) 'nothing under C:\kuentapos'
   Assert (Select-String -Path $r.log -Pattern '5432' -Quiet) 'the log names port 5432'
   Assert ((Enroll-Calls $ok) -eq 0) 'no enroll call was made'
 
   Step 'Invalid code: the bad-credentials exit code, nothing installed'
   $r = Install $conflict 'bad-code' @() 'WRNG-C0DE'
   Assert ($r.code -ne 0) "an invalid code exits non-zero ($($r.code))"
-  Assert (-not (Test-Path $root)) 'nothing under C:\laguna-edge'
+  Assert (-not (Test-Path $root)) 'nothing under C:\kuentapos'
   Assert (Select-String -Path $r.log -Pattern 'bad_credentials' -Quiet) 'the log names bad_credentials'
 
   Step 'Box already enrolled, no /REPLACE'
   $r = Install $conflict 'conflict'
   Assert ($r.code -ne 0) "409 without /REPLACE exits non-zero ($($r.code))"
-  Assert (-not (Test-Path $root)) 'nothing under C:\laguna-edge'
+  Assert (-not (Test-Path $root)) 'nothing under C:\kuentapos'
   Assert (Select-String -Path $r.log -Pattern 'already enrolled' -Quiet) 'the log names the cause'
+
+  Step 'A standard user pre-creates the root'
+  Remove-Item $canary -Recurse -Force -ErrorAction SilentlyContinue
+  $null = As-User $user ({
+    [IO.Directory]::CreateDirectory("$root\artifacts\postgres\bin") | Out-Null
+    [IO.Directory]::CreateDirectory("$root\scripts") | Out-Null
+    [IO.File]::WriteAllText("$root\artifacts\postgres\bin\planted.dll", 'x')
+    [IO.File]::WriteAllText("$root\scripts\planted.ps1", 'x')
+    [IO.Directory]::CreateDirectory("$root\caddy-data\pki\authorities\local") | Out-Null
+    [IO.File]::WriteAllText("$root\caddy-data\pki\authorities\local\root.key", 'planted')
+    [IO.Directory]::CreateDirectory($canary) | Out-Null
+    New-Item -ItemType Junction -Path "$root\ci-link" -Target $canary | Out-Null
+  }.GetNewClosure())
+  $userSid = $user.sid
+  Assert ((Owner $root) -eq $userSid) 'the standard user owns the pre-created root'
+  Assert (Test-Path "$root\scripts\planted.ps1") 'the planted files exist'
 
   Step 'Fresh install'
   $r = Install $ok 'fresh'
@@ -120,6 +194,24 @@ try {
   $hits += Select-String -Path $r.log -Pattern $code -SimpleMatch -List
   Assert (-not $hits) 'no file or log holds the enrollment code'
   Assert ((Test-Path "$env:PUBLIC\Desktop\Kuenta.lnk") -or (Test-Path "$env:PUBLIC\Desktop\Kuenta.url")) 'the Kuenta shortcut exists'
+  Assert (-not @(Get-Service laguna-* -ErrorAction SilentlyContinue)) 'no laguna service exists'
+  Assert (-not (Get-ScheduledTask 'Laguna Updater' -ErrorAction SilentlyContinue)) 'no "Laguna Updater" task exists'
+  Assert (-not (Get-NetFirewallRule -DisplayName 'Laguna POS - Caddy (LAN tablets)' -ErrorAction SilentlyContinue)) 'no "Laguna POS" firewall rule exists'
+  Assert (Get-ScheduledTask 'Kuenta Updater' -ErrorAction SilentlyContinue) 'the "Kuenta Updater" task exists'
+  Assert (Get-NetFirewallRule -DisplayName 'Kuenta - Caddy (LAN tablets)' -ErrorAction SilentlyContinue) 'the "Kuenta - Caddy (LAN tablets)" rule exists'
+  Assert (Test-Path "$root\kuentapos-root-ca.crt") 'the root CA was exported to kuentapos-root-ca.crt'
+  Assert (-not (Test-Path "$root\artifacts\postgres\bin\planted.dll")) 'the planted DLL is gone'
+  Assert (-not (Test-Path "$root\scripts\planted.ps1")) 'the planted script is gone'
+  Assert (-not (Test-Path "$root\ci-link")) 'the planted link is gone'
+  Assert ((Get-Content "$root\caddy-data\pki\authorities\local\root.key" -Raw) -ne 'planted') 'Caddy made its own CA, not the planted one'
+  Assert ((Owner $canary) -eq $userSid) 'the link target was not touched'
+  Assert ((Owner $root) -eq 'S-1-5-32-544') 'Administrators own the root'
+  Assert ((Get-Acl $root).AreAccessRulesProtected) 'the root does not inherit from C:\'
+  # Not written by a box without telemetry; placed here so its read is probed, and its ACL set by the repair.
+  if (-not (Test-Path "$root\env\alloy-node-key")) { [IO.File]::WriteAllText("$root\env\alloy-node-key", 'ci') }
+  $got = Probe $user 'create' "$root\ci-probe.txt"
+  Assert ($got -eq 'denied') "a standard user cannot create a file in the root ($got)"
+  Assert-Locked $user 'after the fresh install'
   $dbPw = ((Get-Content "$root\env\edge-node.env" | Where-Object { $_ -match '^DB_PASSWORD=' }) -split '=', 2)[1]
   $env:PGPASSWORD = $dbPw
   & "$root\artifacts\postgres\bin\psql.exe" -h 127.0.0.1 -U laguna -d laguna_escondida -w -c 'CREATE TABLE ci_marker (v int); INSERT INTO ci_marker VALUES (42);' | Out-Null
@@ -132,12 +224,15 @@ try {
   Assert ((NodeId) -eq $nodeId) 'the node id is unchanged'
   & "$root\scripts\verify-install.ps1" -TimeoutSeconds 120
   Assert ($LASTEXITCODE -eq 0) 'verify-install passes after repair'
+  Assert-Locked $user 'after the repair'
 
   Step 'Uninstall keeps the data'
   $unins = Get-ChildItem $root -Filter 'unins*.exe' | Select-Object -First 1
   Assert ($unins -ne $null) 'an uninstaller was registered'
   Start-Process $unins.FullName -Wait -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'
-  Assert (-not @(Get-Service laguna-* -ErrorAction SilentlyContinue)) 'no laguna service remains'
+  Assert (-not @(Get-Service kuentapos-* -ErrorAction SilentlyContinue)) 'no kuentapos service remains'
+  Assert (-not (Get-ScheduledTask 'Kuenta Updater' -ErrorAction SilentlyContinue)) 'the "Kuenta Updater" task was removed'
+  Assert (-not (Get-NetFirewallRule -DisplayName 'Kuenta - Caddy (LAN tablets)' -ErrorAction SilentlyContinue)) 'the firewall rule was removed'
   Assert (Test-Path "$root\env\edge-node.env") 'env\edge-node.env kept'
   Assert (Test-Path "$root\artifacts\postgres\data") 'the database directory kept'
   Assert (-not (Test-Path "$root\artifacts\postgres\bin")) 'the Postgres programs were removed'
@@ -155,6 +250,8 @@ try {
 
 }
 finally {
+  if ($user) { & net.exe user $user.name /delete 2>&1 | Out-Null }
+  Remove-Item $canary -Recurse -Force -ErrorAction SilentlyContinue
   Stop-Stub $conflict
   if (-not $KeepInstalled) { Stop-Stub $ok }
 }

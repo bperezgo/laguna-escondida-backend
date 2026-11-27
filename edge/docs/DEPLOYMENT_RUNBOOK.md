@@ -4,8 +4,11 @@ How to put the edge appliance on a **Windows 10 or 11 PC** and have it serving t
 way is the installer, `KuentaSetup-<version>.exe`: no terminal, no files to edit, no Go or pnpm.
 The script path further down is the developer fallback and what CI's pieces are made of.
 
-> The install root is **`C:\laguna-edge`** and the installer does not ask for another: the `Caddyfile`
+> The install root is **`C:\kuentapos`** and the installer does not ask for another: the `Caddyfile`
 > hard-codes it. Don't move the folder after installing.
+> Before copying a file, the installer makes Administrators its owner and lets only Administrators
+> and SYSTEM write under it (`scripts\lock-root.ps1`). Don't loosen its permissions: SYSTEM runs
+> what is in there. A box at the old `C:\laguna-edge` has to be uninstalled first.
 
 ---
 
@@ -21,10 +24,10 @@ tablets ──HTTPS:443──> Caddy ──:3000──> Next.js ──:8080─�
 
 | Service id        | Listens on        | Comes from                              |
 |-------------------|-------------------|-----------------------------------------|
-| `laguna-postgres` | 127.0.0.1:5432    | the installer (pinned Postgres)         |
-| `laguna-edge-node`| 127.0.0.1:8080    | the installer (the release's edge-node) |
-| `laguna-next`     | 127.0.0.1:3000    | the installer (the release's POS)       |
-| `laguna-caddy`    | 0.0.0.0:443, :80  | the installer (pinned Caddy)            |
+| `kuentapos-postgres` | 127.0.0.1:5432    | the installer (pinned Postgres)         |
+| `kuentapos-edge-node`| 127.0.0.1:8080    | the installer (the release's edge-node) |
+| `kuentapos-next`     | 127.0.0.1:3000    | the installer (the release's POS)       |
+| `kuentapos-caddy`    | 0.0.0.0:443, :80  | the installer (pinned Caddy)            |
 
 ---
 
@@ -114,10 +117,10 @@ An edge release is one `edge/v*` tag on the monorepo; it is independent of cloud
 ## 4. The script path (developer fallback)
 
 What the installer runs, by hand, from an **elevated PowerShell** on a PC with the appliance files at
-`C:\laguna-edge` (the appliance zip of a release, extracted). No Go, pnpm or app source is needed.
+`C:\kuentapos` (the appliance zip of a release, extracted). No Go, pnpm or app source is needed.
 
 ```powershell
-cd C:\laguna-edge
+cd C:\kuentapos
 .\scripts\fetch-artifacts.ps1                                  # Caddy, Node, Postgres, WinSW + the release's apps (sha256-checked)
 ```
 
@@ -144,7 +147,7 @@ exports the network identity from `box.env`, sets the Postgres logon account to 
 verifies Caddy came up, and adds the firewall rule.
 
 ```powershell
-cd C:\laguna-edge
+cd C:\kuentapos
 .\scripts\install.ps1
 # The firewall defaults to EDGE_LAN_CIDR from box.env. Pass -AllowedTabletIPs ONLY to
 # tighten to specific DHCP-reserved tablet IPs, e.g.:
@@ -160,7 +163,7 @@ The script is **re-runnable / self-healing** — if anything failed, fix it and 
 Run the smoke check (full version in [`VALIDATION.md`](VALIDATION.md)):
 
 ```powershell
-Get-Service laguna-* | Format-Table Name, Status, StartType
+Get-Service kuentapos-* | Format-Table Name, Status, StartType
 # All four should be Running.
 
 # Use the EDGE_LAN_IP you set in box.env (this box: 192.168.0.123).
@@ -176,7 +179,7 @@ If `https://<EDGE_LAN_IP>/` redirects to `localhost:3000`, the Caddyfile `header
 fix is missing — see [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md).
 
 Unreleased code: `.\scripts\build-artifacts.ps1` builds both apps from source and needs Go, pnpm
-and Developer Mode on a **development** machine, at the final path `C:\laguna-edge`; never on a
+and Developer Mode on a **development** machine, at the final path `C:\kuentapos`; never on a
 customer's PC. A local build records `local-<sha>` in `artifacts\<app>\RELEASE`.
 
 ---
@@ -190,13 +193,13 @@ customer's PC. A local build records `local-<sha>` in `artifacts\<app>\RELEASE`.
    `tls internal`, so Caddy signs the LAN cert with its **own private CA**. The cert is valid;
    the client just doesn't trust the CA that signed it. Every client (dev PC + tablet) must
    install Caddy's **root CA** once. `install.ps1` already exports it to
-   `C:\laguna-edge\laguna-root-ca.crt` and trusts it on the box itself. If you need to re-export:
+   `C:\kuentapos\kuentapos-root-ca.crt` and trusts it on the box itself. If you need to re-export:
    ```powershell
-   Copy-Item C:\laguna-edge\caddy-data\pki\authorities\local\root.crt C:\laguna-edge\laguna-root-ca.crt
+   Copy-Item C:\kuentapos\caddy-data\pki\authorities\local\root.crt C:\kuentapos\kuentapos-root-ca.crt
    ```
-3. **Dev PC (Windows):** copy `laguna-root-ca.crt` off the box, then in an elevated PowerShell:
+3. **Dev PC (Windows):** copy `kuentapos-root-ca.crt` off the box, then in an elevated PowerShell:
    ```powershell
-   Import-Certificate -FilePath laguna-root-ca.crt -CertStoreLocation Cert:\LocalMachine\Root
+   Import-Certificate -FilePath kuentapos-root-ca.crt -CertStoreLocation Cert:\LocalMachine\Root
    ```
    Then **fully restart the browser** — Chrome caches its trust decision per-process and keeps
    background processes alive, so a plain close-and-reopen often isn't enough:
@@ -207,7 +210,7 @@ customer's PC. A local build records `local-<sha>` in `artifacts\<app>\RELEASE`.
    padlock — that icon is still "secure". Click it; it should read *"Connection is secure"*.
    If it still says "Not secure" after a full restart, confirm the bar shows `https://` (not
    `http://`) and that you imported the root on **this** machine (each client has its own store).
-4. **Tablets:** install the same `laguna-root-ca.crt` as a trusted CA cert, then open
+4. **Tablets:** install the same `kuentapos-root-ca.crt` as a trusted CA cert, then open
    `https://192.168.0.123`. See `certs\README.md` / `provisioning\README.md` for the per-tablet steps.
 
 ---
@@ -216,9 +219,9 @@ customer's PC. A local build records `local-<sha>` in `artifacts\<app>\RELEASE`.
 
 ```powershell
 # Status / start / stop one service (use the WinSW wrapper):
-C:\laguna-edge\services\caddy.exe status
-C:\laguna-edge\services\caddy.exe stop
-C:\laguna-edge\services\caddy.exe start
+C:\kuentapos\services\caddy.exe status
+C:\kuentapos\services\caddy.exe stop
+C:\kuentapos\services\caddy.exe start
 
 # Swap ONE service to a freshly built/fetched version (minimal downtime):
 .\scripts\update.ps1 -Service next        # rebuilds from frontend repo

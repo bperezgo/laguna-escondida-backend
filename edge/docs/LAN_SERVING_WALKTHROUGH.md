@@ -287,12 +287,12 @@ from its internal CA and (b) redirect `:80 → :443`. We confirmed both in the v
 ## What we proved on the box (no admin, no phone needed)
 
 - Caddy bound **80 and 443** and generated its **internal CA** on first handshake:
-  `C:\laguna-edge\caddy-data\pki\authorities\local\root.crt` (+ `intermediate.crt`).
+  `C:\kuentapos\caddy-data\pki\authorities\local\root.crt` (+ `intermediate.crt`).
 - A loopback request returned **`HTTP 403`** — proof the **subnet lock works**: a source
   that isn't on `192.168.0.0/24` is rejected at the app layer. (This also means you
   **cannot fully test from the box itself** — local curl is always "off-subnet." Real
   end-to-end testing happens from a phone on the LAN.)
-- Exported the root cert to **`certs\laguna-root.crt`** (the file the phone installs).
+- Exported the root cert to **`certs\kuentapos-root-ca.crt`** (the file the phone installs).
   Subject `CN=Caddy Local Authority - 2026 ECC Root`, valid ~10 years.
 
 ## The three things still required for a phone to load it
@@ -335,7 +335,7 @@ table — neither resolves local names). So we use the **DNS-server-on-the-box**
 
 ### 3. Install the root cert on the phone
 
-Transfer `certs\laguna-root.crt` to the phone, then:
+Transfer `certs\kuentapos-root-ca.crt` to the phone, then:
 
 - **Android:** Settings → Security → Encryption & credentials → Install a certificate →
   **CA certificate** → accept the warning. (A persistent "network may be monitored" notice
@@ -364,8 +364,8 @@ For the real box this is done as a Windows service via `scripts/install.ps1` +
 1. [x] App running on `127.0.0.1:3001`
 2. [x] Production `Caddyfile` adapted (port 3001, subnet 192.168.0.0/24)
 3. [x] Caddy 2.8.4 in `artifacts\caddy\`
-4. [x] Internal CA generated, root exported to `certs\laguna-root.crt`
+4. [x] Internal CA generated, root exported to `certs\kuentapos-root-ca.crt`
 5. [ ] Admin: set network Private + open 443/80 firewall
 6. [ ] DNS: `pos.laguna.lan → 192.168.0.123` (router or box DNS) + DHCP reservation
-7. [ ] Phone: install `laguna-root.crt`, Private DNS off
+7. [ ] Phone: install `kuentapos-root-ca.crt`, Private DNS off
 8. [ ] Test `https://pos.laguna.lan` from the phone

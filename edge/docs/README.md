@@ -2,7 +2,7 @@
 
 Operational docs for running the Laguna Escondida edge appliance on the restaurant Windows box.
 Written to be self-sufficient: an operator with no developer help can install, verify, watch,
-and fix the box from these alone. Install root is **`C:\laguna-edge`**, LAN IP
+and fix the box from these alone. Install root is **`C:\kuentapos`**, LAN IP
 **`192.168.0.123`**.
 
 ## Start here
@@ -30,11 +30,11 @@ tablets ──HTTPS:443──> Caddy ──:3000──> Next.js ──:8080─�
                        (only LAN-exposed)   all of these bind 127.0.0.1 — invisible to the LAN
 ```
 
-Four Windows services (`laguna-postgres`, `laguna-edge-node`, `laguna-next`, `laguna-caddy`),
+Four Windows services (`kuentapos-postgres`, `kuentapos-edge-node`, `kuentapos-next`, `kuentapos-caddy`),
 started in that order, each auto-restarting on failure. Config + secrets live in
 `env\edge-node.env`; logs in `logs\`; the TLS CA root in `caddy-data\` (back it up).
 
-A fifth service, `laguna-alloy`, appears only on boxes with telemetry enabled. It sits
+A fifth service, `kuentapos-alloy`, appears only on boxes with telemetry enabled. It sits
 outside the dependency chain on purpose — nothing depends on it, so it can never hold up
 the till — and ships logs/traces/metrics to the cloud. See
 [`TELEMETRY_RUNBOOK.md`](TELEMETRY_RUNBOOK.md).

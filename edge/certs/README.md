@@ -8,10 +8,10 @@ auth cookie flows.
 ## Where the root cert lives
 
 Caddy stores its CA under the persisted data dir set in the `Caddyfile`
-(`C:\laguna-edge\caddy-data`). The root cert is at roughly:
+(`C:\kuentapos\caddy-data`). The root cert is at roughly:
 
 ```
-C:\laguna-edge\caddy-data\pki\authorities\local\root.crt
+C:\kuentapos\caddy-data\pki\authorities\local\root.crt
 ```
 
 > Keep `caddy-data\` backed up. If it's lost, Caddy generates a NEW root and every tablet must
@@ -24,12 +24,12 @@ on the box:
 
 ```powershell
 artifacts\caddy\caddy.exe trust          # trusts it on the box itself
-# then copy caddy-data\pki\authorities\local\root.crt  ->  certs\laguna-root.crt
+# then copy caddy-data\pki\authorities\local\root.crt  ->  certs\kuentapos-root-ca.crt
 ```
 
 ## Install on an Android tablet
 
-1. Transfer `laguna-root.crt` to the tablet (USB, or a one-time download).
+1. Transfer `kuentapos-root-ca.crt` to the tablet (USB, or a one-time download).
 2. Settings → Security → **Encryption & credentials → Install a certificate → CA certificate**.
 3. Confirm the security warning (expected for a private CA).
 4. Open `https://pos.laguna.lan` — no warning.

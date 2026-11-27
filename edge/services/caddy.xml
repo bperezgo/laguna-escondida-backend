@@ -1,6 +1,6 @@
 <service>
-  <id>laguna-caddy</id>
-  <name>Laguna Escondida - Caddy (HTTPS reverse proxy)</name>
+  <id>kuentapos-caddy</id>
+  <name>Kuenta - Caddy (HTTPS reverse proxy)</name>
   <description>The only LAN-exposed service. Terminates TLS (internal CA) and proxies to Next.js.</description>
 
   <executable>%BASE%\..\artifacts\caddy\caddy.exe</executable>
@@ -8,7 +8,7 @@
   <workingdirectory>%BASE%\..\artifacts\caddy</workingdirectory>
 
   <!-- Start last, after the proxy target (Next) is up. -->
-  <depend>laguna-next</depend>
+  <depend>kuentapos-next</depend>
 
   <startmode>Automatic</startmode>
   <onfailure action="restart" delay="10 sec"/>
