@@ -100,6 +100,7 @@ var
   DeclinedReplace: Boolean;
   PreflightDone: Boolean;
   SyncWarning: Boolean;
+  FailCode: Integer;     // a post-install step's exit code; setup exits with it
 
 // lpValue 0 (NULL) removes the variable from this process and from everything it starts.
 function SetEnvironmentVariable(lpName: String; lpValue: Cardinal): Boolean;
@@ -473,7 +474,8 @@ begin
     EnrollJson := '';
     if Code <> 0 then
     begin
-      Log('write-box-config failed: ' + ExitMessage(Code));
+      Log('write-box-config failed: ' + ExitMessage(Code) + ' ' + Trim(Output));
+      FailCode := Code;
       RaiseException(ExitMessage(Code));
     end;
   end;
@@ -487,6 +489,7 @@ begin
   else if Code <> 0 then
   begin
     Log('setup-box failed: ' + ExitMessage(Code));
+    FailCode := Code;
     RaiseException(ExitMessage(Code));
   end;
 end;
@@ -495,13 +498,21 @@ procedure CurPageChanged(CurPageID: Integer);
 var Txt: String;
 begin
   if CurPageID <> wpFinished then Exit;
-  if OrgName <> '' then
+  if FailCode <> 0 then
+    Txt := 'Kuenta no se terminó de instalar: ' + ExitMessage(FailCode)
+  else if OrgName <> '' then
     Txt := 'Kuenta quedó instalado para ' + OrgName + '.'
   else
     Txt := 'Kuenta quedó instalado y funcionando.';
   if SyncWarning then
     Txt := Txt + #13#10#13#10 + 'Atención: ' + ExitMessage(34);
   WizardForm.FinishedLabel.Caption := Txt;
+end;
+
+// An exception in CurStepChanged is only shown; without this, setup would still exit 0.
+function GetCustomSetupExitCode: Integer;
+begin
+  Result := FailCode;
 end;
 
 function InitializeUninstall: Boolean;
