@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"log"
+	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"laguna-escondida/backend/internal/platform/observability"
 	"laguna-escondida/backend/internal/platform/postgres/repository"
 
+	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
 
@@ -18,6 +20,11 @@ import (
 func Main(mode config.Mode, load func() (Boot, error)) {
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, using system environment variables")
+	}
+
+	// Debug mode prints every route at startup and a warning on each boot; GIN_MODE still overrides it.
+	if os.Getenv("GIN_MODE") == "" {
+		gin.SetMode(gin.ReleaseMode)
 	}
 
 	// Before anything touches the database, so a box running the wrong binary changes nothing.

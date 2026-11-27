@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState, FormEvent } from "react";
+import { useCallback, useEffect, useReducer, useState, FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Input, Button } from "@/components/ui";
+import { Input, PasswordInput, Button } from "@/components/ui";
+import { passwordVisibilityReducer } from "@/lib/passwordVisibility";
 import {
   LEGACY_EDGE_CONTEXT,
   isWaitingForUsers,
@@ -34,6 +35,7 @@ export default function SignInForm({ initialContext = null, notice = null }: Sig
   const [context, setContext] = useState<SignInContext | null>(initialContext);
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, dispatchShowPassword] = useReducer(passwordVisibilityReducer, false);
   const [error, setError] = useState<SignInFailure | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
@@ -107,6 +109,7 @@ export default function SignInForm({ initialContext = null, notice = null }: Sig
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    dispatchShowPassword("submitted");
     submit(
       "/api/auth/signin",
       isCloud ? { email: login, password } : { username: login, password }
@@ -167,11 +170,12 @@ export default function SignInForm({ initialContext = null, notice = null }: Sig
               />
             )}
 
-            <Input
+            <PasswordInput
               label="Contraseña"
               id="password"
               name="password"
-              type="password"
+              shown={showPassword}
+              onShownChange={() => dispatchShowPassword("toggled")}
               required
               placeholder="Ingresa tu contraseña"
               value={password}

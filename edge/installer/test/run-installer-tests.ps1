@@ -82,10 +82,11 @@ public static extern bool LogonUser(string user, string domain, string password,
 '@
 function New-StandardUser {
   $name = 'kuentaci'
-  $pw = 'Aa1!' + [guid]::NewGuid().ToString('N')
+  # 14 characters at most: net user asks to confirm a longer password, which fails without a console.
+  $pw = 'Aa1!' + [guid]::NewGuid().ToString('N').Substring(0, 10)
   & net.exe user $name /delete 2>&1 | Out-Null
-  & net.exe user $name $pw /add 2>&1 | Out-Null
-  if ($LASTEXITCODE -ne 0) { throw "could not create the local user $name" }
+  $out = & net.exe user $name $pw /add 2>&1 | Out-String
+  if ($LASTEXITCODE -ne 0) { throw "could not create the local user $name ($LASTEXITCODE): $($out.Trim())" }
   $sid = ([Security.Principal.NTAccount] $name).Translate([Security.Principal.SecurityIdentifier]).Value
   return @{ name = $name; pw = $pw; sid = $sid }
 }

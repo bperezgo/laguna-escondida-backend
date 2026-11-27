@@ -87,34 +87,70 @@ A call that needs a header and finds it missing, empty or invalid SHALL fail wit
 
 ### Requirement: The agent can list what is for sale
 
-`list_menu` SHALL return the products a customer can order: sellable, composite, and products that are both sellable and ingredients. It SHALL NOT return ingredient-only products. Each entry SHALL include the product id, name, category, description, total price with taxes, and whether it has side-dish options.
+`list_menu` SHALL return the products a customer can order: sellable, composite, and products that are both sellable and ingredients. It SHALL NOT return ingredient-only products. Each entry SHALL include the product id, name, category, description, total price with taxes, and whether it has side-dish options. A plate SHALL be reported as having side-dish options when it has option slots.
 
-`get_side_dish_options` SHALL return, for one product id, the side-dish choices and their allowed quantity range and default.
+`get_side_dish_options` SHALL return, for one product id, its option slots in order, each with its name and its choices (choice id, name, and which one is the default), and no quantities. A product without slots SHALL return an empty list.
+
+The tool's description SHALL tell the agent that a plate is served with each slot's default unless the customer asks for a change, and that only the listed choices can be ordered; anything else can only be passed on as a note for staff to confirm.
 
 #### Scenario: Ingredients are hidden
 
 - **WHEN** `list_menu` is called while the catalog contains a dish and a raw ingredient
 - **THEN** the dish is listed and the ingredient is not
 
+#### Scenario: The tilapia's options
+
+- **WHEN** `get_side_dish_options` is called for a tilapia with the slots "Arroz", "Acompañante" and "Ensalada"
+- **THEN** the tool returns the three slots with their choice ids and names and the default of each marked, and no quantities
+
+#### Scenario: A drink has nothing to choose
+
+- **WHEN** `get_side_dish_options` is called for a soda
+- **THEN** the tool returns an empty list of slots
+
 ### Requirement: The agent can check a location before taking a delivery
 
-`check_delivery_location` SHALL report whether the header location is inside an active delivery zone and, if so, the zone's name, without creating anything.
+`check_delivery_location` SHALL report whether the header location is inside an active delivery zone and, if so, the zone's name and its delivery fee, without creating anything.
+
+The tool's description SHALL tell the agent to tell the customer the delivery fee (or that delivery is free, when it is `0`) before creating a delivery order.
 
 #### Scenario: Outside the area
 
 - **WHEN** `check_delivery_location` is called with a location outside every active zone
 - **THEN** the tool reports not deliverable, so the agent can offer takeaway instead
 
+#### Scenario: Inside a zone with a fee
+
+- **WHEN** `check_delivery_location` is called with a location inside zone "Centro" (fee `5000`)
+- **THEN** the tool reports deliverable, zone "Centro" and delivery fee `5000`
+
 ### Requirement: The agent creates takeaway and delivery orders for the calling customer
 
-`create_delivery_order` SHALL take the order type (`takeaway` or `delivery`), the lines (product id, quantity, optional notes, optional side-dish selections), an optional customer name, and, for `delivery`, the address reference for the rider. It SHALL create the order with the header phone and, for `delivery`, the header location. It SHALL generate all order and line identifiers itself. `dine_in` SHALL be rejected before reaching the backend.
+`create_delivery_order` SHALL take the order type (`takeaway` or `delivery`), the lines (product id, quantity, optional notes, and optional choice ids for a plate with option slots), an optional customer name, an optional `payment_terms_accepted` flag, and, for `delivery`, the address reference for the rider. It SHALL create the order with the header phone and, for `delivery`, the header location. It SHALL generate all order and line identifiers itself. `dine_in` SHALL be rejected before reaching the backend. `update_my_order` SHALL take its lines in the same shape. It SHALL NOT take a delivery fee as an argument.
 
-The tool SHALL return the created order's id, type, total, zone (for delivery), payment state `awaiting_payment`, its `payment_url` (the order's active payment link, omitted when the order has none), and its lines with names and quantities. Its description SHALL say the order is paid only with `payment_url` and is cancelled if unpaid after the link's lifetime. Backend failures SHALL be returned as tool errors that state the reason: unknown product, invalid side-dish choice, missing address, outside delivery zone, the order type paused (with its reason), the order type outside its hours (with when it next opens), and payment links not configured (`the order was not created: payment links are not configured for this organization`).
+`payment_terms_accepted` SHALL mean the customer confirmed a summary that showed the payment terms `get_ordering_availability` reported. The order SHALL get a QR only when it is true (see `payment-links`); without it the order SHALL still be created.
+
+The tool SHALL return the created order's id, type, total, zone and delivery fee (for delivery), payment state `awaiting_payment`, its `payment_strategy`, how to pay it, `payment_expires_at`, and its lines with names, quantities and, for plates with option slots, each slot's resolved choice name. The total SHALL include the delivery fee. How to pay SHALL be, under `wompi`, `payment_url` (the order's active payment link) and `payment_qr_url` (the public image URL of its active QR), each omitted when the order has none; and under `manual`, `payment_instructions`. Its description SHALL say the order is paid only with what the tool returned for it, that `payment_qr_url` is an image to send to the customer with `payment_url` as the alternative, that a manual order is confirmed by staff, and that the order is cancelled if unpaid at `payment_expires_at`. Backend failures SHALL be returned as tool errors that state the reason: unknown product, a choice that is not an option of the plate, two choices for one slot, missing address, outside delivery zone, the order type paused (with its reason), the order type outside its hours (with when it next opens), and payment links not configured (`the order was not created: payment links are not configured for this organization`).
 
 #### Scenario: A delivery order from WhatsApp
 
 - **WHEN** `create_delivery_order` is called with header phone `573005551234`, a header location inside zone "Centro", type `delivery`, an address and two lines
-- **THEN** an unpaid `delivery` order stored with phone `+573005551234`, that location and zone "Centro" exists, and the tool returns it as `awaiting_payment` with an `https://checkout.wompi.co/l/…` `payment_url`
+- **THEN** an unpaid `delivery` order stored with phone `+573005551234`, that location and zone "Centro" exists, and the tool returns it as `awaiting_payment` with `payment_strategy: wompi` and an `https://checkout.wompi.co/l/…` `payment_url`
+
+#### Scenario: An order with a QR
+
+- **WHEN** `create_delivery_order` is called with `payment_terms_accepted: true` for an organization that can offer a QR
+- **THEN** the tool returns the order with a `payment_url` and a `payment_qr_url`
+
+#### Scenario: The terms were not shown
+
+- **WHEN** `create_delivery_order` is called without `payment_terms_accepted` for an organization that can offer a QR
+- **THEN** the tool returns the order with a `payment_url` and no `payment_qr_url`
+
+#### Scenario: A manual order
+
+- **WHEN** `create_delivery_order` is called for an organization on `manual`
+- **THEN** the tool returns the order as `awaiting_payment` with `payment_strategy: manual`, the organization's `payment_instructions` and its `payment_expires_at`, and no `payment_url`
 
 #### Scenario: Dine-in is not offered
 
@@ -143,7 +179,7 @@ The tool SHALL return the created order's id, type, total, zone (for delivery), 
 
 #### Scenario: No payment links configured
 
-- **WHEN** `create_delivery_order` is called for an organization without payment links configured
+- **WHEN** `create_delivery_order` is called for an organization on `wompi` without payment links configured
 - **THEN** the tool returns an error containing "payment links are not configured" and no order is created
 
 #### Scenario: Wompi did not create the link
@@ -151,14 +187,39 @@ The tool SHALL return the created order's id, type, total, zone (for delivery), 
 - **WHEN** `create_delivery_order` creates an order but Wompi failed to create its link
 - **THEN** the tool returns the order as `awaiting_payment` with no `payment_url`
 
+#### Scenario: A tilapia with fries
+
+- **WHEN** `create_delivery_order` is called with a tilapia line carrying the choice id of "Papas"
+- **THEN** the order is created and the tool returns the line with Arroz blanco, Papas and Ensalada
+
+#### Scenario: The customer insists on two sides in one slot
+
+- **WHEN** `create_delivery_order` is called with a tilapia line carrying both "Canastas" and "Papas"
+- **THEN** the tool returns an error saying the "Acompañante" slot takes one choice, and no order is created
+
+#### Scenario: The fee is in the returned order
+
+- **WHEN** `create_delivery_order` creates a delivery order with lines worth `32000` inside zone "Centro" (fee `5000`)
+- **THEN** the tool returns delivery fee `5000` and total `37000`
+
 ### Requirement: The agent can change or cancel an order until it is paid
 
-`update_my_order` SHALL replace the lines of one of the caller's unpaid orders with the given lines and return the updated order, with the `payment_url` of its new active link. It SHALL NOT change the type, contact, address or location. `cancel_my_order` SHALL void one of the caller's unpaid orders: the order is soft-deleted, its stock returned and its link deactivated, exactly as staff voiding it. Once an order is paid or expired, both SHALL fail with "order not found".
+`update_my_order` SHALL replace the lines of one of the caller's unpaid orders with the given lines and return the updated order with how to pay it now: under `wompi`, the `payment_url` of its new active link and the `payment_qr_url` of its new active QR when it has one; under `manual`, its `payment_instructions`. An order that had a QR SHALL get a new one without the terms being accepted again. It SHALL NOT change the type, contact, address, location, payment strategy or `payment_expires_at`. `cancel_my_order` SHALL void one of the caller's unpaid orders: the order is soft-deleted, its stock returned, its link deactivated and its QR retired, exactly as staff voiding it. Once an order is paid or expired, both SHALL fail with "order not found".
 
 #### Scenario: Adding a dish before paying
 
 - **WHEN** a customer with an unpaid delivery order asks to add a drink and `update_my_order` is called with the old lines plus the drink
 - **THEN** the order has the three lines and a new total, is still `awaiting_payment`, and the tool returns a `payment_url` different from the one returned at creation
+
+#### Scenario: Changing an order that had a QR
+
+- **WHEN** `update_my_order` is called for an unpaid order that has an active QR
+- **THEN** the tool returns a `payment_qr_url` different from the one returned at creation, and the earlier one answers `404`
+
+#### Scenario: Changing a manual order
+
+- **WHEN** `update_my_order` is called for an unpaid manual order
+- **THEN** the tool returns the new total, the same `payment_instructions` and the same `payment_expires_at`
 
 #### Scenario: Cancelling before paying
 
@@ -177,7 +238,7 @@ The tool SHALL return the created order's id, type, total, zone (for delivery), 
 
 ### Requirement: The agent can report the calling customer's order progress
 
-`get_my_orders` SHALL return, newest first, the orders stored with the header phone that are unpaid and active, paid during the current business day, or expired unpaid during the current business day, and nothing about any other order. For each order it SHALL return the id, type, creation time, total, payment state (`awaiting_payment`, `paid` or `expired`), the `payment_url` of its active link when it is `awaiting_payment` and has one, and each line's product name, quantity and kitchen state (`created`, `in_progress`, `completed`, `cancelled`). Orders voided for any other reason SHALL NOT be returned. When there is no such order it SHALL return an empty list, not an error.
+`get_my_orders` SHALL return, newest first, the orders stored with the header phone that are unpaid and active, paid during the current business day, or expired unpaid during the current business day, and nothing about any other order. For each order it SHALL return the id, type, creation time, total (including any delivery fee), the delivery fee for a delivery order, payment state (`awaiting_payment`, `paid` or `expired`), its `payment_strategy`, and each line's product name, quantity and kitchen state (`created`, `in_progress`, `completed`, `cancelled`). For an order that is `awaiting_payment` it SHALL also return `payment_expires_at` and how to pay it: under `wompi`, the `payment_url` of its active link and the `payment_qr_url` of its active QR, each when it has one; under `manual`, its `payment_instructions` and `payment_under_review`. Orders voided for any other reason SHALL NOT be returned. When there is no such order it SHALL return an empty list, not an error.
 
 #### Scenario: Two customers with orders
 
@@ -194,15 +255,25 @@ The tool SHALL return the created order's id, type, total, zone (for delivery), 
 - **WHEN** a customer's order is unpaid and its link was replaced by a change
 - **THEN** `get_my_orders` returns it as `awaiting_payment` with the new link's `payment_url`
 
+#### Scenario: A manual order being checked
+
+- **WHEN** a customer's manual order is unpaid and staff marked its payment under review
+- **THEN** `get_my_orders` returns it as `awaiting_payment` with `payment_under_review: true` and its `payment_instructions`
+
 #### Scenario: Expired today
 
 - **WHEN** a customer's order expired unpaid an hour ago
-- **THEN** `get_my_orders` returns it as `expired`, with no `payment_url`
+- **THEN** `get_my_orders` returns it as `expired`, with no `payment_url`, `payment_qr_url` or `payment_instructions`
 
 #### Scenario: No orders
 
 - **WHEN** `get_my_orders` is called for a phone with no order today
 - **THEN** the tool returns an empty list
+
+#### Scenario: A delivery's fee
+
+- **WHEN** a customer has an unpaid delivery order with fee `5000`
+- **THEN** `get_my_orders` returns it with delivery fee `5000` and a total that includes it
 
 ### Requirement: The customer MCP server acts for the caller's organization
 
@@ -244,9 +315,9 @@ Startup with the customer toolset SHALL NOT require `MCP_AUTH_TOKEN`, `LAGUNA_EM
 
 ### Requirement: The agent can check whether delivery and takeaway are being taken
 
-`get_ordering_availability` SHALL report, for both `delivery` and `takeaway`, whether the restaurant is taking that order type right now, as computed by `ordering-availability`: `available`, `reason`, `paused_reason`, `closes_at` and `next_opens_at`. It SHALL take no arguments and SHALL NOT need the customer phone or location headers. It SHALL create nothing.
+`get_ordering_availability` SHALL report, for both `delivery` and `takeaway`, whether the restaurant is taking that order type right now, as computed by `ordering-availability`: `available`, `reason`, `paused_reason`, `closes_at` and `next_opens_at`. It SHALL also report how the organization's agent orders are paid: `payment_strategy`, and `payment_terms` with Wompi's `terms_url` and `personal_data_url` when the organization is on `wompi` and can offer a QR. `payment_terms` SHALL be omitted under `manual`, when no QR can be offered, and when Wompi does not return the documents. The tool SHALL take no arguments and SHALL NOT need the customer phone or location headers. It SHALL create nothing.
 
-The tool's description SHALL tell the agent to call it before taking an order, and to offer the other type, or the next opening time, when the requested type is unavailable.
+The tool's description SHALL tell the agent to call it before taking an order, to offer the other type, or the next opening time, when the requested type is unavailable, and, when `payment_terms` is present, to show both documents in the order summary and to create the order with `payment_terms_accepted` only when the customer confirmed that summary.
 
 #### Scenario: Delivery paused, takeaway open
 
@@ -263,14 +334,34 @@ The tool's description SHALL tell the agent to call it before taking an order, a
 - **WHEN** `get_ordering_availability` is called without `X-Customer-Phone` or `X-Customer-Location`
 - **THEN** the tool returns the availability
 
+#### Scenario: A restaurant that offers the QR
+
+- **WHEN** `get_ordering_availability` is called for an organization on `wompi` that can offer a QR
+- **THEN** the tool reports `payment_strategy: wompi` and `payment_terms` with both document URLs
+
+#### Scenario: A manual restaurant
+
+- **WHEN** `get_ordering_availability` is called for an organization on `manual`
+- **THEN** the tool reports `payment_strategy: manual` and no `payment_terms`
+
+#### Scenario: Wompi does not answer
+
+- **WHEN** Wompi fails to return the documents while availability is read
+- **THEN** the tool reports the availability and `payment_strategy: wompi` with no `payment_terms`
+
 ### Requirement: The agent takes a reservation for the calling customer
 
-`create_my_reservation` SHALL take a `name`, a `party_size`, a `starts_at` (date and time with offset) and optional `notes`, and SHALL create a `requested` reservation with `source` `whatsapp`, the header phone and the origin from the headers. It SHALL require `X-Channel-Id`; without it the tool SHALL fail with an error saying the channel is missing, and SHALL NOT reach the backend. The tool SHALL return the reservation's id, name, party size, time and status `requested`, and its description SHALL tell the agent that staff will confirm it. Validation failures SHALL be returned as tool errors naming the field.
+`create_my_reservation` SHALL take a `name`, a `party_size`, a `starts_at` (date and time with offset) and optional `notes`, and SHALL create a reservation with `source` `whatsapp`, the header phone and the origin from the headers, stored `confirmed` or `requested` as the organization's auto-confirm policy decides. It SHALL require `X-Channel-Id`; without it the tool SHALL fail with an error saying the channel is missing, and SHALL NOT reach the backend. The tool SHALL return the reservation's id, name, party size, time and status, and, when the status is `requested`, its `pending_reason`. Its description SHALL tell the agent that a `confirmed` reservation is confirmed and that staff will confirm a `requested` one. Validation failures SHALL be returned as tool errors naming the field.
 
 #### Scenario: Booking for six at eight
 
-- **WHEN** `create_my_reservation` is called with header phone `573005551234`, channel `ch_1`, name "Ana", party size 6 and tomorrow at 20:00
-- **THEN** a `requested` reservation for `+573005551234` with that channel exists, and the tool returns it
+- **WHEN** `create_my_reservation` is called with header phone `573005551234`, channel `ch_1`, name "Ana", party size 6 and tomorrow at 20:00, and the organization's policy is off
+- **THEN** a `requested` reservation for `+573005551234` with that channel exists, and the tool returns it with `pending_reason` `disabled`
+
+#### Scenario: A table the policy confirms
+
+- **WHEN** `create_my_reservation` is called for 4 people tomorrow at noon and the organization's policy accepts it
+- **THEN** the tool returns the reservation with status `confirmed` and no `pending_reason`
 
 #### Scenario: No channel header
 
