@@ -11,12 +11,14 @@
 #>
 [CmdletBinding()]
 param(
-  [string] $Root = (Split-Path -Parent $PSScriptRoot),
+  [string] $Root,
   # Tests on a runner with several adapters can pin the address instead of the default route's.
   [string] $LanIp,
   [int]    $PrefixLength
 )
 $ErrorActionPreference = 'Stop'
+# Windows PowerShell 5.1 leaves $PSScriptRoot empty in param() defaults.
+if (-not $Root) { $Root = Split-Path -Parent $PSScriptRoot }
 
 # The installer reads only stdout, so failures are reported there.
 function Fail($msg) { @{ ok = $false; error = $msg } | ConvertTo-Json -Compress | Write-Output; exit 31 }
