@@ -16,13 +16,15 @@
 #>
 [CmdletBinding()]
 param(
-  [string] $Root = (Split-Path -Parent $PSScriptRoot),
+  [string] $Root,
   [switch] $DetectOnly,
   [string] $ProgressFile,
   [int]    $SyncWaitSeconds = 300,
   [int]    $VerifyTimeoutSeconds = 300
 )
 $ErrorActionPreference = 'Stop'
+# Windows PowerShell 5.1 leaves $PSScriptRoot empty in param() defaults.
+if (-not $Root) { $Root = Split-Path -Parent $PSScriptRoot }
 $scripts = Join-Path $Root 'scripts'
 $nodeEnv = Join-Path $Root 'env\edge-node.env'
 $dataDir = Join-Path $Root 'artifacts\postgres\data'

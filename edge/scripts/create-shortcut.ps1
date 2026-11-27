@@ -6,7 +6,7 @@
 #>
 [CmdletBinding()]
 param(
-  [string] $Root = (Split-Path -Parent $PSScriptRoot),
+  [string] $Root,
   [string] $Url = 'http://localhost:3000',
   # Tests point this at a missing key to exercise the fallback.
   [string] $EdgeRegistryKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\msedge.exe',
@@ -14,6 +14,8 @@ param(
   [string] $StartMenuDir = [Environment]::GetFolderPath('CommonPrograms')
 )
 $ErrorActionPreference = 'Stop'
+# Windows PowerShell 5.1 leaves $PSScriptRoot empty in param() defaults.
+if (-not $Root) { $Root = Split-Path -Parent $PSScriptRoot }
 $icon = Join-Path $Root 'installer\kuenta.ico'
 $edge = $null
 try { $edge = (Get-ItemProperty -Path $EdgeRegistryKey -ErrorAction Stop).'(default)' } catch {}

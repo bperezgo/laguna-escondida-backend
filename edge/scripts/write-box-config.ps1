@@ -7,20 +7,25 @@
   Then env\ is restricted to Administrators and SYSTEM.
 
   Refuses to run when env\edge-node.env already holds a NODE_ID: an existing box is never
-  reconfigured. Exit codes: installer\exit-codes.json (0, 31).
+  reconfigured. Exit codes: installer\exit-codes.json (0, 31). On 31, stdout holds {"ok":false,"error"}.
 #>
 [CmdletBinding()]
 param(
-  [string] $Root = (Split-Path -Parent $PSScriptRoot),
+  [string] $Root,
   # Tests on a runner with several adapters can pin the address instead of the default route's.
   [string] $LanIp,
   [int]    $PrefixLength
 )
 $ErrorActionPreference = 'Stop'
+# Windows PowerShell 5.1 leaves $PSScriptRoot empty in param() defaults.
+if (-not $Root) { $Root = Split-Path -Parent $PSScriptRoot }
 
-function Fail($msg) { [Console]::Error.WriteLine($msg); exit 31 }
+# The installer reads only stdout, so failures are reported there.
+function Fail($msg) { @{ ok = $false; error = $msg } | ConvertTo-Json -Compress | Write-Output; exit 31 }
+trap { Fail "line $($_.InvocationInfo.ScriptLineNumber): $($_.Exception.Message)" }
 
-$enr = [Console]::In.ReadLine() | ConvertFrom-Json
+# Parsed apart so a parse error, which quotes its input, never prints the node key.
+try { $enr = [Console]::In.ReadLine() | ConvertFrom-Json } catch { Fail 'the enrollment result is not JSON' }
 foreach ($k in 'node_id', 'organization_id', 'node_key', 'cloud_sync_url') {
   if (-not $enr.$k) { Fail "enrollment result lacks $k" }
 }

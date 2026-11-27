@@ -100,6 +100,22 @@ var
   DeclinedReplace: Boolean;
   PreflightDone: Boolean;
   SyncWarning: Boolean;
+  FailCode: Integer;     // a post-install step's exit code; setup exits with it
+
+// lpValue 0 (NULL) removes the variable from this process and from everything it starts.
+function SetEnvironmentVariable(lpName: String; lpValue: Cardinal): Boolean;
+  external 'SetEnvironmentVariableW@kernel32.dll stdcall';
+
+// Started from pwsh 7, setup inherits its PSModulePath, and Windows PowerShell 5.1 then loads
+// PowerShell 7's modules and fails. Without the variable, 5.1 builds its own default.
+procedure ClearInheritedModulePath;
+begin
+  if GetEnv('PSModulePath') <> '' then
+  begin
+    Log('clearing inherited PSModulePath');
+    SetEnvironmentVariable('PSModulePath', 0);
+  end;
+end;
 
 
 function HasSwitch(const Name: String): Boolean;
@@ -187,12 +203,16 @@ end;
 // Runs a script with its stdin fed from Input. The enrollment code travels only through that pipe: it is
 // never an argument and never logged.
 function RunPS(const Script, Args, Input: String; var Output: String; Live: Boolean): Integer;
-var Sh, Ex: Variant; Line, Lbl: String;
+var Sh, Ex: Variant; Line, Lbl, ErrFile: String; Err: AnsiString;
 begin
   Output := '';
   Log('run ' + Script + ' ' + Args);
+  // stderr goes to a file: a second pipe that nobody drains can fill up and hang the script.
+  ErrFile := ExpandConstant('{tmp}\') + ExtractFileName(Script) + '.err';
+  DeleteFile(ErrFile);
   Sh := CreateOleObject('WScript.Shell');
-  Ex := Sh.Exec('"' + PowerShellExe + '" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + Script + '" ' + Args);
+  Ex := Sh.Exec('cmd.exe /d /s /c ""' + PowerShellExe + '" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' +
+    Script + '" ' + Args + ' 2>"' + ErrFile + '""');
   if Input <> '' then Ex.StdIn.Write(Input + #13#10);
   Ex.StdIn.Close;
   while not Ex.StdOut.AtEndOfStream do
@@ -210,6 +230,8 @@ begin
   while Ex.Status = 0 do Sleep(50);
   Result := Ex.ExitCode;
   Log('exit ' + IntToStr(Result));
+  if (Result <> 0) and LoadStringFromFile(ErrFile, Err) and (Trim(String(Err)) <> '') then
+    Log('stderr ' + Copy(Trim(String(Err)), 1, 2000));
 end;
 
 function DetectMode: String;
@@ -273,7 +295,7 @@ begin
              '". Ciérrelo e intente de nuevo.';
     end;
   end;
-  if Result <> 0 then Log('preflight failed: ' + Msg);
+  if Result <> 0 then Log('preflight failed: ' + Msg + ' ' + Trim(Output));
 end;
 
 function DoEnroll(const Code, BoxName: String; ReplaceBox: Boolean; var Output: String): Integer;
@@ -329,6 +351,7 @@ end;
 
 function InitializeSetup: Boolean;
 begin
+  ClearInheritedModulePath;
   Mode := DetectMode;
   Log('mode ' + Mode);
   Result := True;
@@ -363,6 +386,8 @@ function NextButtonClick(CurPageID: Integer): Boolean;
 var Msg: String;
 begin
   Result := True;
+  // A silent run still "clicks" Next, and MsgBox ignores /SUPPRESSMSGBOXES; PrepareToInstall does these checks.
+  if WizardSilent then Exit;
   if CurPageID = wpWelcome then
   begin
     if not PreflightDone then
@@ -455,7 +480,8 @@ begin
     EnrollJson := '';
     if Code <> 0 then
     begin
-      Log('write-box-config failed: ' + ExitMessage(Code));
+      Log('write-box-config failed: ' + ExitMessage(Code) + ' ' + Trim(Output));
+      FailCode := Code;
       RaiseException(ExitMessage(Code));
     end;
   end;
@@ -469,6 +495,7 @@ begin
   else if Code <> 0 then
   begin
     Log('setup-box failed: ' + ExitMessage(Code));
+    FailCode := Code;
     RaiseException(ExitMessage(Code));
   end;
 end;
@@ -477,13 +504,27 @@ procedure CurPageChanged(CurPageID: Integer);
 var Txt: String;
 begin
   if CurPageID <> wpFinished then Exit;
-  if OrgName <> '' then
+  if FailCode <> 0 then
+    Txt := 'Kuenta no se terminó de instalar: ' + ExitMessage(FailCode)
+  else if OrgName <> '' then
     Txt := 'Kuenta quedó instalado para ' + OrgName + '.'
   else
     Txt := 'Kuenta quedó instalado y funcionando.';
   if SyncWarning then
     Txt := Txt + #13#10#13#10 + 'Atención: ' + ExitMessage(34);
   WizardForm.FinishedLabel.Caption := Txt;
+end;
+
+// An exception in CurStepChanged is only shown; without this, setup would still exit 0.
+function GetCustomSetupExitCode: Integer;
+begin
+  Result := FailCode;
+end;
+
+function InitializeUninstall: Boolean;
+begin
+  ClearInheritedModulePath;
+  Result := True;
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);

@@ -13,6 +13,7 @@ param(
   [Parameter(Mandatory)] [string] $Installer,
   [string] $Work = (Join-Path $env:RUNNER_TEMP 'installer-test'),
   [int]    $Port = 18080,
+  [int]    $TimeoutSeconds = 900,
   [switch] $KeepInstalled
 )
 $ErrorActionPreference = 'Stop'
@@ -39,11 +40,29 @@ function Enroll-Calls($s) {
   if (-not (Test-Path $s.log)) { return 0 }
   @(Get-Content $s.log | ConvertFrom-Json | Where-Object { $_.path -eq '/api/edge/enroll-with-code' }).Count
 }
+function Get-Descendants([int] $id) {
+  foreach ($c in @(Get-CimInstance Win32_Process -Filter "ParentProcessId = $id")) { $c; Get-Descendants $c.ProcessId }
+}
+# A hung installer must fail the test with its log and process tree, not run into the job timeout.
+function Wait-Setup($p, [string] $log, [string] $what) {
+  if ($p.WaitForExit($TimeoutSeconds * 1000)) { return }
+  $tree = @(Get-Descendants $p.Id)
+  Write-Host "::group::$what is still running after $TimeoutSeconds s"
+  $tree | Format-List ProcessId, ParentProcessId, Name, CommandLine | Out-String -Width 400 | Write-Host
+  if (Test-Path $log) { Get-Content $log -Tail 80 | Write-Host }
+  Write-Host '::endgroup::'
+  $tree | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+  Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+  throw "FAIL: $what did not exit within $TimeoutSeconds s"
+}
 function Install($s, [string] $name, [string[]] $extra = @(), [string] $useCode = $code) {
   $env:KUENTA_SETUP_CODE = $useCode
   $log = Join-Path $Work "$name.log"
-  $p = Start-Process $Installer -Wait -PassThru -ArgumentList (@('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/CLOUDURL=$($s.url)", "/LOG=$log") + $extra)
+  $p = Start-Process $Installer -PassThru -ArgumentList (@('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/CLOUDURL=$($s.url)", "/LOG=$log") + $extra)
+  # Without -Wait, ExitCode stays empty unless the handle is taken while the process runs.
+  $null = $p.Handle
   Remove-Item Env:\KUENTA_SETUP_CODE -ErrorAction SilentlyContinue
+  Wait-Setup $p $log "the $name install"
   return @{ code = $p.ExitCode; log = $log }
 }
 function Run-Enroll($s, [string] $useCode, [bool] $replace) {

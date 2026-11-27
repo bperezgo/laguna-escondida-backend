@@ -18,6 +18,8 @@ function Stop-With([int] $code, [string] $check, [string] $detail) {
   @{ check = $check; code = $code; detail = $detail } | ConvertTo-Json -Compress | Write-Output
   exit $code
 }
+# The installer reads only stdout, so an unexpected error must land there too.
+trap { Stop-With 1 'unexpected' "line $($_.InvocationInfo.ScriptLineNumber): $($_.Exception.Message)" }
 
 # 1. Windows 10/11, 64-bit (build 10240 is Windows 10 1507).
 $os = Get-CimInstance Win32_OperatingSystem

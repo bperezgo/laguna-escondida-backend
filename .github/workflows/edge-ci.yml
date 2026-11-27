@@ -178,13 +178,21 @@ jobs:
             Write-Host '::endgroup::'
           }
 
-      - name: Upload logs
+      # One upload per drive: upload-artifact needs a common root, and C: and D: have none.
+      - name: Upload appliance logs
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: appliance-logs
-          path: |
-            C:\laguna-edge\logs
-            ${{ runner.temp }}\installer-test\*.log
+          path: C:\laguna-edge\logs
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload installer logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: installer-logs
+          path: ${{ runner.temp }}\installer-test\*.log
           if-no-files-found: ignore
           retention-days: 7
