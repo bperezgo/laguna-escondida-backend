@@ -46,6 +46,10 @@ The link goes to `/users?nuevo=caja`. `UsersPageClient` reads it once on mount, 
 
 The step is titled "3. Usuarios de la caja". Its text: "En la caja se inicia sesión con el **usuario** (no con el correo). Tu cuenta de Google no sirve para la caja: crea un usuario de caja y ponle la contraseña que quieras." After a password change: "Contraseña cambiada. La caja la recibe en su próxima sincronización (cerca de un minuto)."
 
+### D6. "Cambiar contraseña" is also in the Editar dialog
+
+The owner looked for the password under "Editar" and missed the "Contraseña" button beside it. In edit mode, `UserForm` shows a "Cambiar contraseña" button that closes the form and opens the same `ResetPasswordModal` for that user. There is still one password flow.
+
 ## Security
 
 **Boundary: an organization admin → the passwords of their organization's box users.**
@@ -63,11 +67,12 @@ No needs-validation items: everything is enforced in the repo.
 
 - [The owner signs in on the box with their email and fails] → the step's copy says to use the username, and the box's sign-in page change (separate) can show the same hint.
 - [An organization created before this change still has "Caja" with an unknown password] → it is listed in step 3 with "Cambiar contraseña", so the owner can set it or deactivate it in Usuarios.
-- [The owner reported that changing a password "was not possible"] → task 3.3 reproduces reset-password on a manager without an email from the cloud UI and fixes whatever fails, before the page relies on it.
+- [The owner looked for the password change under "Editar" and missed the separate "Contraseña" button] → the Editar dialog also offers "Cambiar contraseña" (D6). Reset-password itself works.
+- [Box sign-in depends on the box receiving users] → it needs PR #88 (the box's organization row; without it every pull rolled back on `users_organization_id_fkey`). Merge #88 before this change's box sign-in scenario can pass end to end.
 
 ## Migration Plan
 
-No data migration. Deploy cloud and web together (`cloud/vX.Y.Z`). Rolling back restores the generator and the "Caja" creation. Organizations created in between simply have no "Caja" user. Boxes are unaffected.
+Depends on PR #88 for box sign-in end to end. No data migration. Deploy cloud and web together (`cloud/vX.Y.Z`). Rolling back restores the generator and the "Caja" creation. Organizations created in between simply have no "Caja" user. Boxes are unaffected.
 
 ## Implementation map
 
@@ -78,7 +83,7 @@ No data migration. Deploy cloud and web together (`cloud/vX.Y.Z`). Rolling back 
 | reset-password negative tests | new `backend/internal/platform/handler/user_reset_password_test.go` (other org `404`, no `users:update` `403`) |
 | docs | `backend/docs/api/users.md`, `backend/docs/api/signup.md`, `backend/docs/examples/curl-examples.md` |
 | step 3 | `frontend/components/settings/InstallBoxPageClient.tsx`, `frontend/lib/settings/installBox.ts` + `installBox.test.ts`, `frontend/lib/api/installBox.ts`, delete `frontend/app/api/admin/users/[id]/generate-password/route.ts` |
-| deep link | `frontend/components/users/UsersPageClient.tsx`, `frontend/components/users/UserForm.tsx` (accept preselected role ids) |
+| deep link, Editar → Cambiar contraseña | `frontend/components/users/UsersPageClient.tsx`, `frontend/components/users/UserForm.tsx` (preselected role ids; edit-mode password button) |
 
 ## Open Questions
 

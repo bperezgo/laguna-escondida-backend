@@ -14,8 +14,9 @@
 
 - [ ] 3.1 Replace `findBoxUser`, `boxPasswordReducer` and `ShownBoxPassword` in `lib/settings/installBox.ts` with `boxUsers(users)`: active users with no email, sorted by username. Rewrite `installBox.test.ts` for it (users with an email are excluded, inactive users are excluded, the order is stable). Verify `pnpm test` passes
 - [ ] 3.2 Rewrite `PasswordStep` as "3. Usuarios de la caja" (design D3, D5): list each box user's username, name and roles with "Cambiar contraseña", which opens `ResetPasswordModal` and calls `usersApi.resetPassword`; with no box user, show the "Crear usuario de caja" link to `/users?nuevo=caja`. Delete `installBoxApi.generatePassword` and `app/api/admin/users/[id]/generate-password/route.ts`. Verify `pnpm exec tsc --noEmit` and `pnpm lint` pass
-- [ ] 3.3 Reproduce the owner's report: in the cloud, as an admin, change the password of a manager without an email from Usuarios → Contraseña and from the new step 3, then sign in on a dev edge with it after a pull. Fix whatever fails, and record what it was in this task
-- [ ] 3.4 `UsersPageClient` opens the create form on `?nuevo=caja` with the manager role preselected and no email, then removes the parameter (`router.replace`). `UserForm` accepts initial role ids. Verify by hand in `pnpm dev`, plus `pnpm test`, `pnpm exec tsc --noEmit` and `pnpm lint`
+- [ ] 3.3 `UsersPageClient` opens the create form on `?nuevo=caja` with the manager role preselected and no email, then removes the parameter (`router.replace`). `UserForm` accepts initial role ids. Verify by hand in `pnpm dev`, plus `pnpm test`, `pnpm exec tsc --noEmit` and `pnpm lint`
+
+- [ ] 3.4 The Editar user dialog (`UserForm` in edit mode, opened from `UsersPageClient.handleEdit`) offers "Cambiar contraseña", which closes the form and opens the same `ResetPasswordModal` for that user. Verify by hand in `pnpm dev`, plus `pnpm exec tsc --noEmit` and `pnpm lint`
 
 ## 4. Security review
 
