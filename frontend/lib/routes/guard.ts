@@ -6,6 +6,10 @@ export const publicRoutes = ["/signin", "/registro"];
 // shows the invitation.
 export const openRoutes = ["/invitacion"];
 
+// The last signup step is shown to the person the card just signed in, so it needs a session
+// although it lives under a public route.
+export const signedInSignupRoutes = ["/registro/listo"];
+
 function matches(routes: string[], pathname: string): boolean {
   return routes.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`)
@@ -22,6 +26,10 @@ export function guardRedirect(
   }
 
   if (matches(openRoutes, pathname)) return null;
+
+  if (matches(signedInSignupRoutes, pathname)) {
+    return isAuthenticated ? null : "/signin";
+  }
 
   if (matches(publicRoutes, pathname)) {
     return isAuthenticated ? "/home" : null;

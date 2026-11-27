@@ -92,12 +92,40 @@ curl -X POST "$BASE_URL/auth/google" \
 
 ### Sign Up a Restaurant
 
-`201` with a token for the new admin, or `200` when the Google email is already registered:
+`201` with a setup token for the new admin (no sign-in token), or `200` when the Google email is already registered:
 
 ```bash
 curl -X POST "$BASE_URL/signup/google" \
   -H "Content-Type: application/json" \
   -d "{\"id_token\": \"$GOOGLE_ID_TOKEN\", \"restaurant_name\": \"Restaurante Doña Rosa\", \"plan\": \"einvoicing\"}"
+```
+
+### Plan Prices
+
+```bash
+curl -X GET "$BASE_URL/plans"
+```
+
+### Billing Setup (pending admin)
+
+`$SETUP_TOKEN` is the `setup_token` of the signup's `201` or of a `403 pending_approval` sign-in.
+
+```bash
+# Plan, period and what card entry needs (fresh acceptance tokens on every read)
+curl -X GET "$BASE_URL/billing/setup" \
+  -H "Authorization: Bearer $SETUP_TOKEN"
+
+# Choose plan and period; the amount comes from the price table
+curl -X PUT "$BASE_URL/billing/setup/selection" \
+  -H "Authorization: Bearer $SETUP_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"plan": "einvoicing", "period": "annual"}'
+
+# Save a card (Wompi's token, never the card): starts the trial and answers a sign-in
+curl -X POST "$BASE_URL/billing/setup/card" \
+  -H "Authorization: Bearer $SETUP_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"card_token\": \"$WOMPI_CARD_TOKEN\", \"acceptance_token\": \"$ACCEPTANCE_TOKEN\", \"personal_data_acceptance_token\": \"$PERSONAL_DATA_TOKEN\"}"
 ```
 
 ### Approve a Signup (operator)

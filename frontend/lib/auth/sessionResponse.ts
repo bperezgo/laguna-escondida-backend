@@ -1,6 +1,25 @@
 import { NextResponse } from "next/server";
 import { config } from "@/lib/config/config";
-import { sessionDecision, type SessionDecision } from "./sessionDecision";
+import { SETUP_COOKIE, SETUP_COOKIE_MAX_AGE, sessionDecision, type SessionDecision } from "./sessionDecision";
+
+const cookieBase = () => ({
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "strict" as const,
+  path: "/",
+});
+
+export function setAccessCookie(res: NextResponse, token: string) {
+  res.cookies.set("access_token", token, { ...cookieBase(), maxAge: 60 * 60 * 24 * 7 });
+}
+
+export function setSetupCookie(res: NextResponse, token: string) {
+  res.cookies.set(SETUP_COOKIE, token, { ...cookieBase(), maxAge: SETUP_COOKIE_MAX_AGE });
+}
+
+export function clearSetupCookie(res: NextResponse) {
+  res.cookies.set(SETUP_COOKIE, "", { ...cookieBase(), maxAge: 0 });
+}
 
 export async function backendSessionResponse(
   endpoint: string,
@@ -17,14 +36,10 @@ export async function backendSessionResponse(
     const decision = await decide(response, fallbackError);
     const res = NextResponse.json(decision.body, { status: decision.status });
     if (decision.token) {
-      res.cookies.set("access_token", decision.token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        maxAge: 60 * 60 * 24 * 7,
-        path: "/",
-      });
+      setAccessCookie(res, decision.token);
+      clearSetupCookie(res);
     }
+    if (decision.setupToken) setSetupCookie(res, decision.setupToken);
     return res;
   } catch (error) {
     console.error(`Session request to ${endpoint} failed:`, error);

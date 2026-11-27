@@ -61,6 +61,8 @@ type Cloud struct {
 	// EdgeReleasesRepo ("owner/name") is the public GitHub repository the installer download reads.
 	EdgeReleasesRepo string
 	Signup           Signup
+	// Billing is the platform's own Wompi account; without keys no card is asked at signup.
+	Billing Billing
 }
 
 type ElectronicInvoice struct {
@@ -172,6 +174,10 @@ func LoadCloud() (*Cloud, error) {
 	if err != nil {
 		return nil, err
 	}
+	billing, err := loadBilling()
+	if err != nil {
+		return nil, err
+	}
 
 	return &Cloud{
 		NodeRefusalRetryAfter:  nodeRefusalRetryAfter,
@@ -197,6 +203,7 @@ func LoadCloud() (*Cloud, error) {
 		ReservationVisitedCron: reservationVisitedCron,
 		EdgeReleasesRepo:       edgeReleasesRepo,
 		Signup:                 signup,
+		Billing:                billing,
 	}, nil
 }
 

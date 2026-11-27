@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LEGACY_EDGE_CONTEXT, parseSignInContext, signInBody, signInErrorMessage, signInFailure, signInOutcome } from "./signIn.ts";
+import { LEGACY_EDGE_CONTEXT, parseSignInContext, signInBody, signInErrorMessage, signInFailure, signInNotice, signInOutcome } from "./signIn.ts";
 import { supportEmail } from "./support.ts";
 
 test("the cloud context needs no organization", () => {
@@ -67,8 +67,20 @@ test("other sign-in failures read in Spanish without a link", () => {
   assert.equal(signInFailure({ error: "Google sign-in failed" }, null).message, "No pudimos iniciar sesión con esa cuenta de Google.");
 });
 
-test("a pending account goes to the pending page", () => {
-  assert.deepEqual(signInOutcome(false, { error: "Approval pending", code: "pending_approval" }, null), { next: "pending" });
+test("a pending admin continues signup at step 2", () => {
+  assert.deepEqual(signInOutcome(false, { error: "Approval pending", code: "pending_approval", setup: true }, null), { next: "payment" });
+});
+
+test("a pending account without a setup session is told it is not active yet", () => {
+  const outcome = signInOutcome(false, { error: "Approval pending", code: "pending_approval" }, null);
+  assert.equal(outcome.next, "failure");
+  if (outcome.next === "failure") assert.match(outcome.failure.message, /todavía no está activa/);
+});
+
+test("an expired setup session explains why the person is signing in again", () => {
+  assert.match(signInNotice("sesion") ?? "", /continuar con tu registro/);
+  assert.equal(signInNotice(undefined), null);
+  assert.equal(signInNotice("otro"), null);
 });
 
 test("a successful sign-in goes home", () => {

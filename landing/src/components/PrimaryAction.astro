@@ -1,13 +1,16 @@
 ---
+import { planAction, type PlanId } from "../config/actions.ts";
 import { actions } from "../config/site.ts";
 
 interface Props {
+  /** Only the pricing section passes it: the trial then opens signup with this plan chosen. */
+  plan?: PlanId;
   size?: "sm" | "md" | "lg";
   class?: string;
 }
 
-const { size = "lg", class: className } = Astro.props;
-const { primary } = actions;
+const { size = "lg", class: className, plan } = Astro.props;
+const primary = plan ? planAction(actions.primary, plan) : actions.primary;
 const sizes = { sm: "button-sm px-3 py-2", md: "button-md px-3 py-3", lg: "button-lg px-3 py-3" };
 ---
 

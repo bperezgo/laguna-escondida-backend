@@ -17,6 +17,15 @@ var (
 	ErrPlanRequired         = errors.New("plan does not include this feature")
 )
 
+// PendingApprovalError is ErrOrganizationPending for an admin, who continues signup with SetupToken.
+type PendingApprovalError struct {
+	SetupToken string
+}
+
+func (e *PendingApprovalError) Error() string { return ErrOrganizationPending.Error() }
+
+func (e *PendingApprovalError) Is(target error) bool { return target == ErrOrganizationPending }
+
 // PlanRequiredError carries the cheapest plan that includes the refused feature.
 type PlanRequiredError struct {
 	RequiredPlan string

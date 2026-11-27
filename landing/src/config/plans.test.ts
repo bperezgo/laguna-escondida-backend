@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { planAction } from "./actions.ts";
 import { annualPrice, formatCop, plans } from "./plans.ts";
 
 test("the three plans cost 25000, 40000 and 100000 a month, in that order", () => {
@@ -29,4 +30,13 @@ test("only the Completo plan mentions the WhatsApp agent, as a connection contra
   assert.equal(mentions[0]?.id, "full");
   assert.match(mentions[0]?.line ?? "", /^Conexión con el agente de WhatsApp/);
   assert.match(mentions[0]?.line ?? "", /se contrata aparte/);
+});
+
+test("each plan's trial action names that plan in the signup address", () => {
+  const trial = { label: "Prueba 14 días", href: "https://app.kuenta.com/signup", kind: "trial" } as const;
+
+  assert.deepEqual(
+    plans.map((plan) => planAction(trial, plan.id).href),
+    ["https://app.kuenta.com/signup?plan=starter", "https://app.kuenta.com/signup?plan=einvoicing", "https://app.kuenta.com/signup?plan=full"],
+  );
 });

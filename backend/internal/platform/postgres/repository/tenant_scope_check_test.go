@@ -18,6 +18,8 @@ import (
 // globalTableFiles reach tables that belong to no organization (or name it explicitly), so
 // they may use the unscoped database handle.
 var globalTableFiles = map[string]bool{
+	// Every method takes the organization id: the operator reads any organization's billing.
+	"billing_repository.go":             true,
 	"box_secret_repository.go":          true,
 	"database.go":                       true,
 	"einvoicing_settings_repository.go": true,

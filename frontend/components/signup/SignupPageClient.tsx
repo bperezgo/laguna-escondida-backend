@@ -1,27 +1,34 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Card, CardBody, Input } from "@/components/ui";
+import { Input } from "@/components/ui";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import NoticeMessage from "@/components/auth/NoticeMessage";
-import PublicShell from "@/components/auth/PublicShell";
-import { usePermissions } from "@/lib/permissions";
+import PublicLayout from "@/components/public/PublicLayout";
+import PlanPicker from "@/components/public/PlanPicker";
+import PlanSummary from "@/components/public/PlanSummary";
+import styles from "@/components/public/signup.module.css";
 import { googleClientId } from "@/lib/google";
-import { PLAN_CARDS, type Plan } from "@/lib/plans";
-import { PENDING_PATH, signupBody, signupOutcome, validateSignup, type SignupErrors, type SignupFailure } from "@/lib/signup";
+import { planPrice, type Plan, type PlanPrices } from "@/lib/plans";
+import { PAYMENT_PATH, signupBody, signupOutcome, validateSignup, type SignupErrors, type SignupFailure } from "@/lib/signup";
 import { supportEmail } from "@/lib/support";
 
-export default function SignupPageClient() {
+export interface SignupPageClientProps {
+  initialPlan: Plan;
+  /** Null when prices could not be read: the plans show without them and signup still works. */
+  prices: PlanPrices | null;
+}
+
+export default function SignupPageClient({ initialPlan, prices }: SignupPageClientProps) {
   const router = useRouter();
-  const { fetchPermissions } = usePermissions();
   const [restaurantName, setRestaurantName] = useState("");
-  const [plan, setPlan] = useState<Plan | null>(null);
+  const [plan, setPlan] = useState<Plan>(initialPlan);
+  const [choosingPlan, setChoosingPlan] = useState(false);
   const [errors, setErrors] = useState<SignupErrors>({});
   const [failure, setFailure] = useState<SignupFailure | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-
-  const ready = Object.keys(validateSignup({ restaurantName, plan })).length === 0;
 
   const handleCredential = useCallback(
     async (idToken: string) => {
@@ -29,7 +36,10 @@ export default function SignupPageClient() {
       const found = validateSignup(current);
       setErrors(found);
       setFailure(null);
-      if (Object.keys(found).length > 0) return;
+      if (Object.keys(found).length > 0) {
+        document.getElementById("restaurant_name")?.focus();
+        return;
+      }
       setIsLoading(true);
       try {
         const response = await fetch("/api/signup/google", {
@@ -39,8 +49,8 @@ export default function SignupPageClient() {
         });
         const data = await response.json().catch(() => ({}));
         const outcome = signupOutcome(response.status, data, supportEmail());
-        if (outcome.next === "pending") {
-          router.push(PENDING_PATH);
+        if (outcome.next === "payment") {
+          router.push(PAYMENT_PATH);
           return;
         }
         if (outcome.next === "failure") {
@@ -49,105 +59,69 @@ export default function SignupPageClient() {
           setFailure(f);
           return;
         }
-        await fetchPermissions();
-        router.push("/home");
+        // A full load, not a client transition: the public pages' content security policy must not follow the person into the app.
+        window.location.assign("/home");
       } catch {
         setFailure({ message: "No se pudo conectar. Intenta de nuevo.", mailto: null });
       } finally {
         setIsLoading(false);
       }
     },
-    [restaurantName, plan, fetchPermissions, router]
+    [restaurantName, plan, router]
   );
 
   return (
-    <PublicShell subtitle="Crea la cuenta de tu restaurante: 14 días de prueba gratis" maxWidth="56rem">
-      <Card>
-        <CardBody>
-          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-            <Input
-              label="Nombre del restaurante"
-              id="restaurant_name"
-              value={restaurantName}
-              onChange={(e) => {
-                setRestaurantName(e.target.value);
-                setErrors((prev) => ({ ...prev, restaurant_name: undefined }));
-              }}
-              error={errors.restaurant_name}
-              placeholder="Ej. Restaurante Doña Rosa"
-              maxLength={255}
+    <PublicLayout step={1} title="Crea la cuenta de tu restaurante" subtitle="Empieza con 14 días de prueba gratis. Te toma un par de minutos.">
+      <div className={styles.stack}>
+        <Input
+          label="Nombre del restaurante"
+          id="restaurant_name"
+          value={restaurantName}
+          onChange={(e) => {
+            setRestaurantName(e.target.value);
+            setErrors((prev) => ({ ...prev, restaurant_name: undefined }));
+          }}
+          error={errors.restaurant_name}
+          placeholder="Ej. Restaurante Doña Rosa"
+          maxLength={255}
+          disabled={isLoading}
+          autoComplete="organization"
+        />
+
+        <section className={styles.card} aria-label="Plan">
+          {choosingPlan ? (
+            <PlanPicker
+              value={plan}
+              prices={prices}
               disabled={isLoading}
+              onChange={(next) => {
+                setPlan(next);
+                setChoosingPlan(false);
+              }}
             />
+          ) : (
+            <PlanSummary plan={plan} monthlyPrice={planPrice(prices, plan, "monthly")} onChange={() => setChoosingPlan(true)} />
+          )}
+        </section>
 
-            <fieldset style={{ border: "none", margin: 0, padding: 0 }}>
-              <legend style={{ fontWeight: 600, fontSize: "0.875rem", marginBottom: "0.75rem", color: "var(--color-text-primary)" }}>
-                Elige tu plan
-              </legend>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem" }}>
-                {PLAN_CARDS.map((card) => {
-                  const selected = plan === card.plan;
-                  return (
-                    <label
-                      key={card.plan}
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "0.5rem",
-                        padding: "1rem",
-                        borderRadius: "var(--radius-md)",
-                        border: `2px solid ${selected ? "var(--color-primary)" : "var(--color-border)"}`,
-                        backgroundColor: selected ? "var(--color-primary-light)" : "var(--color-surface)",
-                        cursor: isLoading ? "default" : "pointer",
-                      }}
-                    >
-                      <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <input
-                          type="radio"
-                          name="plan"
-                          value={card.plan}
-                          checked={selected}
-                          disabled={isLoading}
-                          onChange={() => {
-                            setPlan(card.plan);
-                            setErrors((prev) => ({ ...prev, plan: undefined }));
-                          }}
-                        />
-                        <strong style={{ color: "var(--color-text-primary)" }}>{card.title}</strong>
-                      </span>
-                      <ul style={{ margin: 0, paddingLeft: "1.25rem", color: "var(--color-text-secondary)", fontSize: "0.875rem" }}>
-                        {card.includes.map((item) => (
-                          <li key={item}>{item}</li>
-                        ))}
-                      </ul>
-                    </label>
-                  );
-                })}
-              </div>
-              {errors.plan && (
-                <p style={{ margin: "0.5rem 0 0", color: "var(--color-danger)", fontSize: "0.8rem" }}>{errors.plan}</p>
-              )}
-            </fieldset>
+        {failure && <NoticeMessage message={failure.message} mailto={failure.mailto} />}
 
-            {failure && <NoticeMessage message={failure.message} mailto={failure.mailto} />}
+        {googleClientId() ? (
+          <GoogleSignInButton text="signup_with" onCredential={handleCredential} disabled={isLoading} />
+        ) : (
+          <NoticeMessage tone="warning" message="El registro no está disponible por ahora." />
+        )}
 
-            {!googleClientId() ? (
-              <NoticeMessage tone="warning" message="El registro no está disponible por ahora." />
-            ) : ready ? (
-              <div style={{ maxWidth: "26rem", width: "100%", margin: "0 auto" }}>
-                <GoogleSignInButton text="signup_with" onCredential={handleCredential} disabled={isLoading} />
-              </div>
-            ) : (
-              <p style={{ margin: 0, textAlign: "center", color: "var(--color-text-secondary)", fontSize: "0.875rem" }}>
-                Escribe el nombre del restaurante y elige un plan para continuar con Google.
-              </p>
-            )}
-
-            <p style={{ margin: 0, textAlign: "center", fontSize: "0.875rem", color: "var(--color-text-secondary)" }}>
-              ¿Ya tienes cuenta? <a href="/signin" style={{ color: "var(--color-primary)" }}>Inicia sesión</a>
-            </p>
-          </div>
-        </CardBody>
-      </Card>
-    </PublicShell>
+        <p className={`${styles.muted} ${styles.center}`}>
+          En el siguiente paso eliges cómo pagar. Hoy no se te cobra nada.
+        </p>
+        <p className={`${styles.muted} ${styles.center}`}>
+          ¿Ya tienes cuenta?{" "}
+          <Link className={styles.link} href="/signin">
+            Inicia sesión
+          </Link>
+        </p>
+      </div>
+    </PublicLayout>
   );
 }

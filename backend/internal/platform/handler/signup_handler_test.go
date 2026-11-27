@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"encoding/json"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -17,6 +19,30 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
+
+// pendingWithSetupToken marks a case whose body carries a setup token, which no fixed JSON can match.
+const pendingWithSetupToken = "pending with setup token"
+
+func assertSetupToken(t *testing.T, token string) {
+	t.Helper()
+	jwtService := service.NewJWTService("test-secret", tenant.AnyOrganization())
+	claims, err := jwtService.ValidateSetupToken(token)
+	require.NoError(t, err)
+	assert.NotEmpty(t, claims.UserID)
+	assert.NotEmpty(t, claims.OrgID)
+	_, err = jwtService.ValidateToken(token)
+	assert.Error(t, err, "a setup token is not a sign-in")
+}
+
+func assertPendingWithSetupToken(t *testing.T, rec *httptest.ResponseRecorder) {
+	t.Helper()
+	var body map[string]string
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	assert.Equal(t, "Approval pending", body["error"])
+	assert.Equal(t, "pending_approval", body["code"])
+	assert.NotContains(t, body, "token")
+	assertSetupToken(t, body["setup_token"])
+}
 
 type signupDeps struct {
 	signInDeps
@@ -88,6 +114,10 @@ func TestSignupHandler_GoogleSignIn(t *testing.T) {
 		{"pending organization", func(t *testing.T, d signupDeps) {
 			d.googleSays("ana@example.com")
 			d.anaIs(t, &dto.Organization{ID: testOrganizationID, Status: "pending"}, permissions.RoleAdmin, true)
+		}, http.StatusForbidden, pendingWithSetupToken},
+		{"pending organization, not an admin", func(t *testing.T, d signupDeps) {
+			d.googleSays("ana@example.com")
+			d.anaIs(t, &dto.Organization{ID: testOrganizationID, Status: "pending"}, permissions.RoleManager, true)
 		}, http.StatusForbidden, `{"error":"Approval pending","code":"pending_approval"}`},
 	}
 	for _, tc := range cases {
@@ -98,6 +128,10 @@ func TestSignupHandler_GoogleSignIn(t *testing.T) {
 			rec := d.do(http.MethodPost, "/api/auth/google", `{"id_token":"tok"}`)
 
 			require.Equal(t, tc.code, rec.Code, rec.Body.String())
+			if tc.want == pendingWithSetupToken {
+				assertPendingWithSetupToken(t, rec)
+				return
+			}
 			if tc.want != "" {
 				assert.JSONEq(t, tc.want, rec.Body.String())
 				return
@@ -125,7 +159,17 @@ func TestSignupHandler_GoogleSignup_Created(t *testing.T) {
 	rec := d.do(http.MethodPost, "/api/signup/google", `{"id_token":"tok","restaurant_name":"Doña Rosa","plan":"starter"}`)
 
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
-	assert.JSONEq(t, `{"status":"pending","organization_name":"Doña Rosa","plan":"starter"}`, rec.Body.String())
+	var body struct {
+		Status           string `json:"status"`
+		OrganizationName string `json:"organization_name"`
+		Plan             string `json:"plan"`
+		SetupToken       string `json:"setup_token"`
+		Token            string `json:"token"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	assert.Equal(t, []string{"pending", "Doña Rosa", "starter"}, []string{body.Status, body.OrganizationName, body.Plan})
+	assert.Empty(t, body.Token, "no sign-in token")
+	assertSetupToken(t, body.SetupToken)
 	assert.Empty(t, rec.Header().Values("Set-Cookie"))
 }
 
@@ -137,7 +181,7 @@ func TestSignupHandler_GoogleSignup_AgainWhilePending(t *testing.T) {
 	rec := d.do(http.MethodPost, "/api/signup/google", `{"id_token":"tok","restaurant_name":"Doña Rosa","plan":"starter"}`)
 
 	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
-	assert.JSONEq(t, `{"error":"Approval pending","code":"pending_approval"}`, rec.Body.String())
+	assertPendingWithSetupToken(t, rec)
 	d.orgRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 }
 

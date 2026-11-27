@@ -111,3 +111,41 @@ const (
 )
 
 const TrialLength = 14 * 24 * time.Hour
+
+type Period string
+
+const (
+	Monthly Period = "monthly"
+	Annual  Period = "annual"
+)
+
+func ValidPeriod(period string) bool {
+	return Period(period) == Monthly || Period(period) == Annual
+}
+
+// Pesos, no tax. The plan-prices spec table; annual is two months free, so derived, not stored.
+var monthlyPrices = map[Plan]int{
+	Starter:    25000,
+	EInvoicing: 40000,
+	Full:       100000,
+}
+
+const annualMonths = 10
+
+const Currency = "COP"
+
+// TrialDays is TrialLength in days, as the public price list states it.
+const TrialDays = int(TrialLength / (24 * time.Hour))
+
+// Price is 0 for an unknown plan or period.
+func Price(plan Plan, period Period) int {
+	monthly := monthlyPrices[plan]
+	switch period {
+	case Monthly:
+		return monthly
+	case Annual:
+		return monthly * annualMonths
+	default:
+		return 0
+	}
+}

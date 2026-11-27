@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Button, Card, CardBody, Input } from "@/components/ui";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import NoticeMessage from "@/components/auth/NoticeMessage";
-import PublicShell from "@/components/auth/PublicShell";
+import PublicLayout from "@/components/public/PublicLayout";
 import { usePermissions } from "@/lib/permissions";
 import { googleClientId } from "@/lib/google";
 import {
@@ -183,10 +183,10 @@ export default function AcceptInvitationClient() {
   }
 
   return (
-    <PublicShell subtitle="Acepta tu invitación">
+    <PublicLayout variant="single" title="Acepta tu invitación">
       <Card>
         <CardBody>{content}</CardBody>
       </Card>
-    </PublicShell>
+    </PublicLayout>
   );
 }

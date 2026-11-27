@@ -2,11 +2,13 @@ package testsupport
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -61,4 +63,90 @@ func ConfigureWompi(t *testing.T, db *gorm.DB, orgID string) {
 	_, err := IntegrationService(t, db, "http://127.0.0.1/v1").SetWompi(context.Background(), orgID,
 		dto.WompiCredentials{PrivateKey: "prv_test_accept", EventsSecret: "test_events_accept"})
 	require.NoError(t, err)
+}
+
+// FakeBillingWompi is the platform's own Wompi account: it answers the merchant's terms, turns a
+// card token into a payment source, and counts transactions, which saving a card must never create.
+// Everything else it answers as PaymentLinks' fake does.
+type FakeBillingWompi struct {
+	server *httptest.Server
+	mu     sync.Mutex
+	// Sources are the bodies of every payment source request, in order.
+	Sources      []map[string]string
+	Transactions int
+}
+
+const (
+	FakeBillingPublicKey  = "pub_test_accept_platform"
+	FakeBillingPrivateKey = "prv_test_accept_platform"
+	// RefusedCardToken is a card token the fake refuses, as Wompi refuses one it does not know.
+	RefusedCardToken = "tok_test_refused"
+)
+
+func BillingWompi(t *testing.T) *FakeBillingWompi {
+	t.Helper()
+	fake := &FakeBillingWompi{}
+	fake.server = httptest.NewServer(http.HandlerFunc(fake.serve))
+	t.Cleanup(fake.server.Close)
+	return fake
+}
+
+func (f *FakeBillingWompi) PaymentLinks() config.PaymentLinks {
+	return config.NewPaymentLinks(f.server.URL+"/v1", 30*time.Minute)
+}
+
+func (f *FakeBillingWompi) Billing() config.Billing {
+	return config.Billing{WompiPublicKey: FakeBillingPublicKey, WompiPrivateKey: FakeBillingPrivateKey}
+}
+
+func (f *FakeBillingWompi) Counts() (sources, transactions int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.Sources), f.Transactions
+}
+
+func (f *FakeBillingWompi) serve(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	switch {
+	case r.Method == http.MethodGet && r.URL.Path == "/v1/merchants/"+FakeBillingPublicKey:
+		_, _ = fmt.Fprintf(w, `{"data":{"email":"platform@example.com",
+			"presigned_acceptance":{"acceptance_token":"acc_%s","permalink":"https://wompi.example/terms.pdf"},
+			"presigned_personal_data_auth":{"acceptance_token":"pda_%s","permalink":"https://wompi.example/data.pdf"}}}`,
+			uuid.NewString()[:8], uuid.NewString()[:8])
+	case r.Method == http.MethodPost && r.URL.Path == "/v1/payment_sources":
+		f.paymentSource(w, r)
+	case r.Method == http.MethodPost && r.URL.Path == "/v1/transactions":
+		f.mu.Lock()
+		f.Transactions++
+		f.mu.Unlock()
+		w.WriteHeader(http.StatusCreated)
+		_, _ = fmt.Fprintf(w, `{"data":{"id":"tx_%s","status":"PENDING"}}`, uuid.NewString()[:8])
+	case r.Method == http.MethodPost:
+		w.WriteHeader(http.StatusCreated)
+		_, _ = fmt.Fprintf(w, `{"data":{"id":"wl_%s","active":true}}`, uuid.NewString()[:8])
+	default:
+		_, _ = w.Write([]byte(`{"data":{"active":false}}`))
+	}
+}
+
+func (f *FakeBillingWompi) paymentSource(w http.ResponseWriter, r *http.Request) {
+	var body map[string]string
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	if r.Header.Get("Authorization") != "Bearer "+FakeBillingPrivateKey {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":{"type":"INVALID_ACCESS_TOKEN"}}`))
+		return
+	}
+	f.mu.Lock()
+	f.Sources = append(f.Sources, body)
+	id := 3000 + len(f.Sources)
+	f.mu.Unlock()
+	if body["token"] == RefusedCardToken || body["acceptance_token"] == "" || body["accept_personal_auth"] == "" {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, _ = w.Write([]byte(`{"error":{"type":"INPUT_VALIDATION_ERROR","messages":{"token":["El token no existe"]}}}`))
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+	_, _ = fmt.Fprintf(w, `{"data":{"id":%d,"type":"CARD","status":"AVAILABLE","customer_email":%q,
+		"public_data":{"type":"CARD","bin":"424242","last_four":"4242","exp_month":"12","exp_year":"29"}}}`, id, body["customer_email"])
 }

@@ -36,6 +36,24 @@ func registerSignupRoutes(router *gin.Engine, signup *handler.SignupHandler, opt
 }
 
 const (
+	cardSavesPerOrganization = 5
+	cardSaveWindow           = time.Hour
+)
+
+// registerBillingSetupRoutes is cloud-only. Only a setup token opens these routes, and the card
+// route exists only while the cloud has its billing keys.
+func registerBillingSetupRoutes(router *gin.Engine, jwtService *service.JWTService, access *service.OrganizationAccessService,
+	billing *handler.BillingSetupHandler, cardEntry bool) {
+	setup := router.Group("/api/billing/setup", handler.SetupAuthMiddleware(jwtService, access))
+	setup.GET("", billing.StateHandler)
+	setup.PUT("/selection", billing.SelectionHandler)
+	if cardEntry {
+		// Counts refused cards too, so the route is no use for testing stolen ones.
+		setup.POST("/card", handler.RateLimitByOrganization(cardSavesPerOrganization, cardSaveWindow), billing.SaveCardHandler)
+	}
+}
+
+const (
 	invitationLookupsPerAddress = 30
 	invitationLookupWindow      = 10 * time.Minute
 )

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -72,6 +73,27 @@ func TestUserService_SignIn_PendingWithTheCorrectPassword(t *testing.T) {
 	assert.Nil(t, result)
 	assert.ErrorIs(t, err, domainError.ErrOrganizationPending)
 	assert.NotErrorIs(t, err, domainError.ErrInvalidCredentials)
+	var pending *domainError.PendingApprovalError
+	require.ErrorAs(t, err, &pending)
+	claims, err := f.jwt.ValidateSetupToken(pending.SetupToken)
+	require.NoError(t, err)
+	assert.Equal(t, testOrgA, claims.OrgID)
+	assert.Equal(t, "bob-id", claims.UserID)
+	_, err = f.jwt.ValidateToken(pending.SetupToken)
+	assert.ErrorIs(t, err, ErrInvalidToken, "the setup token is not a sign-in")
+}
+
+func TestUserService_SignIn_PendingManagerGetsNoSetupToken(t *testing.T) {
+	f := newUserServiceFixture(t, tenant.AnyOrganization())
+	f.userRepo.On("FindByEmail", mock.Anything, "ana@example.com").Return(anaFound(t, "password123", true), nil)
+	f.orgRepo.On("Get", mock.Anything, testOrgA).Return(pendingOrg(), nil)
+	f.userRoleRepo.On("FindRolesByUserID", mock.Anything, "bob-id").Return([]*dto.Role{createTestRole(permissions.RoleManager, "manager")}, nil)
+
+	_, err := cloudSignIn(f)
+
+	assert.ErrorIs(t, err, domainError.ErrOrganizationPending)
+	var pending *domainError.PendingApprovalError
+	assert.False(t, errors.As(err, &pending))
 }
 
 func TestUserService_SignIn_PendingWithAWrongPassword(t *testing.T) {
@@ -125,6 +147,9 @@ func TestUserService_SignInWithGoogle(t *testing.T) {
 		_, err := f.service.SignInWithGoogle(context.Background(), "ana@example.com")
 		assert.ErrorIs(t, err, domainError.ErrOrganizationPending)
 		assert.NotErrorIs(t, err, domainError.ErrGoogleSignInFailed)
+		var pending *domainError.PendingApprovalError
+		require.ErrorAs(t, err, &pending)
+		assert.NotEmpty(t, pending.SetupToken)
 	})
 	t.Run("suspended organization is opaque", func(t *testing.T) {
 		f := trialFixture(t, lagunaOrg(dto.OrganizationStatusSuspended), "irrelevant")

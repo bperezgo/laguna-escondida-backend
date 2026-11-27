@@ -15,6 +15,8 @@ POST /api/auth/google laguna-escondida/backend/internal/platform/handler.(*Signu
 GET /api/auth/me laguna-escondida/backend/internal/platform/handler.(*UserHandler).GetCurrentUserHandler-fm
 POST /api/auth/signin laguna-escondida/backend/internal/platform/handler.(*UserHandler).SignInHandler-fm
 GET /api/bill-owners/:id laguna-escondida/backend/internal/platform/handler.(*BillOwnerHandler).GetByIDHandler-fm
+GET /api/billing/setup laguna-escondida/backend/internal/platform/handler.(*BillingSetupHandler).StateHandler-fm
+PUT /api/billing/setup/selection laguna-escondida/backend/internal/platform/handler.(*BillingSetupHandler).SelectionHandler-fm
 GET /api/contacts laguna-escondida/backend/internal/platform/handler.(*ContactHandler).ListHandler-fm
 GET /api/contacts/:id laguna-escondida/backend/internal/platform/handler.(*ContactHandler).GetHandler-fm
 GET /api/deliveries/couriers laguna-escondida/backend/internal/platform/handler.(*DeliveryHandler).CouriersHandler-fm
@@ -94,6 +96,7 @@ PUT /api/organization/payment-settings laguna-escondida/backend/internal/platfor
 GET /api/organization/settings laguna-escondida/backend/internal/platform/handler.(*OrganizationSettingsHandler).GetSettingsHandler-fm
 PATCH /api/organization/settings laguna-escondida/backend/internal/platform/handler.(*OrganizationSettingsHandler).PatchSettingsHandler-fm
 GET /api/payments/qr/:token laguna-escondida/backend/internal/platform/handler.(*PaymentQRHandler).ImageHandler-fm
+GET /api/plans laguna-escondida/backend/internal/platform/handler.(*PlansHandler).ListHandler-fm
 GET /api/platform/leads laguna-escondida/backend/internal/platform/handler.(*LeadHandler).ListHandler-fm
 DELETE /api/platform/leads/:id laguna-escondida/backend/internal/platform/handler.(*LeadHandler).DeleteHandler-fm
 GET /api/platform/leads/:id laguna-escondida/backend/internal/platform/handler.(*LeadHandler).GetHandler-fm

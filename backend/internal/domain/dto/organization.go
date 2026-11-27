@@ -33,9 +33,12 @@ type Organization struct {
 	SecondaryColor    *string             `json:"secondary_color"`
 	EInvoicing        *EInvoicingSettings `json:"einvoicing"`
 	// Settings is read-only here: it changes through the tenant's /api/organization/settings.
-	Settings  OrganizationSettings `json:"settings"`
-	CreatedAt time.Time            `json:"created_at"`
-	UpdatedAt time.Time            `json:"updated_at"`
+	Settings OrganizationSettings `json:"settings"`
+	// BillingPeriod and HasSavedCard are what the operator sees of billing; never the payment source.
+	BillingPeriod string    `json:"billing_period"`
+	HasSavedCard  bool      `json:"has_saved_card"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 // CurrentOrganization is what a signed-in user sees of their organization: settings and access, not e-invoicing.

@@ -1,0 +1,157 @@
+.page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+}
+
+.brand {
+  display: none;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px 40px;
+  min-width: 0;
+}
+
+.inner {
+  width: 100%;
+  max-width: 440px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.wide {
+  max-width: 560px;
+}
+
+.mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--color-text-primary);
+  text-decoration: none;
+}
+
+.mark img {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+}
+
+.heading {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.title {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  margin: 0;
+  font-size: var(--text-body);
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.single {
+  align-content: center;
+}
+
+.single .main {
+  justify-content: center;
+}
+
+@media (min-width: 1024px) {
+  .split {
+    grid-template-columns: minmax(360px, 5fr) minmax(0, 7fr);
+  }
+
+  .split .brand {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 32px;
+    padding: 48px;
+    color: #fff;
+    background:
+      radial-gradient(120% 80% at 0% 100%, rgba(20, 184, 166, 0.35), transparent 60%),
+      linear-gradient(160deg, #0b3b38 0%, #0f766e 100%);
+  }
+
+  .split .main {
+    justify-content: center;
+    padding: 48px 32px;
+  }
+
+  .split .mobileMark {
+    display: none;
+  }
+
+  .brand .mark {
+    color: #fff;
+  }
+
+  .brandCopy {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    max-width: 420px;
+  }
+
+  .brandTitle {
+    margin: 0;
+    font-size: 34px;
+    line-height: 1.15;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+
+  .points {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    font-size: 16px;
+    line-height: 1.4;
+  }
+
+  .points li {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .points svg {
+    flex: none;
+    margin-top: 1px;
+    color: #5eead4;
+  }
+
+  .brandFoot {
+    margin: 0;
+    font-size: var(--text-caption);
+    color: rgba(255, 255, 255, 0.72);
+  }
+}

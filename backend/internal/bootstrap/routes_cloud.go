@@ -29,6 +29,7 @@ type cloudHandlers struct {
 	organization    *handler.OrganizationHandler
 	lead            *handler.LeadHandler
 	installer       *handler.InstallerDownloadHandler
+	plans           *handler.PlansHandler
 	apiKey          *handler.APIKeyHandler
 	integration     *handler.OrganizationIntegrationHandler
 	paymentSettings *handler.PaymentSettingsHandler
@@ -88,6 +89,8 @@ func registerCloudRoutes(router *gin.Engine, adminAPIKey string, jwtService *ser
 	router.POST("/api/public/leads", handler.RateLimitMiddleware(leadSubmissionsPerAddress, leadSubmissionWindow), h.lead.SubmitHandler)
 	// The landing's download button links here; it redirects to the newest installer this cloud can sync with.
 	router.GET("/api/public/edge/installer", handler.RateLimitMiddleware(installerDownloadsPerAddress, installerDownloadWindow), h.installer.DownloadHandler)
+	// Constants, so no limit beyond the global one; the landing's release checks its prices against it.
+	router.GET("/api/plans", h.plans.ListHandler)
 	leads := router.Group("/api/platform/leads", handler.AdminAPIKeyMiddleware(adminAPIKey))
 	leads.GET("", h.lead.ListHandler)
 	leads.GET("/:id", h.lead.GetHandler)

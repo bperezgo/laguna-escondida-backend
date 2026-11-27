@@ -66,3 +66,12 @@ func (s *OrganizationAccessService) Usable(ctx context.Context, orgID string) er
 	}
 	return nil
 }
+
+// Pending reports whether the organization still waits for its trial to start.
+func (s *OrganizationAccessService) Pending(ctx context.Context, orgID string) (bool, error) {
+	access, err := s.reader.GetAccess(ctx, orgID)
+	if err != nil {
+		return false, fmt.Errorf("organization access: %w", err)
+	}
+	return access.Status == dto.OrganizationStatusPending, nil
+}

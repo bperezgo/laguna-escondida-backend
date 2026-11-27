@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { featureVisible, pageVisible, planRequiredNotice, PLAN_CARDS, PLANS } from "./plans.ts";
+import { featureVisible, pageVisible, planRequiredNotice, PLAN_CARDS, PLANS, RECOMMENDED_PLAN, formatPesos, parsePlanPrices, planFromQuery, planPrice } from "./plans.ts";
 
 const gated = [
   "/invoices",
@@ -59,4 +59,45 @@ test("the upgrade notice names the plan and links support only when set", () => 
   assert.match(without.message, /Completo/);
   assert.equal(without.mailto, null);
   assert.doesNotMatch(planRequiredNotice(undefined, null).message, /plan undefined/);
+});
+
+test("the plan named by the landing is selected, and the recommended one otherwise", () => {
+  assert.equal(planFromQuery("full"), "full");
+  assert.equal(planFromQuery("starter"), "starter");
+  assert.equal(planFromQuery("gold"), "einvoicing");
+  assert.equal(planFromQuery(undefined), "einvoicing");
+  assert.equal(planFromQuery(["full", "starter"]), "full");
+  assert.equal(RECOMMENDED_PLAN, "einvoicing");
+});
+
+test("pesos are written with a dot every three digits and no decimals", () => {
+  assert.equal(formatPesos(400000), "$400.000");
+  assert.equal(formatPesos(1000000), "$1.000.000");
+  assert.equal(formatPesos(25000), "$25.000");
+  assert.equal(formatPesos(0), "$0");
+  assert.equal(formatPesos(999), "$999");
+});
+
+const priceList = {
+  currency: "COP",
+  trial_days: 14,
+  plans: [
+    { id: "starter", monthly: 25000, annual: 250000 },
+    { id: "einvoicing", monthly: 40000, annual: 400000 },
+    { id: "full", monthly: 100000, annual: 1000000 },
+  ],
+};
+
+test("the price list is read as the backend sends it", () => {
+  const prices = parsePlanPrices(priceList);
+  assert.equal(prices?.trialDays, 14);
+  assert.equal(planPrice(prices, "einvoicing", "annual"), 400000);
+  assert.equal(planPrice(prices, "full", "monthly"), 100000);
+});
+
+test("an incomplete or unreadable price list means no prices, not wrong ones", () => {
+  assert.equal(parsePlanPrices(null), null);
+  assert.equal(parsePlanPrices({ trial_days: 14, plans: priceList.plans.slice(0, 2) }), null);
+  assert.equal(parsePlanPrices({ ...priceList, plans: [{ id: "starter", monthly: "25000", annual: 250000 }] }), null);
+  assert.equal(planPrice(null, "full", "monthly"), null);
 });

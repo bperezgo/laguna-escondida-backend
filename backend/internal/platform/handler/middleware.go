@@ -245,6 +245,42 @@ func JWTAuthMiddleware(jwtService *service.JWTService, requiredRoles ...int) gin
 	}
 }
 
+var notPendingBody = gin.H{"error": "Organization is not pending approval", "code": "not_pending"}
+
+// SetupAuthMiddleware guards the billing setup routes: only a setup token passes, never a sign-in
+// token, API key or platform key, and only while the organization is still pending.
+func SetupAuthMiddleware(jwtService *service.JWTService, access *service.OrganizationAccessService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token, found := strings.CutPrefix(c.GetHeader("Authorization"), "Bearer ")
+		if !found || token == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, invalidTokenBody)
+			return
+		}
+		claims, err := jwtService.ValidateSetupToken(token)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, invalidTokenBody)
+			return
+		}
+		pending, err := access.Pending(c.Request.Context(), claims.OrgID)
+		switch {
+		case errors.Is(err, domainError.ErrOrganizationNotFound):
+			c.AbortWithStatusJSON(http.StatusUnauthorized, invalidTokenBody)
+			return
+		case err != nil:
+			_ = c.Error(err)
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "failed to authenticate"})
+			return
+		case !pending:
+			c.AbortWithStatusJSON(http.StatusConflict, notPendingBody)
+			return
+		}
+		c.Set("user_id", claims.UserID)
+		c.Set("org_id", claims.OrgID)
+		c.Request = c.Request.WithContext(tenant.WithOrg(c.Request.Context(), claims.OrgID))
+		c.Next()
+	}
+}
+
 func abortOrganizationAccess(c *gin.Context, err error) {
 	_ = c.Error(err)
 	var planErr *domainError.PlanRequiredError

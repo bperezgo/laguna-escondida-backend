@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState, FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { usePermissions } from "@/lib/permissions";
-import { Card, CardBody, Input, Button } from "@/components/ui";
+import { Input, Button } from "@/components/ui";
 import {
   LEGACY_EDGE_CONTEXT,
   parseSignInContext,
@@ -11,21 +11,30 @@ import {
   type SignInContext,
   type SignInFailure,
 } from "@/lib/signIn";
-import { PENDING_PATH } from "@/lib/signup";
+import PublicLayout, { PRODUCT_NAME } from "@/components/public/PublicLayout";
+import styles from "@/components/public/signup.module.css";
+import { PAYMENT_PATH, SIGNUP_PATH } from "@/lib/signup";
 import { supportEmail } from "@/lib/support";
 import GoogleSignInButton from "./GoogleSignInButton";
 import NoticeMessage from "./NoticeMessage";
 
-export default function SignInForm() {
-  const [context, setContext] = useState<SignInContext | null>(null);
+export interface SignInFormProps {
+  /** Read on the server so the layout is right from the first paint; null when that failed. */
+  initialContext?: SignInContext | null;
+  /** Why the person was sent here, e.g. an expired setup session. */
+  notice?: string | null;
+}
+
+export default function SignInForm({ initialContext = null, notice = null }: SignInFormProps) {
+  const [context, setContext] = useState<SignInContext | null>(initialContext);
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<SignInFailure | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const { fetchPermissions } = usePermissions();
 
   useEffect(() => {
+    if (initialContext) return;
     let cancelled = false;
     fetch("/api/auth/context")
       .then((response) => (response.ok ? response.json() : LEGACY_EDGE_CONTEXT))
@@ -34,7 +43,7 @@ export default function SignInForm() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initialContext]);
 
   const isCloud = context?.mode === "cloud";
 
@@ -50,23 +59,23 @@ export default function SignInForm() {
         });
         const data = await response.json().catch(() => ({}));
         const outcome = signInOutcome(response.ok, data, supportEmail());
-        if (outcome.next === "pending") {
-          router.push(PENDING_PATH);
+        if (outcome.next === "payment") {
+          router.push(PAYMENT_PATH);
           return;
         }
         if (outcome.next === "failure") {
           setError(outcome.failure);
           return;
         }
-        await fetchPermissions();
-        router.push("/home");
+        // A full load, not a client transition: the public pages' content security policy must not follow the person into the app.
+        window.location.assign("/home");
       } catch {
         setError({ message: "No se pudo conectar. Intenta de nuevo.", mailto: null });
       } finally {
         setIsLoading(false);
       }
     },
-    [fetchPermissions, router]
+    [router]
   );
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
@@ -83,121 +92,86 @@ export default function SignInForm() {
   );
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "var(--color-bg)",
-        padding: "1rem",
-      }}
+    <PublicLayout
+      variant={isCloud ? "split" : "single"}
+      title={context?.organization?.name ?? PRODUCT_NAME}
+      subtitle="Inicia sesión para continuar"
     >
-      <div style={{ maxWidth: "26rem", width: "100%" }}>
-        {/* Brand */}
-        <div style={{ textAlign: "center", marginBottom: "1.75rem" }}>
-          <img
-            src="/logo-navbar.png"
-            alt="Laguna Escondida"
-            style={{ height: "72px", marginBottom: "1rem" }}
+      <div className={styles.stack}>
+        {notice && !error && <NoticeMessage tone="warning" message={notice} />}
+        <form onSubmit={handleSubmit} className={styles.stack}>
+          {isCloud ? (
+            <Input
+              key="email"
+              label="Correo"
+              id="email"
+              name="email"
+              type="email"
+              required
+              placeholder="Ingresa tu correo"
+              value={login}
+              onChange={(e) => setLogin(e.target.value)}
+              disabled={isLoading}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              autoComplete="email"
+            />
+          ) : (
+            <Input
+              key="username"
+              label="Usuario"
+              id="username"
+              name="username"
+              type="text"
+              required
+              placeholder="Ingresa tu usuario"
+              value={login}
+              onChange={(e) => setLogin(e.target.value)}
+              disabled={isLoading || !context}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              autoComplete="username"
+            />
+          )}
+
+          <Input
+            label="Contraseña"
+            id="password"
+            name="password"
+            type="password"
+            required
+            placeholder="Ingresa tu contraseña"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            disabled={isLoading}
           />
-          <h1
-            style={{
-              fontSize: "1.75rem",
-              fontWeight: 800,
-              letterSpacing: "-0.02em",
-              color: "var(--color-primary)",
-              margin: 0,
-            }}
+
+          {error && <NoticeMessage message={error.message} mailto={error.mailto} />}
+
+          <Button
+            type="submit"
+            variant="primary"
+            fullWidth
+            disabled={isLoading || !context}
           >
-            Laguna Escondida
-          </h1>
-          <p
-            style={{
-              fontSize: "0.95rem",
-              color: "var(--color-text-secondary)",
-              marginTop: "0.5rem",
-            }}
-          >
-            {context?.organization
-              ? `Inicia sesión en ${context.organization.name}`
-              : "Inicia sesión para continuar"}
-          </p>
-        </div>
-
-        <Card>
-          <CardBody>
-            <form
-              onSubmit={handleSubmit}
-              style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}
-            >
-              {isCloud ? (
-                <Input
-                  key="email"
-                  label="Correo"
-                  id="email"
-                  name="email"
-                  type="email"
-                  required
-                  placeholder="Ingresa tu correo"
-                  value={login}
-                  onChange={(e) => setLogin(e.target.value)}
-                  disabled={isLoading}
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  autoComplete="email"
-                />
-              ) : (
-                <Input
-                  key="username"
-                  label="Usuario"
-                  id="username"
-                  name="username"
-                  type="text"
-                  required
-                  placeholder="Ingresa tu usuario"
-                  value={login}
-                  onChange={(e) => setLogin(e.target.value)}
-                  disabled={isLoading || !context}
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  autoComplete="username"
-                />
-              )}
-
-              <Input
-                label="Contraseña"
-                id="password"
-                name="password"
-                type="password"
-                required
-                placeholder="Ingresa tu contraseña"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading}
-              />
-
-              {error && <NoticeMessage message={error.message} mailto={error.mailto} />}
-
-              <Button
-                type="submit"
-                variant="primary"
-                fullWidth
-                disabled={isLoading || !context}
-              >
-                {isLoading ? "Iniciando sesión..." : "Iniciar sesión"}
-              </Button>
-            </form>
-            {isCloud && (
-              <div style={{ marginTop: "1.25rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                <GoogleSignInButton onCredential={handleGoogle} disabled={isLoading} />
-              </div>
-            )}
-          </CardBody>
-        </Card>
+            {isLoading ? "Iniciando sesión..." : "Iniciar sesión"}
+          </Button>
+        </form>
+        {isCloud && (
+          <>
+            <div className={styles.divider}>o</div>
+            <GoogleSignInButton onCredential={handleGoogle} disabled={isLoading} />
+            <p className={`${styles.muted} ${styles.center}`}>
+              ¿Tu restaurante aún no tiene cuenta?{" "}
+              <Link className={styles.link} href={SIGNUP_PATH}>
+                Empieza tu prueba gratis
+              </Link>
+            </p>
+          </>
+        )}
       </div>
-    </div>
+    </PublicLayout>
   );
 }

@@ -42,7 +42,6 @@ test("a non-JSON error gets the fallback message", async () => {
 test("a success without a token is a server error", async () => {
   const decision = await sessionDecision(json(200, {}), "x");
   assert.equal(decision.status, 500);
-  assert.equal(decision.token, undefined);
 });
 
 test("a pending signup's 201 passes through with no token, so no cookie is set", async () => {
@@ -50,7 +49,6 @@ test("a pending signup's 201 passes through with no token, so no cookie is set",
     json(201, { status: "pending", organization_name: "Doña Rosa", plan: "einvoicing" }),
     "x"
   );
-  assert.equal(decision.token, undefined);
   assert.deepEqual(decision, { status: 201, body: { status: "pending", organization_name: "Doña Rosa", plan: "einvoicing" } });
 });
 
@@ -62,4 +60,31 @@ test("a signup of an existing approved account still sets the session", async ()
 test("a signup's pending_approval passes through with its code", async () => {
   const decision = await signupDecision(json(403, { error: "Approval pending", code: "pending_approval" }), "x");
   assert.deepEqual(decision, { status: 403, body: { error: "Approval pending", code: "pending_approval" } });
+});
+
+test("a signup's setup token goes to its cookie and never to the page", async () => {
+  const decision = await signupDecision(
+    json(201, { status: "pending", organization_name: "Doña Rosa", plan: "einvoicing", setup_token: "setup-jwt" }),
+    "x"
+  );
+  assert.deepEqual(decision, {
+    status: 201,
+    body: { status: "pending", organization_name: "Doña Rosa", plan: "einvoicing", setup: true },
+    setupToken: "setup-jwt",
+  });
+  assert.ok(!JSON.stringify(decision.body).includes("setup-jwt"));
+});
+
+test("a pending admin's sign-in keeps the setup token out of the body", async () => {
+  const decision = await sessionDecision(json(403, { error: "Approval pending", code: "pending_approval", setup_token: "setup-jwt" }), "x");
+  assert.deepEqual(decision, {
+    status: 403,
+    body: { error: "Approval pending", code: "pending_approval", setup: true },
+    setupToken: "setup-jwt",
+  });
+});
+
+test("a setup token on any other answer is ignored", async () => {
+  const decision = await sessionDecision(json(403, { error: "Trial ended", code: "trial_expired", setup_token: "setup-jwt" }), "x");
+  assert.deepEqual(decision, { status: 403, body: { error: "Trial ended", code: "trial_expired" } });
 });

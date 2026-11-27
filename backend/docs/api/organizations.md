@@ -36,6 +36,8 @@ Restaurants can also create their own organization through [self-serve signup](.
 | `secondary_color`     | string \| null | No       | `null`           | `#RRGGBB`                                                                  |
 | `einvoicing`          | object \| null | —        | `null`           | See [Set E-Invoicing Prefixes](#set-e-invoicing-prefixes)                  |
 | `settings`            | object         | —        | see below        | Read-only here; changed through the tenant's [`PATCH /api/organization/settings`](./organization-settings.md) |
+| `billing_period`      | string         | —        | `monthly`        | Read-only: `monthly` or `annual`, as the admin chose in [billing setup](./billing.md#choose-plan-and-period) |
+| `has_saved_card`      | boolean        | —        | `false`          | Read-only: whether the admin left a card. The payment source itself is never returned |
 | `created_at`          | string         | —        | —                | RFC 3339, read-only                                                        |
 | `updated_at`          | string         | —        | —                | RFC 3339, read-only                                                        |
 
@@ -161,6 +163,8 @@ Any field from [Organization Fields](#organization-fields) except the read-only 
       "takeaway": { "paused": false, "paused_reason": null, "schedule": [] }
     }
   },
+  "billing_period": "monthly",
+  "has_saved_card": false,
   "created_at": "2026-10-23T00:08:57.322452Z",
   "updated_at": "2026-10-23T00:08:57.322452Z"
 }
@@ -215,6 +219,8 @@ Any field from [Organization Fields](#organization-fields) except the read-only 
       "takeaway": { "paused": false, "paused_reason": null, "schedule": [] }
     }
   },
+  "billing_period": "monthly",
+  "has_saved_card": false,
   "created_at": "2026-10-23T00:08:57.356478Z",
   "updated_at": "2026-10-23T00:08:57.356478Z"
 }
@@ -300,6 +306,8 @@ GET /api/platform/organizations?status=pending
           "takeaway": { "paused": false, "paused_reason": null, "schedule": [] }
         }
       },
+      "billing_period": "monthly",
+      "has_saved_card": false,
       "created_at": "2025-03-14T15:02:11.512034Z",
       "updated_at": "2025-03-14T15:02:11.512034Z"
     },
@@ -331,6 +339,8 @@ GET /api/platform/organizations?status=pending
           "takeaway": { "paused": false, "paused_reason": null, "schedule": [] }
         }
       },
+      "billing_period": "monthly",
+      "has_saved_card": false,
       "created_at": "2026-10-23T00:08:57.322452Z",
       "updated_at": "2026-10-23T00:10:02.118901Z"
     }
@@ -513,6 +523,8 @@ The full updated organization, same shape as [Get Organization](#get-organizatio
 4. or reject it: `PATCH` with `{"status": "suspended"}`.
 
 Nobody is notified; the restaurant finds out by signing in.
+
+When the cloud has its billing keys, a signup does not wait for this: the admin leaves a card and the trial starts at once (see [Billing Setup](./billing.md)). Starting a trial by hand still works then, with or without a saved card; `billing_period` and `has_saved_card` show what the admin chose and left.
 
 ---
 

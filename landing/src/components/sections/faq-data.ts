@@ -40,6 +40,6 @@ export const faqs: Faq[] = [
   },
   {
     question: "¿Cuánto cuesta?",
-    answer: `Hay tres planes al mes, antes de IVA: ${prices[0]}, ${prices[1]} y ${prices[2]}. Si pagas el año, dos meses son gratis. El detalle de cada plan está en la sección de planes.`,
+    answer: `Hay tres planes, con un precio fijo al mes en pesos colombianos: ${prices[0]}, ${prices[1]} y ${prices[2]}. Si pagas el año, dos meses son gratis. El detalle de cada plan está en la sección de planes.`,
   },
 ];

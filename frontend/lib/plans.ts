@@ -18,6 +18,51 @@ export const PLAN_LABELS: Record<Plan, string> = {
   full: "Completo",
 };
 
+// The plan signup opens on when the landing named none.
+export const RECOMMENDED_PLAN: Plan = "einvoicing";
+
+export type Period = "monthly" | "annual";
+export const PERIODS: readonly Period[] = ["monthly", "annual"];
+
+export function isPeriod(value: unknown): value is Period {
+  return value === "monthly" || value === "annual";
+}
+
+export function planFromQuery(value: unknown): Plan {
+  const first = Array.isArray(value) ? value[0] : value;
+  return isPlan(first) ? first : RECOMMENDED_PLAN;
+}
+
+// Pesos with a dot as thousands separator, built by hand so it reads the same on every runtime.
+export function formatPesos(amount: number): string {
+  const digits = Math.round(Math.abs(amount)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `${amount < 0 ? "-" : ""}$${digits}`;
+}
+
+export interface PlanPrices {
+  trialDays: number;
+  prices: Record<Plan, Record<Period, number>>;
+}
+
+// GET /api/plans (backend/docs/api/plans.md). Null when any plan or price is missing: the page then shows no prices.
+export function parsePlanPrices(body: unknown): PlanPrices | null {
+  if (typeof body !== "object" || body === null) return null;
+  const { trial_days, plans } = body as { trial_days?: unknown; plans?: unknown };
+  if (typeof trial_days !== "number" || !Array.isArray(plans)) return null;
+  const prices: Partial<Record<Plan, Record<Period, number>>> = {};
+  for (const entry of plans) {
+    const { id, monthly, annual } = (entry ?? {}) as { id?: unknown; monthly?: unknown; annual?: unknown };
+    if (!isPlan(id) || typeof monthly !== "number" || typeof annual !== "number") return null;
+    prices[id] = { monthly, annual };
+  }
+  if (!PLANS.every((plan) => prices[plan])) return null;
+  return { trialDays: trial_days, prices: prices as Record<Plan, Record<Period, number>> };
+}
+
+export function planPrice(prices: PlanPrices | null, plan: Plan, period: Period): number | null {
+  return prices ? prices.prices[plan][period] : null;
+}
+
 export const PLAN_CARDS: { plan: Plan; title: string; includes: string[] }[] = [
   {
     plan: "starter",

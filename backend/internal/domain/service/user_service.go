@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -411,7 +412,7 @@ func (s *UserService) completeSignIn(ctx context.Context, userDTO *dto.User, org
 		}
 		// Not opaque: the person proved who they are, and should wait or contact us rather than retry.
 		if org.Status == dto.OrganizationStatusPending {
-			return nil, domainError.ErrOrganizationPending
+			return nil, s.pendingApproval(userDTO.ID, orgID, roleIDs)
 		}
 		if plans.Expired(org.Status, org.TrialEndsAt, s.now()) {
 			return nil, domainError.ErrTrialExpired
@@ -419,6 +420,23 @@ func (s *UserService) completeSignIn(ctx context.Context, userDTO *dto.User, org
 	}
 
 	return s.issueSignIn(userDTO, orgID, roles)
+}
+
+// pendingApproval gives only an admin the setup token: they are who chooses the plan and leaves the card.
+func (s *UserService) pendingApproval(userID, orgID string, roleIDs []int) error {
+	if !slices.Contains(roleIDs, permissions.RoleAdmin) {
+		return domainError.ErrOrganizationPending
+	}
+	token, err := s.jwtService.GenerateSetupToken(userID, orgID)
+	if err != nil {
+		return fmt.Errorf("failed to generate setup token: %w", err)
+	}
+	return &domainError.PendingApprovalError{SetupToken: token}
+}
+
+// SetupToken is the credential a new, still pending, admin continues signup with.
+func (s *UserService) SetupToken(userID, orgID string) (string, error) {
+	return s.jwtService.GenerateSetupToken(userID, orgID)
 }
 
 func (s *UserService) issueSignIn(userDTO *dto.User, orgID string, roles []*dto.Role) (*dto.SignInResponse, error) {

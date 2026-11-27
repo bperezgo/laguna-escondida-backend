@@ -1,15 +1,17 @@
+import type { PlanId } from "./actions.ts";
+
 export interface Plan {
-  id: "starter" | "einvoicing" | "full";
+  id: PlanId;
   name: string;
-  /** Colombian pesos per month, before IVA. */
+  /** Colombian pesos per month. */
   monthly: number;
   includes: string[];
   /** The plan the pricing section points a visitor to. At most one. */
   recommended?: boolean;
 }
 
-// Prices come from the owner. The same plans live in backend/docs/api/organizations.md#plans
-// and frontend/lib/plans.ts; nothing checks the three against each other.
+// Prices come from the owner. The cloud charges from its own table (backend/docs/api/plans.md);
+// scripts/check-prices.ts fails a release when the two differ.
 export const plans: Plan[] = [
   {
     id: "starter",
