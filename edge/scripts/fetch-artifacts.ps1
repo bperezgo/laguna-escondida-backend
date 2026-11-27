@@ -167,6 +167,23 @@ if (Want 'postgres') {
   }
 }
 
+# --- Visual C++ runtime (Postgres's binaries need it and do not ship it) -------------
+# The installer runs it; a PC that never got it from other software cannot start pg_ctl.
+if (Want 'postgres') {
+  Step 'Visual C++ Redistributable (x64)'
+  $dest = Join-Path $Artifacts 'vcredist\VC_redist.x64.exe'
+  if ((Test-Path $dest) -and -not $Force) {
+    Write-Host "  present -- skip."
+  } else {
+    New-Item -ItemType Directory -Force -Path (Split-Path $dest) | Out-Null
+    $dl = Join-Path $tmp 'VC_redist.x64.exe'
+    Invoke-WebRequest -Uri $v.vcredist_url -OutFile $dl -UseBasicParsing
+    Assert-ThirdParty 'vcredist' $dl
+    Copy-Item $dl $dest -Force
+    Write-Host "  -> $dest" -ForegroundColor Green
+  }
+}
+
 # --- App artifacts (edge-node, next) from the edge GitHub Release -----------------
 # Asset names match .github/workflows/release-edge.yml.
 $AppAssets = @{
@@ -242,7 +259,11 @@ function Get-DefaultEdgeVersion {
     $url = (($line -split '=', 2)[1] -replace '\s+#.*$', '').Trim().Trim('"', "'").TrimEnd('/')
     $cloud = "$((Invoke-RestMethod "$url/api/edge/status" -TimeoutSec 10 -UseBasicParsing).version)"
   } catch { Write-Host "  cloud version unknown ($($_.Exception.Message)); not checking min_cloud" -ForegroundColor Yellow }
-  $r = Select-EdgeRelease (Get-EdgeReleases) $null $cloud { param($r) (Get-EdgeManifest (Get-EdgeVersion $r.tag_name)).min_cloud }
+  # A release without a readable manifest (e.g. one a failed run left empty) is skipped, as the updater does.
+  $r = Select-EdgeRelease (Get-EdgeReleases) $null $cloud {
+    param($r)
+    try { (Get-EdgeManifest (Get-EdgeVersion $r.tag_name)).min_cloud } catch { $null }
+  }
   if (-not $r) { throw "no edge release is available$(if ($cloud) { " for cloud $cloud" })." }
   return Get-EdgeVersion $r.tag_name
 }

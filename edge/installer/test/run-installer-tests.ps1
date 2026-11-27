@@ -107,6 +107,7 @@ try {
   Step 'Fresh install'
   $r = Install $ok 'fresh'
   Assert ($r.code -eq 0) "fresh install exits 0 ($($r.code))"
+  Assert (Select-String -Path $r.log -Pattern 'Visual C\+\+ runtime setup exit (0|1638|3010)\b' -Quiet) 'the Visual C++ runtime setup ran'
   & "$root\scripts\verify-install.ps1" -TimeoutSeconds 120
   Assert ($LASTEXITCODE -eq 0) 'verify-install passes'
   $status = Invoke-RestMethod http://127.0.0.1:8080/api/edge/status

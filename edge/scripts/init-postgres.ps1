@@ -65,6 +65,9 @@ try {
 } finally {
   Remove-Item $pwfile -Force -ErrorAction SilentlyContinue
 }
+# 0xC0000135 (STATUS_DLL_NOT_FOUND): Windows could not load initdb at all.
+if ($LASTEXITCODE -eq -1073741515) { throw 'initdb could not start: a DLL is missing (Microsoft Visual C++ runtime x64?)' }
+if ($LASTEXITCODE -ne 0) { throw "initdb failed (exit $LASTEXITCODE)" }
 
 # 2. Start a TEMPORARY server (127.0.0.1 only) to create the app role + db.
 Step "Starting a temporary server on 127.0.0.1:$Port"

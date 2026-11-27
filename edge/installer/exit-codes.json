@@ -62,5 +62,9 @@
   "34": {
     "key": "serving_not_synced",
     "message": "La caja funciona, pero aún no se ha conectado a Kuenta. El inicio de sesión funcionará cuando tenga conexión."
+  },
+  "35": {
+    "key": "vc_runtime_failed",
+    "message": "No se pudo instalar el componente de Microsoft Visual C++ que Kuenta necesita. Reinicie el equipo e intente de nuevo."
   }
 }

@@ -68,9 +68,9 @@ Run-Step 'database' 32 {
   $dbPassword = Get-EnvValue 'DB_PASSWORD'
   if (-not $dbPassword) { throw 'DB_PASSWORD missing from env\edge-node.env' }
   # Its transcript is kept in a log with the generated superuser password masked.
-  $output = & (Join-Path $scripts 'init-postgres.ps1') -DbPassword $dbPassword -SuperPassword $super -SkipIfInitialized *>&1 |
-    ForEach-Object { "$_".Replace($super, '***').Replace($dbPassword, '***') }
-  $output | Add-Content $log -Encoding ascii
+  # Streamed, not collected, so the lines before a failure still reach the log.
+  & (Join-Path $scripts 'init-postgres.ps1') -DbPassword $dbPassword -SuperPassword $super -SkipIfInitialized *>&1 |
+    ForEach-Object { "$_".Replace($super, '***').Replace($dbPassword, '***') } | Add-Content $log -Encoding ascii
 }
 
 Run-Step 'services' 32 {

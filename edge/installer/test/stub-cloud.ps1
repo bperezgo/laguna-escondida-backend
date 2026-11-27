@@ -6,7 +6,7 @@
     POST /api/edge/enroll-with-code   201 once for -Code (case, spaces and "-" ignored), 401 for
                                any other code; 409 when -Conflict, or after the first call,
                                unless "replace":true
-    GET  /api/edge/status      {"version":"v0.0.0"}
+    GET  /api/edge/status      {"version":"v99.0.0"}  (newer than any min_cloud, so every release qualifies)
     POST /api/sync/push, GET /api/sync/pull, GET /api/sync/pull/stock   empty valid pages
 
   Every request is appended to -LogFile as one JSON line {"method","path"}, so a test can count
@@ -57,7 +57,7 @@ try {
 
     switch ("$method $path") {
       'GET /api/auth/context' { Send $ctx 200 @{ mode = 'cloud' } }
-      'GET /api/edge/status'  { Send $ctx 200 @{ version = 'v0.0.0' } }
+      'GET /api/edge/status'  { Send $ctx 200 @{ version = 'v99.0.0' } }
       'POST /api/edge/enroll-with-code' {
         $norm = { param($c) ("$c".ToUpper() -replace '[\s-]', '') }
         if ((& $norm $body.code) -ne (& $norm $Code)) { Send $ctx 401 @{ error = 'invalid or expired code' } }

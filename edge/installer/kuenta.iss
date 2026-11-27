@@ -50,13 +50,14 @@ Name: "es"; MessagesFile: "compiler:Languages\Spanish.isl"
 [Files]
 ; Everything except the two apps, which are replaced only by an equal or newer version, and the
 ; per-box files, which an install never overwrites.
-Source: "{#StageDir}\*"; DestDir: "{app}"; Excludes: "artifacts\edge-node\*,artifacts\next\*,artifacts\.cache\*,env\box.env,env\edge-node.env,installer\test\*"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "{#StageDir}\*"; DestDir: "{app}"; Excludes: "artifacts\edge-node\*,artifacts\next\*,artifacts\.cache\*,artifacts\vcredist\*,env\box.env,env\edge-node.env,installer\test\*"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "{#StageDir}\artifacts\edge-node\*"; DestDir: "{app}\artifacts\edge-node"; Check: ShouldReplace('edge-node'); Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "{#StageDir}\artifacts\next\*"; DestDir: "{app}\artifacts\next"; Check: ShouldReplace('next'); Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "kuenta.ico"; DestDir: "{app}\installer"; Flags: ignoreversion
 Source: "licenses\*"; DestDir: "{app}\licenses"; Flags: recursesubdirs ignoreversion
 Source: "..\scripts\preflight.ps1"; DestDir: "{tmp}"; Flags: dontcopy
 Source: "..\scripts\enroll.ps1"; DestDir: "{tmp}"; Flags: dontcopy
+Source: "{#StageDir}\artifacts\vcredist\VC_redist.x64.exe"; DestDir: "{tmp}"; Flags: dontcopy
 
 [InstallDelete]
 ; The POS is swapped as a whole folder so chunks of two builds never mix.
@@ -469,10 +470,27 @@ begin
       '', SW_HIDE, ewWaitUntilTerminated, RC);
 end;
 
+// Postgres's binaries need it and do not ship it. Always run: it returns 1638 at once when the
+// same or a newer runtime is there, which also catches an old one without vcruntime140_1.dll.
+function InstallVcRuntime: Boolean;
+var RC: Integer;
+begin
+  WizardForm.StatusLabel.Caption := 'Instalando componentes de Windows...';
+  ExtractTemporaryFile('VC_redist.x64.exe');
+  Result := Exec(ExpandConstant('{tmp}\VC_redist.x64.exe'), '/install /quiet /norestart', '', SW_HIDE,
+    ewWaitUntilTerminated, RC) and ((RC = 0) or (RC = 1638) or (RC = 3010));
+  Log('Visual C++ runtime setup exit ' + IntToStr(RC));
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var Output, Progress: String; Code: Integer;
 begin
   if CurStep <> ssPostInstall then Exit;
+  if not InstallVcRuntime then
+  begin
+    FailCode := 35;
+    RaiseException(ExitMessage(35));
+  end;
   if Mode = 'fresh' then
   begin
     WizardForm.StatusLabel.Caption := 'Escribiendo la configuración de la caja...';

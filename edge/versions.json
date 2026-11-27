@@ -5,11 +5,13 @@
     "alloy": "1.19.2",
     "node": "20.18.0",
     "postgres": "16.4",
+    "vcredist_url": "https://download.visualstudio.microsoft.com/download/pr/e9604e21-4b79-4096-a4b3-1b63d4b55b4d/CC0FF0EB1DC3F5188AE6300FAEF32BF5BEEBA4BDD6E8E445A9184072096B713B/VC_redist.x64.exe",
     "sha256": {
         "winsw": "05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da",
         "caddy": "2631fbe1c4f6fb08783ed6dc6ac238d6655b4c923abe2bce1433dbd7fd079630",
         "alloy": "5c4d83acb0295cb30012c68eefd0f1e90f53f9bca5b593961aeb8312b4d86754",
         "node": "f5cea43414cc33024bbe5867f208d1c9c915d6a38e92abeee07ed9e563662297",
-        "postgres": "3508d8f085bc3980f38211a82e3f31e5fcae9952105d3dc2f8be67b64a822baa"
+        "postgres": "3508d8f085bc3980f38211a82e3f31e5fcae9952105d3dc2f8be67b64a822baa",
+        "vcredist": "cc0ff0eb1dc3f5188ae6300faef32bf5beeba4bdd6e8e445a9184072096b713b"
     }
 }
