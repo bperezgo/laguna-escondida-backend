@@ -154,7 +154,7 @@ function Sample-Tree([int] $setupPid) {
     $err = 0
     $e = [Ci.Proc]::ReadEnv([int] $d.ProcessId, [ref] $err)
     $script:Samples.Add([pscustomobject]@{
-      Pid = $d.ProcessId; Name = $d.Name; Cmd = "$($d.CommandLine)"
+      Pid = $d.ProcessId; ParentPid = $d.ParentProcessId; Name = $d.Name; Cmd = "$($d.CommandLine)"
       HasInput = [bool]($e -and $e.Contains('KUENTA_SCRIPT_INPUT=')); Visible = ($visible -contains [int] $d.ProcessId)
     })
   }
@@ -163,7 +163,12 @@ function Assert-Samples([string] $when) {
   $s = @($script:Samples)
   Write-Host "  $when : $($s.Count) process samples, $(@($s | Select-Object -ExpandProperty Pid -Unique).Count) distinct processes"
   Assert ($s.Count -gt 0) "$when : the process tree was sampled"
-  Assert (-not @($s | Where-Object { $_.Name -eq 'cmd.exe' })) "$when : no cmd.exe was started"
+  # pg_ctl starts Postgres through its own cmd.exe; what must not exist is the installer's console, a
+  # cmd.exe started by setup itself (its .tmp copy) for a script.
+  $setupPids = @($s | Where-Object { $_.Name -like '*.tmp' -or $_.Name -like 'KuentaSetup*' } | ForEach-Object Pid)
+  $cmds = @($s | Where-Object { $_.Name -eq 'cmd.exe' })
+  foreach ($c in ($cmds | Sort-Object Pid -Unique)) { Write-Host "  cmd.exe $($c.Pid) parent $($c.ParentPid): $($c.Cmd)" }
+  Assert (-not @($cmds | Where-Object { $setupPids -contains $_.ParentPid })) "$when : setup started no cmd.exe
   if ([Environment]::UserInteractive) {
     Assert (-not @($s | Where-Object { $_.Visible })) "$when : no window of setup's processes was visible"
   } else { Write-Host '  no desktop: visibility not checked' -ForegroundColor Yellow }
