@@ -20,4 +20,4 @@
 
 ## 4. Security review
 
-- [ ] 4.1 Run the security-audit skill in guidance mode over this change's diff, against design.md's Security section: what the public context reveals, error-text leakage, unauthenticated polling cost, and the fail-open paths. Fix confirmed findings and record anything that needs validation in design.md
+- [x] 4.1 Run the security-audit skill in guidance mode over this change's diff, against design.md's Security section: what the public context reveals, error-text leakage, unauthenticated polling cost, and the fail-open paths. Fix confirmed findings and record anything that needs validation in design.md
