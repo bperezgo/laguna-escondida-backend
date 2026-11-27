@@ -203,12 +203,16 @@ end;
 // Runs a script with its stdin fed from Input. The enrollment code travels only through that pipe: it is
 // never an argument and never logged.
 function RunPS(const Script, Args, Input: String; var Output: String; Live: Boolean): Integer;
-var Sh, Ex: Variant; Line, Lbl: String;
+var Sh, Ex: Variant; Line, Lbl, ErrFile: String; Err: AnsiString;
 begin
   Output := '';
   Log('run ' + Script + ' ' + Args);
+  // stderr goes to a file: a second pipe that nobody drains can fill up and hang the script.
+  ErrFile := ExpandConstant('{tmp}\') + ExtractFileName(Script) + '.err';
+  DeleteFile(ErrFile);
   Sh := CreateOleObject('WScript.Shell');
-  Ex := Sh.Exec('"' + PowerShellExe + '" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + Script + '" ' + Args);
+  Ex := Sh.Exec('cmd.exe /d /s /c ""' + PowerShellExe + '" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' +
+    Script + '" ' + Args + ' 2>"' + ErrFile + '""');
   if Input <> '' then Ex.StdIn.Write(Input + #13#10);
   Ex.StdIn.Close;
   while not Ex.StdOut.AtEndOfStream do
@@ -226,6 +230,8 @@ begin
   while Ex.Status = 0 do Sleep(50);
   Result := Ex.ExitCode;
   Log('exit ' + IntToStr(Result));
+  if (Result <> 0) and LoadStringFromFile(ErrFile, Err) and (Trim(String(Err)) <> '') then
+    Log('stderr ' + Copy(Trim(String(Err)), 1, 2000));
 end;
 
 function DetectMode: String;

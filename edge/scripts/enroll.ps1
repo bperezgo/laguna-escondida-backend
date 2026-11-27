@@ -22,7 +22,8 @@ function Done([hashtable] $result, [int] $code) {
   exit $code
 }
 
-$in = [Console]::In.ReadLine() | ConvertFrom-Json
+# A parse error quotes its input, the setup code; the installer logs this script's stderr.
+try { $in = [Console]::In.ReadLine() | ConvertFrom-Json } catch { Done @{ ok = $false; error = 'enroll_failed' } 23 }
 $base = "$($in.cloud_url)".TrimEnd('/')
 
 # Status code and parsed body of a failed call, for PS 5.1 and 7 alike.
