@@ -238,3 +238,27 @@ func TestOrganizationHandler_Get_IncludesSettings(t *testing.T) {
 	"reservations":{"auto_confirm_enabled":false,"max_party_size":8,"min_notice_minutes":120,"daily_guest_cap":null,"schedule":[]}}`,
 		string(decodeBody(t, rec)["settings"]))
 }
+
+func TestOrganizationHandler_Get_ShowsBillingButNeverThePaymentSource(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	orgRepo := mocks.NewMockOrganizationRepository(t)
+	billing := mocks.NewMockBillingRepository(t)
+	orgService := service.NewOrganizationService(orgRepo, mocks.NewMockEInvoicingSettingsRepository(t), immediateUnitOfWork{})
+	orgService.ShowBilling(billing)
+	router := gin.New()
+	router.GET("/api/platform/organizations/:id", NewOrganizationHandler(orgService).GetHandler)
+	orgRepo.EXPECT().Get(mock.Anything, testOrganizationID).Return(&dto.Organization{ID: testOrganizationID, Status: "trial"}, nil)
+	provider, source, brand, lastFour := "wompi", "source-3891", "VISA", "4242"
+	billing.EXPECT().GetMany(mock.Anything, []string{testOrganizationID}).Return(map[string]*dto.OrganizationBilling{
+		testOrganizationID: {OrganizationID: testOrganizationID, Period: "annual", Provider: &provider, PaymentSourceID: &source, CardBrand: &brand, CardLastFour: &lastFour},
+	}, nil)
+
+	rec := serveOrganization(router, http.MethodGet, "/api/platform/organizations/"+testOrganizationID, "")
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	body := decodeBody(t, rec)
+	assert.JSONEq(t, `"annual"`, string(body["billing_period"]))
+	assert.JSONEq(t, `true`, string(body["has_saved_card"]))
+	assert.NotContains(t, rec.Body.String(), "source-3891")
+	assert.NotContains(t, rec.Body.String(), "payment_source")
+}

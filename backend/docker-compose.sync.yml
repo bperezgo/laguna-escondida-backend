@@ -42,6 +42,9 @@ x-app-env: &app-env
   PUBLIC_APP_URL: "${PUBLIC_APP_URL:-http://localhost:3000}" # cloud only; invitation links point at it
   GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID:-}" # cloud only; empty = no Google sign-in or signup routes
   SIGNUP_ENABLED: "${SIGNUP_ENABLED:-false}" # cloud only; true registers POST /api/signup/google
+  # cloud only; the platform's own Wompi keys. Both empty = signup asks for no card; one alone stops the cloud.
+  BILLING_WOMPI_PUBLIC_KEY: "${BILLING_WOMPI_PUBLIC_KEY:-}"
+  BILLING_WOMPI_PRIVATE_KEY: "${BILLING_WOMPI_PRIVATE_KEY:-}"
   # Electronic-invoice API. Defaults are inert dummies (the sync tests never call it);
   # set these in .env to exercise real submission against a provider.
   ELECTRONIC_INVOICE_URL: "${ELECTRONIC_INVOICE_URL:-http://invoice.invalid}"

@@ -71,7 +71,7 @@ func (h *SignupHandler) respondGoogleError(c *gin.Context, err error) {
 	case errors.Is(err, domainError.ErrTrialExpired):
 		respondTrialExpired(c)
 	case errors.Is(err, domainError.ErrOrganizationPending):
-		respondPendingApproval(c)
+		respondPendingApproval(c, err)
 	case errors.Is(err, domainError.ErrGoogleSignInFailed), errors.Is(err, domainError.ErrGoogleTokenInvalid):
 		h.logger.WarnContext(c.Request.Context(), "google sign-in rejected", slog.String("reason", err.Error()))
 		c.JSON(http.StatusUnauthorized, googleSignInFailedBody)

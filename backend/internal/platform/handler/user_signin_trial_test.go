@@ -29,7 +29,7 @@ func TestUserHandler_SignIn_Trial(t *testing.T) {
 		{"suspended", &dto.Organization{ID: testOrganizationID, Status: "suspended"}, "password123",
 			http.StatusUnauthorized, `{"error":"Invalid email or password"}`},
 		{"pending, correct password", &dto.Organization{ID: testOrganizationID, Status: "pending"}, "password123",
-			http.StatusForbidden, `{"error":"Approval pending","code":"pending_approval"}`},
+			http.StatusForbidden, pendingWithSetupToken},
 		{"pending, wrong password", &dto.Organization{ID: testOrganizationID, Status: "pending"}, "wrong-password",
 			http.StatusUnauthorized, `{"error":"Invalid email or password"}`},
 		{"active", &dto.Organization{ID: testOrganizationID, Status: "active"}, "password123", http.StatusOK, ""},
@@ -45,11 +45,25 @@ func TestUserHandler_SignIn_Trial(t *testing.T) {
 			rec := d.do(http.MethodPost, "/api/auth/signin", `{"email":"ana@example.com","password":"`+tc.password+`"}`)
 
 			assert.Equal(t, tc.code, rec.Code, rec.Body.String())
-			if tc.want != "" {
+			if tc.want == pendingWithSetupToken {
+				assertPendingWithSetupToken(t, rec)
+			} else if tc.want != "" {
 				assert.JSONEq(t, tc.want, rec.Body.String())
 			} else {
 				assert.Contains(t, decodeBody(t, rec), "token")
 			}
 		})
 	}
+}
+
+func TestUserHandler_SignIn_PendingManagerGetsNoSetupToken(t *testing.T) {
+	d := newSignInDeps(t, tenant.AnyOrganization())
+	d.userRepo.EXPECT().FindByEmail(mock.Anything, "ana@example.com").Return(&dto.UserInOrganization{User: hashedUser(t), OrganizationID: testOrganizationID}, nil)
+	d.orgRepo.EXPECT().Get(mock.Anything, testOrganizationID).Return(&dto.Organization{ID: testOrganizationID, Status: "pending"}, nil)
+	d.userRoleRepo.EXPECT().FindRolesByUserID(mock.Anything, "ana-id").Return([]*dto.Role{{ID: permissions.RoleManager, Name: "manager"}}, nil)
+
+	rec := d.do(http.MethodPost, "/api/auth/signin", `{"email":"ana@example.com","password":"password123"}`)
+
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+	assert.JSONEq(t, `{"error":"Approval pending","code":"pending_approval"}`, rec.Body.String())
 }

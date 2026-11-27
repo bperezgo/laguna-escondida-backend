@@ -233,10 +233,18 @@ func (c *WompiClient) call(ctx context.Context, method, path, privateKey string,
 		return nil, fmt.Errorf("read answer: %w", err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return nil, fmt.Errorf("status %d: %s", resp.StatusCode, truncate(raw))
+		return nil, &wompiStatusError{status: resp.StatusCode, body: truncate(raw)}
 	}
 	return raw, nil
 }
+
+// wompiStatusError keeps the status so a caller can tell a refusal from an outage.
+type wompiStatusError struct {
+	status int
+	body   string
+}
+
+func (e *wompiStatusError) Error() string { return fmt.Sprintf("status %d: %s", e.status, e.body) }
 
 func truncate(raw []byte) string {
 	const limit = 512

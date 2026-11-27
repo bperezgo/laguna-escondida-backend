@@ -40,7 +40,9 @@ type OrganizationService struct {
 	orgRepo        ports.OrganizationRepository
 	einvoicingRepo ports.EInvoicingSettingsRepository
 	uow            ports.UnitOfWork
-	now            func() time.Time
+	// billing is nil on an edge box, which has no billing.
+	billing ports.BillingRepository
+	now     func() time.Time
 }
 
 func NewOrganizationService(
@@ -49,6 +51,36 @@ func NewOrganizationService(
 	uow ports.UnitOfWork,
 ) *OrganizationService {
 	return &OrganizationService{orgRepo: orgRepo, einvoicingRepo: einvoicingRepo, uow: uow, now: time.Now}
+}
+
+// ShowBilling makes every organization this service returns carry its billing period and whether
+// it has a saved card. Only the cloud calls it.
+func (s *OrganizationService) ShowBilling(billing ports.BillingRepository) {
+	s.billing = billing
+}
+
+func (s *OrganizationService) withBilling(ctx context.Context, orgs ...*dto.Organization) error {
+	for _, org := range orgs {
+		org.BillingPeriod = string(plans.Monthly)
+	}
+	if s.billing == nil || len(orgs) == 0 {
+		return nil
+	}
+	ids := make([]string, len(orgs))
+	for i, org := range orgs {
+		ids[i] = org.ID
+	}
+	rows, err := s.billing.GetMany(ctx, ids)
+	if err != nil {
+		return fmt.Errorf("read organization billing: %w", err)
+	}
+	for _, org := range orgs {
+		if row, ok := rows[org.ID]; ok {
+			org.BillingPeriod = row.Period
+			org.HasSavedCard = row.HasCard()
+		}
+	}
+	return nil
 }
 
 func (s *OrganizationService) Create(ctx context.Context, req *dto.CreateOrganizationRequest) (*dto.Organization, error) {
@@ -106,6 +138,7 @@ func (s *OrganizationService) Create(ctx context.Context, req *dto.CreateOrganiz
 	if err != nil {
 		return nil, fmt.Errorf("create organization: %w", err)
 	}
+	org.BillingPeriod = string(plans.Monthly)
 	return org, nil
 }
 
@@ -116,7 +149,7 @@ func (s *OrganizationService) List(ctx context.Context, status string) ([]*dto.O
 		if err != nil {
 			return nil, fmt.Errorf("list organizations: %w", err)
 		}
-		return orgs, nil
+		return orgs, s.withBilling(ctx, orgs...)
 	}
 	switch status {
 	case dto.OrganizationStatusPending, dto.OrganizationStatusTrial, dto.OrganizationStatusActive, dto.OrganizationStatusSuspended:
@@ -127,7 +160,7 @@ func (s *OrganizationService) List(ctx context.Context, status string) ([]*dto.O
 	if err != nil {
 		return nil, fmt.Errorf("list organizations: %w", err)
 	}
-	return orgs, nil
+	return orgs, s.withBilling(ctx, orgs...)
 }
 
 func (s *OrganizationService) Get(ctx context.Context, id string) (*dto.Organization, error) {
@@ -135,7 +168,7 @@ func (s *OrganizationService) Get(ctx context.Context, id string) (*dto.Organiza
 	if err != nil {
 		return nil, fmt.Errorf("get organization: %w", err)
 	}
-	return org, nil
+	return org, s.withBilling(ctx, org)
 }
 
 func (s *OrganizationService) GetCurrent(ctx context.Context, id string) (*dto.CurrentOrganization, error) {
@@ -170,7 +203,7 @@ func (s *OrganizationService) Update(ctx context.Context, id string, req *dto.Up
 	if err != nil {
 		return nil, fmt.Errorf("update organization: %w", err)
 	}
-	return org, nil
+	return org, s.withBilling(ctx, org)
 }
 
 // validateStatusChange keeps a trial from losing its end, and a pending organization out of a trial
@@ -216,7 +249,7 @@ func (s *OrganizationService) StartTrial(ctx context.Context, id string) (*dto.O
 	if err != nil {
 		return nil, fmt.Errorf("start trial: %w", err)
 	}
-	return org, nil
+	return org, s.withBilling(ctx, org)
 }
 
 // SetEInvoicing replaces the prefixes in place; counters are per (organization, prefix), so a new prefix starts at 1.

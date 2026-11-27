@@ -36,6 +36,8 @@ var agentReachableRoutes = map[string]bool{
 	"POST /api/public/leads": true,
 	// The landing's installer download: no credential.
 	"GET /api/public/edge/installer": true,
+	// The price list: constants, no credential.
+	"GET /api/plans": true,
 	// The QR image WhatsApp fetches: no credential, the random token in the URL is the secret.
 	"GET /api/payments/qr/:token": true,
 	// Any signed-in user.
@@ -100,7 +102,7 @@ func fullRouter(mode config.Mode, jwtService *service.JWTService) *gin.Engine {
 		registerCloudRoutes(router, "admin-key", jwtService, cloudHandlers{
 			invoice: &handler.InvoiceHandler{}, supportDocument: &handler.SupportDocumentHandler{},
 			sync: &handler.SyncHandler{}, telemetry: &handler.TelemetryHandler{},
-			organization: &handler.OrganizationHandler{}, lead: &handler.LeadHandler{}, installer: &handler.InstallerDownloadHandler{}, apiKey: &handler.APIKeyHandler{}, deliveryZone: &handler.DeliveryZoneHandler{},
+			organization: &handler.OrganizationHandler{}, lead: &handler.LeadHandler{}, installer: &handler.InstallerDownloadHandler{}, plans: &handler.PlansHandler{}, apiKey: &handler.APIKeyHandler{}, deliveryZone: &handler.DeliveryZoneHandler{},
 			orgSettings:  &handler.OrganizationSettingsHandler{},
 			notifChannel: &handler.NotificationChannelHandler{}, notifRule: &handler.NotificationRuleHandler{},
 			delivery: &handler.DeliveryHandler{}, edgeEnroll: &handler.EdgeEnrollHandler{},

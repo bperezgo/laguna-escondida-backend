@@ -46,23 +46,24 @@ All together, or nothing:
 
 ### Approval
 
-A new account waits as `pending` and gets **no token**: its users are refused with `403 pending_approval` until the operator starts its trial with [`POST /api/platform/organizations/:id/start-trial`](./organizations.md#start-a-trial) (14 days from that moment) or activates it with `PATCH {"status": "active"}`. Nobody is notified; the operator finds waiting signups with `GET /api/platform/organizations?status=pending`.
+A new account waits as `pending` and gets **no sign-in token**, only a [setup token](./billing.md#the-setup-token) for its admin, which opens the [billing setup routes](./billing.md) and nothing else. When the cloud has its billing keys, the admin leaves a card there and the trial starts at once. Otherwise its users are refused with `403 pending_approval` until the operator starts its trial with [`POST /api/platform/organizations/:id/start-trial`](./organizations.md#start-a-trial) (14 days from that moment) or activates it with `PATCH {"status": "active"}`. Nobody is notified; the operator finds waiting signups with `GET /api/platform/organizations?status=pending`.
 
 ### Example Response (201 Created)
 
-A new account, waiting for approval. No token is returned and no session should be set.
+A new account, waiting for its trial. No sign-in token is returned and no session should be set. `setup_token` lasts 60 minutes and is accepted only by the [billing setup routes](./billing.md).
 
 ```json
 {
   "status": "pending",
   "organization_name": "Restaurante Doña Rosa",
-  "plan": "einvoicing"
+  "plan": "einvoicing",
+  "setup_token": "<setup token>"
 }
 ```
 
 ### Example Response (200 OK)
 
-The Google email already belongs to a user: nothing is created and the response is exactly that of [`POST /api/auth/google`](./auth.md#sign-in-with-google), errors included. Signing up again before approval therefore answers `403 pending_approval`.
+The Google email already belongs to a user: nothing is created and the response is exactly that of [`POST /api/auth/google`](./auth.md#sign-in-with-google), errors included. Signing up again before the trial starts therefore answers `403 pending_approval`, with a new `setup_token` for the admin.
 
 ### Error Responses
 
@@ -90,12 +91,13 @@ The Google email already belongs to a user: nothing is created and the response 
 }
 ```
 
-**403 Forbidden** — The email belongs to a user whose organization is waiting for approval, including the same person signing up again. Nothing is created.
+**403 Forbidden** — The email belongs to a user whose organization is waiting for its trial, including the same person signing up again. Nothing is created. `setup_token` is present only when that user is an admin.
 
 ```json
 {
   "error": "Approval pending",
-  "code": "pending_approval"
+  "code": "pending_approval",
+  "setup_token": "<setup token>"
 }
 ```
 

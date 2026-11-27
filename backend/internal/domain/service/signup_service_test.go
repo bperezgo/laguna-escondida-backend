@@ -80,8 +80,11 @@ func TestSignupService_SignUpWithGoogle_DonaRosa(t *testing.T) {
 	result, err := f.service.SignUpWithGoogle(context.Background(), signupReq("  Restaurante Doña Rosa ", "einvoicing"))
 
 	require.NoError(t, err)
-	assert.Equal(t, &dto.GoogleSignupCreated{Status: "pending", OrganizationName: "Restaurante Doña Rosa", Plan: "einvoicing"}, result.Created)
-	assert.Nil(t, result.SignIn, "a pending account gets no token")
+	setup, err := f.jwt.ValidateSetupToken(result.Created.SetupToken)
+	require.NoError(t, err)
+	assert.Equal(t, &dto.GoogleSignupCreated{Status: "pending", OrganizationName: "Restaurante Doña Rosa", Plan: "einvoicing",
+		SetupToken: result.Created.SetupToken}, result.Created)
+	assert.Nil(t, result.SignIn, "a pending account gets no sign-in token")
 	assert.Equal(t, "restaurante-dona-rosa", f.org.Slug)
 	assert.Equal(t, "Restaurante Doña Rosa", f.org.Name)
 	assert.Equal(t, "Restaurante Doña Rosa", *f.org.DisplayName)
@@ -93,6 +96,8 @@ func TestSignupService_SignUpWithGoogle_DonaRosa(t *testing.T) {
 	assert.Nil(t, f.org.EInvoicing)
 
 	require.Len(t, f.created, 2)
+	assert.Equal(t, f.org.ID, setup.OrgID)
+	assert.Equal(t, f.created[0].ID, setup.UserID, "the setup token is the admin's, not the box user's")
 	admin, box := f.created[0], f.created[1]
 	assert.Equal(t, "rosa.perez@example.com", admin.Username)
 	assert.Equal(t, "rosa.perez@example.com", *admin.Email)
@@ -176,6 +181,10 @@ func TestSignupService_SignUpWithGoogle_AgainWhilePending(t *testing.T) {
 
 	assert.Nil(t, result)
 	assert.ErrorIs(t, err, domainError.ErrOrganizationPending)
+	var pending *domainError.PendingApprovalError
+	require.ErrorAs(t, err, &pending)
+	_, tokenErr := f.jwt.ValidateSetupToken(pending.SetupToken)
+	assert.NoError(t, tokenErr)
 	f.orgRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 }
 

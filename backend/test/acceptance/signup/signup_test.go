@@ -38,13 +38,25 @@ func (c *cloud) signUp(email, restaurant, plan string) (token, orgID string) {
 
 func (c *cloud) signUpPending(email, restaurant, plan string) (orgID string) {
 	c.t.Helper()
+	orgID, _ = c.signUpForSetup(email, restaurant, plan)
+	return orgID
+}
+
+// signUpForSetup creates a pending account and returns the setup token its 201 carries.
+func (c *cloud) signUpForSetup(email, restaurant, plan string) (orgID, setupToken string) {
+	c.t.Helper()
 	resp := c.call(http.MethodPost, "/api/signup/google", nil, map[string]string{
 		"id_token": googleToken(email, "Rosa Pérez"), "restaurant_name": restaurant, "plan": plan})
 	require.Equal(c.t, http.StatusCreated, resp.status, string(resp.body))
-	assert.JSONEq(c.t, `{"status":"pending","organization_name":"`+restaurant+`","plan":"`+plan+`"}`, string(resp.body))
+	var created map[string]string
+	resp.decode(c.t, &created)
+	setupToken = created["setup_token"]
+	require.NotEmpty(c.t, setupToken)
+	delete(created, "setup_token")
+	assert.Equal(c.t, map[string]string{"status": "pending", "organization_name": restaurant, "plan": plan}, created, "no sign-in token")
 	require.NoError(c.t, cloudDB.Raw("SELECT organization_id FROM users WHERE email = ?", email).Scan(&orgID).Error)
 	require.NotEmpty(c.t, orgID)
-	return orgID
+	return orgID, setupToken
 }
 
 func unique(prefix string) string { return prefix + "-" + uuid.NewString()[:8] + "@example.com" }

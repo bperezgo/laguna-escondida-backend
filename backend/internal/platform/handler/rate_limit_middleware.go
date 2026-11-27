@@ -61,11 +61,15 @@ func (l *rateLimiter) sweep(now time.Time) {
 	l.lastSweep = now
 }
 
-// RateLimitMiddleware allows limit requests per window for each client address.
-func RateLimitMiddleware(limit int, window time.Duration) gin.HandlerFunc {
-	limiter := newRateLimiter(limit, window, time.Now)
+// RateLimitByOrganization allows limit requests per window for the organization authentication
+// put in the context, whichever address they come from. It runs after the auth middleware.
+func RateLimitByOrganization(limit int, window time.Duration) gin.HandlerFunc {
+	return rateLimitBy(newRateLimiter(limit, window, time.Now), func(c *gin.Context) string { return c.GetString("org_id") })
+}
+
+func rateLimitBy(limiter *rateLimiter, key func(*gin.Context) string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ok, retryAfter := limiter.allow(c.ClientIP())
+		ok, retryAfter := limiter.allow(key(c))
 		if ok {
 			c.Next()
 			return
@@ -73,4 +77,9 @@ func RateLimitMiddleware(limit int, window time.Duration) gin.HandlerFunc {
 		c.Header("Retry-After", strconv.Itoa(int(math.Ceil(retryAfter.Seconds()))))
 		c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "Too many requests"})
 	}
+}
+
+// RateLimitMiddleware allows limit requests per window for each client address.
+func RateLimitMiddleware(limit int, window time.Duration) gin.HandlerFunc {
+	return rateLimitBy(newRateLimiter(limit, window, time.Now), func(c *gin.Context) string { return c.ClientIP() })
 }

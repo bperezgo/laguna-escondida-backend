@@ -135,6 +135,21 @@ type cloud struct {
 
 func newCloud(t *testing.T) *cloud {
 	t.Helper()
+	return newCloudWith(t, testsupport.PaymentLinks(t), config.Billing{})
+}
+
+// newCloudWithBilling is a cloud with the platform's billing keys, so signup asks for a card.
+func newCloudWithBilling(t *testing.T) (*cloud, *testsupport.FakeBillingWompi) {
+	t.Helper()
+	if !gateEnabled() {
+		t.Skip("Skipping acceptance test. Set RUN_ACCEPTANCE_TESTS=true to run (needs Docker or DB_HOST).")
+	}
+	wompi := testsupport.BillingWompi(t)
+	return newCloudWith(t, wompi.PaymentLinks(), wompi.Billing()), wompi
+}
+
+func newCloudWith(t *testing.T, paymentLinks config.PaymentLinks, billing config.Billing) *cloud {
+	t.Helper()
 	if !gateEnabled() {
 		t.Skip("Skipping acceptance test. Set RUN_ACCEPTANCE_TESTS=true to run (needs Docker or DB_HOST).")
 	}
@@ -145,7 +160,7 @@ func newCloud(t *testing.T) *cloud {
 	cfg := &config.Cloud{AdminAPIKey: adminAPIKey, PublicAPIURL: "http://localhost", Shared: config.Shared{
 		JWTSecret: "accept-secret", PhoneHomeRegion: "CO",
 		Observability: config.Observability{ServiceName: "laguna-backend", MetricsPort: "0"},
-	}, PaymentLinks: testsupport.PaymentLinks(t), Integrations: testsupport.Integrations(),
+	}, PaymentLinks: paymentLinks, Integrations: testsupport.Integrations(), Billing: billing,
 		Signup: config.Signup{Enabled: true, GoogleClientID: "accept.apps.googleusercontent.com", PublicAppURL: "https://app.example.com"}}
 	app, err := bootstrap.NewCloud(cfg, bootstrap.Infra{
 		DB: cloudDB, Logger: logger, HTTPClient: httpclient.NewClient(logger),

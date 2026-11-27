@@ -124,3 +124,53 @@ func TestValidateToken_EdgeBox_OnlyItsOwnOrganization(t *testing.T) {
 	_, err = cloud.ValidateToken(other)
 	assert.NoError(t, err, "the cloud serves every organization")
 }
+
+func TestJWTService_SetupToken_IsNotASignInToken(t *testing.T) {
+	svc := NewJWTService("test-secret", tenant.AnyOrganization())
+	setup, err := svc.GenerateSetupToken("user-1", "org-1")
+	require.NoError(t, err)
+
+	_, err = svc.ValidateToken(setup)
+	assert.ErrorIs(t, err, ErrInvalidToken)
+
+	claims, err := svc.ValidateSetupToken(setup)
+	require.NoError(t, err)
+	assert.Equal(t, "user-1", claims.UserID)
+	assert.Equal(t, "org-1", claims.OrgID)
+	assert.Empty(t, claims.RoleIDs)
+	assert.Empty(t, claims.Permissions)
+}
+
+func TestJWTService_ValidateSetupToken_RefusesASignInToken(t *testing.T) {
+	svc := NewJWTService("test-secret", tenant.AnyOrganization())
+	signIn, err := svc.GenerateToken("user-1", "org-1", "rosa", []int{permissions.RoleAdmin})
+	require.NoError(t, err)
+
+	_, err = svc.ValidateSetupToken(signIn)
+	assert.ErrorIs(t, err, ErrInvalidToken)
+}
+
+func TestJWTService_SetupToken_ExpiresAfterAnHour(t *testing.T) {
+	svc := NewJWTService("test-secret", tenant.AnyOrganization())
+	issued := time.Date(2026, 11, 26, 12, 0, 0, 0, time.UTC)
+	svc.now = func() time.Time { return issued }
+	setup, err := svc.GenerateSetupToken("user-1", "org-1")
+	require.NoError(t, err)
+
+	svc.now = func() time.Time { return issued.Add(59 * time.Minute) }
+	_, err = svc.ValidateSetupToken(setup)
+	require.NoError(t, err)
+
+	svc.now = func() time.Time { return issued.Add(61 * time.Minute) }
+	_, err = svc.ValidateSetupToken(setup)
+	assert.ErrorIs(t, err, ErrExpiredToken)
+}
+
+func TestJWTService_SetupToken_OutsideTheScopeIsInvalid(t *testing.T) {
+	issuer := NewJWTService("test-secret", tenant.AnyOrganization())
+	setup, err := issuer.GenerateSetupToken("user-1", "org-1")
+	require.NoError(t, err)
+
+	_, err = NewJWTService("test-secret", tenant.PinnedTo("org-2")).ValidateSetupToken(setup)
+	assert.ErrorIs(t, err, ErrInvalidToken)
+}

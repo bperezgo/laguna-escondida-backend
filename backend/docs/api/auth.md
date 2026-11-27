@@ -149,12 +149,13 @@ Same body in both modes.
 }
 ```
 
-**403 Forbidden** — Cloud: the email and password are correct, the user is active and holds a cloud role, but the organization is waiting for the operator to approve its signup. No token is returned. A wrong password for the same email still gets the `401` above.
+**403 Forbidden** — Cloud: the email and password are correct, the user is active and holds a cloud role, but the organization is `pending`: its trial has not started. No sign-in token is returned. When the user holds the admin role the body also carries `setup_token`, a [setup token](./billing.md#the-setup-token) to continue signup with; any other user gets none. A wrong password for the same email still gets the `401` above.
 
 ```json
 {
   "error": "Approval pending",
-  "code": "pending_approval"
+  "code": "pending_approval",
+  "setup_token": "<setup token>"
 }
 ```
 
@@ -213,12 +214,13 @@ The same body as `POST /api/auth/signin`.
 }
 ```
 
-**403 Forbidden** — the account matches an active cloud user whose organization is waiting for approval.
+**403 Forbidden** — the account matches an active cloud user whose organization is `pending`. `setup_token` is present only for an admin (see [the setup token](./billing.md#the-setup-token)).
 
 ```json
 {
   "error": "Approval pending",
-  "code": "pending_approval"
+  "code": "pending_approval",
+  "setup_token": "<setup token>"
 }
 ```
 
@@ -387,11 +389,13 @@ In the cloud, every request with a JWT or an API key is checked against its orga
 { "error": "Organization suspended", "code": "organization_suspended" }
 ```
 
-**403 Forbidden** — the organization is waiting for its signup to be approved
+**403 Forbidden** — the organization is waiting for its signup to be approved. This refusal of an authenticated request never carries a `setup_token`; only a sign-in does
 
 ```json
 { "error": "Approval pending", "code": "pending_approval" }
 ```
+
+A [setup token](./billing.md#the-setup-token) sent to any route outside `/api/billing/setup` gets the `401` of an invalid token.
 
 **403 Forbidden** — the organization's trial has ended, whenever the token was issued
 

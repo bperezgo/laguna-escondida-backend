@@ -101,7 +101,7 @@ func (h *UserHandler) SignInHandler(c *gin.Context) {
 		}
 		if errors.Is(err, domainError.ErrOrganizationPending) {
 			h.logger.InfoContext(ctx, "sign-in refused: approval pending", slog.String("email", req.Email))
-			respondPendingApproval(c)
+			respondPendingApproval(c, err)
 			return
 		}
 		if errors.Is(err, domainError.ErrInvalidCredentials) {
@@ -134,7 +134,12 @@ func respondTrialExpired(c *gin.Context) {
 	c.JSON(http.StatusForbidden, gin.H{"error": "Trial ended", "code": "trial_expired"})
 }
 
-func respondPendingApproval(c *gin.Context) {
+func respondPendingApproval(c *gin.Context, err error) {
+	var pending *domainError.PendingApprovalError
+	if errors.As(err, &pending) && pending.SetupToken != "" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Approval pending", "code": "pending_approval", "setup_token": pending.SetupToken})
+		return
+	}
 	c.JSON(http.StatusForbidden, pendingApprovalBody)
 }
 

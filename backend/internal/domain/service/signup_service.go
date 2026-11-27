@@ -110,8 +110,8 @@ func (s *SignupService) signInInstead(ctx context.Context, email string) (*dto.G
 	return &dto.GoogleSignupResult{SignIn: resp}, nil
 }
 
-// create stores the account as pending with no trial end and issues no token: the trial clock
-// starts only when the trial is started (OrganizationService.StartTrial).
+// create stores the account as pending with no trial end and issues no sign-in token, only a setup
+// token: the trial clock starts only when the trial is started (OrganizationService.StartTrial).
 func (s *SignupService) create(ctx context.Context, name, slug, plan, email, googleName string) (*dto.GoogleSignupCreated, error) {
 	now := s.now().UTC()
 	org := &dto.Organization{
@@ -163,7 +163,11 @@ func (s *SignupService) create(ctx context.Context, name, slug, plan, email, goo
 	if err != nil {
 		return nil, err
 	}
-	return &dto.GoogleSignupCreated{Status: org.Status, OrganizationName: org.Name, Plan: org.Plan}, nil
+	setupToken, err := s.users.SetupToken(admin.ID, org.ID)
+	if err != nil {
+		return nil, fmt.Errorf("signup: issue setup token: %w", err)
+	}
+	return &dto.GoogleSignupCreated{Status: org.Status, OrganizationName: org.Name, Plan: org.Plan, SetupToken: setupToken}, nil
 }
 
 // SlugFromName lowercases, strips accents and joins alphanumeric runs with "-", cut to 40.

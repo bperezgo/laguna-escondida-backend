@@ -324,6 +324,24 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		logger.Info("Google sign-in and signup disabled: set GOOGLE_CLIENT_ID to enable them")
 	}
 
+	// Billing setup reads the status uncached: caching "pending" here would refuse, for the cache's
+	// lifetime, the sign-in a saved card has just issued.
+	billingRepo := repository.NewBillingRepository(db)
+	c.organizationService.ShowBilling(billingRepo)
+	billingSetup := service.NewBillingSetupService(billingRepo,
+		cache.NewInvalidatingOrganizationRepository(cloudOrganizations, settingsCache, logger),
+		repository.NewUserRepository(db), repository.NewUserRoleRepository(db), c.userService, c.unitOfWork)
+	if cfg.Billing.CardEntry() {
+		billingSetup.EnableCardEntry(
+			httpclient.NewWompiBilling(infra.HTTPClient, cfg.PaymentLinks.APIURL, cfg.Billing.WompiPublicKey, cfg.Billing.WompiPrivateKey),
+			dto.BillingProviderPublic{PublicKey: cfg.Billing.WompiPublicKey, APIURL: cfg.PaymentLinks.APIURL})
+	} else {
+		logger.Info("Card entry at signup disabled: set BILLING_WOMPI_PUBLIC_KEY and BILLING_WOMPI_PRIVATE_KEY to enable it")
+	}
+	registerBillingSetupRoutes(c.router, c.jwtService,
+		service.NewOrganizationAccessService(repository.NewOrganizationAccessReader(db)),
+		handler.NewBillingSetupHandler(billingSetup, logger), billingSetup.CardEntry())
+
 	leadRepo := repository.NewLeadRepository(db)
 	leadService := service.NewLeadService(leadRepo, cfg.LeadAlerts.Enabled(), logger, nil)
 	if cfg.LeadAlerts.Enabled() {
@@ -355,6 +373,7 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		stock:                 c.handlers.stock,
 		organization:          handler.NewOrganizationHandler(c.organizationService),
 		lead:                  handler.NewLeadHandler(leadService),
+		plans:                 handler.NewPlansHandler(),
 		installer:             handler.NewInstallerDownloadHandler(service.NewInstallerDownloadService(releaseCatalog, buildinfo.Version), logger),
 		apiKey:                handler.NewAPIKeyHandler(apiKeyService),
 		integration:           handler.NewOrganizationIntegrationHandler(integrations),

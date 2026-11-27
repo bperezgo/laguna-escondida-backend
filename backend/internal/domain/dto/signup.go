@@ -21,6 +21,8 @@ type GoogleSignupCreated struct {
 	Status           string `json:"status"`
 	OrganizationName string `json:"organization_name"`
 	Plan             string `json:"plan"`
+	// SetupToken is accepted only by the billing setup routes; it is not a sign-in.
+	SetupToken string `json:"setup_token"`
 }
 
 type GeneratedPasswordResponse struct {
