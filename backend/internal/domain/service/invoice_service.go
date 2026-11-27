@@ -75,16 +75,14 @@ func (s *InvoiceService) CreateElectronicInvoice(ctx context.Context, invoice *d
 		return bill.NewBillProduct(
 			item.ProductID,
 			item.Quantity,
-			product.UnitPrice,
+			product.TotalPriceWithTaxes,
 			product.Name,
 			product.Description,
 			product.Category,
 			product.SKU,
 			item.Allowance,
 			product.VAT,
-			product.VATAmount,
 			product.ICO,
-			product.ICOAmount,
 		)
 	})
 

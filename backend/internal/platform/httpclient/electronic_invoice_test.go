@@ -617,3 +617,55 @@ func TestCreate_WithDifferentPaymentCodes(t *testing.T) {
 		})
 	}
 }
+
+func TestCreate_SendsLineBaseAsItemTotal(t *testing.T) {
+	var reqBody invoiceRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&reqBody))
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(createSuccessResponse()))
+	}))
+	defer server.Close()
+
+	bill := createTestBill()
+	bill.TotalAmount = decimal.RequireFromString("99318.52")
+	bill.DiscountAmount = decimal.Zero
+	bill.TaxAmount = decimal.RequireFromString("7945.48")
+	bill.PayAmount = decimal.RequireFromString("107264")
+	bill.Products = []dto.BillProduct{{
+		ProductID: "prod-1", Name: "Gramo Pescado de Lago", Quantity: 3352, Code: "SKU1",
+		UnitPrice: decimal.RequireFromString("29.63"),
+		Total:     decimal.RequireFromString("99318.52"),
+		Taxes:     []dto.InvoiceTax{{TaxCode: dto.TaxCodeICO, TaxAmount: "7945.48", Percent: "8.00"}},
+	}}
+	_, err := createTestClient(server).Create(context.Background(), &dto.CreateElectronicInvoiceRequest{
+		Prefix: "LAG", Consecutive: 365, PaymentCode: dto.ElectronicInvoicePaymentCodeCash, Bill: bill,
+	})
+	require.NoError(t, err)
+
+	require.Len(t, reqBody.Invoice.Items, 1)
+	item := reqBody.Invoice.Items[0]
+	assert.Equal(t, "3352.00", item.Quantity)
+	assert.Equal(t, "29.63", item.UnitPrice)
+	assert.Equal(t, "99318.52", item.Total, "the line base, not unitPrice × qty (99319.76)")
+	assert.Equal(t, []invoiceTax{{ID: "04", TaxAmount: "7945.48", Percent: "8.00"}}, item.Taxes)
+	assert.Equal(t, invoiceAmounts{TotalAmount: "99318.52", DiscountAmount: "0.00", TaxAmount: "7945.48", PayAmount: "107264.00"},
+		reqBody.Invoice.Amounts)
+}
+
+// Payloads cached before lines carried a Total still send unit price × quantity.
+func TestCreate_LegacyPayloadWithoutLineTotal(t *testing.T) {
+	var reqBody invoiceRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&reqBody))
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(createSuccessResponse()))
+	}))
+	defer server.Close()
+
+	_, err := createTestClient(server).Create(context.Background(), &dto.CreateElectronicInvoiceRequest{
+		Prefix: "FE", Consecutive: 1, PaymentCode: dto.ElectronicInvoicePaymentCodeCash, Bill: createTestBill(),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "100.00", reqBody.Invoice.Items[0].Total)
+}

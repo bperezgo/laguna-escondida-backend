@@ -38,24 +38,24 @@ func (r *BillRepository) GetNextConsecutive(ctx context.Context, prefix string) 
 // data the fiscal provider request needs. Quantity comes from bill_products; the price, name,
 // category, code and tax rates/amounts come from the product row.
 type billLineItemRow struct {
-	ProductID   string
-	Quantity    int
-	Name        string
-	Category    string
-	SKU         string
-	Description *string
-	UnitPrice   decimal.Decimal
-	VAT         decimal.Decimal
-	VATAmount   decimal.Decimal
-	ICO         decimal.Decimal
-	ICOAmount   decimal.Decimal
+	ProductID           string
+	Quantity            int
+	Name                string
+	Category            string
+	SKU                 string
+	Description         *string
+	VAT                 decimal.Decimal
+	ICO                 decimal.Decimal
+	TotalPriceWithTaxes decimal.Decimal
 }
 
 // FindBillForInvoice returns a fully-hydrated bill for the cloud submission service. Unlike
 // FindByID (which loads only the header columns), this hydrates the fields the provider
 // request is built from: PayAmount, the tax total, the Customer, and the line items as
-// []BillProduct (with quantities and per-item taxes). Line-item DTOs are built through the
-// bill aggregate's NewBillProduct/ToDTO so the taxes match exactly what the edge produced.
+// []BillProduct (with quantities and per-line taxes). Line-item DTOs are built through the
+// bill aggregate's NewBillProduct/ToDTO from the tax-inclusive price, so they use the same
+// per-line split as the edge. The header's net/tax totals are the stored columns; the
+// submission service replaces them with the line sums (bill.ApplyLineTotals).
 func (r *BillRepository) FindBillForInvoice(ctx context.Context, billID string) (*dto.Bill, error) {
 	db, err := postgres.TenantDB(ctx, r.db)
 	if err != nil {
@@ -70,7 +70,7 @@ func (r *BillRepository) FindBillForInvoice(ctx context.Context, billID string) 
 	if err := db.
 		Table("bill_products AS bp").
 		Select("bp.product_id, bp.quantity, p.name, p.category, p.sku, p.description, "+
-			"p.unit_price, p.vat, p.vat_amount, p.ico, p.ico_amount").
+			"p.vat, p.ico, p.total_price_with_taxes").
 		Joins("JOIN products p ON p.id = bp.product_id").
 		Where("bp.bill_id = ? AND bp.deleted_at IS NULL AND p.deleted_at IS NULL", billID).
 		Scan(&rows).Error; err != nil {
@@ -83,16 +83,14 @@ func (r *BillRepository) FindBillForInvoice(ctx context.Context, billID string) 
 		products = append(products, bill.NewBillProduct(
 			row.ProductID,
 			row.Quantity,
-			row.UnitPrice,
+			row.TotalPriceWithTaxes,
 			row.Name,
 			row.Description,
 			row.Category,
 			row.SKU,
 			[]dto.InvoiceAllowance{},
 			row.VAT,
-			row.VATAmount,
 			row.ICO,
-			row.ICOAmount,
 		).ToDTO())
 	}
 

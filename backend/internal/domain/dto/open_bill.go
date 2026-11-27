@@ -195,10 +195,13 @@ type UpdateOrderRequest struct {
 }
 
 type BillProduct struct {
-	ProductID   string
-	Name        string
-	Quantity    int
-	UnitPrice   decimal.Decimal
+	ProductID string
+	Name      string
+	Quantity  int
+	UnitPrice decimal.Decimal
+	// Total is the line base (tax-inclusive line total minus its taxes); UnitPrice is it
+	// divided by Quantity and rounded, so UnitPrice × Quantity may differ by a cent.
+	Total       decimal.Decimal
 	Description *string
 	Category    string
 	Code        string

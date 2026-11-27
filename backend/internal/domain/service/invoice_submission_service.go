@@ -164,6 +164,10 @@ func (s *InvoiceSubmissionService) buildRequestPayload(ctx context.Context, sett
 	if item, ok := bill.DeliveryFeeItem(billForInvoice); ok {
 		billForInvoice.Products = append(billForInvoice.Products, item)
 	}
+	// Stored headers of older bills carry per-unit rounding; the provider checks them against the lines.
+	if err := bill.ApplyLineTotals(billForInvoice); err != nil {
+		return fmt.Errorf("sum invoice lines: %w", err)
+	}
 
 	if pending.Consecutive != nil {
 		prefix := pending.Prefix
