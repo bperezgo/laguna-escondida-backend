@@ -171,7 +171,10 @@ function Assert-Samples([string] $when) {
   Assert (-not @($cmds | Where-Object { $setupPids -contains $_.ParentPid })) "$when : setup started no cmd.exe"
   if ([Environment]::UserInteractive) {
     foreach ($v in ($s | Where-Object { $_.Visible } | Sort-Object Pid -Unique)) { Write-Host "  visible window: $($v.Name) $($v.Pid) parent $($v.ParentPid): $($v.Cmd)" }
-    Assert (-not @($s | Where-Object { $_.Visible })) "$when : no window of setup's processes was visible"
+    # Setup's own (empty) window and the VC++ redistributable's burn host are not consoles; every script
+    # and tool the installer launches is.
+    $shown = @($s | Where-Object { $_.Visible -and $_.Name -notlike '*.tmp' -and $_.Name -notlike 'KuentaSetup*' -and $_.Name -notlike 'VC_redist*' })
+    Assert (-not $shown) "$when : no window of a script or tool setup started was visible"
   } else { Write-Host '  no desktop: visibility not checked' -ForegroundColor Yellow }
   foreach ($secret in $script:Secrets) {
     Assert (-not @($s | Where-Object { $_.Cmd.Contains($secret) })) "$when : no command line holds a secret ($($secret.Substring(0, 4))...)"
