@@ -28,7 +28,7 @@ A user SHALL belong to exactly one organization, fixed when the user is created.
 
 ### Requirement: Users are created in an organization the caller is entitled to
 
-A user created by a signed-in user SHALL belong to the creator's organization, regardless of any organization named in the request. A user created with the admin API key in the cloud SHALL name its organization by slug; on the edge the box's organization is used, and a different named organization is rejected.
+A user created by a signed-in user SHALL belong to the creator's organization, regardless of any organization named in the request. A user created with the admin API key SHALL name its organization by slug; this is possible only in the cloud, because an edge box does not accept the admin API key.
 
 #### Scenario: Manager creates a user
 
@@ -44,6 +44,11 @@ A user created by a signed-in user SHALL belong to the creator's organization, r
 
 - **WHEN** `POST /api/users` is called with the admin API key in the cloud naming a slug that does not exist
 - **THEN** the request is rejected with `404 Not Found` and nothing is stored
+
+#### Scenario: Admin key on an edge box
+
+- **WHEN** `POST /api/users` is called on an edge box with an admin API key and no user token
+- **THEN** no user is created
 
 ### Requirement: Users have a globally unique email
 
@@ -85,6 +90,11 @@ A user MAY have an `email`. An email SHALL be unique across all organizations, c
 - **WHEN** an edge box pulls a user who has an email
 - **THEN** the pulled user carries no email
 
+#### Scenario: Courier without an email
+
+- **WHEN** a user is created with only the courier role and no email
+- **THEN** the request is rejected with `400 Bad Request` and nothing is stored
+
 ### Requirement: Cloud sign-in uses email
 
 In the cloud, `POST /api/auth/signin` SHALL take `email` and `password`. The organization SHALL be the user's own. The organization SHALL be active, or in a trial that has not expired.
@@ -112,7 +122,7 @@ In the cloud, `POST /api/auth/signin` SHALL take `email` and `password`. The org
 
 ### Requirement: Only cloud roles sign in to the cloud
 
-In the cloud, sign-in SHALL succeed only for a user holding at least one cloud role: admin, manager, accountant or agent. A user holding only floor roles (server, cooker) SHALL be rejected with the opaque `401`.
+In the cloud, sign-in SHALL succeed only for a user holding at least one cloud role: admin, manager, accountant, agent or courier. A user holding only floor roles (server, cooker) SHALL be rejected with the opaque `401`.
 
 #### Scenario: Server signs in to the cloud
 
@@ -122,6 +132,11 @@ In the cloud, sign-in SHALL succeed only for a user holding at least one cloud r
 #### Scenario: Agent service user signs in to the cloud
 
 - **WHEN** a user holding the agent role signs in to the cloud with a correct email and password
+- **THEN** the response is `200 OK`
+
+#### Scenario: Courier signs in to the cloud
+
+- **WHEN** a user holding the courier role signs in to the cloud with a correct email and password
 - **THEN** the response is `200 OK`
 
 ### Requirement: Edge sign-in uses the box's organization
@@ -156,7 +171,12 @@ On an edge box, `POST /api/auth/signin` SHALL take `username` and `password` and
 
 In the cloud, an unknown email, a suspended organization, an inactive user, a user without a cloud role and a wrong password SHALL all return `401 Unauthorized` with `{"error": "Invalid email or password"}`. On an edge box, an unknown username, an inactive user and a wrong password SHALL all return `401 Unauthorized` with `{"error": "Invalid username or password"}`. The response SHALL NOT reveal which emails, usernames or organizations exist. The specific reason SHALL be logged server-side.
 
-The one exception is in the cloud: when the email and password are correct, the user is active and holds a cloud role, and the organization's trial has expired, the response SHALL be `403 Forbidden` with `{"error": "Trial ended", "code": "trial_expired"}`. That way the person learns to contact us rather than retrying their password. The same applies to a Google sign-in whose account matches such a user.
+There are three exceptions, all in the cloud, and all only when the email and password are correct and the user is active and holds a cloud role. That way the person learns to wait or to contact us rather than retrying their password. The same applies to a Google sign-in whose account matches such a user.
+- When the organization is `pending`, the response SHALL be `403 Forbidden` with `{"error": "Approval pending", "code": "pending_approval"}` and no sign-in token. When the user holds the admin role, the body SHALL also carry `setup_token`, a setup token for that admin (see `signup-billing-setup`). For any other user it SHALL NOT.
+- When the organization's trial has expired, the response SHALL be `403 Forbidden` with `{"error": "Trial ended", "code": "trial_expired"}` and no sign-in token.
+- When the organization is unpaid (see `organization-plans`), the response SHALL be `403 Forbidden` with `{"error": "Payment required", "code": "payment_required"}` and no sign-in token.
+
+In the last two cases, when the user holds the admin role, the body SHALL also carry `setup_token`, a setup token for that admin, which the recovery routes accept (see `subscription-management`). For any other user it SHALL NOT.
 
 #### Scenario: Unknown email
 
@@ -168,10 +188,35 @@ The one exception is in the cloud: when the email and password are correct, the 
 - **WHEN** a user of an organization whose status is `suspended` signs in to the cloud with a correct email and password
 - **THEN** the response is `401 Unauthorized` with `{"error": "Invalid email or password"}`
 
+#### Scenario: Pending organization with the correct password
+
+- **WHEN** an admin with a password, of an organization whose status is `pending`, signs in with a correct email and password
+- **THEN** the response is `403 Forbidden` with code `pending_approval`, a setup token and no sign-in token
+
+#### Scenario: Pending organization, not an admin
+
+- **WHEN** a manager of a `pending` organization signs in with a correct email and password
+- **THEN** the response is `403 Forbidden` with code `pending_approval` and no setup token
+
+#### Scenario: Pending organization with a wrong password
+
+- **WHEN** someone signs in with that user's email and a wrong password
+- **THEN** the response is `401 Unauthorized` with `{"error": "Invalid email or password"}`
+
 #### Scenario: Expired trial with the correct password
 
 - **WHEN** the admin of an organization whose trial ended yesterday signs in with a correct email and password
-- **THEN** the response is `403 Forbidden` with code `trial_expired` and no token
+- **THEN** the response is `403 Forbidden` with code `trial_expired`, a setup token and no sign-in token
+
+#### Scenario: Unpaid organization with the correct password
+
+- **WHEN** the admin of an organization that stopped after three failed renewals signs in with a correct email and password
+- **THEN** the response is `403 Forbidden` with code `payment_required`, a setup token and no sign-in token
+
+#### Scenario: Unpaid organization, not an admin
+
+- **WHEN** a manager of that organization signs in with a correct email and password
+- **THEN** the response is `403 Forbidden` with code `payment_required` and no setup token
 
 #### Scenario: Expired trial with a wrong password
 
@@ -211,14 +256,19 @@ A token issued at sign-in SHALL carry the user's organization id as the claim `o
 In the cloud, `POST /api/auth/google` SHALL take a Google ID token. It SHALL sign in the user whose email equals the token's email.
 - **Token checks:** the token SHALL be accepted only when Google's signature is valid, its audience is the cloud's configured Google client id, it is unexpired, and its email is marked verified by Google.
 - **Response:** on success, the same `200` body as `POST /api/auth/signin`.
-- **Failures:** an invalid token, an unknown email, a suspended organization, an inactive user and a user without a cloud role SHALL all return `401 Unauthorized` with `{"error": "Google sign-in failed"}`. An expired trial follows the exception in "Sign-in failures are opaque in each mode".
+- **Failures:** an invalid token, an unknown email, a suspended organization, an inactive user and a user without a cloud role SHALL all return `401 Unauthorized` with `{"error": "Google sign-in failed"}`. A pending organization, an expired trial and an unpaid organization follow the exceptions in "Sign-in failures are opaque in each mode", setup token included.
 - **Who can use it:** any user with an email, whichever way they signed up or were invited, so a person who set a password may also use Google with the same email.
 - **Edge:** the route SHALL NOT exist on an edge box. Edge sign-in stays username and password.
 
 #### Scenario: Google sign-in of a Google signup
 
-- **WHEN** the admin who signed up with Google calls `POST /api/auth/google` with a valid ID token for their email
+- **WHEN** the admin who signed up with Google, whose trial has been started, calls `POST /api/auth/google` with a valid ID token for their email
 - **THEN** the response is `200 OK` with a token for that admin
+
+#### Scenario: Google sign-in before the trial starts
+
+- **WHEN** the admin who signed up with Google calls `POST /api/auth/google` while their organization is `pending`
+- **THEN** the response is `403 Forbidden` with code `pending_approval`, a setup token and no sign-in token
 
 #### Scenario: Password user signs in with Google
 

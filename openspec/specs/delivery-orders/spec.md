@@ -185,12 +185,17 @@ An order replicated to the cloud from the restaurant SHALL be stored as `dine_in
 
 ### Requirement: Changing an order keeps its type, contact and location
 
-Updating an order's products or details SHALL NOT change its order type, contact, location or zone.
+Updating an order's products or details SHALL NOT change its order type, contact, location, zone or delivery fee. The order's total after the update SHALL be the sum of its new lines plus its unchanged delivery fee.
 
 #### Scenario: Changing the lines of a delivery order
 
 - **WHEN** an unpaid delivery order's lines are replaced
 - **THEN** the order is still `delivery` with the same phone, address, location and zone
+
+#### Scenario: Changing lines after the zone was repriced
+
+- **WHEN** an unpaid delivery order with fee `5000` has its lines replaced by lines worth `20000` after its zone's fee changed to `6000`
+- **THEN** the order keeps fee `5000` and its total is `25000`
 
 ### Requirement: Deliveries are taken in the cloud only
 A `delivery` order SHALL be created only in the cloud. A `delivery` order sent to the edge box SHALL be rejected with `422 Unprocessable Entity` and the code `DELIVERY_CLOUD_ONLY`, before any zone check, and no order SHALL be created. `dine_in` and `takeaway` orders on the box SHALL behave as before.
@@ -250,13 +255,20 @@ The check SHALL run after the request is validated and, on the box, after the de
 ### Requirement: Agent orders are paid with a payment link
 
 A `takeaway` or `delivery` order created by the customer agent (an agent order) SHALL be paid
-through its payment link (see `payment-links`) or by staff. Staff-created and `dine_in` orders
-SHALL NOT get a payment link and SHALL behave as before.
+the way its payment strategy says (see `payment-strategies`). Under `wompi` it SHALL be paid
+through its payment link or its QR (see `payment-links`), or by staff. Under `manual` it SHALL
+get neither and SHALL be paid by staff. Staff-created and `dine_in` orders SHALL NOT get a
+payment link, a QR or a payment strategy and SHALL behave as before.
 
 #### Scenario: A WhatsApp delivery order
 
-- **WHEN** the customer agent creates a delivery order, with or without origin channel `laguna-escondida-whatsapp`
+- **WHEN** the customer agent creates a delivery order for an organization on `wompi`, with or without origin channel `laguna-escondida-whatsapp`
 - **THEN** it has a payment link and stays held out of the kitchen until paid
+
+#### Scenario: A WhatsApp order for a restaurant that confirms by hand
+
+- **WHEN** the customer agent creates a takeaway order for an organization on `manual`
+- **THEN** it has no payment link and no QR, and stays held out of the kitchen until staff pay it
 
 #### Scenario: A takeaway order taken at the till
 
@@ -265,15 +277,22 @@ SHALL NOT get a payment link and SHALL behave as before.
 
 ### Requirement: Agent orders need payment links configured
 
-Creating an agent order SHALL be refused with `422 Unprocessable Entity` and the code
-`PAYMENT_LINKS_NOT_CONFIGURED` when the organization does not have payment links configured, and no
-order SHALL be created. The check SHALL run after the request is validated and after the ordering
-availability check, before the zone check. Staff-created orders SHALL NOT be affected.
+Creating an agent order for an organization on the `wompi` strategy SHALL be refused with
+`422 Unprocessable Entity` and the code `PAYMENT_LINKS_NOT_CONFIGURED` when the organization does
+not have payment links configured, and no order SHALL be created. The check SHALL run after the
+request is validated and after the ordering availability check, before the zone check. An
+organization on the `manual` strategy SHALL NOT need payment links. Staff-created orders SHALL
+NOT be affected.
 
 #### Scenario: An organization without Wompi
 
-- **WHEN** an agent takeaway order is created for an organization without payment links configured
+- **WHEN** an agent takeaway order is created for an organization on `wompi` without payment links configured
 - **THEN** the request fails with `422` and code `PAYMENT_LINKS_NOT_CONFIGURED`, and no order exists
+
+#### Scenario: A manual organization without Wompi
+
+- **WHEN** an agent takeaway order is created for an organization on `manual` with no Wompi integration
+- **THEN** the order is created
 
 #### Scenario: Staff in the same organization
 
@@ -282,24 +301,79 @@ availability check, before the zone check. Staff-created orders SHALL NOT be aff
 
 ### Requirement: An unpaid agent order expires
 
-An agent order SHALL be voided when its active payment link has expired and it is still unpaid,
-unless a pending transaction exists for one of its links, in which case it SHALL wait until that
-transaction resolves. Expiring SHALL deactivate the link and void the order exactly as staff voiding
-it does (soft-deleted, stock returned, `order.cancelled` recorded), with the void reason
-`payment_expired`, and SHALL record `order.expired`. Expiry SHALL run in the cloud at least once a
-minute. An agent order with no payment link SHALL NOT expire.
+An agent order under `wompi` SHALL be voided when its active payment link has expired and it is
+still unpaid, unless a signed pending transaction exists for it, in which case it SHALL wait
+until that transaction resolves. An agent order under `wompi` with no payment link SHALL NOT
+expire.
+
+An agent order under `manual` SHALL be voided when its payment expiry has passed and it is still
+unpaid, unless staff have marked its payment as under review, in which case it SHALL wait until
+it is paid, voided or the mark is cleared.
+
+Expiring SHALL deactivate the order's link and retire its QR, void the order exactly as staff
+voiding it does (soft-deleted, stock returned, `order.cancelled` recorded), with the void reason
+`payment_expired`, and SHALL record `order.expired`. Expiry SHALL run in the cloud at least once
+a minute.
 
 #### Scenario: Not paid in 30 minutes
 
-- **WHEN** an agent order created at 12:00 is still unpaid at 12:31
+- **WHEN** a `wompi` agent order created at 12:00 is still unpaid at 12:31
 - **THEN** it is voided with reason `payment_expired`, its stock is returned, and `order.expired` is recorded
 
 #### Scenario: A payment still pending
 
-- **WHEN** an agent order's link expired and a `PENDING` transaction exists for it
+- **WHEN** an agent order's link expired and a signed `PENDING` transaction exists for it
 - **THEN** the order is not voided until that transaction is approved (paid) or fails (voided on the next run)
 
 #### Scenario: No link was created
 
-- **WHEN** an agent order has no payment link and 30 minutes pass
+- **WHEN** a `wompi` agent order has no payment link and 30 minutes pass
 - **THEN** the order stays open for staff to pay or void
+
+#### Scenario: A manual order nobody paid
+
+- **WHEN** a `manual` agent order created at 12:00 with a 60 minute window is still unpaid at 13:01
+- **THEN** it is voided with reason `payment_expired`, its stock is returned, and `order.expired` is recorded
+
+#### Scenario: Staff are checking the transfer
+
+- **WHEN** a `manual` agent order's payment expiry passes while it is marked under review
+- **THEN** the order is not voided
+
+#### Scenario: The review is dropped after the expiry
+
+- **WHEN** staff clear the review mark of a `manual` order whose payment expiry has passed
+- **THEN** the order is voided as expired on the next run
+
+### Requirement: A delivery order records its zone's fee
+
+When a `delivery` order is created, it SHALL record the delivery fee (with its base and ICO amount) of the zone it is accepted in, as that zone's fee is at that moment. `dine_in` and `takeaway` orders SHALL have no delivery fee. A delivery fee SHALL NOT be accepted from the request: one sent by the caller SHALL be ignored.
+
+The order's total SHALL be the sum of its lines plus its delivery fee, and the amount charged for the order (the payment link and the paid amount) SHALL be that total. The delivery fee SHALL NOT be a line of the order: it SHALL NOT appear on any kitchen board, reserve or consume stock, or take a discount.
+
+Every order read (the active list, a single order, the closed list and a single closed order) SHALL return the delivery fee apart from the lines, together with the total that includes it.
+
+#### Scenario: Delivery into a zone with a fee
+
+- **WHEN** a delivery order with lines worth `32000` is created with a pin inside zone "Centro" (fee `5000`)
+- **THEN** the order records delivery fee `5000`, its total is `37000`, and its payment link charges `37000`
+
+#### Scenario: Delivery into a free zone
+
+- **WHEN** a delivery order with lines worth `32000` is created inside a zone with fee `0`
+- **THEN** the order records delivery fee `0` and its total is `32000`
+
+#### Scenario: Takeaway has no fee
+
+- **WHEN** a takeaway order is created
+- **THEN** it has no delivery fee and its total is the sum of its lines, as before
+
+#### Scenario: A fee sent by the caller
+
+- **WHEN** a delivery order is created inside zone "Centro" (fee `5000`) with a request that also says `delivery_fee: 0`
+- **THEN** the order records delivery fee `5000`
+
+#### Scenario: The fee is not cooked
+
+- **WHEN** a delivery order with a fee is paid and released to the kitchen
+- **THEN** only its product lines appear on the kitchen boards

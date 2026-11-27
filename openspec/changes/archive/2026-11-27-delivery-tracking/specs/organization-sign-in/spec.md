@@ -2,7 +2,11 @@
 
 ### Requirement: Users have a globally unique email
 
-A user MAY have an `email`. An email SHALL be unique across all organizations, compared case-insensitively, and SHALL be stored lowercased and trimmed. A user holding any cloud role (admin, manager, accountant, agent, courier) SHALL have an email; a user holding only floor roles (server, cooker) MAY have none. The email SHALL be set when a user is created or updated in the cloud, SHALL be returned with the user, and SHALL NOT be sent to edge boxes.
+A user MAY have an `email`. An email SHALL be unique across all organizations, compared case-insensitively, and SHALL be stored lowercased and trimmed. The email SHALL be set when a user is created or updated in the cloud, SHALL be returned with the user, and SHALL NOT be sent to edge boxes.
+- A user holding the admin, accountant, agent or courier role SHALL have an email.
+- A manager MAY have none, which makes them a box-only manager, like the box user created at signup.
+- A user holding only floor roles (server, cooker) MAY have none.
+- A user without an email SHALL NOT sign in to the cloud.
 
 #### Scenario: Create a manager with an email
 
@@ -11,13 +15,15 @@ A user MAY have an `email`. An email SHALL be unique across all organizations, c
 
 #### Scenario: Cloud role without an email
 
-- **WHEN** a user is created, or updated to hold a cloud role, without an email
+- **WHEN** a user is created, or updated to hold the admin, accountant, agent or courier role, without an email
 - **THEN** the request is rejected with `400 Bad Request` and nothing is stored
 
-#### Scenario: Courier without an email
+#### Scenario: Manager without an email
 
-- **WHEN** a user is created with only the courier role and no email
-- **THEN** the request is rejected with `400 Bad Request` and nothing is stored
+- **WHEN** a user is created with only the manager role and no email
+- **THEN** the user is created
+- **AND** it signs in on the organization's box with its username and password
+- **AND** it cannot sign in to the cloud
 
 #### Scenario: Floor staff without an email
 
@@ -33,6 +39,11 @@ A user MAY have an `email`. An email SHALL be unique across all organizations, c
 
 - **WHEN** an edge box pulls a user who has an email
 - **THEN** the pulled user carries no email
+
+#### Scenario: Courier without an email
+
+- **WHEN** a user is created with only the courier role and no email
+- **THEN** the request is rejected with `400 Bad Request` and nothing is stored
 
 ### Requirement: Only cloud roles sign in to the cloud
 
