@@ -20,6 +20,7 @@ import (
 var globalTableFiles = map[string]bool{
 	// Every method takes the organization id: the operator reads any organization's billing.
 	"billing_repository.go":             true,
+	"box_organization_repository.go":    true,
 	"box_secret_repository.go":          true,
 	"database.go":                       true,
 	"einvoicing_settings_repository.go": true,
