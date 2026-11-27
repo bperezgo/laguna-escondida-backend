@@ -7,9 +7,17 @@ export const NOT_ACTIVE_YET_MESSAGE = "Tu cuenta todavía no está activa. Píde
 
 export type SignInMode = "cloud" | "edge";
 
+export type BoxSyncState = "waiting" | "offline" | "failed" | "replaced" | "suspended";
+
+const BOX_SYNC_STATES: readonly BoxSyncState[] = ["waiting", "offline", "failed", "replaced", "suspended"];
+
 export interface SignInContext {
   mode: SignInMode;
   organization?: { name: string };
+  /** Edge only. False while the box has no user who can sign in; absent means ready. */
+  usersReady?: boolean;
+  /** Edge only, meaningful while usersReady is false. */
+  sync?: BoxSyncState;
 }
 
 // An edge box older than /api/auth/context answers 404; the cloud is always deployed first.
@@ -17,12 +25,28 @@ export const LEGACY_EDGE_CONTEXT: SignInContext = { mode: "edge" };
 
 export function parseSignInContext(body: unknown): SignInContext {
   if (typeof body !== "object" || body === null) return LEGACY_EDGE_CONTEXT;
-  const { mode, organization } = body as { mode?: unknown; organization?: { name?: unknown } };
+  const { mode, organization, users_ready, sync } = body as {
+    mode?: unknown;
+    organization?: { name?: unknown };
+    users_ready?: unknown;
+    sync?: unknown;
+  };
   if (mode === "cloud") return { mode: "cloud" };
-  if (mode === "edge" && typeof organization?.name === "string" && organization.name) {
-    return { mode: "edge", organization: { name: organization.name } };
+  if (mode !== "edge") return LEGACY_EDGE_CONTEXT;
+  const context: SignInContext = { mode: "edge" };
+  if (typeof organization?.name === "string" && organization.name) {
+    context.organization = { name: organization.name };
   }
-  return LEGACY_EDGE_CONTEXT;
+  if (typeof users_ready === "boolean") {
+    context.usersReady = users_ready;
+    context.sync = BOX_SYNC_STATES.find((state) => state === sync) ?? "waiting";
+  }
+  return context;
+}
+
+/** A box with no user yet shows a waiting screen instead of a form that cannot work. */
+export function isWaitingForUsers(context: SignInContext | null): boolean {
+  return context?.mode === "edge" && context.usersReady === false;
 }
 
 export interface SignInCredentials {

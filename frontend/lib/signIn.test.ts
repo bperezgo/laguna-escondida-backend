@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LEGACY_EDGE_CONTEXT, parseSignInContext, signInBody, signInErrorMessage, signInFailure, signInNotice, signInOutcome } from "./signIn.ts";
+import { LEGACY_EDGE_CONTEXT, isWaitingForUsers, parseSignInContext, signInBody, signInErrorMessage, signInFailure, signInNotice, signInOutcome } from "./signIn.ts";
 import { supportEmail } from "./support.ts";
 
 test("the cloud context needs no organization", () => {
@@ -112,4 +112,44 @@ test("anyone else of an unpaid account sees the refusal and the support contact"
 
 test("a setup session never turns another refusal into recovery", () => {
   assert.equal(signInOutcome(false, { error: "Invalid email or password", setup: true }, null).next, "failure");
+});
+
+test("a box with users is ready and reports no sync state worth showing", () => {
+  const context = parseSignInContext({ mode: "edge", organization: { name: "Laguna" }, users_ready: true, sync: null });
+  assert.equal(context.usersReady, true);
+  assert.equal(isWaitingForUsers(context), false);
+});
+
+test("a box without users waits, with the sync state it reports", () => {
+  for (const sync of ["waiting", "offline", "failed", "replaced", "suspended"]) {
+    const context = parseSignInContext({ mode: "edge", organization: { name: "Laguna" }, users_ready: false, sync });
+    assert.equal(isWaitingForUsers(context), true);
+    assert.equal(context.sync, sync);
+  }
+});
+
+test("an unknown or missing sync state is treated as waiting", () => {
+  for (const sync of ["exploded", 7, null, undefined]) {
+    assert.equal(parseSignInContext({ mode: "edge", users_ready: false, sync }).sync, "waiting");
+  }
+});
+
+test("users_ready counts only when it is a boolean; otherwise the form shows", () => {
+  for (const users_ready of ["false", 0, null, undefined]) {
+    const context = parseSignInContext({ mode: "edge", organization: { name: "Laguna" }, users_ready });
+    assert.equal(context.usersReady, undefined);
+    assert.equal(isWaitingForUsers(context), false);
+  }
+});
+
+test("a box whose organization could not be read still waits", () => {
+  const context = parseSignInContext({ mode: "edge", users_ready: false, sync: "failed" });
+  assert.equal(isWaitingForUsers(context), true);
+  assert.equal(context.organization, undefined);
+});
+
+test("the cloud and an unreadable context never wait", () => {
+  assert.equal(isWaitingForUsers(parseSignInContext({ mode: "cloud", users_ready: false })), false);
+  assert.equal(isWaitingForUsers(parseSignInContext(null)), false);
+  assert.equal(isWaitingForUsers(null), false);
 });

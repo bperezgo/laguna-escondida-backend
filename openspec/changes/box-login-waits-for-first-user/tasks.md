@@ -14,8 +14,8 @@
 
 ## 3. Frontend
 
-- [ ] 3.1 Extend `SignInContext` and `parseSignInContext` in `lib/signIn.ts` with `users_ready` and `sync` (strict parsing, missing means ready). Add tests in `lib/signIn.test.ts`
-- [ ] 3.2 Add `BoxWaitingForUsers` (texts per state, reusing `lib/edge/syncBlocked.ts`) and render it from `SignInForm` when `mode === "edge" && users_ready === false`, with 5-second polling of `/api/auth/context`, stop on unmount, and "Iniciar sesión de todas formas". Put the pure state→message logic in `lib/` with tests
+- [x] 3.1 Extend `SignInContext` and `parseSignInContext` in `lib/signIn.ts` with `users_ready` and `sync` (strict parsing, missing means ready). Add tests in `lib/signIn.test.ts`
+- [x] 3.2 Add `BoxWaitingForUsers` (texts per state, reusing `lib/edge/syncBlocked.ts`) and render it from `SignInForm` when `mode === "edge" && users_ready === false`, with 5-second polling of `/api/auth/context`, stop on unmount, and "Iniciar sesión de todas formas". Put the pure state→message logic in `lib/` with tests
 - [ ] 3.3 Run `pnpm exec tsc --noEmit`, `pnpm test` and `pnpm lint`. On a local edge run (`make run-edge` with an empty users table), see the waiting screen switch to the form when a user is inserted
 
 ## 4. Security review

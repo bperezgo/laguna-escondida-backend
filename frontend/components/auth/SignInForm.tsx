@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Input, Button } from "@/components/ui";
 import {
   LEGACY_EDGE_CONTEXT,
+  isWaitingForUsers,
   parseSignInContext,
   signInOutcome,
   type SignInContext,
@@ -16,8 +17,11 @@ import styles from "@/components/public/signup.module.css";
 import { RECOVERY_PATH } from "@/lib/billing/recovery";
 import { PAYMENT_PATH, SIGNUP_PATH } from "@/lib/signup";
 import { supportEmail } from "@/lib/support";
+import BoxWaitingForUsers from "./BoxWaitingForUsers";
 import GoogleSignInButton from "./GoogleSignInButton";
 import NoticeMessage from "./NoticeMessage";
+
+const BOX_POLL_MS = 5000;
 
 export interface SignInFormProps {
   /** Read on the server so the layout is right from the first paint; null when that failed. */
@@ -47,6 +51,24 @@ export default function SignInForm({ initialContext = null, notice = null }: Sig
   }, [initialContext]);
 
   const isCloud = context?.mode === "cloud";
+  const [forceForm, setForceForm] = useState(false);
+  const waiting = isWaitingForUsers(context) && !forceForm;
+
+  // A failed check keeps the screen as it is; the first user arriving switches it to the form.
+  useEffect(() => {
+    if (!waiting) return;
+    let cancelled = false;
+    const timer = setInterval(() => {
+      fetch("/api/auth/context")
+        .then((response) => (response.ok ? response.json() : null))
+        .then((body) => body && !cancelled && setContext(parseSignInContext(body)))
+        .catch(() => undefined);
+    }, BOX_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [waiting]);
 
   const submit = useCallback(
     async (endpoint: string, body: Record<string, string>) => {
@@ -104,76 +126,82 @@ export default function SignInForm({ initialContext = null, notice = null }: Sig
     >
       <div className={styles.stack}>
         {notice && !error && <NoticeMessage tone="warning" message={notice} />}
-        <form onSubmit={handleSubmit} className={styles.stack}>
-          {isCloud ? (
-            <Input
-              key="email"
-              label="Correo"
-              id="email"
-              name="email"
-              type="email"
-              required
-              placeholder="Ingresa tu correo"
-              value={login}
-              onChange={(e) => setLogin(e.target.value)}
-              disabled={isLoading}
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              autoComplete="email"
-            />
-          ) : (
-            <Input
-              key="username"
-              label="Usuario"
-              id="username"
-              name="username"
-              type="text"
-              required
-              placeholder="Ingresa tu usuario"
-              value={login}
-              onChange={(e) => setLogin(e.target.value)}
-              disabled={isLoading || !context}
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              autoComplete="username"
-            />
-          )}
-
-          <Input
-            label="Contraseña"
-            id="password"
-            name="password"
-            type="password"
-            required
-            placeholder="Ingresa tu contraseña"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={isLoading}
-          />
-
-          {error && <NoticeMessage message={error.message} mailto={error.mailto} />}
-
-          <Button
-            type="submit"
-            variant="primary"
-            fullWidth
-            disabled={isLoading || !context}
-          >
-            {isLoading ? "Iniciando sesión..." : "Iniciar sesión"}
-          </Button>
-        </form>
-        {isCloud && (
+        {waiting ? (
+          <BoxWaitingForUsers sync={context?.sync} onShowForm={() => setForceForm(true)} />
+        ) : (
           <>
-            <div className={styles.divider}>o</div>
-            <GoogleSignInButton onCredential={handleGoogle} disabled={isLoading} />
-            <p className={`${styles.muted} ${styles.center}`}>
-              ¿Tu restaurante aún no tiene cuenta?{" "}
-              <Link className={styles.link} href={SIGNUP_PATH}>
-                Empieza tu prueba gratis
-              </Link>
-            </p>
+          <form onSubmit={handleSubmit} className={styles.stack}>
+            {isCloud ? (
+              <Input
+                key="email"
+                label="Correo"
+                id="email"
+                name="email"
+                type="email"
+                required
+                placeholder="Ingresa tu correo"
+                value={login}
+                onChange={(e) => setLogin(e.target.value)}
+                disabled={isLoading}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                autoComplete="email"
+              />
+            ) : (
+              <Input
+                key="username"
+                label="Usuario"
+                id="username"
+                name="username"
+                type="text"
+                required
+                placeholder="Ingresa tu usuario"
+                value={login}
+                onChange={(e) => setLogin(e.target.value)}
+                disabled={isLoading || !context}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                autoComplete="username"
+              />
+            )}
+
+            <Input
+              label="Contraseña"
+              id="password"
+              name="password"
+              type="password"
+              required
+              placeholder="Ingresa tu contraseña"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={isLoading}
+            />
+
+            {error && <NoticeMessage message={error.message} mailto={error.mailto} />}
+
+            <Button
+              type="submit"
+              variant="primary"
+              fullWidth
+              disabled={isLoading || !context}
+            >
+              {isLoading ? "Iniciando sesión..." : "Iniciar sesión"}
+            </Button>
+          </form>
+          {isCloud && (
+            <>
+              <div className={styles.divider}>o</div>
+              <GoogleSignInButton onCredential={handleGoogle} disabled={isLoading} />
+              <p className={`${styles.muted} ${styles.center}`}>
+                ¿Tu restaurante aún no tiene cuenta?{" "}
+                <Link className={styles.link} href={SIGNUP_PATH}>
+                  Empieza tu prueba gratis
+                </Link>
+              </p>
+            </>
+          )}
           </>
         )}
       </div>
