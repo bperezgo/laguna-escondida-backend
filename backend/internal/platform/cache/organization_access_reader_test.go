@@ -123,3 +123,63 @@ func TestInvalidatingOrganizationRepository_FailedUpdateKeepsTheEntry(t *testing
 	_, err = cached.GetAccess(context.Background(), orgA)
 	require.NoError(t, err)
 }
+
+func paidAccess(paidUntil time.Time) *dto.OrganizationAccess {
+	cancelled := paidUntil.Add(-48 * time.Hour)
+	return &dto.OrganizationAccess{Status: "active", Plan: "full", PaidUntil: &paidUntil, CancelledAt: &cancelled, HasCard: true}
+}
+
+func TestCachedOrganizationAccess_CarriesTheBillingFields(t *testing.T) {
+	paidUntil := time.Date(2027, 1, 15, 0, 0, 0, 0, time.UTC)
+	inner := mocks.NewMockOrganizationAccessReader(t)
+	inner.EXPECT().GetAccess(mock.Anything, orgA).Return(paidAccess(paidUntil), nil).Once()
+	reader := NewCachedOrganizationAccessReader(inner, memoryCache(t), discard)
+
+	_, err := reader.GetAccess(context.Background(), orgA)
+	require.NoError(t, err)
+	cached, err := reader.GetAccess(context.Background(), orgA)
+
+	require.NoError(t, err)
+	require.NotNil(t, cached.PaidUntil)
+	assert.True(t, paidUntil.Equal(*cached.PaidUntil))
+	require.NotNil(t, cached.CancelledAt)
+	assert.True(t, paidUntil.Add(-48*time.Hour).Equal(*cached.CancelledAt))
+	assert.True(t, cached.HasCard)
+}
+
+func TestCachedOrganizationAccess_ABillingChangeIsSeenAfterTheRefresh(t *testing.T) {
+	paidUntil := time.Date(2027, 1, 15, 0, 0, 0, 0, time.UTC)
+	inner := mocks.NewMockOrganizationAccessReader(t)
+	inner.EXPECT().GetAccess(mock.Anything, orgA).Return(trialAccess(), nil).Once()
+	inner.EXPECT().GetAccess(mock.Anything, orgA).Return(paidAccess(paidUntil), nil).Once()
+	reader, ok := NewCachedOrganizationAccessReader(inner, memoryCache(t), discard).(*CachedOrganizationAccessReader)
+	require.True(t, ok)
+	reader.ttl = 20 * time.Millisecond
+
+	before, err := reader.GetAccess(context.Background(), orgA)
+	require.NoError(t, err)
+	assert.Nil(t, before.PaidUntil)
+	assert.False(t, before.HasCard)
+
+	assert.Eventually(t, func() bool {
+		after, readErr := reader.GetAccess(context.Background(), orgA)
+		return readErr == nil && after.PaidUntil != nil && after.HasCard
+	}, time.Second, 5*time.Millisecond)
+}
+
+func TestOrganizationAccessInvalidator_DropsTheEntryAtOnce(t *testing.T) {
+	kv := memoryCache(t)
+	paidUntil := time.Date(2027, 1, 15, 0, 0, 0, 0, time.UTC)
+	inner := mocks.NewMockOrganizationAccessReader(t)
+	inner.EXPECT().GetAccess(mock.Anything, orgA).Return(trialAccess(), nil).Once()
+	inner.EXPECT().GetAccess(mock.Anything, orgA).Return(paidAccess(paidUntil), nil).Once()
+	reader := NewCachedOrganizationAccessReader(inner, kv, discard)
+
+	_, err := reader.GetAccess(context.Background(), orgA)
+	require.NoError(t, err)
+	NewOrganizationAccessInvalidator(kv, discard).InvalidateAccess(context.Background(), orgA)
+	got, err := reader.GetAccess(context.Background(), orgA)
+
+	require.NoError(t, err)
+	assert.Equal(t, "active", got.Status)
+}

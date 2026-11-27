@@ -17,7 +17,7 @@ import (
 
 func newTestWompiBilling(t *testing.T, fake *fakeWompi) *WompiBilling {
 	srv := fake.server(t)
-	billing, ok := NewWompiBilling(NewClient(slog.New(slog.DiscardHandler)), srv.URL+"/v1/", "pub_test_platform", "prv_test_platform").(*WompiBilling)
+	billing, ok := NewWompiBilling(NewClient(slog.New(slog.DiscardHandler)), srv.URL+"/v1/", "pub_test_platform", "prv_test_platform", "test_integrity_platform").(*WompiBilling)
 	require.True(t, ok)
 	return billing
 }

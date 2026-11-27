@@ -8,7 +8,7 @@ Create and maintain the organizations (restaurants) that share this POS, their s
 
 Restaurants can also create their own organization through [self-serve signup](./signup.md). It waits as `pending` until the operator [approves it](#approving-a-signup); its 14-day trial starts then.
 
-> **What changes runtime behavior.** Only the ordering `settings`, `status`, `trial_ends_at` and `plan`. A `suspended` or `pending` organization, or one whose trial has ended, is refused in the cloud (users, API keys, box sync; see [Organization access refusals](./auth.md#organization-access-refusals)); `plan` decides the cloud features it reaches (see [Plans](#plans)) and whether its bills are sent to DIAN. Business info, receipt text and branding are returned on [`GET /api/auth/me`](./auth.md#get-current-user) and not read anywhere else yet.
+> **What changes runtime behavior.** Only the ordering `settings`, `status`, `trial_ends_at` and `plan`. A `suspended` or `pending` organization, one whose trial has ended, or one whose paid period lapsed without a payment, is refused in the cloud (users, API keys, box sync; see [Organization access refusals](./auth.md#organization-access-refusals)); `plan` decides the cloud features it reaches (see [Plans](#plans)) and whether its bills are sent to DIAN. Business info, receipt text and branding are returned on [`GET /api/auth/me`](./auth.md#get-current-user) and not read anywhere else yet.
 
 ## Organization Fields
 
@@ -19,7 +19,7 @@ Restaurants can also create their own organization through [self-serve signup](.
 | `slug`                | string         | Yes      | —                | `^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$`, unique, **immutable** after create |
 | `status`              | string         | No       | `active`         | `trial`, `active` or `suspended`; `trial` needs a `trial_ends_at`, sent or stored. Reads may also return `pending` (a signup waiting for approval), which can't be sent |
 | `plan`                | string         | No       | `full`           | `starter`, `einvoicing` or `full`                                          |
-| `trial_ends_at`       | string \| null | No       | `null`           | RFC 3339. From this instant a `trial` organization is expired; an `active` one never expires. Always `null` and not accepted while `pending` |
+| `trial_ends_at`       | string \| null | No       | `null`           | RFC 3339. From this instant a `trial` organization is expired, or three days later when it has a saved card and its subscription is not cancelled ([Charges](./billing.md#charges)); an `active` one never expires because of it. Always `null` and not accepted while `pending` |
 | `timezone`            | string         | No       | `America/Bogota` | A valid IANA time zone name                                                |
 | `country`             | string         | No       | `CO`             | Two uppercase letters (ISO 3166-1 alpha-2)                                 |
 | `locale`              | string         | No       | `es-CO`          | `ll-RR`, e.g. `es-CO`                                                      |
@@ -378,7 +378,9 @@ PATCH /api/platform/organizations/:id
 - An **optional** field sent as `""` is cleared (becomes `null`).
 - `name`, `status`, `plan`, `timezone`, `country`, `locale` and `currency` cannot be cleared: `""` is a `400`.
 - `trial_ends_at` sent as `""` is cleared, unless the organization stays in `trial` (`400`).
-- **Activate** a paying customer with `{"status": "active", "plan": "einvoicing"}`; an active organization never expires.
+- **Activate** a paying customer with `{"status": "active", "plan": "einvoicing"}`. An active organization never expires because of its `trial_ends_at`, and one without a paid period is never charged and never stops for lack of payment.
+- **Reactivate a lapsed organization.** Sending `"status": "active"` for an organization whose paid period lapsed (stopped with `payment_required`, after failed renewals or a cancellation) also **clears its paid period and cancels its subscription**: it works again within a minute, is never charged again, and does not stop again for lack of payment. Its saved card is kept. From then on it is billed by hand, like any organization activated by hand.
+- A plan change during a paid period keeps every record; the next renewal charges the new plan's price.
 - **Extend** a trial with a later `trial_ends_at`, e.g. `{"trial_ends_at": "2026-12-31T23:59:59-05:00"}`.
 - **`pending`** can't be sent, on create or update: only signup creates it. A `pending` organization can move to `active` or `suspended` here, and its `plan` and other fields can change (it stays `pending`). It can't be moved to `trial` here, nor given a `trial_ends_at`: use [Start a Trial](#start-a-trial).
 - Changes apply within a minute to users and API keys, and within about 5 minutes to the box (its refusal backoff).

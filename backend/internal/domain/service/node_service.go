@@ -47,6 +47,8 @@ type NodeService struct {
 	now          func() time.Time
 	refusals     ports.KeyValueCache
 	refusalTTL   time.Duration
+	// subscriptions is nil where there is no billing; a trial then stops at its end, with no grace.
+	subscriptions *OrganizationAccessService
 }
 
 type NodeServiceOption func(*NodeService)
@@ -57,6 +59,11 @@ func WithNodeRefusalCache(cache ports.KeyValueCache, ttl time.Duration) NodeServ
 		s.refusals = cache
 		s.refusalTTL = ttl
 	}
+}
+
+// WithSubscriptions stops a box by the billing rules too: a trial's grace and a lapsed paid period.
+func WithSubscriptions(access *OrganizationAccessService) NodeServiceOption {
+	return func(s *NodeService) { s.subscriptions = access }
 }
 
 func NewNodeService(nodes ports.NodeRepository, orgs ports.OrganizationRepository, uow ports.UnitOfWork, logger *slog.Logger, publicAPIURL string, opts ...NodeServiceOption) *NodeService {
@@ -104,9 +111,13 @@ func (s *NodeService) Authenticate(ctx context.Context, nodeID, key string) (str
 		return "", fmt.Errorf("authenticate node %s: %w", nodeID, err)
 	}
 	status := record.OrganizationStatus
-	// An expired trial or a pending signup stops the box exactly as a suspension does, backoff
-	// included; the edge's own status constraint has no pending.
-	if status == dto.OrganizationStatusPending || plans.Expired(status, record.TrialEndsAt, s.now()) {
+	// An expired trial, a missed payment or a pending signup stops the box exactly as a suspension
+	// does, backoff included; the edge's own status constraint has none of them.
+	stopped, err := s.organizationStopped(ctx, record)
+	if err != nil {
+		return "", fmt.Errorf("authenticate node %s: %w", nodeID, err)
+	}
+	if status == dto.OrganizationStatusPending || stopped {
 		status = dto.OrganizationStatusSuspended
 	}
 	auth := cachedNodeAuth{
@@ -129,6 +140,17 @@ func (s *NodeService) Authenticate(ctx context.Context, nodeID, key string) (str
 		}
 	}
 	return orgID, nil
+}
+
+func (s *NodeService) organizationStopped(ctx context.Context, record *dto.NodeAuthRecord) (bool, error) {
+	if s.subscriptions == nil {
+		return plans.Expired(record.OrganizationStatus, record.TrialEndsAt, s.now()), nil
+	}
+	reason := s.subscriptions.Stopped(ctx, record.OrganizationID)
+	if errors.Is(reason, domainError.ErrTrialExpired) || errors.Is(reason, domainError.ErrPaymentRequired) {
+		return true, nil
+	}
+	return false, reason
 }
 
 func evaluateNodeAuth(auth cachedNodeAuth, key string) (string, error) {

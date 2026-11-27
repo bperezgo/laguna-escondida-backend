@@ -173,6 +173,12 @@ const (
 	EdgeEnroll Permission = "edge:enroll"
 )
 
+// Billing permissions
+const (
+	// BillingManage reads and changes the organization's own subscription; only admin holds it.
+	BillingManage Permission = "billing:manage"
+)
+
 // SSE permissions
 const (
 	SSECommandsRead     Permission = "sse:commands:read"
@@ -230,6 +236,8 @@ func AllPermissions() []Permission {
 		SettingsReservationsUpdate,
 		// Edge appliance
 		EdgeUpdate, EdgeEnroll,
+		// Billing
+		BillingManage,
 		// SSE
 		SSECommandsRead, SSECommandItemsRead,
 	}

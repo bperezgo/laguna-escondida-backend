@@ -20,3 +20,9 @@ export const TRIAL_EXPIRED_MESSAGE = "Tu prueba terminó. Escríbenos para conti
 export function trialExpiredNotice(email: string | null): Notice {
   return { message: TRIAL_EXPIRED_MESSAGE, mailto: supportMailto(email, "Continuar después de la prueba"), email };
 }
+
+export const PAYMENT_REQUIRED_MESSAGE = "La suscripción de tu restaurante está vencida. Pídele a quien lo administra que la pague, o escríbenos";
+
+export function paymentRequiredNotice(email: string | null): Notice {
+  return { message: PAYMENT_REQUIRED_MESSAGE, mailto: supportMailto(email, "Suscripción vencida"), email };
+}

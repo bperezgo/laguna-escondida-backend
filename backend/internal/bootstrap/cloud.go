@@ -324,23 +324,46 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 		logger.Info("Google sign-in and signup disabled: set GOOGLE_CLIENT_ID to enable them")
 	}
 
-	// Billing setup reads the status uncached: caching "pending" here would refuse, for the cache's
-	// lifetime, the sign-in a saved card has just issued.
+	// Billing setup and recovery read the status uncached: caching "pending" or "stopped" here would
+	// refuse, for the cache's lifetime, the sign-in a saved card or a payment has just issued.
+	// Sign-in reads it uncached too, so a payment lets the person in at once on every replica.
 	billingRepo := repository.NewBillingRepository(db)
+	uncachedAccess := service.NewOrganizationAccessService(repository.NewOrganizationAccessReader(db))
+	accessInvalidator := cache.NewOrganizationAccessInvalidator(settingsCache, logger)
+	invalidatingOrganizations := cache.NewInvalidatingOrganizationRepository(cloudOrganizations, settingsCache, logger)
 	c.organizationService.ShowBilling(billingRepo)
-	billingSetup := service.NewBillingSetupService(billingRepo,
-		cache.NewInvalidatingOrganizationRepository(cloudOrganizations, settingsCache, logger),
+	c.userService.CheckSubscriptions(uncachedAccess)
+	billingSetup := service.NewBillingSetupService(billingRepo, invalidatingOrganizations,
 		repository.NewUserRepository(db), repository.NewUserRoleRepository(db), c.userService, c.unitOfWork)
+	billingService := service.NewBillingService(billingRepo, invalidatingOrganizations, repository.NewUserRoleRepository(db),
+		c.userService, billingSetup, c.unitOfWork, accessInvalidator)
 	if cfg.Billing.CardEntry() {
-		billingSetup.EnableCardEntry(
-			httpclient.NewWompiBilling(infra.HTTPClient, cfg.PaymentLinks.APIURL, cfg.Billing.WompiPublicKey, cfg.Billing.WompiPrivateKey),
+		billingProvider := httpclient.NewWompiBilling(infra.HTTPClient, cfg.PaymentLinks.APIURL,
+			cfg.Billing.WompiPublicKey, cfg.Billing.WompiPrivateKey, cfg.Billing.WompiIntegritySecret)
+		billingSetup.EnableCardEntry(billingProvider,
 			dto.BillingProviderPublic{PublicKey: cfg.Billing.WompiPublicKey, APIURL: cfg.PaymentLinks.APIURL})
+		if cfg.Billing.Charging() {
+			charges := service.NewChargeService(billingRepo, invalidatingOrganizations, billingProvider, c.unitOfWork, accessInvalidator, logger)
+			billingService.EnableCharging(charges)
+			registerBillingWebhookRoute(c.router, handler.NewBillingWebhookHandler(
+				service.NewBillingWebhookService(charges, cfg.Billing.WompiEventsSecret, logger), logger))
+			c.app.schedulers = append(c.app.schedulers, namedScheduler{
+				name: "charge scheduler",
+				build: func() (scheduler, error) {
+					return cron.NewChargeScheduler(charges, logger)
+				},
+			})
+		} else {
+			logger.Info("Subscription charging disabled: set BILLING_WOMPI_EVENTS_SECRET and BILLING_WOMPI_INTEGRITY_SECRET to charge saved cards")
+		}
 	} else {
 		logger.Info("Card entry at signup disabled: set BILLING_WOMPI_PUBLIC_KEY and BILLING_WOMPI_PRIVATE_KEY to enable it")
 	}
-	registerBillingSetupRoutes(c.router, c.jwtService,
-		service.NewOrganizationAccessService(repository.NewOrganizationAccessReader(db)),
-		handler.NewBillingSetupHandler(billingSetup, logger), billingSetup.CardEntry())
+	billingRoutes := billingRouteOptions{cardEntry: billingSetup.CardEntry(), charging: billingService.Charging()}
+	cardSaves := newCardSaveLimit()
+	registerBillingSetupRoutes(c.router, c.jwtService, uncachedAccess, handler.NewBillingSetupHandler(billingSetup, logger), cardSaves, billingRoutes)
+	registerBillingRoutes(c.router, c.jwtService, uncachedAccess, handler.NewBillingHandler(billingService, logger), cardSaves, billingRoutes)
+	c.handlers.user.ShowBilling(billingService)
 
 	leadRepo := repository.NewLeadRepository(db)
 	leadService := service.NewLeadService(leadRepo, cfg.LeadAlerts.Enabled(), logger, nil)
@@ -358,7 +381,7 @@ func NewCloud(cfg *config.Cloud, infra Infra) (*App, error) {
 	}
 
 	nodeService := service.NewNodeService(repository.NewNodeRepository(db), cloudOrganizations, c.unitOfWork, logger, cfg.PublicAPIURL,
-		service.WithNodeRefusalCache(nodeRefusalCache, service.NodeRefusalCacheTTL))
+		service.WithNodeRefusalCache(nodeRefusalCache, service.NodeRefusalCacheTTL), service.WithSubscriptions(organizationAccess))
 	registerEnrollmentCodeRoutes(c.router, c.jwtService, handler.NewEnrollmentCodeHandler(
 		service.NewEnrollmentCodeService(repository.NewEnrollmentCodeRepository(db), nodeService, organizationAccess, c.unitOfWork)))
 	releaseCatalog := httpclient.NewCachedReleaseCatalog(

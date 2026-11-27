@@ -159,12 +159,23 @@ Same body in both modes.
 }
 ```
 
-**403 Forbidden** — Cloud: the email and password are correct, the user is active and holds a cloud role, but the organization's trial has ended. No token is returned. A wrong password for the same email still gets the `401` above.
+**403 Forbidden** — Cloud: the email and password are correct, the user is active and holds a cloud role, but the organization's trial has ended. No sign-in token is returned. When the user holds the admin role the body also carries `setup_token`, a [setup token](./billing.md#the-setup-token) that opens the [recovery routes](./billing.md#recovery); any other user gets none. A wrong password for the same email still gets the `401` above.
 
 ```json
 {
   "error": "Trial ended",
-  "code": "trial_expired"
+  "code": "trial_expired",
+  "setup_token": "<setup token>"
+}
+```
+
+**403 Forbidden** — Cloud: the same, for an organization that is unpaid: its paid period ended and no charge was approved (see [Charges](./billing.md#charges)). `setup_token` only for an admin.
+
+```json
+{
+  "error": "Payment required",
+  "code": "payment_required",
+  "setup_token": "<setup token>"
 }
 ```
 
@@ -224,12 +235,23 @@ The same body as `POST /api/auth/signin`.
 }
 ```
 
-**403 Forbidden** — the account matches an active cloud user whose organization's trial has ended.
+**403 Forbidden** — the account matches an active cloud user whose organization's trial has ended. `setup_token` is present only for an admin; it opens the [recovery routes](./billing.md#recovery).
 
 ```json
 {
   "error": "Trial ended",
-  "code": "trial_expired"
+  "code": "trial_expired",
+  "setup_token": "<setup token>"
+}
+```
+
+**403 Forbidden** — the same, for an organization that is unpaid. `setup_token` only for an admin.
+
+```json
+{
+  "error": "Payment required",
+  "code": "payment_required",
+  "setup_token": "<setup token>"
 }
 ```
 
@@ -246,6 +268,7 @@ Returns the currently authenticated user's information including roles and permi
 - `organization` is always present. Its optional fields (`legal_name` … `secondary_color`) are `null` when the organization has not set them; fall back to the current defaults.
 - `organization` holds settings only: no status, e-invoicing prefixes or timestamps. They are maintained through the [Platform Organizations API](./organizations.md).
 - It is the organization named by the token's `org_id`. On the edge, the optional fields stay `null` until the sync carries them.
+- `billing` is present **only in the cloud and only for a user with `billing:manage`** (the admin role). Everyone else gets no `billing` key and shows the trial's days left from `organization.status` and `organization.trial_ends_at`, as before.
 
 ### Headers
 
@@ -333,6 +356,34 @@ Returns the currently authenticated user's information including roles and permi
 | `primary_color`       | string \| null | `#RRGGBB`                                               |
 | `secondary_color`     | string \| null | `#RRGGBB`                                               |
 
+### Billing Fields
+
+What the app's subscription notice needs. The full subscription is [`GET /api/billing`](./billing.md#get-the-subscription).
+
+| Field                | Type           | Description |
+| -------------------- | -------------- | ----------- |
+| `period`             | string         | `monthly` or `annual` |
+| `has_card`           | boolean        | A card is saved |
+| `card_entry`         | boolean        | A card can be saved or changed in this cloud |
+| `cancelled`          | boolean        | The subscription is cancelled and works until `due_date` |
+| `due_date`           | string \| null | The trial's end during the trial, the end of the paid period after. `null` for an organization activated by hand |
+| `next_charge_amount` | number \| null | Pesos to be charged on `due_date`; `null` when nothing will be charged |
+| `payment_failed`     | boolean        | The latest charge failed and the organization still works |
+| `access_ends_at`     | string \| null | When the organization stops unless a charge is approved |
+
+```json
+"billing": {
+  "period": "monthly",
+  "has_card": true,
+  "card_entry": true,
+  "cancelled": false,
+  "due_date": "2026-12-15T14:00:00Z",
+  "next_charge_amount": 40000,
+  "payment_failed": false,
+  "access_ends_at": "2026-12-18T14:00:00Z"
+}
+```
+
 ### Error Responses
 
 **401 Unauthorized** - Missing or invalid token
@@ -395,13 +446,21 @@ In the cloud, every request with a JWT or an API key is checked against its orga
 { "error": "Approval pending", "code": "pending_approval" }
 ```
 
-A [setup token](./billing.md#the-setup-token) sent to any route outside `/api/billing/setup` gets the `401` of an invalid token.
+A [setup token](./billing.md#the-setup-token) sent to any route outside `/api/billing/setup` and `/api/billing/recovery` gets the `401` of an invalid token.
 
-**403 Forbidden** — the organization's trial has ended, whenever the token was issued
+**403 Forbidden** — the organization's trial has ended, whenever the token was issued. A trial with a saved card and a subscription that is not cancelled gets three more days, while its first charge and the retries run; any other trial stops at `trial_ends_at`
 
 ```json
 { "error": "Trial ended", "code": "trial_expired" }
 ```
+
+**403 Forbidden** — the organization is unpaid: it is `active` with a paid period that ended, three days ago when its subscription is not cancelled, or at that moment when it is. An approved charge lifts it within a minute. An `active` organization without a paid period never gets this
+
+```json
+{ "error": "Payment required", "code": "payment_required" }
+```
+
+Neither refusal of an authenticated request carries a `setup_token`; only a sign-in does. Boxes of an expired or unpaid organization are refused as those of a suspended one.
 
 **403 Forbidden** — the plan doesn't include the route's feature, or the request uses an API key or comes from the agent role on a plan without agents. `required_plan` is the cheapest plan that includes it.
 
@@ -465,6 +524,9 @@ Permissions follow the `resource:action` format. Available permissions include:
 
 ### Edge appliance
 - `edge:update` - See and trigger the box's staged appliance update (admin and manager, edge mode)
+
+### Billing
+- `billing:manage` - Read and change the organization's own subscription: card, cancel, resume (admin only, cloud)
 
 ---
 

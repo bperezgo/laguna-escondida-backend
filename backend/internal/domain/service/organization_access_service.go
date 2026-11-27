@@ -29,7 +29,47 @@ func NewOrganizationAccessService(reader ports.OrganizationAccessReader) *Organi
 	return &OrganizationAccessService{reader: reader, now: time.Now}
 }
 
-// Check refuses, in this order: a suspended organization, a pending one, an expired trial, then a feature the plan excludes.
+// BillingGrace is how long a live subscription keeps working past its due date, so the charge and
+// its retries can finish.
+const BillingGrace = 72 * time.Hour
+
+// StoppedReason is ErrTrialExpired for an ended trial, ErrPaymentRequired for a lapsed paid period
+// and nil otherwise. It is computed at every check, so no job has to change a status.
+func StoppedReason(access *dto.OrganizationAccess, now time.Time) error {
+	switch access.Status {
+	case dto.OrganizationStatusTrial:
+		if access.TrialEndsAt == nil {
+			return nil
+		}
+		end := *access.TrialEndsAt
+		if access.HasCard && access.CancelledAt == nil {
+			end = end.Add(BillingGrace)
+		}
+		if !now.Before(end) {
+			return domainError.ErrTrialExpired
+		}
+	case dto.OrganizationStatusActive:
+		// Without a paid period the operator activated it by hand: it never stops for lack of payment.
+		if access.PaidUntil == nil {
+			return nil
+		}
+		end := *access.PaidUntil
+		if access.CancelledAt == nil {
+			end = end.Add(BillingGrace)
+		}
+		if !now.Before(end) {
+			return domainError.ErrPaymentRequired
+		}
+	}
+	return nil
+}
+
+func isStopped(access *dto.OrganizationAccess, now time.Time) bool {
+	return StoppedReason(access, now) != nil
+}
+
+// Check refuses, in this order: a suspended organization, a pending one, an expired trial or a
+// lapsed payment, then a feature the plan excludes.
 func (s *OrganizationAccessService) Check(ctx context.Context, orgID string, principal AccessPrincipal, routePath string) error {
 	access, err := s.reader.GetAccess(ctx, orgID)
 	if err != nil {
@@ -41,8 +81,8 @@ func (s *OrganizationAccessService) Check(ctx context.Context, orgID string, pri
 	if access.Status == dto.OrganizationStatusPending {
 		return domainError.ErrOrganizationPending
 	}
-	if plans.Expired(access.Status, access.TrialEndsAt, s.now()) {
-		return domainError.ErrTrialExpired
+	if err := StoppedReason(access, s.now()); err != nil {
+		return err
 	}
 	plan := plans.Plan(access.Plan)
 	if (principal.APIKey || slices.Contains(principal.RoleIDs, permissions.RoleAgent)) && !plans.Includes(plan, plans.FeatureAgents) {
@@ -54,17 +94,56 @@ func (s *OrganizationAccessService) Check(ctx context.Context, orgID string, pri
 	return nil
 }
 
-// Usable reports whether an organization may still act: not suspended, not pending and not in an expired trial.
+// Usable reports whether an organization may still act: not suspended, not pending, not in an expired trial and not unpaid.
 func (s *OrganizationAccessService) Usable(ctx context.Context, orgID string) error {
 	access, err := s.reader.GetAccess(ctx, orgID)
 	if err != nil {
 		return fmt.Errorf("organization access: %w", err)
 	}
 	if access.Status == dto.OrganizationStatusSuspended || access.Status == dto.OrganizationStatusPending ||
-		plans.Expired(access.Status, access.TrialEndsAt, s.now()) {
+		StoppedReason(access, s.now()) != nil {
 		return domainError.ErrOrganizationInactive
 	}
 	return nil
+}
+
+// Stopped is ErrTrialExpired or ErrPaymentRequired when the organization stopped for one of them,
+// and nil for every other organization, working or not.
+func (s *OrganizationAccessService) Stopped(ctx context.Context, orgID string) error {
+	access, err := s.reader.GetAccess(ctx, orgID)
+	if err != nil {
+		return fmt.Errorf("organization access: %w", err)
+	}
+	return StoppedReason(access, s.now())
+}
+
+// SetupState is what a setup token's organization is in, as far as the setup routes care.
+type SetupState string
+
+const (
+	SetupStatePending SetupState = "pending"
+	SetupStateStopped SetupState = "stopped"
+	SetupStateWorking SetupState = "working"
+	// SetupStateClosed is a suspended organization: no setup route is for it.
+	SetupStateClosed SetupState = "closed"
+)
+
+func (s *OrganizationAccessService) SetupState(ctx context.Context, orgID string) (SetupState, error) {
+	access, err := s.reader.GetAccess(ctx, orgID)
+	if err != nil {
+		return "", fmt.Errorf("organization access: %w", err)
+	}
+	stopped := isStopped(access, s.now())
+	switch {
+	case access.Status == dto.OrganizationStatusPending:
+		return SetupStatePending, nil
+	case access.Status == dto.OrganizationStatusSuspended:
+		return SetupStateClosed, nil
+	case stopped:
+		return SetupStateStopped, nil
+	default:
+		return SetupStateWorking, nil
+	}
 }
 
 // Pending reports whether the organization still waits for its trial to start.

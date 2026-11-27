@@ -83,3 +83,8 @@ test("the signup steps before the trial are public, and the last one needs the s
   assert.equal(guardRedirect("/registro/listo", true), null);
   assert.equal(guardRedirect("/registro/listo", false), "/signin");
 });
+
+test("the recovery page is reached without a session, and a signed-in user is sent home from it", () => {
+  assert.equal(guardRedirect("/recuperar", false), null);
+  assert.equal(guardRedirect("/recuperar", true), "/home");
+});

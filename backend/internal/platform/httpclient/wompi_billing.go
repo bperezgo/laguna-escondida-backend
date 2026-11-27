@@ -2,10 +2,14 @@ package httpclient
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 
 	"laguna-escondida/backend/internal/domain/dto"
@@ -20,10 +24,13 @@ type WompiBilling struct {
 	wompi      *WompiClient
 	publicKey  string
 	privateKey string
+	// integritySecret is empty while charging is off; Charge then refuses.
+	integritySecret string
 }
 
-func NewWompiBilling(client *Client, baseURL, publicKey, privateKey string) ports.BillingProvider {
-	return &WompiBilling{wompi: &WompiClient{client: client, baseURL: strings.TrimRight(baseURL, "/")}, publicKey: publicKey, privateKey: privateKey}
+func NewWompiBilling(client *Client, baseURL, publicKey, privateKey, integritySecret string) ports.BillingProvider {
+	return &WompiBilling{wompi: &WompiClient{client: client, baseURL: strings.TrimRight(baseURL, "/")},
+		publicKey: publicKey, privateKey: privateKey, integritySecret: integritySecret}
 }
 
 func (b *WompiBilling) Terms(ctx context.Context) (dto.WompiMerchantTerms, error) {
@@ -116,4 +123,133 @@ func lastFourDigits(value string) string {
 		}
 	}
 	return value
+}
+
+type wompiChargeSource struct {
+	AmountInCents int64  `json:"amount_in_cents"`
+	Currency      string `json:"currency"`
+	Signature     string `json:"signature"`
+	CustomerEmail string `json:"customer_email"`
+	// Wompi asks for the installments of a card source; a subscription is always one.
+	PaymentMethod   wompiInstallments `json:"payment_method"`
+	Reference       string            `json:"reference"`
+	PaymentSourceID json.RawMessage   `json:"payment_source_id"`
+}
+
+type wompiInstallments struct {
+	Installments int `json:"installments"`
+}
+
+type wompiBillingTransaction struct {
+	ID            string `json:"id"`
+	Reference     string `json:"reference"`
+	Status        string `json:"status"`
+	AmountInCents int64  `json:"amount_in_cents"`
+	Currency      string `json:"currency"`
+}
+
+// Charge signs the request with the integrity secret: reference, amount in cents and currency.
+func (b *WompiBilling) Charge(ctx context.Context, req dto.BillingChargeRequest) (dto.BillingTransaction, error) {
+	if b.integritySecret == "" {
+		return dto.BillingTransaction{}, errors.New("charge Wompi payment source: no integrity secret")
+	}
+	sum := sha256.Sum256([]byte(req.Reference + strconv.FormatInt(req.AmountInCents, 10) + req.Currency + b.integritySecret))
+	body, err := json.Marshal(wompiChargeSource{
+		AmountInCents: req.AmountInCents, Currency: req.Currency, Signature: hex.EncodeToString(sum[:]),
+		CustomerEmail: req.CustomerEmail, PaymentMethod: wompiInstallments{Installments: 1},
+		Reference: req.Reference, PaymentSourceID: paymentSourceJSON(req.PaymentSourceID),
+	})
+	if err != nil {
+		return dto.BillingTransaction{}, fmt.Errorf("encode Wompi charge: %w", err)
+	}
+	raw, err := b.wompi.call(ctx, http.MethodPost, "/transactions", b.privateKey, body)
+	if err != nil {
+		var statusErr *wompiStatusError
+		if errors.As(err, &statusErr) && cardRefusalStatus(statusErr.status) {
+			return dto.BillingTransaction{}, fmt.Errorf("%w: charge Wompi payment source: %w", domainError.ErrCardRefused, err)
+		}
+		return dto.BillingTransaction{}, fmt.Errorf("%w: charge Wompi payment source: %w", domainError.ErrPaymentProviderUnavailable, err)
+	}
+	var created struct {
+		Data wompiBillingTransaction `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &created); err != nil || created.Data.ID == "" {
+		return dto.BillingTransaction{}, fmt.Errorf("%w: charge Wompi payment source: unexpected answer %q", domainError.ErrPaymentProviderUnavailable, truncate(raw))
+	}
+	tx := created.Data.toDTO()
+	if tx.Reference == "" {
+		tx.Reference = req.Reference
+	}
+	return tx, nil
+}
+
+// paymentSourceJSON sends the id as the number Wompi issued it as, and as a string otherwise.
+func paymentSourceJSON(id string) json.RawMessage {
+	if _, err := strconv.ParseInt(id, 10, 64); err == nil {
+		return json.RawMessage(id)
+	}
+	quoted, _ := json.Marshal(id)
+	return quoted
+}
+
+func (b *WompiBilling) Transaction(ctx context.Context, id string) (dto.BillingTransaction, error) {
+	raw, err := b.wompi.call(ctx, http.MethodGet, "/transactions/"+url.PathEscape(id), b.privateKey, nil)
+	if err != nil {
+		var statusErr *wompiStatusError
+		if errors.As(err, &statusErr) && statusErr.status == http.StatusNotFound {
+			return dto.BillingTransaction{}, fmt.Errorf("%w: %s", domainError.ErrBillingTransactionNotFound, id)
+		}
+		return dto.BillingTransaction{}, fmt.Errorf("%w: read Wompi transaction %s: %w", domainError.ErrPaymentProviderUnavailable, id, err)
+	}
+	var found struct {
+		Data wompiBillingTransaction `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &found); err != nil || found.Data.ID == "" {
+		return dto.BillingTransaction{}, fmt.Errorf("%w: read Wompi transaction %s: unexpected answer %q", domainError.ErrPaymentProviderUnavailable, id, truncate(raw))
+	}
+	return found.Data.toDTO(), nil
+}
+
+// TransactionByReference takes the transaction whose reference is exactly the one asked for; a
+// reference is ours and unique, so there is at most one.
+func (b *WompiBilling) TransactionByReference(ctx context.Context, reference string) (dto.BillingTransaction, error) {
+	raw, err := b.wompi.call(ctx, http.MethodGet, "/transactions?reference="+url.QueryEscape(reference), b.privateKey, nil)
+	if err != nil {
+		// Even a 404: only an answered, empty list says the transaction does not exist, since
+		// "not found" frees the charge for another try.
+		return dto.BillingTransaction{}, fmt.Errorf("%w: find Wompi transaction by reference: %w", domainError.ErrPaymentProviderUnavailable, err)
+	}
+	var found struct {
+		Data []wompiBillingTransaction `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &found); err != nil {
+		return dto.BillingTransaction{}, fmt.Errorf("%w: find Wompi transaction by reference: unexpected answer %q", domainError.ErrPaymentProviderUnavailable, truncate(raw))
+	}
+	for _, tx := range found.Data {
+		if tx.Reference == reference && tx.ID != "" {
+			return tx.toDTO(), nil
+		}
+	}
+	return dto.BillingTransaction{}, fmt.Errorf("%w: reference %s", domainError.ErrBillingTransactionNotFound, reference)
+}
+
+func (t wompiBillingTransaction) toDTO() dto.BillingTransaction {
+	return dto.BillingTransaction{ID: t.ID, Reference: t.Reference, Status: billingChargeStatus(t.Status),
+		AmountInCents: t.AmountInCents, Currency: t.Currency}
+}
+
+// billingChargeStatus keeps an unknown status pending, so the lookup asks again instead of failing a charge.
+func billingChargeStatus(wompiStatus string) dto.BillingChargeStatus {
+	switch strings.ToUpper(wompiStatus) {
+	case "APPROVED":
+		return dto.BillingChargeApproved
+	case "DECLINED":
+		return dto.BillingChargeDeclined
+	case "VOIDED":
+		return dto.BillingChargeVoided
+	case "ERROR":
+		return dto.BillingChargeError
+	default:
+		return dto.BillingChargePending
+	}
 }

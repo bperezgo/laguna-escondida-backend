@@ -161,6 +161,13 @@ var invalidTokenBody = gin.H{"error": "Invalid or expired token"}
 
 var pendingApprovalBody = gin.H{"error": "Approval pending", "code": "pending_approval"}
 
+// Built per response: a sign-in refusal adds the admin's setup token to its own copy.
+func trialExpiredBody() gin.H { return gin.H{"error": "Trial ended", "code": "trial_expired"} }
+
+func paymentRequiredBody() gin.H {
+	return gin.H{"error": "Payment required", "code": "payment_required"}
+}
+
 // APIKeyIDContextKey is set only when the bearer was an organization API key.
 const APIKeyIDContextKey = "api_key_id"
 
@@ -245,11 +252,45 @@ func JWTAuthMiddleware(jwtService *service.JWTService, requiredRoles ...int) gin
 	}
 }
 
-var notPendingBody = gin.H{"error": "Organization is not pending approval", "code": "not_pending"}
+var (
+	notPendingBody = gin.H{"error": "Organization is not pending approval", "code": "not_pending"}
+	notStoppedBody = gin.H{"error": "Organization is not stopped", "code": "not_stopped"}
+)
 
-// SetupAuthMiddleware guards the billing setup routes: only a setup token passes, never a sign-in
-// token, API key or platform key, and only while the organization is still pending.
-func SetupAuthMiddleware(jwtService *service.JWTService, access *service.OrganizationAccessService) gin.HandlerFunc {
+// SetupRequirement is the state a setup token's organization must be in for a group of routes.
+type SetupRequirement int
+
+const (
+	// SetupRequiresPending opens the signup routes: the organization still waits for its trial.
+	SetupRequiresPending SetupRequirement = iota
+	// SetupRequiresStopped opens the recovery routes: the trial ended or a payment was missed.
+	SetupRequiresStopped
+	// SetupRequiresStoppedOrWorking is for the recovery state alone, which must still answer once
+	// the payment that made the organization work again is approved.
+	SetupRequiresStoppedOrWorking
+)
+
+func (r SetupRequirement) refusal(state service.SetupState) gin.H {
+	switch r {
+	case SetupRequiresPending:
+		if state != service.SetupStatePending {
+			return notPendingBody
+		}
+	case SetupRequiresStopped:
+		if state != service.SetupStateStopped {
+			return notStoppedBody
+		}
+	case SetupRequiresStoppedOrWorking:
+		if state != service.SetupStateStopped && state != service.SetupStateWorking {
+			return notStoppedBody
+		}
+	}
+	return nil
+}
+
+// SetupAuthMiddleware guards the routes a setup token opens: only a setup token passes, never a
+// sign-in token, API key or platform key, and only while the organization is in the required state.
+func SetupAuthMiddleware(jwtService *service.JWTService, access *service.OrganizationAccessService, requirement SetupRequirement) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token, found := strings.CutPrefix(c.GetHeader("Authorization"), "Bearer ")
 		if !found || token == "" {
@@ -261,7 +302,7 @@ func SetupAuthMiddleware(jwtService *service.JWTService, access *service.Organiz
 			c.AbortWithStatusJSON(http.StatusUnauthorized, invalidTokenBody)
 			return
 		}
-		pending, err := access.Pending(c.Request.Context(), claims.OrgID)
+		state, err := access.SetupState(c.Request.Context(), claims.OrgID)
 		switch {
 		case errors.Is(err, domainError.ErrOrganizationNotFound):
 			c.AbortWithStatusJSON(http.StatusUnauthorized, invalidTokenBody)
@@ -270,8 +311,9 @@ func SetupAuthMiddleware(jwtService *service.JWTService, access *service.Organiz
 			_ = c.Error(err)
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "failed to authenticate"})
 			return
-		case !pending:
-			c.AbortWithStatusJSON(http.StatusConflict, notPendingBody)
+		}
+		if body := requirement.refusal(state); body != nil {
+			c.AbortWithStatusJSON(http.StatusConflict, body)
 			return
 		}
 		c.Set("user_id", claims.UserID)
@@ -290,7 +332,9 @@ func abortOrganizationAccess(c *gin.Context, err error) {
 	case errors.Is(err, domainError.ErrOrganizationPending):
 		c.JSON(http.StatusForbidden, pendingApprovalBody)
 	case errors.Is(err, domainError.ErrTrialExpired):
-		c.JSON(http.StatusForbidden, gin.H{"error": "Trial ended", "code": "trial_expired"})
+		c.JSON(http.StatusForbidden, trialExpiredBody())
+	case errors.Is(err, domainError.ErrPaymentRequired):
+		c.JSON(http.StatusForbidden, paymentRequiredBody())
 	case errors.As(err, &planErr):
 		c.JSON(http.StatusForbidden, gin.H{"error": "Your plan does not include this feature", "code": "plan_required", "required_plan": planErr.RequiredPlan})
 	case errors.Is(err, domainError.ErrOrganizationNotFound):

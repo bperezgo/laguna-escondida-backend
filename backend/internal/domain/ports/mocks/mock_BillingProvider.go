@@ -22,6 +22,63 @@ func (_m *MockBillingProvider) EXPECT() *MockBillingProvider_Expecter {
 	return &MockBillingProvider_Expecter{mock: &_m.Mock}
 }
 
+// Charge provides a mock function with given fields: ctx, req
+func (_m *MockBillingProvider) Charge(ctx context.Context, req dto.BillingChargeRequest) (dto.BillingTransaction, error) {
+	ret := _m.Called(ctx, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Charge")
+	}
+
+	var r0 dto.BillingTransaction
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, dto.BillingChargeRequest) (dto.BillingTransaction, error)); ok {
+		return rf(ctx, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, dto.BillingChargeRequest) dto.BillingTransaction); ok {
+		r0 = rf(ctx, req)
+	} else {
+		r0 = ret.Get(0).(dto.BillingTransaction)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, dto.BillingChargeRequest) error); ok {
+		r1 = rf(ctx, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockBillingProvider_Charge_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Charge'
+type MockBillingProvider_Charge_Call struct {
+	*mock.Call
+}
+
+// Charge is a helper method to define mock.On call
+//   - ctx context.Context
+//   - req dto.BillingChargeRequest
+func (_e *MockBillingProvider_Expecter) Charge(ctx interface{}, req interface{}) *MockBillingProvider_Charge_Call {
+	return &MockBillingProvider_Charge_Call{Call: _e.mock.On("Charge", ctx, req)}
+}
+
+func (_c *MockBillingProvider_Charge_Call) Run(run func(ctx context.Context, req dto.BillingChargeRequest)) *MockBillingProvider_Charge_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(dto.BillingChargeRequest))
+	})
+	return _c
+}
+
+func (_c *MockBillingProvider_Charge_Call) Return(_a0 dto.BillingTransaction, _a1 error) *MockBillingProvider_Charge_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockBillingProvider_Charge_Call) RunAndReturn(run func(context.Context, dto.BillingChargeRequest) (dto.BillingTransaction, error)) *MockBillingProvider_Charge_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // SavePaymentSource provides a mock function with given fields: ctx, req
 func (_m *MockBillingProvider) SavePaymentSource(ctx context.Context, req dto.PaymentSourceRequest) (dto.PaymentSource, error) {
 	ret := _m.Called(ctx, req)
@@ -131,6 +188,120 @@ func (_c *MockBillingProvider_Terms_Call) Return(_a0 dto.WompiMerchantTerms, _a1
 }
 
 func (_c *MockBillingProvider_Terms_Call) RunAndReturn(run func(context.Context) (dto.WompiMerchantTerms, error)) *MockBillingProvider_Terms_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// Transaction provides a mock function with given fields: ctx, id
+func (_m *MockBillingProvider) Transaction(ctx context.Context, id string) (dto.BillingTransaction, error) {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Transaction")
+	}
+
+	var r0 dto.BillingTransaction
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (dto.BillingTransaction, error)); ok {
+		return rf(ctx, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) dto.BillingTransaction); ok {
+		r0 = rf(ctx, id)
+	} else {
+		r0 = ret.Get(0).(dto.BillingTransaction)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockBillingProvider_Transaction_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Transaction'
+type MockBillingProvider_Transaction_Call struct {
+	*mock.Call
+}
+
+// Transaction is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+func (_e *MockBillingProvider_Expecter) Transaction(ctx interface{}, id interface{}) *MockBillingProvider_Transaction_Call {
+	return &MockBillingProvider_Transaction_Call{Call: _e.mock.On("Transaction", ctx, id)}
+}
+
+func (_c *MockBillingProvider_Transaction_Call) Run(run func(ctx context.Context, id string)) *MockBillingProvider_Transaction_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockBillingProvider_Transaction_Call) Return(_a0 dto.BillingTransaction, _a1 error) *MockBillingProvider_Transaction_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockBillingProvider_Transaction_Call) RunAndReturn(run func(context.Context, string) (dto.BillingTransaction, error)) *MockBillingProvider_Transaction_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// TransactionByReference provides a mock function with given fields: ctx, reference
+func (_m *MockBillingProvider) TransactionByReference(ctx context.Context, reference string) (dto.BillingTransaction, error) {
+	ret := _m.Called(ctx, reference)
+
+	if len(ret) == 0 {
+		panic("no return value specified for TransactionByReference")
+	}
+
+	var r0 dto.BillingTransaction
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (dto.BillingTransaction, error)); ok {
+		return rf(ctx, reference)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) dto.BillingTransaction); ok {
+		r0 = rf(ctx, reference)
+	} else {
+		r0 = ret.Get(0).(dto.BillingTransaction)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, reference)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockBillingProvider_TransactionByReference_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'TransactionByReference'
+type MockBillingProvider_TransactionByReference_Call struct {
+	*mock.Call
+}
+
+// TransactionByReference is a helper method to define mock.On call
+//   - ctx context.Context
+//   - reference string
+func (_e *MockBillingProvider_Expecter) TransactionByReference(ctx interface{}, reference interface{}) *MockBillingProvider_TransactionByReference_Call {
+	return &MockBillingProvider_TransactionByReference_Call{Call: _e.mock.On("TransactionByReference", ctx, reference)}
+}
+
+func (_c *MockBillingProvider_TransactionByReference_Call) Run(run func(ctx context.Context, reference string)) *MockBillingProvider_TransactionByReference_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockBillingProvider_TransactionByReference_Call) Return(_a0 dto.BillingTransaction, _a1 error) *MockBillingProvider_TransactionByReference_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockBillingProvider_TransactionByReference_Call) RunAndReturn(run func(context.Context, string) (dto.BillingTransaction, error)) *MockBillingProvider_TransactionByReference_Call {
 	_c.Call.Return(run)
 	return _c
 }

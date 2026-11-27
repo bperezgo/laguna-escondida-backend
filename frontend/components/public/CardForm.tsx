@@ -17,13 +17,23 @@ export interface CardFormProps {
   submitting: boolean;
   /** Resolves true when the card was saved; false keeps the holder's name and clears the rest. */
   onSubmit: (card: CardInput) => Promise<{ clearCard: boolean }>;
+  /** Signup's wording by default; other pages save or charge a card for another reason. */
+  submitLabel?: string;
+  submittingLabel?: string;
 }
 
 const EMPTY: CardInput = { number: "", expiry: "", cvc: "", holder: "" };
 
 // The inputs carry no `name`, and the form never posts: the card leaves this page only inside
 // the encrypted request to Wompi.
-export default function CardForm({ termsUrl, personalDataUrl, submitting, onSubmit }: CardFormProps) {
+export default function CardForm({
+  termsUrl,
+  personalDataUrl,
+  submitting,
+  onSubmit,
+  submitLabel = "Guardar tarjeta y empezar la prueba",
+  submittingLabel = "Guardando tu tarjeta…",
+}: CardFormProps) {
   const [card, setCard] = useState<CardInput>(EMPTY);
   const [consent, setConsent] = useState<CardConsent>({ terms: false, personalData: false });
   const [errors, setErrors] = useState<CardErrors & { terms?: string; personalData?: string }>({});
@@ -148,7 +158,7 @@ export default function CardForm({ termsUrl, personalDataUrl, submitting, onSubm
       )}
 
       <Button type="submit" variant="primary" size="lg" fullWidth disabled={submitting}>
-        {submitting ? "Guardando tu tarjeta…" : "Guardar tarjeta y empezar la prueba"}
+        {submitting ? submittingLabel : submitLabel}
       </Button>
       <p className={styles.secure}>
         <LockSimple size={15} weight="fill" aria-hidden />
