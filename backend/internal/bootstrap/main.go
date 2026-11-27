@@ -60,6 +60,13 @@ func Main(mode config.Mode, load func() (Boot, error)) {
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
+	// Every pulled row references the box's organization; without its row a new restaurant's
+	// first pull fails on users_organization_id_fkey and the box never gets a user.
+	if mode == config.ModeEdge {
+		if err = repository.NewBoxOrganizationRepository(db.DB).Ensure(context.Background(), boot.OrganizationID); err != nil {
+			log.Fatalf("Failed to prepare the box: %v", err)
+		}
+	}
 
 	infra, err := NewInfra(boot.Shared, db.DB, logger)
 	if err != nil {
