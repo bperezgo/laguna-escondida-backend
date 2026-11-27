@@ -259,7 +259,11 @@ function Get-DefaultEdgeVersion {
     $url = (($line -split '=', 2)[1] -replace '\s+#.*$', '').Trim().Trim('"', "'").TrimEnd('/')
     $cloud = "$((Invoke-RestMethod "$url/api/edge/status" -TimeoutSec 10 -UseBasicParsing).version)"
   } catch { Write-Host "  cloud version unknown ($($_.Exception.Message)); not checking min_cloud" -ForegroundColor Yellow }
-  $r = Select-EdgeRelease (Get-EdgeReleases) $null $cloud { param($r) (Get-EdgeManifest (Get-EdgeVersion $r.tag_name)).min_cloud }
+  # A release without a readable manifest (e.g. one a failed run left empty) is skipped, as the updater does.
+  $r = Select-EdgeRelease (Get-EdgeReleases) $null $cloud {
+    param($r)
+    try { (Get-EdgeManifest (Get-EdgeVersion $r.tag_name)).min_cloud } catch { $null }
+  }
   if (-not $r) { throw "no edge release is available$(if ($cloud) { " for cloud $cloud" })." }
   return Get-EdgeVersion $r.tag_name
 }
