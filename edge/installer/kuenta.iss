@@ -101,6 +101,21 @@ var
   PreflightDone: Boolean;
   SyncWarning: Boolean;
 
+// lpValue 0 (NULL) removes the variable from this process and from everything it starts.
+function SetEnvironmentVariable(lpName: String; lpValue: Cardinal): Boolean;
+  external 'SetEnvironmentVariableW@kernel32.dll stdcall';
+
+// Started from pwsh 7, setup inherits its PSModulePath, and Windows PowerShell 5.1 then loads
+// PowerShell 7's modules and fails. Without the variable, 5.1 builds its own default.
+procedure ClearInheritedModulePath;
+begin
+  if GetEnv('PSModulePath') <> '' then
+  begin
+    Log('clearing inherited PSModulePath');
+    SetEnvironmentVariable('PSModulePath', 0);
+  end;
+end;
+
 
 function HasSwitch(const Name: String): Boolean;
 var I: Integer;
@@ -329,6 +344,7 @@ end;
 
 function InitializeSetup: Boolean;
 begin
+  ClearInheritedModulePath;
   Mode := DetectMode;
   Log('mode ' + Mode);
   Result := True;
@@ -486,6 +502,12 @@ begin
   if SyncWarning then
     Txt := Txt + #13#10#13#10 + 'Atención: ' + ExitMessage(34);
   WizardForm.FinishedLabel.Caption := Txt;
+end;
+
+function InitializeUninstall: Boolean;
+begin
+  ClearInheritedModulePath;
+  Result := True;
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
