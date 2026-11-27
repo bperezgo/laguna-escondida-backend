@@ -1,5 +1,7 @@
 import { trialExpiredNotice } from "./support.ts";
 
+export const NOT_ACTIVE_YET_MESSAGE = "Tu cuenta todavía no está activa. Pídele a quien administra el restaurante que termine el registro.";
+
 // The cloud signs in by email; an edge box signs its own restaurant's users in by username.
 // GET /api/auth/context says which, so the form never asks for the restaurant.
 
@@ -68,10 +70,23 @@ export function signInFailure(
   return { message: signInErrorMessage(body.error || "No se pudo iniciar sesión"), mailto: null };
 }
 
-export type SignInOutcome = { next: "home" } | { next: "pending" } | { next: "failure"; failure: SignInFailure };
+export type SignInOutcome = { next: "home" } | { next: "payment" } | { next: "failure"; failure: SignInFailure };
 
-export function signInOutcome(ok: boolean, body: { error?: string; code?: string }, email: string | null): SignInOutcome {
+// A pending admin continues signup at step 2 (`setup`: the route handler stored a setup session);
+// anyone else of a pending organization can only be told to wait.
+export function signInOutcome(
+  ok: boolean,
+  body: { error?: string; code?: string; setup?: boolean },
+  email: string | null
+): SignInOutcome {
   if (ok) return { next: "home" };
-  if (body.code === "pending_approval") return { next: "pending" };
+  if (body.code === "pending_approval") {
+    return body.setup ? { next: "payment" } : { next: "failure", failure: { message: NOT_ACTIVE_YET_MESSAGE, mailto: null } };
+  }
   return { next: "failure", failure: signInFailure(body, email) };
+}
+
+// /signin?aviso=sesion: the setup session ran out in the middle of signup.
+export function signInNotice(aviso: unknown): string | null {
+  return aviso === "sesion" ? "Inicia sesión de nuevo para continuar con tu registro." : null;
 }

@@ -1,4 +1,5 @@
 import { isPlan, type Plan } from "./plans.ts";
+import { NOT_ACTIVE_YET_MESSAGE } from "./signIn.ts";
 import { trialExpiredNotice } from "./support.ts";
 
 export const RESTAURANT_NAME_MAX_LENGTH = 255;
@@ -61,19 +62,25 @@ export function signupFailure(
   return { message: "No pudimos crear la cuenta. Intenta de nuevo.", mailto: null };
 }
 
-export const PENDING_PATH = "/registro/pendiente";
+export const SIGNUP_PATH = "/registro";
+export const PAYMENT_PATH = "/registro/pago";
+export const DONE_PATH = "/registro/listo";
 
-// Where a signup response sends the person: a new pending account and a repeated signup before
-// approval both wait on the pending page; only an existing approved account gets a session.
-export type SignupOutcome = { next: "home" } | { next: "pending" } | { next: "failure"; failure: SignupFailure };
+export const SIGNUP_STEPS = ["Cuenta", "Pago", "Listo"] as const;
+
+// Where a signup response sends the person: a new account and one still pending both continue at
+// step 2, when the response left a setup session (`setup`); an account with access gets a session.
+export type SignupOutcome = { next: "home" } | { next: "payment" } | { next: "failure"; failure: SignupFailure };
 
 export function signupOutcome(
   status: number,
-  body: { error?: string; code?: string; field?: string; status?: string },
+  body: { error?: string; code?: string; field?: string; status?: string; setup?: boolean },
   email: string | null
 ): SignupOutcome {
-  if (status === 201 && body.status === "pending") return { next: "pending" };
-  if (body.code === "pending_approval") return { next: "pending" };
+  if (status === 201 && body.status === "pending") return { next: "payment" };
+  if (body.code === "pending_approval") {
+    return body.setup ? { next: "payment" } : { next: "failure", failure: { message: NOT_ACTIVE_YET_MESSAGE, mailto: null } };
+  }
   if (status >= 200 && status < 300) return { next: "home" };
   return { next: "failure", failure: signupFailure(status, body, email) };
 }

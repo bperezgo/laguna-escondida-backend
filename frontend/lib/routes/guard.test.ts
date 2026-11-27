@@ -76,3 +76,10 @@ test("an invitation link opens with or without a session", () => {
 test("installing the box needs a session", () => {
   assert.equal(guardRedirect("/ajustes/instalar-caja", false), "/signin?redirect=%2Fajustes%2Finstalar-caja");
 });
+
+test("the signup steps before the trial are public, and the last one needs the session it created", () => {
+  assert.equal(guardRedirect("/registro/pago", false), null);
+  assert.equal(guardRedirect("/registro/pago", true), "/home");
+  assert.equal(guardRedirect("/registro/listo", true), null);
+  assert.equal(guardRedirect("/registro/listo", false), "/signin");
+});

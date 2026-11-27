@@ -6,6 +6,15 @@ export interface SessionDecision {
   body: Record<string, unknown>;
   /** Set only on success: the route stores it in the access_token cookie. */
   token?: string;
+  /** A pending admin's setup token: the route stores it in the setup_token cookie. Never in `body`. */
+  setupToken?: string;
+}
+
+export const SETUP_COOKIE = "setup_token";
+export const SETUP_COOKIE_MAX_AGE = 60 * 60;
+
+function setupTokenOf(data: Record<string, unknown>): string | undefined {
+  return typeof data.setup_token === "string" && data.setup_token ? data.setup_token : undefined;
 }
 
 export async function sessionDecision(response: Response, fallbackError: string): Promise<SessionDecision> {
@@ -15,7 +24,10 @@ export async function sessionDecision(response: Response, fallbackError: string)
     const body: Record<string, unknown> = { error: data.error || data.message || fallbackError };
     if (data.code) body.code = data.code;
     if (data.field) body.field = data.field;
-    return { status: response.status, body };
+    const setupToken = data.code === "pending_approval" ? setupTokenOf(data) : undefined;
+    if (!setupToken) return { status: response.status, body };
+    // The page only learns that a setup session exists; the token stays in its httpOnly cookie.
+    return { status: response.status, body: { ...body, setup: true }, setupToken };
   }
 
   if (typeof data.token !== "string" || !data.token) {
@@ -25,7 +37,7 @@ export async function sessionDecision(response: Response, fallbackError: string)
   return { status: response.status, body: { success: true }, token: data.token };
 }
 
-// A new signup answers 201 waiting for approval, with no token: no session is set for it.
+// A new signup answers 201 pending, with a setup token and no sign-in token: no session is set for it.
 export async function signupDecision(response: Response, fallbackError: string): Promise<SessionDecision> {
   if (response.status !== 201) return sessionDecision(response, fallbackError);
   const data = await response.json().catch(() => ({}));
@@ -33,5 +45,7 @@ export async function signupDecision(response: Response, fallbackError: string):
   for (const key of ["status", "organization_name", "plan"]) {
     if (typeof data[key] === "string") body[key] = data[key];
   }
-  return { status: 201, body };
+  const setupToken = setupTokenOf(data);
+  if (!setupToken) return { status: 201, body };
+  return { status: 201, body: { ...body, setup: true }, setupToken };
 }

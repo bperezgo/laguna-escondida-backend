@@ -42,12 +42,18 @@ test("an existing account on an ended trial shows the trial message", () => {
   assert.equal(signupFailure(403, { code: "trial_expired" }, null).mailto, null);
 });
 
-test("a new pending signup goes to the pending page", () => {
-  assert.deepEqual(signupOutcome(201, { status: "pending" }, null), { next: "pending" });
+test("a new account continues at step 2", () => {
+  assert.deepEqual(signupOutcome(201, { status: "pending", setup: true }, null), { next: "payment" });
 });
 
-test("a repeated signup before approval goes to the pending page", () => {
-  assert.deepEqual(signupOutcome(403, { error: "Approval pending", code: "pending_approval" }, null), { next: "pending" });
+test("a repeated signup before the trial continues at step 2", () => {
+  assert.deepEqual(signupOutcome(403, { error: "Approval pending", code: "pending_approval", setup: true }, null), { next: "payment" });
+});
+
+test("a pending account without a setup session is told it is not active yet", () => {
+  const outcome = signupOutcome(403, { error: "Approval pending", code: "pending_approval" }, null);
+  assert.equal(outcome.next, "failure");
+  if (outcome.next === "failure") assert.match(outcome.failure.message, /todavía no está activa/);
 });
 
 test("an existing approved account signs in", () => {
