@@ -10,6 +10,9 @@ export type { CardProps } from "./Card";
 export { Input, Select, Textarea } from "./Field";
 export type { InputProps, SelectProps, TextareaProps } from "./Field";
 
+export { default as PasswordInput } from "./PasswordInput";
+export type { PasswordInputProps } from "./PasswordInput";
+
 export { Table } from "./Table";
 export type { TableProps } from "./Table";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Modal, Input, Button } from "@/components/ui";
+import { Modal, PasswordInput, Button } from "@/components/ui";
 import type { UserWithRoles } from "@/types/user";
 
 interface ResetPasswordModalProps {
@@ -38,6 +38,7 @@ export default function ResetPasswordModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setShowPassword(false);
     if (!validate()) return;
     await onSubmit(password);
   };
@@ -68,36 +69,21 @@ export default function ResetPasswordModal({
           Nueva contraseña para <strong>{user.user.username}</strong>.
         </p>
 
-        <div>
-          <Input
-            label="Nueva contraseña *"
-            type={showPassword ? "text" : "password"}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            error={errors.password}
-            placeholder="Mínimo 6 caracteres"
-            autoComplete="new-password"
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword((s) => !s)}
-            style={{
-              marginTop: "0.4rem",
-              background: "none",
-              border: "none",
-              padding: 0,
-              color: "var(--color-primary)",
-              cursor: "pointer",
-              fontSize: "0.8rem",
-            }}
-          >
-            {showPassword ? "Ocultar" : "Mostrar"} contraseña
-          </button>
-        </div>
+        <PasswordInput
+          label="Nueva contraseña *"
+          shown={showPassword}
+          onShownChange={setShowPassword}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          error={errors.password}
+          placeholder="Mínimo 6 caracteres"
+          autoComplete="new-password"
+        />
 
-        <Input
+        <PasswordInput
           label="Confirmar contraseña *"
-          type={showPassword ? "text" : "password"}
+          shown={showPassword}
+          hideToggle
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
           error={errors.confirmPassword}

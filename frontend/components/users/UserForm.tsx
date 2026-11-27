@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Modal, Input, Button } from "@/components/ui";
+import { Modal, Input, PasswordInput, Button } from "@/components/ui";
 import { EMAIL_REQUIRED_MESSAGE, requiresEmail, roleLabel } from "@/types/user";
 import type {
   Role,
@@ -128,6 +128,7 @@ export default function UserForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setShowPassword(false);
     if (!validate()) return;
 
     if (isEdit) {
@@ -212,36 +213,17 @@ export default function UserForm({
         {!isEdit && (
           <>
             <div>
-              <Input
+              <PasswordInput
                 label="Contraseña *"
-                type={showPassword ? "text" : "password"}
+                shown={showPassword}
+                onShownChange={setShowPassword}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 error={errors.password}
                 placeholder="Mínimo 6 caracteres"
                 autoComplete="new-password"
               />
-              <div
-                style={{
-                  display: "flex",
-                  gap: "1rem",
-                  marginTop: "0.4rem",
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((s) => !s)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    padding: 0,
-                    color: "var(--color-primary)",
-                    cursor: "pointer",
-                    fontSize: "0.8rem",
-                  }}
-                >
-                  {showPassword ? "Ocultar" : "Mostrar"} contraseña
-                </button>
+              <div style={{ marginTop: "0.4rem" }}>
                 <button
                   type="button"
                   onClick={handleGenerate}
@@ -259,9 +241,10 @@ export default function UserForm({
               </div>
             </div>
 
-            <Input
+            <PasswordInput
               label="Confirmar contraseña *"
-              type={showPassword ? "text" : "password"}
+              shown={showPassword}
+              hideToggle
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               error={errors.confirmPassword}

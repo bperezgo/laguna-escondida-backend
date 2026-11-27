@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Button, Card, CardBody, Input } from "@/components/ui";
+import { Button, Card, CardBody, PasswordInput } from "@/components/ui";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import NoticeMessage from "@/components/auth/NoticeMessage";
 import PublicLayout from "@/components/public/PublicLayout";
@@ -39,6 +39,7 @@ function AcceptForm({
   const { fetchPermissions } = usePermissions();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [fieldError, setFieldError] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -74,6 +75,7 @@ function AcceptForm({
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
+    setShowPassword(false);
     const problem = validateAcceptPassword(password, confirm);
     setFieldError(problem);
     if (!problem) accept({ password });
@@ -102,20 +104,22 @@ function AcceptForm({
       )}
 
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-        <Input
+        <PasswordInput
           label="Contraseña"
           id="password"
-          type="password"
+          shown={showPassword}
+          onShownChange={setShowPassword}
           autoComplete="new-password"
           placeholder={`Mínimo ${MIN_PASSWORD_LENGTH} caracteres`}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           disabled={isLoading}
         />
-        <Input
+        <PasswordInput
           label="Confirmar contraseña"
           id="confirm-password"
-          type="password"
+          shown={showPassword}
+          hideToggle
           autoComplete="new-password"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}

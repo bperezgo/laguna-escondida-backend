@@ -42,14 +42,19 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   helper?: ReactNode;
   error?: ReactNode;
   wrapperClassName?: string;
+  /** Rendered inside the field's right edge, over the control (e.g. a toggle button). */
+  endAdornment?: ReactNode;
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
-  { label, helper, error, id, className = "", wrapperClassName, ...rest },
+  { label, helper, error, id, className = "", wrapperClassName, endAdornment, ...rest },
   ref
 ) {
   const autoId = useId();
   const fieldId = id ?? autoId;
+  const control = (
+    <input id={fieldId} ref={ref} className={cx(styles.control, className)} {...rest} />
+  );
   return (
     <FieldShell
       label={label}
@@ -58,7 +63,14 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       fieldId={fieldId}
       className={wrapperClassName}
     >
-      <input id={fieldId} ref={ref} className={cx(styles.control, className)} {...rest} />
+      {endAdornment ? (
+        <div className={styles.adorned}>
+          {control}
+          {endAdornment}
+        </div>
+      ) : (
+        control
+      )}
     </FieldShell>
   );
 });
