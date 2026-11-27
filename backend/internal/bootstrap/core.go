@@ -211,7 +211,10 @@ func buildCore(cfg *config.Shared, infra Infra, opts ModeOptions) (*core, error)
 	// written and the status handler short-circuits to online.
 	syncStatusTracker := syncstatus.NewTracker(150 * time.Second)
 
-	router := gin.Default()
+	// Not gin.Default(): its text access log would repeat LoggerMiddleware for every request,
+	// polls included, which LoggerMiddleware drops to DEBUG.
+	router := gin.New()
+	router.Use(gin.Recovery())
 	// Server spans + trace-context propagation; a no-op tracer when observability is disabled.
 	router.Use(otelgin.Middleware(cfg.Observability.ServiceName))
 	router.Use(handler.CORSMiddleware())
