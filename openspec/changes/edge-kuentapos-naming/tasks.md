@@ -7,7 +7,7 @@
 
 ## 2. Locked-down install root
 
-- [x] 2.1 Add the D2 lock-down at the start of `PrepareToInstall`: create the root, take ownership for Administrators, apply the DACL with no inheritance, `/reset /T` below it, re-restrict `env\` and `env\alloy-node-key`, and on a fresh install into an existing folder, delete its program folders. Log every `icacls` exit, and add exit code `root_acl_failed` to `exit-codes.json` and `.inc` for a failure. Verify with group 3
+- [x] 2.1 Add the D2 lock-down (`scripts\lock-root.ps1`) to `PrepareToInstall`, after the preflight and enrollment checks and before any copy: create the root, take ownership for Administrators, apply the DACL with no inheritance, remove links without following them, `/reset /T` below it, keep `env\`, `env\alloy-node-key`, `state\`, `backups\` and `caddy-data\` restricted, and on a fresh install into an existing folder, delete everything in it. Log every `icacls` exit, and add exit code `root_acl_failed` to `exit-codes.json` and `.inc` for a failure. Verify with group 3
 
 ## 3. Tests
 
