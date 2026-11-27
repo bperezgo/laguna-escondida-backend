@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState, FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { usePermissions } from "@/lib/permissions";
 import { Input, Button } from "@/components/ui";
 import {
   LEGACY_EDGE_CONTEXT,
@@ -33,7 +32,6 @@ export default function SignInForm({ initialContext = null, notice = null }: Sig
   const [error, setError] = useState<SignInFailure | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const { fetchPermissions } = usePermissions();
 
   useEffect(() => {
     if (initialContext) return;
@@ -69,15 +67,15 @@ export default function SignInForm({ initialContext = null, notice = null }: Sig
           setError(outcome.failure);
           return;
         }
-        await fetchPermissions();
-        router.push("/home");
+        // A full load, not a client transition: the public pages' content security policy must not follow the person into the app.
+        window.location.assign("/home");
       } catch {
         setError({ message: "No se pudo conectar. Intenta de nuevo.", mailto: null });
       } finally {
         setIsLoading(false);
       }
     },
-    [fetchPermissions, router]
+    [router]
   );
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {

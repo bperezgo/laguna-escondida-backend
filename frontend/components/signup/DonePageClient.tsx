@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import PublicLayout from "@/components/public/PublicLayout";
 import styles from "@/components/public/signup.module.css";
@@ -84,13 +83,14 @@ export default function DonePageClient({ prices }: { prices: PlanPrices | null }
             )}
           </dl>
         </section>
+        {/* Plain links: a full load leaves the public pages' content security policy behind. */}
         <div className={styles.actions}>
-          <Link className={`${buttonStyles.btn} ${buttonStyles.primary} ${buttonStyles.lg} ${buttonStyles.fullWidth}`} href={INSTALL_BOX_PATH}>
+          <a className={`${buttonStyles.btn} ${buttonStyles.primary} ${buttonStyles.lg} ${buttonStyles.fullWidth}`} href={INSTALL_BOX_PATH}>
             Instalar la caja
-          </Link>
-          <Link className={`${buttonStyles.btn} ${buttonStyles.secondary} ${buttonStyles.lg} ${buttonStyles.fullWidth}`} href="/home">
+          </a>
+          <a className={`${buttonStyles.btn} ${buttonStyles.secondary} ${buttonStyles.lg} ${buttonStyles.fullWidth}`} href="/home">
             Ir a la aplicación
-          </Link>
+          </a>
         </div>
       </div>
     </PublicLayout>

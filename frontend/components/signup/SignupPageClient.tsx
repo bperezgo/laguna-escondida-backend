@@ -10,7 +10,6 @@ import PublicLayout from "@/components/public/PublicLayout";
 import PlanPicker from "@/components/public/PlanPicker";
 import PlanSummary from "@/components/public/PlanSummary";
 import styles from "@/components/public/signup.module.css";
-import { usePermissions } from "@/lib/permissions";
 import { googleClientId } from "@/lib/google";
 import { planPrice, type Plan, type PlanPrices } from "@/lib/plans";
 import { PAYMENT_PATH, signupBody, signupOutcome, validateSignup, type SignupErrors, type SignupFailure } from "@/lib/signup";
@@ -24,7 +23,6 @@ export interface SignupPageClientProps {
 
 export default function SignupPageClient({ initialPlan, prices }: SignupPageClientProps) {
   const router = useRouter();
-  const { fetchPermissions } = usePermissions();
   const [restaurantName, setRestaurantName] = useState("");
   const [plan, setPlan] = useState<Plan>(initialPlan);
   const [choosingPlan, setChoosingPlan] = useState(false);
@@ -61,15 +59,15 @@ export default function SignupPageClient({ initialPlan, prices }: SignupPageClie
           setFailure(f);
           return;
         }
-        await fetchPermissions();
-        router.push("/home");
+        // A full load, not a client transition: the public pages' content security policy must not follow the person into the app.
+        window.location.assign("/home");
       } catch {
         setFailure({ message: "No se pudo conectar. Intenta de nuevo.", mailto: null });
       } finally {
         setIsLoading(false);
       }
     },
-    [restaurantName, plan, fetchPermissions, router]
+    [restaurantName, plan, router]
   );
 
   return (
