@@ -12,7 +12,7 @@ import { annualPrice, formatCop, plans } from "../../config/plans.ts";
     </p>
     <h2 id="pricing-title" class="heading-2 mt-3 max-w-[680px]">Un precio fijo al mes, según lo que necesitas</h2>
     <p class="body-3 text-muted mt-4 max-w-[680px] md:text-lg">
-      Precios en pesos colombianos, antes de IVA. Si pagas el año, dos meses son gratis.
+      Precios en pesos colombianos. Si pagas el año, dos meses son gratis.
     </p>
     <ul class="mt-8 grid gap-4 md:grid-cols-3">
       {
@@ -40,7 +40,7 @@ import { annualPrice, formatCop, plans } from "../../config/plans.ts";
                 </li>
               ))}
             </ul>
-            <PrimaryAction size="md" class="mt-auto block" />
+            <PrimaryAction size="md" class="mt-auto block" plan={plan.id} />
           </li>
         ))
       }
