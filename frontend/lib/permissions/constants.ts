@@ -118,6 +118,9 @@ export const PERMISSIONS = {
   // Box enrollment (cloud only, admin only)
   EDGE_ENROLL: "edge:enroll",
 
+  // The organization's own subscription (cloud only, admin only)
+  BILLING_MANAGE: "billing:manage",
+
   // SSE (Real-time)
   SSE_COMMANDS_READ: "sse:commands:read",
   SSE_COMMAND_ITEMS_READ: "sse:command-items:read",

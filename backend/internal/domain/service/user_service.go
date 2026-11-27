@@ -26,6 +26,8 @@ type UserService struct {
 	unitOfWork   ports.UnitOfWork
 	scope        tenant.Scope
 	now          func() time.Time
+	// subscriptions is nil on an edge box and wherever billing is not wired.
+	subscriptions *OrganizationAccessService
 }
 
 func NewUserService(userRepo ports.UserRepository, roleRepo ports.RoleRepository, userRoleRepo ports.UserRoleRepository, orgRepo ports.OrganizationRepository, jwtService *JWTService, unitOfWork ports.UnitOfWork, scope tenant.Scope) *UserService {
@@ -369,7 +371,7 @@ func (s *UserService) SignIn(ctx context.Context, req *dto.SignInRequest) (*dto.
 }
 
 // SignInWithGoogle signs in the cloud user whose email the verified Google identity carries.
-// Every refusal but a pending organization or an expired trial wraps ErrGoogleSignInFailed.
+// Every refusal but a pending organization, an expired trial or a missed payment wraps ErrGoogleSignInFailed.
 func (s *UserService) SignInWithGoogle(ctx context.Context, email string) (*dto.SignInResponse, error) {
 	if _, pinned := s.scope.Pinned(); pinned {
 		return nil, domainError.ErrGoogleSignInFailed
@@ -385,7 +387,8 @@ func (s *UserService) SignInWithGoogle(ctx context.Context, email string) (*dto.
 			return resp, nil
 		}
 	}
-	if errors.Is(err, domainError.ErrTrialExpired) || errors.Is(err, domainError.ErrOrganizationPending) {
+	if errors.Is(err, domainError.ErrTrialExpired) || errors.Is(err, domainError.ErrPaymentRequired) ||
+		errors.Is(err, domainError.ErrOrganizationPending) {
 		return nil, err
 	}
 	if errors.Is(err, domainError.ErrInvalidCredentials) || errors.Is(err, domainError.ErrSignInEmailRequired) {
@@ -414,12 +417,44 @@ func (s *UserService) completeSignIn(ctx context.Context, userDTO *dto.User, org
 		if org.Status == dto.OrganizationStatusPending {
 			return nil, s.pendingApproval(userDTO.ID, orgID, roleIDs)
 		}
-		if plans.Expired(org.Status, org.TrialEndsAt, s.now()) {
-			return nil, domainError.ErrTrialExpired
+		if reason := s.stoppedReason(ctx, org); reason != nil {
+			if errors.Is(reason, domainError.ErrTrialExpired) || errors.Is(reason, domainError.ErrPaymentRequired) {
+				return nil, s.stopped(userDTO.ID, orgID, roleIDs, reason)
+			}
+			return nil, reason
 		}
 	}
 
 	return s.issueSignIn(userDTO, orgID, roles)
+}
+
+// CheckSubscriptions makes sign-in follow the billing rules too: a trial's grace and a lapsed paid
+// period. Only the cloud calls it; without it an organization stops only when its trial ends.
+func (s *UserService) CheckSubscriptions(access *OrganizationAccessService) {
+	s.subscriptions = access
+}
+
+// stoppedReason is ErrTrialExpired, ErrPaymentRequired, nil, or the failure to read which.
+func (s *UserService) stoppedReason(ctx context.Context, org *dto.Organization) error {
+	if s.subscriptions == nil {
+		if plans.Expired(org.Status, org.TrialEndsAt, s.now()) {
+			return domainError.ErrTrialExpired
+		}
+		return nil
+	}
+	return s.subscriptions.Stopped(ctx, org.ID)
+}
+
+// stopped gives only an admin the setup token: they are who pays the organization's way back.
+func (s *UserService) stopped(userID, orgID string, roleIDs []int, reason error) error {
+	if !slices.Contains(roleIDs, permissions.RoleAdmin) {
+		return reason
+	}
+	token, err := s.jwtService.GenerateSetupToken(userID, orgID)
+	if err != nil {
+		return fmt.Errorf("failed to generate setup token: %w", err)
+	}
+	return &domainError.StoppedError{Reason: reason, SetupToken: token}
 }
 
 // pendingApproval gives only an admin the setup token: they are who chooses the plan and leaves the card.

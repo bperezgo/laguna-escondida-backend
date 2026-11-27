@@ -23,7 +23,7 @@ func TestUserHandler_SignIn_Trial(t *testing.T) {
 		want     string
 	}{
 		{"expired trial, correct password", &dto.Organization{ID: testOrganizationID, Status: "trial", TrialEndsAt: &past}, "password123",
-			http.StatusForbidden, `{"error":"Trial ended","code":"trial_expired"}`},
+			http.StatusForbidden, trialExpiredWithSetupToken},
 		{"expired trial, wrong password", &dto.Organization{ID: testOrganizationID, Status: "trial", TrialEndsAt: &past}, "wrong-password",
 			http.StatusUnauthorized, `{"error":"Invalid email or password"}`},
 		{"suspended", &dto.Organization{ID: testOrganizationID, Status: "suspended"}, "password123",
@@ -47,6 +47,8 @@ func TestUserHandler_SignIn_Trial(t *testing.T) {
 			assert.Equal(t, tc.code, rec.Code, rec.Body.String())
 			if tc.want == pendingWithSetupToken {
 				assertPendingWithSetupToken(t, rec)
+			} else if tc.want == trialExpiredWithSetupToken {
+				assertTrialExpiredWithSetupToken(t, rec)
 			} else if tc.want != "" {
 				assert.JSONEq(t, tc.want, rec.Body.String())
 			} else {

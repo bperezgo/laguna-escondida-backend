@@ -53,20 +53,29 @@ func (s *BillingSetupService) State(ctx context.Context, orgID string) (*dto.Bil
 		return nil, err
 	}
 	state := &dto.BillingSetupState{OrganizationName: org.Name, Plan: org.Plan, Period: period, CardEntry: s.CardEntry()}
-	if !s.CardEntry() {
-		return state, nil
+	setup, err := s.CardSetup(ctx)
+	if err != nil {
+		return nil, err
 	}
-	// Acceptance tokens are single use, so every read asks the provider for fresh ones.
+	state.Wompi = setup.Wompi
+	return state, nil
+}
+
+// CardSetup is what the browser needs to send a card to the provider. Acceptance tokens are
+// single use, so every read asks the provider for fresh ones.
+func (s *BillingSetupService) CardSetup(ctx context.Context) (*dto.BillingCardSetup, error) {
+	if !s.CardEntry() {
+		return &dto.BillingCardSetup{}, nil
+	}
 	terms, err := s.provider.Terms(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", domainError.ErrPaymentProviderUnavailable, err)
 	}
-	state.Wompi = &dto.BillingSetupWompi{
+	return &dto.BillingCardSetup{CardEntry: true, Wompi: &dto.BillingSetupWompi{
 		PublicKey: s.public.PublicKey, APIURL: s.public.APIURL,
 		TermsURL: terms.TermsURL, PersonalDataURL: terms.PersonalDataURL,
 		AcceptanceToken: terms.AcceptanceToken, PersonalDataAcceptanceToken: terms.PersonalAuthToken,
-	}
-	return state, nil
+	}}, nil
 }
 
 func (s *BillingSetupService) period(ctx context.Context, orgID string) (string, error) {
@@ -82,6 +91,17 @@ func (s *BillingSetupService) period(ctx context.Context, orgID string) (string,
 
 // Select stores the plan and period; the amount it answers comes from the price table, never the request.
 func (s *BillingSetupService) Select(ctx context.Context, orgID string, req *dto.BillingSelectionRequest) (*dto.BillingSelection, error) {
+	return s.selectWhen(ctx, orgID, req, func(_ context.Context, org *dto.Organization) error {
+		if org.Status != dto.OrganizationStatusPending {
+			return domainError.ErrOrganizationNotPending
+		}
+		return nil
+	})
+}
+
+// selectWhen stores the selection only for an organization allowed passes, checked inside the transaction.
+func (s *BillingSetupService) selectWhen(ctx context.Context, orgID string, req *dto.BillingSelectionRequest,
+	allowed func(ctx context.Context, org *dto.Organization) error) (*dto.BillingSelection, error) {
 	if !plans.Valid(req.Plan) {
 		return nil, &domainError.BillingValidationError{Field: "plan", Reason: "must be starter, einvoicing or full"}
 	}
@@ -93,8 +113,8 @@ func (s *BillingSetupService) Select(ctx context.Context, orgID string, req *dto
 		if err != nil {
 			return err
 		}
-		if org.Status != dto.OrganizationStatusPending {
-			return domainError.ErrOrganizationNotPending
+		if err := allowed(ctx, org); err != nil {
+			return err
 		}
 		if org.Plan != req.Plan {
 			if _, err := s.orgRepo.Update(ctx, orgID, &dto.UpdateOrganizationRequest{Plan: &req.Plan}); err != nil {
@@ -114,19 +134,9 @@ func (s *BillingSetupService) Select(ctx context.Context, orgID string, req *dto
 // starts the trial. If the transaction fails the source stays at the provider unreferenced: it
 // costs and charges nothing, and the person retries with a new card token.
 func (s *BillingSetupService) SaveCard(ctx context.Context, orgID, userID string, req *dto.SaveCardRequest) (*dto.SignInResponse, error) {
-	if !s.CardEntry() {
-		return nil, domainError.ErrCardEntryOff
+	if err := s.validateCard(req); err != nil {
+		return nil, err
 	}
-	for _, f := range []struct{ name, value string }{
-		{"card_token", req.CardToken},
-		{"acceptance_token", req.AcceptanceToken},
-		{"personal_data_acceptance_token", req.PersonalDataAcceptanceToken},
-	} {
-		if strings.TrimSpace(f.value) == "" {
-			return nil, &domainError.BillingValidationError{Field: f.name, Reason: "is required"}
-		}
-	}
-
 	ctx = tenant.WithOrg(ctx, orgID)
 	org, err := s.orgRepo.Get(ctx, orgID)
 	if err != nil {
@@ -135,31 +145,17 @@ func (s *BillingSetupService) SaveCard(ctx context.Context, orgID, userID string
 	if org.Status != dto.OrganizationStatusPending {
 		return nil, domainError.ErrOrganizationNotPending
 	}
-	admin, err := s.userRepo.FindByID(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("save card: find user: %w", err)
-	}
-	if !admin.Active || admin.Email == nil || *admin.Email == "" {
-		return nil, errors.New("save card: the user cannot hold a card: inactive or without an email")
-	}
-
-	source, err := s.provider.SavePaymentSource(ctx, dto.PaymentSourceRequest{
-		CardToken: req.CardToken, CustomerEmail: *admin.Email,
-		AcceptanceToken: req.AcceptanceToken, PersonalAuthToken: req.PersonalDataAcceptanceToken,
-	})
+	card, admin, err := s.newCard(ctx, orgID, userID, req)
 	if err != nil {
 		return nil, fmt.Errorf("save card: %w", err)
 	}
 
-	now := s.now().UTC()
 	err = s.uow.Do(ctx, func(ctx context.Context) error {
-		card := dto.BillingCard{Provider: dto.BillingProviderWompi, PaymentSourceID: source.ID,
-			Brand: source.Brand, LastFour: source.LastFour, TermsAcceptedAt: now}
 		if saveErr := s.billing.SaveCard(ctx, orgID, card); saveErr != nil {
 			return saveErr
 		}
 		// The same conditional update the operator's start-trial uses: it changes nothing unless still pending.
-		_, startErr := s.orgRepo.StartTrial(ctx, orgID, now.Add(plans.TrialLength))
+		_, startErr := s.orgRepo.StartTrial(ctx, orgID, card.TermsAcceptedAt.Add(plans.TrialLength))
 		return startErr
 	})
 	if err != nil {
@@ -171,4 +167,53 @@ func (s *BillingSetupService) SaveCard(ctx context.Context, orgID, userID string
 		return nil, fmt.Errorf("save card: read roles: %w", err)
 	}
 	return s.users.issueSignIn(admin, orgID, roles)
+}
+
+// newCard turns a card token into a payment source at the provider, for the user who leaves it.
+// Nothing is stored: the caller saves the card in its own transaction.
+func (s *BillingSetupService) newCard(ctx context.Context, orgID, userID string, req *dto.SaveCardRequest) (dto.BillingCard, *dto.User, error) {
+	if err := s.validateCard(req); err != nil {
+		return dto.BillingCard{}, nil, err
+	}
+	admin, err := s.cardHolder(tenant.WithOrg(ctx, orgID), userID)
+	if err != nil {
+		return dto.BillingCard{}, nil, err
+	}
+	source, err := s.provider.SavePaymentSource(ctx, dto.PaymentSourceRequest{
+		CardToken: req.CardToken, CustomerEmail: *admin.Email,
+		AcceptanceToken: req.AcceptanceToken, PersonalAuthToken: req.PersonalDataAcceptanceToken,
+	})
+	if err != nil {
+		return dto.BillingCard{}, nil, err
+	}
+	return dto.BillingCard{Provider: dto.BillingProviderWompi, PaymentSourceID: source.ID,
+		Brand: source.Brand, LastFour: source.LastFour, TermsAcceptedAt: s.now().UTC()}, admin, nil
+}
+
+func (s *BillingSetupService) validateCard(req *dto.SaveCardRequest) error {
+	if !s.CardEntry() {
+		return domainError.ErrCardEntryOff
+	}
+	for _, f := range []struct{ name, value string }{
+		{"card_token", req.CardToken},
+		{"acceptance_token", req.AcceptanceToken},
+		{"personal_data_acceptance_token", req.PersonalDataAcceptanceToken},
+	} {
+		if strings.TrimSpace(f.value) == "" {
+			return &domainError.BillingValidationError{Field: f.name, Reason: "is required"}
+		}
+	}
+	return nil
+}
+
+// cardHolder is the active user, with an email, in whose name a card is saved or charged.
+func (s *BillingSetupService) cardHolder(ctx context.Context, userID string) (*dto.User, error) {
+	admin, err := s.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("find user: %w", err)
+	}
+	if !admin.Active || admin.Email == nil || *admin.Email == "" {
+		return nil, errors.New("the user cannot hold a card: inactive or without an email")
+	}
+	return admin, nil
 }

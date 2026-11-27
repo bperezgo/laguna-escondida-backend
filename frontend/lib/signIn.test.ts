@@ -95,3 +95,21 @@ test("an ended trial is still a failure with its notice", () => {
     assert.ok(outcome.failure.mailto);
   }
 });
+
+test("the admin of a stopped account goes to the recovery page", () => {
+  assert.deepEqual(signInOutcome(false, { error: "Trial ended", code: "trial_expired", setup: true }, null), { next: "recovery" });
+  assert.deepEqual(signInOutcome(false, { error: "Payment required", code: "payment_required", setup: true }, null), { next: "recovery" });
+});
+
+test("anyone else of an unpaid account sees the refusal and the support contact", () => {
+  const outcome = signInOutcome(false, { error: "Payment required", code: "payment_required" }, supportEmail("soporte@kuenta.co"));
+  assert.equal(outcome.next, "failure");
+  if (outcome.next === "failure") {
+    assert.match(outcome.failure.message, /suscripción de tu restaurante está vencida/);
+    assert.ok(outcome.failure.mailto?.startsWith("mailto:soporte@kuenta.co"));
+  }
+});
+
+test("a setup session never turns another refusal into recovery", () => {
+  assert.equal(signInOutcome(false, { error: "Invalid email or password", setup: true }, null).next, "failure");
+});

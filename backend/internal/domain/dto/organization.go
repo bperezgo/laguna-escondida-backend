@@ -121,4 +121,8 @@ type OrganizationAccess struct {
 	Status      string
 	Plan        string
 	TrialEndsAt *time.Time
+	// PaidUntil, CancelledAt and HasCard come from billing; all zero for an organization without it.
+	PaidUntil   *time.Time
+	CancelledAt *time.Time
+	HasCard     bool
 }

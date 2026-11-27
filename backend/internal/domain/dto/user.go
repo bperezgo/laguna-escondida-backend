@@ -111,4 +111,6 @@ type CurrentUserResponse struct {
 	Roles        []*Role              `json:"roles"`
 	Permissions  []string             `json:"permissions"`
 	Organization *CurrentOrganization `json:"organization"`
+	// Billing is set only in the cloud and only for a user who manages billing.
+	Billing *BillingSummary `json:"billing,omitempty"`
 }

@@ -45,3 +45,8 @@ test("the edge drops the API key permission", () => {
   assert.deepEqual(effectivePermissions(withKeys, false), withKeys);
   assert.deepEqual(effectivePermissions(withKeys, true), ["products:read", "users:read", "orders:create"]);
 });
+
+test("billing is never managed from a box", () => {
+  assert.deepEqual(effectivePermissions(["billing:manage", "orders:read"], true), ["orders:read"]);
+  assert.deepEqual(effectivePermissions(["billing:manage", "orders:read"], false), ["billing:manage", "orders:read"]);
+});

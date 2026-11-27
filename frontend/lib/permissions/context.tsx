@@ -93,6 +93,7 @@ export function PermissionsProvider({ children }: PermissionsProviderProps) {
   const value: PermissionsContextValue = {
     user,
     organization: user?.organization ?? null,
+    billing: user?.billing ?? null,
     permissions,
     isLoading,
     error,

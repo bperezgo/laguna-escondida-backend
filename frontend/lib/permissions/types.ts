@@ -45,6 +45,24 @@ export interface Organization {
   secondary_color: string | null;
 }
 
+/**
+ * What the subscription notice needs (GET /auth/me `billing`). Present only in the cloud and only
+ * for a user with billing:manage.
+ */
+export interface BillingSummary {
+  period: "monthly" | "annual";
+  has_card: boolean;
+  card_entry: boolean;
+  cancelled: boolean;
+  /** RFC 3339: the trial's end during the trial, the end of the paid period after. */
+  due_date: string | null;
+  /** Pesos; null when nothing will be charged. */
+  next_charge_amount: number | null;
+  payment_failed: boolean;
+  /** RFC 3339: when the organization stops unless a charge is approved. */
+  access_ends_at: string | null;
+}
+
 export interface AuthUser {
   id: string;
   username: string;
@@ -53,6 +71,8 @@ export interface AuthUser {
   permissions: string[];
   /** Absent only from a backend older than the multi-tenancy release. */
   organization?: Organization;
+  /** Only in the cloud, only for a user who manages billing. */
+  billing?: BillingSummary;
   /** Deployment mode injected by the Next.js /api/auth/me proxy. */
   deployment_mode?: EdgeMode;
 }
@@ -61,6 +81,8 @@ export interface PermissionsContextValue {
   user: AuthUser | null;
   /** The signed-in user's organization; null while loading or signed out. */
   organization: Organization | null;
+  /** The subscription summary of a user who manages billing; null for anyone else. */
+  billing: BillingSummary | null;
   permissions: string[];
   isLoading: boolean;
   error: string | null;

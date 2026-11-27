@@ -199,11 +199,45 @@ func (s *OrganizationService) Update(ctx context.Context, id string, req *dto.Up
 		name := strings.TrimSpace(*normalized.Name)
 		normalized.Name = &name
 	}
-	org, err := s.orgRepo.Update(ctx, id, &normalized)
+	lapsed, err := s.activatingLapsed(ctx, id, req)
+	if err != nil {
+		return nil, err
+	}
+	var org *dto.Organization
+	if !lapsed {
+		org, err = s.orgRepo.Update(ctx, id, &normalized)
+	} else {
+		err = s.uow.Do(ctx, func(ctx context.Context) error {
+			var updateErr error
+			if org, updateErr = s.orgRepo.Update(ctx, id, &normalized); updateErr != nil {
+				return updateErr
+			}
+			return s.billing.EndSubscription(ctx, id, s.now().UTC())
+		})
+	}
 	if err != nil {
 		return nil, fmt.Errorf("update organization: %w", err)
 	}
 	return org, s.withBilling(ctx, org)
+}
+
+// activatingLapsed reports whether the request sets to active an organization whose paid period
+// lapsed. Its subscription then ends, so the operator's decision is not undone by the next access
+// check or followed by a charge.
+func (s *OrganizationService) activatingLapsed(ctx context.Context, id string, req *dto.UpdateOrganizationRequest) (bool, error) {
+	if s.billing == nil || req.Status == nil || *req.Status != dto.OrganizationStatusActive {
+		return false, nil
+	}
+	billing, found, err := s.billing.Get(ctx, id)
+	if err != nil {
+		return false, fmt.Errorf("update organization: read billing: %w", err)
+	}
+	if !found || billing.PaidUntil == nil {
+		return false, nil
+	}
+	asActive := &dto.OrganizationAccess{Status: dto.OrganizationStatusActive, PaidUntil: billing.PaidUntil,
+		CancelledAt: billing.CancelledAt, HasCard: billing.HasCard()}
+	return StoppedReason(asActive, s.now()) != nil, nil
 }
 
 // validateStatusChange keeps a trial from losing its end, and a pending organization out of a trial

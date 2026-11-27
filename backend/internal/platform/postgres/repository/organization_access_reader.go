@@ -30,14 +30,22 @@ func (r *OrganizationAccessReader) GetAccess(ctx context.Context, orgID string) 
 		Status      string
 		Plan        string
 		TrialEndsAt *time.Time
+		PaidUntil   *time.Time
+		CancelledAt *time.Time
+		HasCard     bool
 	}
-	result := postgres.GetTxOrDB(ctx, r.db).WithContext(ctx).
-		Raw(`SELECT status, plan, trial_ends_at FROM organizations WHERE id = ?`, orgID).Scan(&row)
+	result := postgres.GetTxOrDB(ctx, r.db).WithContext(ctx).Raw(`
+		SELECT o.status, o.plan, o.trial_ends_at, b.paid_until, b.cancelled_at,
+		       b.payment_source_id IS NOT NULL AS has_card
+		  FROM organizations o
+		  LEFT JOIN organization_billing b ON b.organization_id = o.id
+		 WHERE o.id = ?`, orgID).Scan(&row)
 	if result.Error != nil {
 		return nil, fmt.Errorf("read organization access: %w", result.Error)
 	}
 	if result.RowsAffected == 0 {
 		return nil, domainError.ErrOrganizationNotFound
 	}
-	return &dto.OrganizationAccess{Status: row.Status, Plan: row.Plan, TrialEndsAt: row.TrialEndsAt}, nil
+	return &dto.OrganizationAccess{Status: row.Status, Plan: row.Plan, TrialEndsAt: row.TrialEndsAt,
+		PaidUntil: row.PaidUntil, CancelledAt: row.CancelledAt, HasCard: row.HasCard}, nil
 }

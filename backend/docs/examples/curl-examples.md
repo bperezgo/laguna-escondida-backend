@@ -128,6 +128,60 @@ curl -X POST "$BASE_URL/billing/setup/card" \
   -d "{\"card_token\": \"$WOMPI_CARD_TOKEN\", \"acceptance_token\": \"$ACCEPTANCE_TOKEN\", \"personal_data_acceptance_token\": \"$PERSONAL_DATA_TOKEN\"}"
 ```
 
+### Subscription (admin)
+
+`$TOKEN` is a sign-in token of a user with `billing:manage` (the admin role).
+
+```bash
+# Plan, period, due date, next charge, card and the charges made
+curl -X GET "$BASE_URL/billing" \
+  -H "Authorization: Bearer $TOKEN"
+
+# What the browser needs to send a new card to Wompi (fresh acceptance tokens)
+curl -X GET "$BASE_URL/billing/card-setup" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Replace the saved card; charges at once when the due date has passed unpaid
+curl -X PUT "$BASE_URL/billing/card" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"card_token\": \"$WOMPI_CARD_TOKEN\", \"acceptance_token\": \"$ACCEPTANCE_TOKEN\", \"personal_data_acceptance_token\": \"$PERSONAL_DATA_TOKEN\"}"
+
+# Cancel: works until the due date, nothing more is charged
+curl -X POST "$BASE_URL/billing/cancel" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Resume, while the due date has not passed
+curl -X POST "$BASE_URL/billing/resume" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Recovery (admin of a stopped organization)
+
+`$SETUP_TOKEN` is the `setup_token` of a `403 trial_expired` or `403 payment_required` sign-in.
+
+```bash
+# What is owed; once the payment is approved it answers the sign-in body, once
+curl -X GET "$BASE_URL/billing/recovery" \
+  -H "Authorization: Bearer $SETUP_TOKEN"
+
+# Change plan and period before paying
+curl -X PUT "$BASE_URL/billing/recovery/selection" \
+  -H "Authorization: Bearer $SETUP_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"plan": "starter", "period": "monthly"}'
+
+# Pay with the saved card
+curl -X POST "$BASE_URL/billing/recovery/pay" \
+  -H "Authorization: Bearer $SETUP_TOKEN"
+
+# Pay with a new card
+curl -X POST "$BASE_URL/billing/recovery/pay" \
+  -H "Authorization: Bearer $SETUP_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"card_token\": \"$WOMPI_CARD_TOKEN\", \"acceptance_token\": \"$ACCEPTANCE_TOKEN\", \"personal_data_acceptance_token\": \"$PERSONAL_DATA_TOKEN\"}"
+```
+
 ### Approve a Signup (operator)
 
 ```bash

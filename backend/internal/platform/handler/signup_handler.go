@@ -68,8 +68,8 @@ func (h *SignupHandler) GoogleSignupHandler(c *gin.Context) {
 // Opaque, so the response can't tell which emails or organizations exist; the reason goes to the log.
 func (h *SignupHandler) respondGoogleError(c *gin.Context, err error) {
 	switch {
-	case errors.Is(err, domainError.ErrTrialExpired):
-		respondTrialExpired(c)
+	case errors.Is(err, domainError.ErrTrialExpired), errors.Is(err, domainError.ErrPaymentRequired):
+		respondStopped(c, err)
 	case errors.Is(err, domainError.ErrOrganizationPending):
 		respondPendingApproval(c, err)
 	case errors.Is(err, domainError.ErrGoogleSignInFailed), errors.Is(err, domainError.ErrGoogleTokenInvalid):

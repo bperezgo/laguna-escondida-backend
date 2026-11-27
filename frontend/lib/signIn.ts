@@ -1,4 +1,4 @@
-import { trialExpiredNotice } from "./support.ts";
+import { paymentRequiredNotice, trialExpiredNotice } from "./support.ts";
 
 export const NOT_ACTIVE_YET_MESSAGE = "Tu cuenta todavía no está activa. Pídele a quien administra el restaurante que termine el registro.";
 
@@ -64,16 +64,25 @@ export function signInFailure(
     const notice = trialExpiredNotice(email);
     return { message: notice.message, mailto: notice.mailto };
   }
+  if (body.code === "payment_required") {
+    const notice = paymentRequiredNotice(email);
+    return { message: notice.message, mailto: notice.mailto };
+  }
   if (body.error === "Google sign-in failed") {
     return { message: "No pudimos iniciar sesión con esa cuenta de Google.", mailto: null };
   }
   return { message: signInErrorMessage(body.error || "No se pudo iniciar sesión"), mailto: null };
 }
 
-export type SignInOutcome = { next: "home" } | { next: "payment" } | { next: "failure"; failure: SignInFailure };
+export type SignInOutcome =
+  | { next: "home" }
+  | { next: "payment" }
+  | { next: "recovery" }
+  | { next: "failure"; failure: SignInFailure };
 
 // A pending admin continues signup at step 2 (`setup`: the route handler stored a setup session);
-// anyone else of a pending organization can only be told to wait.
+// anyone else of a pending organization can only be told to wait. The admin of a stopped
+// organization goes to the recovery page to pay; anyone else sees the refusal and the support contact.
 export function signInOutcome(
   ok: boolean,
   body: { error?: string; code?: string; setup?: boolean },
@@ -83,6 +92,7 @@ export function signInOutcome(
   if (body.code === "pending_approval") {
     return body.setup ? { next: "payment" } : { next: "failure", failure: { message: NOT_ACTIVE_YET_MESSAGE, mailto: null } };
   }
+  if ((body.code === "trial_expired" || body.code === "payment_required") && body.setup) return { next: "recovery" };
   return { next: "failure", failure: signInFailure(body, email) };
 }
 

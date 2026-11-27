@@ -27,6 +27,12 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     description: "Descarga el instalador, genera el código de instalación y la contraseña de la caja.",
     permission: PERMISSIONS.EDGE_ENROLL,
   },
+  {
+    href: "/ajustes/suscripcion",
+    title: "Suscripción",
+    description: "Tu plan, el próximo cobro, la tarjeta guardada y los cobros hechos.",
+    permission: PERMISSIONS.BILLING_MANAGE,
+  },
 ];
 
 export interface VisibilityContext {

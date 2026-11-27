@@ -39,7 +39,7 @@ test("a full-plan admin gets Inicio and the six groups in order", () => {
       ["Inventario", ["/stock", "/suppliers", "/purchase-entries"]],
       ["Finanzas", ["/financial", "/close", "/expenses", "/invoices", "/support-documents"]],
       ["Clientes", ["/feedback"]],
-      ["Ajustes", ["/users", "/ajustes/integraciones", "/ajustes/notificaciones", "/ajustes/instalar-caja"]],
+      ["Ajustes", ["/users", "/ajustes/integraciones", "/ajustes/notificaciones", "/ajustes/instalar-caja", "/ajustes/suscripcion"]],
     ]
   );
 });
@@ -51,7 +51,7 @@ test("a starter admin gets no customer channels, no e-invoicing and no Clientes 
     assert.ok(!shown.includes(href), href);
   }
   assert.ok(!nav.groups.some((g) => g.id === "clientes"));
-  assert.deepEqual(hrefs(nav.groups.at(-1)!.entries), ["/users", "/ajustes/instalar-caja"]);
+  assert.deepEqual(hrefs(nav.groups.at(-1)!.entries), ["/users", "/ajustes/instalar-caja", "/ajustes/suscripcion"]);
 });
 
 test("a manager in the cloud gets no Órdenes, Cocina or Inicio", () => {

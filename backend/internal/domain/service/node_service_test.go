@@ -351,3 +351,46 @@ func TestNodeService_Enroll_AdoptingKeylessNodeClearsItsCachedRefusal(t *testing
 	require.NoError(t, err)
 	assert.Empty(t, cache.entries, "the newly keyed box is checked against the database")
 }
+
+// With billing wired, a box stops by the same rules as its organization's users: a trial with a
+// live subscription keeps its three days, and a lapsed payment refuses it as a suspension does.
+func TestNodeService_Authenticate_Subscriptions(t *testing.T) {
+	const key = "lgn_right"
+	day := 24 * time.Hour
+	at := func(d time.Duration) *time.Time { v := time.Now().UTC().Add(d); return &v }
+	cases := []struct {
+		name    string
+		access  dto.OrganizationAccess
+		refused bool
+	}{
+		{"trial with a card, a day past its end", dto.OrganizationAccess{Status: "trial", TrialEndsAt: at(-day), HasCard: true}, false},
+		{"trial with a card, four days past its end", dto.OrganizationAccess{Status: "trial", TrialEndsAt: at(-4 * day), HasCard: true}, true},
+		{"trial without a card, a day past its end", dto.OrganizationAccess{Status: "trial", TrialEndsAt: at(-day)}, true},
+		{"paid, renewal within grace", dto.OrganizationAccess{Status: "active", PaidUntil: at(-2 * day), HasCard: true}, false},
+		{"unpaid", dto.OrganizationAccess{Status: "active", PaidUntil: at(-4 * day), HasCard: true}, true},
+		{"active by hand", dto.OrganizationAccess{Status: "active", TrialEndsAt: at(-400 * day)}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			access := tc.access
+			reader := mocks.NewMockOrganizationAccessReader(t)
+			reader.EXPECT().GetAccess(mock.Anything, testOrgA).Return(&access, nil)
+			nodes := mocks.NewMockNodeRepository(t)
+			seen := time.Now().UTC()
+			nodes.EXPECT().FindForAuth(mock.Anything, nodeTestID).Return(authRecord(key, func(r *dto.NodeAuthRecord) {
+				r.OrganizationStatus, r.TrialEndsAt, r.LastSeenAt = access.Status, access.TrialEndsAt, &seen
+			}), nil)
+			s := NewNodeService(nodes, mocks.NewMockOrganizationRepository(t), passthroughUnitOfWork{},
+				slog.New(slog.NewTextHandler(io.Discard, nil)), nodeTestPublicURL, WithSubscriptions(NewOrganizationAccessService(reader)))
+
+			orgID, err := s.Authenticate(context.Background(), nodeTestID, key)
+
+			if tc.refused {
+				assert.ErrorIs(t, err, domainError.ErrNodeOrganizationSuspended)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, testOrgA, orgID)
+		})
+	}
+}

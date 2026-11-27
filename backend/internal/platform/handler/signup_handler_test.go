@@ -44,6 +44,19 @@ func assertPendingWithSetupToken(t *testing.T, rec *httptest.ResponseRecorder) {
 	assertSetupToken(t, body["setup_token"])
 }
 
+// trialExpiredWithSetupToken marks an expired-trial case for an admin, whose body carries a setup token.
+const trialExpiredWithSetupToken = "trial expired with setup token"
+
+func assertTrialExpiredWithSetupToken(t *testing.T, rec *httptest.ResponseRecorder) {
+	t.Helper()
+	var body map[string]string
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	assert.Equal(t, "Trial ended", body["error"])
+	assert.Equal(t, "trial_expired", body["code"])
+	assert.NotContains(t, body, "token")
+	assertSetupToken(t, body["setup_token"])
+}
+
 type signupDeps struct {
 	signInDeps
 	google *mocks.MockGoogleIdentityVerifier
@@ -110,7 +123,7 @@ func TestSignupHandler_GoogleSignIn(t *testing.T) {
 		{"expired trial", func(t *testing.T, d signupDeps) {
 			d.googleSays("ana@example.com")
 			d.anaIs(t, &dto.Organization{ID: testOrganizationID, Status: "trial", TrialEndsAt: &past}, permissions.RoleAdmin, true)
-		}, http.StatusForbidden, `{"error":"Trial ended","code":"trial_expired"}`},
+		}, http.StatusForbidden, trialExpiredWithSetupToken},
 		{"pending organization", func(t *testing.T, d signupDeps) {
 			d.googleSays("ana@example.com")
 			d.anaIs(t, &dto.Organization{ID: testOrganizationID, Status: "pending"}, permissions.RoleAdmin, true)
@@ -130,6 +143,10 @@ func TestSignupHandler_GoogleSignIn(t *testing.T) {
 			require.Equal(t, tc.code, rec.Code, rec.Body.String())
 			if tc.want == pendingWithSetupToken {
 				assertPendingWithSetupToken(t, rec)
+				return
+			}
+			if tc.want == trialExpiredWithSetupToken {
+				assertTrialExpiredWithSetupToken(t, rec)
 				return
 			}
 			if tc.want != "" {

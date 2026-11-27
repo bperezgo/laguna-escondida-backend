@@ -23,7 +23,7 @@ const publicPageHeaders = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   async headers() {
-    return ['/signin', '/registro', '/registro/:path*'].map((source) => ({ source, headers: publicPageHeaders }))
+    return ['/signin', '/registro', '/registro/:path*', '/recuperar'].map((source) => ({ source, headers: publicPageHeaders }))
   },
 
   reactStrictMode: true,

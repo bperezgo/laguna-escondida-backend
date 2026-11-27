@@ -13,6 +13,7 @@ import {
 } from "@/lib/signIn";
 import PublicLayout, { PRODUCT_NAME } from "@/components/public/PublicLayout";
 import styles from "@/components/public/signup.module.css";
+import { RECOVERY_PATH } from "@/lib/billing/recovery";
 import { PAYMENT_PATH, SIGNUP_PATH } from "@/lib/signup";
 import { supportEmail } from "@/lib/support";
 import GoogleSignInButton from "./GoogleSignInButton";
@@ -61,6 +62,10 @@ export default function SignInForm({ initialContext = null, notice = null }: Sig
         const outcome = signInOutcome(response.ok, data, supportEmail());
         if (outcome.next === "payment") {
           router.push(PAYMENT_PATH);
+          return;
+        }
+        if (outcome.next === "recovery") {
+          router.push(RECOVERY_PATH);
           return;
         }
         if (outcome.next === "failure") {

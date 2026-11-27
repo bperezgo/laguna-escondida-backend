@@ -45,6 +45,8 @@ x-app-env: &app-env
   # cloud only; the platform's own Wompi keys. Both empty = signup asks for no card; one alone stops the cloud.
   BILLING_WOMPI_PUBLIC_KEY: "${BILLING_WOMPI_PUBLIC_KEY:-}"
   BILLING_WOMPI_PRIVATE_KEY: "${BILLING_WOMPI_PRIVATE_KEY:-}"
+  BILLING_WOMPI_EVENTS_SECRET: "${BILLING_WOMPI_EVENTS_SECRET:-}"
+  BILLING_WOMPI_INTEGRITY_SECRET: "${BILLING_WOMPI_INTEGRITY_SECRET:-}"
   # Electronic-invoice API. Defaults are inert dummies (the sync tests never call it);
   # set these in .env to exercise real submission against a provider.
   ELECTRONIC_INVOICE_URL: "${ELECTRONIC_INVOICE_URL:-http://invoice.invalid}"

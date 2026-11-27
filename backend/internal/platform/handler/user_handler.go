@@ -1,13 +1,16 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"log"
 	"log/slog"
 	"net/http"
+	"slices"
 
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
+	"laguna-escondida/backend/internal/domain/permissions"
 	"laguna-escondida/backend/internal/domain/service"
 
 	"github.com/gin-gonic/gin"
@@ -17,6 +20,17 @@ type UserHandler struct {
 	userService         *service.UserService
 	organizationService *service.OrganizationService
 	logger              *slog.Logger
+	// billing is nil on an edge box, which has no billing.
+	billing billingSummarizer
+}
+
+type billingSummarizer interface {
+	Summary(ctx context.Context, orgID string) (*dto.BillingSummary, error)
+}
+
+// ShowBilling makes /auth/me carry, for an admin, what the subscription notice needs. Only the cloud calls it.
+func (h *UserHandler) ShowBilling(billing billingSummarizer) {
+	h.billing = billing
 }
 
 func NewUserHandler(userService *service.UserService, organizationService *service.OrganizationService, logger *slog.Logger) *UserHandler {
@@ -94,9 +108,9 @@ func (h *UserHandler) SignInHandler(c *gin.Context) {
 
 	signInResponse, err := h.userService.SignIn(ctx, &req)
 	if err != nil {
-		if errors.Is(err, domainError.ErrTrialExpired) {
-			h.logger.InfoContext(ctx, "sign-in refused: trial ended", slog.String("email", req.Email))
-			respondTrialExpired(c)
+		if errors.Is(err, domainError.ErrTrialExpired) || errors.Is(err, domainError.ErrPaymentRequired) {
+			h.logger.InfoContext(ctx, "sign-in refused: organization stopped", slog.String("email", req.Email), slog.String("reason", err.Error()))
+			respondStopped(c, err)
 			return
 		}
 		if errors.Is(err, domainError.ErrOrganizationPending) {
@@ -130,8 +144,18 @@ func (h *UserHandler) SignInHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, signInResponse)
 }
 
-func respondTrialExpired(c *gin.Context) {
-	c.JSON(http.StatusForbidden, gin.H{"error": "Trial ended", "code": "trial_expired"})
+// respondStopped answers an ended trial or a missed payment; an admin's body carries the setup
+// token the recovery routes accept.
+func respondStopped(c *gin.Context, err error) {
+	body := trialExpiredBody()
+	if errors.Is(err, domainError.ErrPaymentRequired) {
+		body = paymentRequiredBody()
+	}
+	var stopped *domainError.StoppedError
+	if errors.As(err, &stopped) && stopped.SetupToken != "" {
+		body["setup_token"] = stopped.SetupToken
+	}
+	c.JSON(http.StatusForbidden, body)
 }
 
 func respondPendingApproval(c *gin.Context, err error) {
@@ -330,6 +354,17 @@ func (h *UserHandler) GetCurrentUserHandler(c *gin.Context) {
 		return
 	}
 	currentUser.Organization = organization
+
+	// Anyone else gets only what the trial's days-left notice uses: the organization's status and trial end.
+	if h.billing != nil && slices.Contains(currentUser.Permissions, string(permissions.BillingManage)) {
+		summary, err := h.billing.Summary(c.Request.Context(), c.GetString("org_id"))
+		if err != nil {
+			log.Printf("Error getting billing summary: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user information"})
+			return
+		}
+		currentUser.Billing = summary
+	}
 
 	c.JSON(http.StatusOK, currentUser)
 }

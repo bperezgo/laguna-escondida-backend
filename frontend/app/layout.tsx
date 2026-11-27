@@ -3,7 +3,7 @@ import "@fontsource-variable/manrope/wght.css";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import UpdateBanner from "@/components/layout/UpdateBanner";
-import TrialBanner from "@/components/layout/TrialBanner";
+import SubscriptionNotice from "@/components/billing/SubscriptionNotice";
 
 export const metadata: Metadata = {
   title: "Kuenta",
@@ -28,7 +28,7 @@ export default function RootLayout({
       <body suppressHydrationWarning>
         <Providers>
           <UpdateBanner />
-          <TrialBanner />
+          <SubscriptionNotice />
           {children}
         </Providers>
       </body>

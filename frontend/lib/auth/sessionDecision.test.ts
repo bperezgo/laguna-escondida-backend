@@ -85,6 +85,21 @@ test("a pending admin's sign-in keeps the setup token out of the body", async ()
 });
 
 test("a setup token on any other answer is ignored", async () => {
-  const decision = await sessionDecision(json(403, { error: "Trial ended", code: "trial_expired", setup_token: "setup-jwt" }), "x");
-  assert.deepEqual(decision, { status: 403, body: { error: "Trial ended", code: "trial_expired" } });
+  const decision = await sessionDecision(json(403, { error: "Organization suspended", code: "organization_suspended", setup_token: "setup-jwt" }), "x");
+  assert.deepEqual(decision, { status: 403, body: { error: "Organization suspended", code: "organization_suspended" } });
+  const noCode = await sessionDecision(json(401, { error: "Invalid email or password", setup_token: "setup-jwt" }), "x");
+  assert.deepEqual(noCode, { status: 401, body: { error: "Invalid email or password" } });
+});
+
+test("a stopped organization's admin gets a setup session for the recovery page", async () => {
+  for (const [error, code] of [["Trial ended", "trial_expired"], ["Payment required", "payment_required"]]) {
+    const decision = await sessionDecision(json(403, { error, code, setup_token: "setup-jwt" }), "x");
+    assert.deepEqual(decision, { status: 403, body: { error, code, setup: true }, setupToken: "setup-jwt" });
+    assert.ok(!JSON.stringify(decision.body).includes("setup-jwt"));
+  }
+});
+
+test("anyone else of a stopped organization gets the refusal and no setup session", async () => {
+  const decision = await sessionDecision(json(403, { error: "Payment required", code: "payment_required" }), "x");
+  assert.deepEqual(decision, { status: 403, body: { error: "Payment required", code: "payment_required" } });
 });

@@ -1,6 +1,7 @@
 // Routes reachable without the access_token cookie. Everything else requires it.
 // A signed-in user is sent home from these.
-export const publicRoutes = ["/signin", "/registro"];
+// /recuperar is where the admin of a stopped account pays its way back, with a setup session and no sign-in.
+export const publicRoutes = ["/signin", "/registro", "/recuperar"];
 
 // Reachable with or without a session: an invitation link opened in a signed-in browser still
 // shows the invitation.

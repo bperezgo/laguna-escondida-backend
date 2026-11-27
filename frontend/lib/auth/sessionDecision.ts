@@ -6,11 +6,14 @@ export interface SessionDecision {
   body: Record<string, unknown>;
   /** Set only on success: the route stores it in the access_token cookie. */
   token?: string;
-  /** A pending admin's setup token: the route stores it in the setup_token cookie. Never in `body`. */
+  /** A pending or stopped organization's admin's setup token: the route stores it in the setup_token cookie. Never in `body`. */
   setupToken?: string;
 }
 
 export const SETUP_COOKIE = "setup_token";
+
+// Refusals that give an admin a setup session: to finish signup, or to pay a stopped account's way back.
+const SETUP_SESSION_CODES: readonly unknown[] = ["pending_approval", "trial_expired", "payment_required"];
 export const SETUP_COOKIE_MAX_AGE = 60 * 60;
 
 function setupTokenOf(data: Record<string, unknown>): string | undefined {
@@ -24,7 +27,7 @@ export async function sessionDecision(response: Response, fallbackError: string)
     const body: Record<string, unknown> = { error: data.error || data.message || fallbackError };
     if (data.code) body.code = data.code;
     if (data.field) body.field = data.field;
-    const setupToken = data.code === "pending_approval" ? setupTokenOf(data) : undefined;
+    const setupToken = SETUP_SESSION_CODES.includes(data.code) ? setupTokenOf(data) : undefined;
     if (!setupToken) return { status: response.status, body };
     // The page only learns that a setup session exists; the token stays in its httpOnly cookie.
     return { status: response.status, body: { ...body, setup: true }, setupToken };
