@@ -17,6 +17,7 @@ begin
     32: Result := 'No se pudieron instalar los servicios de la caja. Revise C:\laguna-edge\logs.';
     33: Result := 'La caja se instaló pero no responde. Revise C:\laguna-edge\logs.';
     34: Result := 'La caja funciona, pero aún no se ha conectado a Kuenta. El inicio de sesión funcionará cuando tenga conexión.';
+    35: Result := 'No se pudo instalar el componente de Microsoft Visual C++ que Kuenta necesita. Reinicie el equipo e intente de nuevo.';
   else Result := 'Error inesperado (código ' + IntToStr(Code) + ').';
   end;
 end;

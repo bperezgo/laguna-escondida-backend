@@ -6,3 +6,4 @@ Each one's licence text is in this folder.
   Node.js 20.18.0        MIT and others  node-LICENSE.txt       https://github.com/nodejs/node
   PostgreSQL 16.4        PostgreSQL   postgresql-COPYRIGHT.txt  https://www.postgresql.org
   WinSW 2.12.0           MIT          winsw-LICENSE.txt         https://github.com/winsw/winsw
+  Microsoft Visual C++ Redistributable (x64)  Microsoft licence, shown by its own setup  https://visualstudio.microsoft.com/license-terms/
