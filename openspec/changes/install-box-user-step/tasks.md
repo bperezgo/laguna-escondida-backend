@@ -20,4 +20,4 @@
 
 ## 4. Security review
 
-- [ ] 4.1 Run the security-audit skill in guidance mode over this change's diff against design.md's Security section: reset-password tenant scoping and role check, no password in storage or URL, no route left behind. Fix confirmed findings and record the result in design.md
+- [x] 4.1 Run the security-audit skill in guidance mode over this change's diff against design.md's Security section: reset-password tenant scoping and role check, no password in storage or URL, no route left behind. Fix confirmed findings and record the result in design.md

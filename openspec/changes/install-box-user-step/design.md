@@ -88,3 +88,11 @@ Depends on PR #88 for box sign-in end to end. No data migration. Deploy cloud an
 ## Open Questions
 
 (none)
+
+## Security review result
+
+Guidance-mode review of the implementation diff against the Security section. No confirmed findings.
+- Reset-password is unchanged: `users:update` on the route (a `403` test for a caller without it), tenant-scoped through `findStaffUser` (a handler test shows another organization's user is `404` and `UpdatePassword` is never called). The tenant-scoped query guard (`TestTenantScopeCheck_`) still passes.
+- The removed route answers `404` for an admin token (route test), and `git grep generate-password` finds only that test.
+- The typed password lives in `ResetPasswordModal` state, which unmounts on close; no storage, no URL. `?nuevo=caja` carries no secret and is removed with `router.replace`.
+- Not covered by a test: a cross-tenant reset against a real database (the unit test mocks the repository, and the repository scoping rests on the existing tenant-scope check).
