@@ -8,6 +8,10 @@
   enroll.ps1 alone: a valid code, an invalid code, and a 409 then replace with the same code.
   A local standard user pre-creates the root with planted files and a link before the fresh install,
   and after the fresh install and the repair can neither change what SYSTEM runs nor read env\.
+  No console window: kuenta.iss is checked statically (no WScript.Shell, every Exec* hidden), and while
+  the fresh install and the repair run, setup's process tree is sampled every 200 ms: no cmd.exe, no visible
+  window, no enrollment code or node key on a command line, and KUENTA_SCRIPT_INPUT only in the two
+  scripts that read it. A standard user cannot read an elevated process's environment.
   -KeepInstalled leaves the reinstalled box running for the caller's next steps.
 #>
 [CmdletBinding()]
@@ -25,6 +29,20 @@ $stub = Join-Path $PSScriptRoot 'stub-cloud.ps1'
 New-Item -ItemType Directory -Force -Path $Work | Out-Null
 function Step($m) { Write-Host ("`n==> " + $m) -ForegroundColor Cyan }
 function Assert($cond, $msg) { if (-not $cond) { throw "FAIL: $msg" } else { Write-Host "  ok   $msg" -ForegroundColor Green } }
+
+# kuenta.iss must start nothing with a visible window. Returns the problems found.
+function Test-HiddenLaunches([string] $text) {
+  $problems = @()
+  $code = ($text -split "`n" | ForEach-Object { $_ -replace '^\s*//.*$', '' }) -join "`n"
+  if ($code -match 'WScript\.Shell') { $problems += 'uses WScript.Shell' }
+  foreach ($m in [regex]::Matches($code, '\b(Exec|ExecAndLogOutput|ExecAndCaptureOutput|ShellExec)\s*\(')) {
+    $end = $code.IndexOf(';', $m.Index)
+    if ($end -lt 0) { $end = $code.Length }
+    $call = $code.Substring($m.Index, $end - $m.Index)
+    if ($call -notmatch 'SW_HIDE') { $problems += "a $($m.Groups[1].Value) call without SW_HIDE: $(($call -replace '\s+', ' ').Substring(0, [Math]::Min(80, $call.Length)))" }
+  }
+  return $problems
+}
 
 function Start-Stub([int] $p, [switch] $Conflict) {
   $log = Join-Path $Work "stub-$p.log"; $stop = Join-Path $Work "stub-$p.stop"
@@ -46,8 +64,13 @@ function Get-Descendants([int] $id) {
   foreach ($c in @(Get-CimInstance Win32_Process -Filter "ParentProcessId = $id")) { $c; Get-Descendants $c.ProcessId }
 }
 # A hung installer must fail the test with its log and process tree, not run into the job timeout.
-function Wait-Setup($p, [string] $log, [string] $what) {
-  if ($p.WaitForExit($TimeoutSeconds * 1000)) { return }
+function Wait-Setup($p, [string] $log, [string] $what, [switch] $Sample) {
+  $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+  while ($true) {
+    if ($p.WaitForExit(200)) { return }
+    if ($Sample) { try { Sample-Tree $p.Id } catch { Write-Host "  sample failed: $($_.Exception.Message)" } }
+    if ([DateTime]::UtcNow -ge $deadline) { break }
+  }
   $tree = @(Get-Descendants $p.Id)
   Write-Host "::group::$what is still running after $TimeoutSeconds s"
   $tree | Format-List ProcessId, ParentProcessId, Name, CommandLine | Out-String -Width 400 | Write-Host
@@ -57,14 +80,14 @@ function Wait-Setup($p, [string] $log, [string] $what) {
   Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
   throw "FAIL: $what did not exit within $TimeoutSeconds s"
 }
-function Install($s, [string] $name, [string[]] $extra = @(), [string] $useCode = $code) {
+function Install($s, [string] $name, [string[]] $extra = @(), [string] $useCode = $code, [switch] $Sample) {
   $env:KUENTA_SETUP_CODE = $useCode
   $log = Join-Path $Work "$name.log"
   $p = Start-Process $Installer -PassThru -ArgumentList (@('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/CLOUDURL=$($s.url)", "/LOG=$log") + $extra)
   # Without -Wait, ExitCode stays empty unless the handle is taken while the process runs.
   $null = $p.Handle
   Remove-Item Env:\KUENTA_SETUP_CODE -ErrorAction SilentlyContinue
-  Wait-Setup $p $log "the $name install"
+  Wait-Setup $p $log "the $name install" -Sample:$Sample
   return @{ code = $p.ExitCode; log = $log }
 }
 function Run-Enroll($s, [string] $useCode, [bool] $replace) {
@@ -80,6 +103,82 @@ Add-Type -Namespace Ci -Name Native -MemberDefinition @'
 public static extern bool LogonUser(string user, string domain, string password, int type, int provider,
   out Microsoft.Win32.SafeHandles.SafeAccessTokenHandle token);
 '@
+Add-Type -Namespace Ci -Name Proc -MemberDefinition @'
+[StructLayout(LayoutKind.Sequential)]
+public struct PBI { public IntPtr R1; public IntPtr Peb; public IntPtr R2a; public IntPtr R2b; public IntPtr Pid; public IntPtr R3; }
+[DllImport("kernel32.dll", SetLastError = true)] public static extern IntPtr OpenProcess(int access, bool inherit, int pid);
+[DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr h);
+[DllImport("kernel32.dll", SetLastError = true)]
+public static extern bool ReadProcessMemory(IntPtr h, IntPtr addr, byte[] buf, IntPtr size, out IntPtr read);
+[DllImport("ntdll.dll")] public static extern int NtQueryInformationProcess(IntPtr h, int cls, ref PBI pbi, int len, out int ret);
+public delegate bool EnumProc(IntPtr h, IntPtr l);
+[DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc p, IntPtr l);
+[DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+[DllImport("user32.dll")] public static extern int GetWindowThreadProcessId(IntPtr h, out int pid);
+static long Ptr(IntPtr h, long addr) {
+  var b = new byte[8]; IntPtr n;
+  if (!ReadProcessMemory(h, (IntPtr)addr, b, (IntPtr)8, out n)) return 0;
+  return BitConverter.ToInt64(b, 0);
+}
+// The process's environment block as text; null when it cannot be read (err = the OpenProcess error, 5 = denied).
+public static string ReadEnv(int pid, out int err) {
+  err = 0;
+  IntPtr h = OpenProcess(0x0410, false, pid); // QUERY_INFORMATION | VM_READ
+  if (h == IntPtr.Zero) { err = Marshal.GetLastWin32Error(); return null; }
+  try {
+    var pbi = new PBI(); int ret;
+    if (NtQueryInformationProcess(h, 0, ref pbi, Marshal.SizeOf(pbi), out ret) != 0) return null;
+    long pp = Ptr(h, pbi.Peb.ToInt64() + 0x20);            // PEB.ProcessParameters
+    if (pp == 0) return null;
+    long env = Ptr(h, pp + 0x80);                           // .Environment
+    long size = Ptr(h, pp + 0x3F0);                         // .EnvironmentSize
+    if (env == 0 || size <= 0 || size > (4 << 20)) return null;
+    var buf = new byte[size]; IntPtr n;
+    if (!ReadProcessMemory(h, (IntPtr)env, buf, (IntPtr)size, out n)) return null;
+    return System.Text.Encoding.Unicode.GetString(buf, 0, (int)n);
+  } finally { CloseHandle(h); }
+}
+public static int[] VisibleWindowPids() {
+  var l = new System.Collections.Generic.List<int>();
+  EnumWindows((h, x) => { if (IsWindowVisible(h)) { int p; GetWindowThreadProcessId(h, out p); l.Add(p); } return true; }, IntPtr.Zero);
+  return l.ToArray();
+}
+'@
+$script:Samples = [System.Collections.Generic.List[object]]::new()
+$script:Secrets = @($code, 'lgn_stubstubstubstubstubstubstubstubstubstub1')
+$script:ScriptsThatReadInput = 'enroll.ps1', 'write-box-config.ps1'
+# One look at setup's process tree: command lines, whether each process holds the input variable, windows.
+function Sample-Tree([int] $setupPid) {
+  $visible = @([Ci.Proc]::VisibleWindowPids())
+  foreach ($d in @(Get-Descendants $setupPid)) {
+    $err = 0
+    $e = [Ci.Proc]::ReadEnv([int] $d.ProcessId, [ref] $err)
+    $script:Samples.Add([pscustomobject]@{
+      Pid = $d.ProcessId; Name = $d.Name; Cmd = "$($d.CommandLine)"
+      HasInput = [bool]($e -and $e.Contains('KUENTA_SCRIPT_INPUT=')); Visible = ($visible -contains [int] $d.ProcessId)
+    })
+  }
+}
+function Assert-Samples([string] $when) {
+  $s = @($script:Samples)
+  Write-Host "  $when : $($s.Count) process samples, $(@($s | Select-Object -ExpandProperty Pid -Unique).Count) distinct processes"
+  Assert ($s.Count -gt 0) "$when : the process tree was sampled"
+  Assert (-not @($s | Where-Object { $_.Name -eq 'cmd.exe' })) "$when : no cmd.exe was started"
+  if ([Environment]::UserInteractive) {
+    Assert (-not @($s | Where-Object { $_.Visible })) "$when : no window of setup's processes was visible"
+  } else { Write-Host '  no desktop: visibility not checked' -ForegroundColor Yellow }
+  foreach ($secret in $script:Secrets) {
+    Assert (-not @($s | Where-Object { $_.Cmd.Contains($secret) })) "$when : no command line holds a secret ($($secret.Substring(0, 4))...)"
+  }
+  # Setup itself (its re-launched .tmp copy) holds the variable while a script runs; nothing else may.
+  $leaks = @($s | Where-Object {
+    $proc = $_
+    $_.HasInput -and $_.Name -notlike '*.tmp' -and $_.Name -notlike 'KuentaSetup*' -and
+      -not ($script:ScriptsThatReadInput | Where-Object { $proc.Cmd -like "*$_*" })
+  })
+  Assert (-not $leaks) "$when : KUENTA_SCRIPT_INPUT only in enroll and write-box-config ($(($leaks | ForEach-Object { $_.Name + ' ' + $_.Cmd }) -join '; '))"
+  $script:Samples.Clear()
+}
 function New-StandardUser {
   $name = 'kuentaci'
   $pw = 'Aa1!' + [guid]::NewGuid().ToString('N')
@@ -142,6 +241,30 @@ try {
   Assert ($e.code -eq 0 -and $e.out.node_key) "the same code with replace enrolls ($($e.code))"
   Assert (-not ($e.out | ConvertTo-Json | Select-String -Pattern 'C0DE' -SimpleMatch -Quiet)) 'the output never echoes the code'
 
+  Step 'No console: static check on kuenta.iss'
+  $iss = Get-Content (Join-Path $PSScriptRoot '..\kuenta.iss') -Raw
+  $found = @(Test-HiddenLaunches $iss)
+  Assert (-not $found) "kuenta.iss starts nothing with a window ($($found -join '; '))"
+  Assert (@(Test-HiddenLaunches ($iss + "`n  Sh := CreateOleObject('WScript.Shell');")).Count -eq 1) 'the check catches WScript.Shell'
+  Assert (@(Test-HiddenLaunches ($iss + "`n  Exec('a.exe', '', '', SW_SHOW, ewWaitUntilTerminated, RC);")).Count -eq 1) 'the check catches an Exec that is not SW_HIDE'
+
+  Step 'A standard user cannot read an elevated process environment'
+  $env:KUENTA_SCRIPT_INPUT = 'ci-input-canary'
+  $sleeper = Start-Process powershell -ArgumentList '-NoProfile', '-Command', 'Start-Sleep 120' -PassThru -WindowStyle Hidden
+  Remove-Item Env:\KUENTA_SCRIPT_INPUT
+  try {
+    Start-Sleep 2
+    $err = 0
+    $mine = [Ci.Proc]::ReadEnv($sleeper.Id, [ref] $err)
+    Assert ($mine -and $mine.Contains('KUENTA_SCRIPT_INPUT=ci-input-canary')) 'control: the elevated test user reads the variable'
+    $denied = As-User $user ({
+      $e = 0
+      $v = [Ci.Proc]::ReadEnv($sleeper.Id, [ref] $e)
+      @{ env = $v; err = $e }
+    }.GetNewClosure())
+    Assert (-not $denied.env -and $denied.err -eq 5) "a standard user is denied access to it (error $($denied.err))"
+  } finally { Stop-Process -Id $sleeper.Id -Force -ErrorAction SilentlyContinue }
+
   Step 'Busy port: refused before anything is installed'
   $l = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Any, 5432); $l.Start()
   try { $r = Install $ok 'busy-port' } finally { $l.Stop() }
@@ -179,8 +302,17 @@ try {
   Assert (Test-Path "$root\scripts\planted.ps1") 'the planted files exist'
 
   Step 'Fresh install'
-  $r = Install $ok 'fresh'
+  $r = Install $ok 'fresh' -Sample
   Assert ($r.code -eq 0) "fresh install exits 0 ($($r.code))"
+  Assert-Samples 'fresh install'
+  $svcEnv = @(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like "$root\*" })
+  Assert ($svcEnv.Count -gt 0) "the box's own processes are running ($($svcEnv.Count))"
+  foreach ($sp in $svcEnv) {
+    $err = 0; $e = [Ci.Proc]::ReadEnv([int] $sp.ProcessId, [ref] $err)
+    Assert (-not ($e -and $e.Contains('KUENTA_SCRIPT_INPUT'))) "$($sp.Name) ($($sp.ProcessId)) never had KUENTA_SCRIPT_INPUT"
+  }
+  Assert (-not (Select-String -Path $r.log -Pattern 'KUENTA_SCRIPT_INPUT' -SimpleMatch -Quiet)) 'the setup log never mentions KUENTA_SCRIPT_INPUT'
+  Assert (-not (Select-String -Path $r.log -Pattern '"node_id"', '"node_key"', 'lgn_stub' -Quiet)) 'the setup log holds no enroll output'
   Assert (Select-String -Path $r.log -Pattern 'Visual C\+\+ runtime setup exit (0|1638|3010)\b' -Quiet) 'the Visual C++ runtime setup ran'
   & "$root\scripts\verify-install.ps1" -TimeoutSeconds 120
   Assert ($LASTEXITCODE -eq 0) 'verify-install passes'
@@ -193,6 +325,12 @@ try {
     Select-String -Pattern $code -SimpleMatch -List
   $hits += Select-String -Path $r.log -Pattern $code -SimpleMatch -List
   Assert (-not $hits) 'no file or log holds the enrollment code'
+  # The node key belongs in the two env files and nowhere else.
+  $nk = Get-ChildItem $root -Recurse -File -ErrorAction SilentlyContinue |
+    Where-Object { $_.Length -lt 5MB -and $_.Extension -in '.env', '.log', '.json', '.xml', '.txt', '.out', '.err' -and $_.FullName -notlike "$root\env\*" } |
+    Select-String -Pattern $script:Secrets[1] -SimpleMatch -List
+  $nk += Select-String -Path $r.log -Pattern $script:Secrets[1] -SimpleMatch -List
+  Assert (-not $nk) "the node key is only in env\ ($(($nk | ForEach-Object Path) -join ', '))"
   Assert ((Test-Path "$env:PUBLIC\Desktop\Kuenta.lnk") -or (Test-Path "$env:PUBLIC\Desktop\Kuenta.url")) 'the Kuenta shortcut exists'
   Assert (-not @(Get-Service laguna-* -ErrorAction SilentlyContinue)) 'no laguna service exists'
   Assert (-not (Get-ScheduledTask 'Laguna Updater' -ErrorAction SilentlyContinue)) 'no "Laguna Updater" task exists'
@@ -218,8 +356,9 @@ try {
   Assert ($LASTEXITCODE -eq 0) 'a marker row was written to the box database'
 
   Step 'Re-run: repair'
-  $r = Install $ok 'repair'
+  $r = Install $ok 'repair' -Sample
   Assert ($r.code -eq 0) "repair exits 0 ($($r.code))"
+  Assert-Samples 'repair'
   Assert ((Enroll-Calls $ok) -eq 1) 'still one enroll call'
   Assert ((NodeId) -eq $nodeId) 'the node id is unchanged'
   & "$root\scripts\verify-install.ps1" -TimeoutSeconds 120

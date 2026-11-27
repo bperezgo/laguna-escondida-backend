@@ -23,7 +23,12 @@ function Done([hashtable] $result, [int] $code) {
 }
 
 # A parse error quotes its input, the setup code; the installer logs this script's stderr.
-try { $in = [Console]::In.ReadLine() | ConvertFrom-Json } catch { Done @{ ok = $false; error = 'enroll_failed' } 23 }
+# The installer passes the input in a single-use environment variable (it has no stdin to give); drop it
+# before anything else starts so no child inherits it. Piped stdin still works for the runbook and CI.
+$line = $env:KUENTA_SCRIPT_INPUT
+Remove-Item Env:\KUENTA_SCRIPT_INPUT -ErrorAction SilentlyContinue
+if (-not $line) { $line = [Console]::In.ReadLine() }
+try { $in = $line | ConvertFrom-Json } catch { Done @{ ok = $false; error = 'enroll_failed' } 23 }
 $base = "$($in.cloud_url)".TrimEnd('/')
 
 # Status code and parsed body of a failed call, for PS 5.1 and 7 alike.

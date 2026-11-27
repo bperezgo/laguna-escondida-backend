@@ -112,6 +112,10 @@ An edge release is one `edge/v*` tag on the monorepo; it is independent of cloud
    ships `expired-box-backoff` is out, raise the cloud's `MIN_EDGE_VERSION` to it. Older boxes don't
    pause when the cloud refuses them, so an expired trial box on one keeps calling every minute.
 
+6. **Release checklist, manual (a PC with a desktop):** CI cannot see a console on a desktop. Run
+   `KuentaSetup-<v>.exe` through the wizard on a real Windows PC and confirm that no console window
+   appears at any step (checks, enrolling, locking the folder, writing the config, setup, repair, uninstall).
+
 ---
 
 ## 4. The script path (developer fallback)
@@ -129,7 +133,9 @@ Configuration: instead of editing files, pipe an enrollment result into the same
 ```powershell
 # enroll.ps1 reads {"code","replace","name","cloud_url"} on standard input (the code from Instalar caja) and prints the
 # enrollment values; write-box-config.ps1 reads those on standard input and writes env\box.env and
-# env\edge-node.env. They read the process's stdin, so pipe between powershell.exe processes.
+# env\edge-node.env. They read the process's stdin, so pipe between powershell.exe processes. (The installer has no
+# stdin to give them, so it passes the same line in the single-use variable KUENTA_SCRIPT_INPUT, which each script reads
+# first and removes; stdin is the fallback when the variable is empty.)
 '{"code":"K7F2-9QXM","replace":false,"name":"CAJA-1","cloud_url":"https://api.example.com"}' |
   powershell -NoProfile -File .\scripts\enroll.ps1 |
   powershell -NoProfile -File .\scripts\write-box-config.ps1

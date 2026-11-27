@@ -25,7 +25,12 @@ function Fail($msg) { @{ ok = $false; error = $msg } | ConvertTo-Json -Compress 
 trap { Fail "line $($_.InvocationInfo.ScriptLineNumber): $($_.Exception.Message)" }
 
 # Parsed apart so a parse error, which quotes its input, never prints the node key.
-try { $enr = [Console]::In.ReadLine() | ConvertFrom-Json } catch { Fail 'the enrollment result is not JSON' }
+# The installer passes the input in a single-use environment variable (it has no stdin to give); drop it
+# before anything else starts so no child inherits it. Piped stdin still works for the runbook and CI.
+$line = $env:KUENTA_SCRIPT_INPUT
+Remove-Item Env:\KUENTA_SCRIPT_INPUT -ErrorAction SilentlyContinue
+if (-not $line) { $line = [Console]::In.ReadLine() }
+try { $enr = $line | ConvertFrom-Json } catch { Fail 'the enrollment result is not JSON' }
 foreach ($k in 'node_id', 'organization_id', 'node_key', 'cloud_sync_url') {
   if (-not $enr.$k) { Fail "enrollment result lacks $k" }
 }
