@@ -1,6 +1,9 @@
 package dto
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 type UserDomain struct {
 	ID             string `json:"id"`
@@ -92,9 +95,42 @@ type SignInContextOrganization struct {
 	Name string `json:"name"`
 }
 
+// SyncState is the coarse state of a box's sync with the cloud. It is a closed set so nothing
+// else about a failure (error text, table names) can reach the unauthenticated sign-in context.
+type SyncState string
+
+const (
+	SyncStateWaiting   SyncState = "waiting"
+	SyncStateOffline   SyncState = "offline"
+	SyncStateFailed    SyncState = "failed"
+	SyncStateReplaced  SyncState = "replaced"
+	SyncStateSuspended SyncState = "suspended"
+)
+
+// SignInContextResponse is public. UsersReady and Sync are set only on a box; Sync only while
+// the box has no user who can sign in.
 type SignInContextResponse struct {
 	Mode         SignInMode                 `json:"mode"`
 	Organization *SignInContextOrganization `json:"organization,omitempty"`
+	UsersReady   *bool                      `json:"users_ready,omitempty"`
+	Sync         *SyncState                 `json:"sync"`
+}
+
+// MarshalJSON leaves users_ready and sync out in the cloud, and writes sync as null on a box
+// that is ready.
+func (r SignInContextResponse) MarshalJSON() ([]byte, error) {
+	if r.UsersReady == nil {
+		return json.Marshal(struct {
+			Mode         SignInMode                 `json:"mode"`
+			Organization *SignInContextOrganization `json:"organization,omitempty"`
+		}{r.Mode, r.Organization})
+	}
+	return json.Marshal(struct {
+		Mode         SignInMode                 `json:"mode"`
+		Organization *SignInContextOrganization `json:"organization,omitempty"`
+		UsersReady   *bool                      `json:"users_ready"`
+		Sync         *SyncState                 `json:"sync"`
+	}{r.Mode, r.Organization, r.UsersReady, r.Sync})
 }
 
 type SignInResponse struct {

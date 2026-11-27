@@ -244,7 +244,11 @@ func (s *EdgeSyncScheduler) pull(ctx context.Context) {
 		// The pull loop always contacts the cloud, so its outcome is the edge's
 		// connectivity signal: a failure flips the status endpoint to offline.
 		if !s.recordRefusal(err) {
-			s.tracker.RecordFailure()
+			if errors.Is(err, domainError.ErrPullApplyFailed) {
+				s.tracker.RecordApplyFailure()
+			} else {
+				s.tracker.RecordFailure()
+			}
 		}
 		s.logger.ErrorContext(ctx, "Edge sync pull job failed", slog.Any("error", err))
 		return

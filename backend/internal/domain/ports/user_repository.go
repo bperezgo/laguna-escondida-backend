@@ -16,6 +16,8 @@ type UserRepository interface {
 	Update(ctx context.Context, user *dto.User) error
 	UpdatePassword(ctx context.Context, id, hashedPassword string) error
 	SoftDelete(ctx context.Context, id string) error
+	// AnyActive reports whether the caller's organization has an active, undeleted user.
+	AnyActive(ctx context.Context) (bool, error)
 }
 
 type RoleRepository interface {
