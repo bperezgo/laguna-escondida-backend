@@ -42,7 +42,7 @@ All together, or nothing:
 
 - **Organization**: `name` and `display_name` are the restaurant name; `slug` is derived from it (lowercase, accents removed, other characters joined by `-`, cut to 40, `-2`, `-3`… when taken); `status` `pending` with no `trial_ends_at`; the chosen `plan`, which is the plan its trial starts on; `America/Bogota`, `CO`, `es-CO`, `COP`. Business info, receipt text, branding and e-invoicing prefixes stay unset; the operator sets them.
 - **Admin**: the Google name and email, the admin role, username = email. It has no usable password: it signs in with Google (or an admin sets a password with reset-password).
-- **Box user**: name `Caja`, the manager role, no email. Username is the email's part before `@`, keeping letters, digits, `.`, `_` and `-` (`caja` when fewer than 3 remain). Its random password is never returned here; get one with [`POST /api/admin/users/:id/generate-password`](./users.md#generate-a-password).
+- **No box user**: signup creates only the admin. To sign in on the box, the admin creates a user without an email in Usuarios and sets its password ([`POST /api/admin/users/:id/reset-password`](./users.md#reset-a-password)); the box signs in by username.
 
 ### Approval
 

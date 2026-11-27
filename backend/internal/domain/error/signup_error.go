@@ -9,7 +9,6 @@ var (
 	ErrGoogleSignInFailed = errors.New("google sign-in failed")
 	ErrSignupDisabled     = errors.New("signup is disabled")
 	ErrSlugUnavailable    = errors.New("no free slug for this restaurant name")
-	ErrUserHasEmail       = errors.New("user has an email; only users without one get a generated password")
 )
 
 var (

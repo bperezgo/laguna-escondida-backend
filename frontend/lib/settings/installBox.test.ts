@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { boxPasswordReducer, codeExpired, findBoxUser, formatCountdown, secondsLeft } from "./installBox.ts";
+import { boxUsers, codeExpired, formatCountdown, secondsLeft } from "./installBox.ts";
 import type { UserWithRoles } from "../../types/user.ts";
 
 const issued = Date.parse("2026-11-25T15:00:00Z");
@@ -24,7 +24,7 @@ const user = (id: string, email: string | null, roles: string[], created_at: str
   roles: roles.map((name, i) => ({ id: i, name })),
 });
 
-test("the box user is the manager without an email", () => {
+test("box users are the active users without an email, sorted by username", () => {
   const users = [
     user("admin", "rosa@example.com", ["admin"], "2026-11-01T00:00:00Z"),
     user("mesero", null, ["server"], "2026-11-01T00:00:00Z"),
@@ -33,13 +33,14 @@ test("the box user is the manager without an email", () => {
     user("caja", null, ["manager"], "2026-11-02T00:00:00Z"),
     user("viejo", null, ["manager"], "2026-10-01T00:00:00Z", false),
   ];
-  assert.equal(findBoxUser(users)?.user.id, "caja");
-  assert.equal(findBoxUser(users.slice(0, 3)), null);
+  assert.deepEqual(boxUsers(users).map((u) => u.user.id), ["caja", "caja2", "mesero"]);
+  assert.deepEqual(boxUsers(users.slice(0, 3)).map((u) => u.user.id), ["mesero"]);
+  assert.deepEqual(boxUsers([users[0], users[2]]), []);
 });
 
-test("the generated password is shown once and cleared when hidden or on leaving", () => {
-  const shown = boxPasswordReducer(null, { type: "generated", shown: { username: "rosa.perez", password: "K7F29QXMH3RD4T" } }); // gitleaks:allow
-  assert.deepEqual(shown, { username: "rosa.perez", password: "K7F29QXMH3RD4T" }); // gitleaks:allow
-  assert.equal(boxPasswordReducer(shown, { type: "hidden" }), null);
-  assert.equal(boxPasswordReducer(shown, { type: "left" }), null);
+test("the order does not depend on the input order", () => {
+  const a = user("b", null, ["manager"], "2026-11-01T00:00:00Z");
+  const b = user("a", null, ["manager"], "2026-11-02T00:00:00Z");
+  assert.deepEqual(boxUsers([a, b]).map((u) => u.user.id), ["a", "b"]);
+  assert.deepEqual(boxUsers([b, a]).map((u) => u.user.id), ["a", "b"]);
 });

@@ -1,15 +1,15 @@
 "use client";
 
-import { useEffect, useReducer, useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { PERMISSIONS, usePermissions } from "@/lib/permissions";
 import { ApiError } from "@/lib/api/config";
 import { installBoxApi, type EnrollmentCode } from "@/lib/api/installBox";
 import { usersApi } from "@/lib/api/users";
 import { useNow } from "@/lib/kitchen/useNow";
 import {
-  boxPasswordReducer,
+  boxUsers,
   codeExpired,
-  findBoxUser,
   formatCountdown,
   INSTALLER_DOWNLOAD_PATH,
   installBoxErrorMessage,
@@ -18,6 +18,8 @@ import {
 import type { UserWithRoles } from "@/types/user";
 import { ErrorBanner } from "@/components/deliveries/Banners";
 import { Button, Card, CardBody } from "@/components/ui";
+import ResetPasswordModal from "@/components/users/ResetPasswordModal";
+import { roleLabel } from "@/types/user";
 import SettingsSectionShell from "./SettingsSectionShell";
 import CopyField from "./CopyField";
 
@@ -78,75 +80,92 @@ function CodeStep() {
   );
 }
 
-function PasswordStep() {
-  const [boxUser, setBoxUser] = useState<UserWithRoles | null>(null);
+const CREATE_BOX_USER_HREF = "/users?nuevo=caja";
+
+function BoxUsersStep() {
+  const [users, setUsers] = useState<UserWithRoles[]>([]);
   const [usersLoaded, setUsersLoaded] = useState(false);
-  const [shown, dispatch] = useReducer(boxPasswordReducer, null);
-  const [loading, setLoading] = useState(false);
+  const [target, setTarget] = useState<UserWithRoles | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [changed, setChanged] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
     usersApi
       .getAll()
-      .then((users) => !cancelled && setBoxUser(findBoxUser(users)))
+      .then((all) => !cancelled && setUsers(boxUsers(all)))
       .catch((err) => !cancelled && setError(errorMessage(err)))
       .finally(() => !cancelled && setUsersLoaded(true));
-    const leave = () => dispatch({ type: "left" });
-    window.addEventListener("pagehide", leave);
     return () => {
       cancelled = true;
-      window.removeEventListener("pagehide", leave);
-      leave();
     };
   }, []);
 
-  const generate = async () => {
-    if (!boxUser) return;
-    setLoading(true);
+  const submit = async (password: string) => {
+    if (!target) return;
+    setSaving(true);
     setError("");
     try {
-      const generated = await installBoxApi.generatePassword(boxUser.user.id);
-      dispatch({ type: "generated", shown: generated });
+      await usersApi.resetPassword(target.user.id, password);
+      setTarget(null);
+      setChanged(true);
     } catch (err) {
+      setTarget(null);
+      setChanged(false);
       setError(errorMessage(err));
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
   return (
     <Card>
       <CardBody>
-        <h2 style={step}>3. Usuario de la caja</h2>
+        <h2 style={step}>3. Usuarios de la caja</h2>
         <p style={muted}>
-          Con este usuario se inicia sesión en la caja. La contraseña se muestra una sola vez; generar otra reemplaza la
-          anterior y la caja la recibe en su próxima sincronización.
+          En la caja se inicia sesión con el <strong>usuario</strong> (no con el correo). Tu cuenta de Google no sirve
+          para la caja: crea un usuario de caja y ponle la contraseña que quieras.
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: "1rem" }}>
-          {usersLoaded && !boxUser && !error && (
-            <p style={muted}>No hay un usuario de caja (un Gerente sin correo). Créalo en Usuarios.</p>
+          {users.map((u) => (
+            <div
+              key={u.user.id}
+              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}
+            >
+              <div>
+                <strong style={{ color: "var(--color-text-primary)" }}>{u.user.username}</strong>
+                <p style={muted}>
+                  {u.user.name} · {u.roles.map((r) => roleLabel(r.name)).join(", ")}
+                </p>
+              </div>
+              <Button variant="secondary" onClick={() => setTarget(u)}>
+                Cambiar contraseña
+              </Button>
+            </div>
+          ))}
+          {usersLoaded && users.length === 0 && !error && (
+            <div>
+              <p style={{ ...muted, marginBottom: "0.75rem" }}>Todavía no hay un usuario de caja.</p>
+              <Link
+                href={CREATE_BOX_USER_HREF}
+                style={{ color: "var(--color-primary)", fontWeight: 600, textDecoration: "none" }}
+              >
+                Crear usuario de caja
+              </Link>
+            </div>
           )}
-          {shown && (
-            <>
-              <CopyField id="box-username" label="Usuario" value={shown.username} />
-              <CopyField id="box-password" label="Contraseña" value={shown.password} />
-              <p style={muted}>Cópiala ahora: no se volverá a mostrar.</p>
-            </>
+          {changed && (
+            <p style={muted} role="status">
+              Contraseña cambiada. La caja la recibe en su próxima sincronización (cerca de un minuto).
+            </p>
           )}
           {error && <ErrorBanner message={error} />}
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            <Button onClick={generate} disabled={loading || !boxUser}>
-              {loading ? "Generando..." : "Generar contraseña"}
-            </Button>
-            {shown && (
-              <Button variant="secondary" onClick={() => dispatch({ type: "hidden" })}>
-                Ocultar
-              </Button>
-            )}
-          </div>
         </div>
       </CardBody>
+      {target && (
+        <ResetPasswordModal user={target} onSubmit={submit} onCancel={() => setTarget(null)} isLoading={saving} />
+      )}
     </Card>
   );
 }
@@ -185,7 +204,7 @@ export default function InstallBoxPageClient() {
           </CardBody>
         </Card>
         <CodeStep />
-        <PasswordStep />
+        <BoxUsersStep />
       </>
     );
   }
