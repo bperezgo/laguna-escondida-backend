@@ -69,6 +69,12 @@ If anything is missing, ask:
 > file to copy, port signatures, `file:line` of each hook) and make every task
 > in tasks.md self-contained with its own verify command.
 
+Most of this is now in `openspec/config.yaml` `rules:`, so propose writes it. To prove it,
+run **`/spec-readiness <change>`**: a Sonnet fork that sees only the change folder and the
+files in the map, and lists every question it would have to ask. Fix each blocking question
+in Opus and rerun until it says Ready. Its Sections table also shows which sections, and,
+through each proposal's `Touches:`, which changes, can run in parallel.
+
 GATE 2: read the proposal and the spec scenarios. These are the acceptance
 criteria; if they're right, everything downstream can be checked against them.
 
@@ -153,6 +159,13 @@ order:
 try to break it: restart in the middle of the flow, feed a bad input, repeat
 an action that should happen only once. Behavior tells you more than the diff.
 
+**2–3. Run `/pr-verify <change>`.** It does steps 2 and 3 below for you, plus task-claim
+and test-integrity checks, on an Opus fork, and saves the result as
+`openspec/changes/<change>/verification.md`. Start from its Verdict and "Read these
+yourself" list. The PR's `risk:*` labels (`risk-labels.yml`, from
+`scripts/risk-areas.sh`) show the same hotspots on GitHub. The prompts below remain for
+doing it by hand.
+
 **2. Check acceptance criteria against tests, not code.** In a fresh session:
 
 > For every `#### Scenario` in `openspec/changes/<change>/specs/**`, list the
@@ -187,16 +200,16 @@ spot-check per kind.
 worst reviewer of its own code.
 
 - `/code-review high` on the branch looks for correctness bugs.
-- `/pr-description` writes the PR description from the diff alone, and
-  checks the diff against the OpenSpec change for scope drift.
+- `/pr-description` writes the PR description from the diff and
+  `verification.md`. It runs no checks of its own, so run `/pr-verify` first.
 
 Treat findings as leads to verify, not verdicts.
 
 ## 5. Ship
 
-1. Paste the traceability table (step 4.2) and the code-drawn diagram (step
-   4.3) into the PR description. They're the evidence for whoever reads it
-   later.
+1. Commit `verification.md` with the change (it's archived with it) and let
+   `/pr-description` carry its tables into the PR. They're the evidence for
+   whoever reads it later.
 2. Open the PR, then merge after CI is green. Each app has its own CI,
    path-filtered (`backend-ci`, `frontend-ci`, `landing-ci`, `edge-ci`). The
    appliance in `edge/` consumes the apps only as release artifacts, never their

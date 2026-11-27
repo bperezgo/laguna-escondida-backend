@@ -1,61 +1,39 @@
 ---
 name: pr-description
-description: Write the pull request description for the current branch from its diff alone, as an independent reviewer who did not write the change, and check the diff against the branch's OpenSpec change. Use when the user asks for a PR description, or before opening or merging a PR.
+description: Write the pull request description for the current branch from its diff and the change's verification.md (made by /pr-verify), as an independent writer who did not author the change. Use when the user asks for a PR description, or before opening a PR.
 argument-hint: "[base branch, default main] [openspec change name or ticket link]"
 context: fork
 agent: general-purpose
-allowed-tools: Read, Grep, Glob, Bash(git:*), Bash(go build:*), Bash(go test:*), Bash(go vet:*), Bash(make test:*), Bash(make lint:*), Bash(make test-acceptance:*), Bash(DB_HOST= make test-acceptance:*)
+allowed-tools: Read, Grep, Glob, Bash(git:*), Bash(scripts/risk-areas.sh:*)
 ---
 
-You are reviewing a change you did not write. You have no access to the session that
-wrote it, and you must not trust its claims. The OpenSpec change is the plan: it says
-what was *intended* and why. Commit messages, code comments and checked task boxes are
-the author's claims about what was done. Only the diff and the test runs show what was
-*done*. Your job is to compare the plan with the diff and say where they disagree.
+You are writing the description for a change you did not write, for the person who will
+review and merge it and for whoever reads it later. You don't verify the change yourself:
+`/pr-verify` already did, and its report is your evidence. Never claim a check passed
+unless the report says it ran and passed.
 
 Arguments: `$ARGUMENTS` — the first is the base branch (default `main`); the second,
 optional, names the OpenSpec change (`openspec/changes/<name>`) or links a ticket.
 
 ## Steps
 
-1. Scope the change. Use the merge base, so work on the base branch is not counted:
-   - `git diff --stat <base>...HEAD` and `git diff <base>...HEAD`
-   - `git log --oneline <base>..HEAD`
-   - If the working tree is dirty (`git status --short`), say in *Assumptions* that
-     uncommitted changes exist and are not part of the PR.
-2. Find the plan. In order: the change named as an argument; a directory under
-   `openspec/changes/` (or `openspec/changes/archive/`, when the PR archives it) that the
-   diff adds or edits; one whose `proposal.md` or `tasks.md` names the files the diff
-   touches. Read its `proposal.md` (the why), `design.md` (decisions, numbered `D<n>`),
-   `tasks.md`, and every `specs/<capability>/spec.md` (requirements and scenarios).
-   If there is no change, the intent comes from a ticket link, a plan under `docs/`
-   (e.g. `docs/plans/*.md`, `docs/*-plan.md`) or the commit messages;
-   if none states a problem, write "No OpenSpec change or ticket found" — do not invent
-   one.
-3. Read the changed code, not only the diff hunks: open the surrounding functions when
-   a hunk alone doesn't show what the change does.
-4. Check the diff against the plan:
-   - **Tasks.** For each task checked `[x]` in `tasks.md`, find the code that does it
-     and the verification the task names. A checked task with no code behind it, or
-     whose named verification is missing, is a finding. Unchecked tasks mean the change
-     is partial; say which.
-   - **Requirements.** For each `### Requirement` in the delta specs, find the code that
-     meets it and a test that exercises its `#### Scenario`s. Mark each one met (with
-     the test), met but untested, or not met.
-   - **Design.** Note where the code departs from a `D<n>` decision.
-   - **Scope.** Changes the plan does not cover (bundled refactors, unrelated files) and
-     plan items with no code.
-5. Verify the validation claims yourself. Run `go build ./...`, `make lint` and the
-   tests that cover the changed packages (`go test -count=1 ./internal/<pkg>/...`). The
-   acceptance tests (`make test-acceptance`) use testcontainers; prefix `DB_HOST=` so a
-   `.env` value doesn't make them skip. List only tests you ran and saw pass. A test that failed or
-   that you could not run goes under *Assumptions & not verified*, with the reason.
-6. Assess risk from the diff: files under `internal/platform/postgres/migrations/` (is
-   there a `.down.sql`? is it destructive? migrations run at boot), `docs/api/*.md` and
-   handlers (contract change for the frontend and the MCP server), `domain/ports/`
-   (mocks regenerated?), sync code (edge ↔ cloud compatibility), `internal/bootstrap` wiring (and its route golden files),
-   `internal/platform/config/` (a new required env var is a deploy step), `.github/`,
-   the Dockerfile. Also deleted tests and skipped or weakened assertions.
+1. Scope the change from the merge base: `git diff --stat <base>...HEAD`,
+   `git diff <base>...HEAD`, `git log --oneline <base>..HEAD`, `git rev-parse --short HEAD`.
+   Note uncommitted changes (`git status --short`) under *Assumptions*.
+2. Find the plan: the named change, else the `openspec/changes/` directory (or `archive/`)
+   the diff adds or edits. Read `proposal.md` (the why) and `design.md` (decisions `D<n>`).
+   Without a change, take the intent from a ticket link, a `docs/plans/*.md` or the commit
+   messages; if none states a problem, write "No OpenSpec change or ticket found".
+3. Read `openspec/changes/<name>/verification.md`.
+   - Missing: write the description anyway, put "Not verified: run /pr-verify" as the first
+     line of *Spec conformance*, and leave *How to validate* with only manual checks.
+   - Its commit is not `HEAD`: say "Verification is for `<sha>`, not `HEAD`; rerun /pr-verify"
+     at the top of *Spec conformance*, and still use it.
+4. Read the changed code where a hunk alone doesn't show what the change does.
+5. Risk: run `scripts/risk-areas.sh <base>` and describe each area in plain words. Migrations:
+   is there a `.down.sql`, is it destructive (they run at boot)? Contract (`backend/docs/api`,
+   DTOs, ports): what the frontend and MCP server must match. Deploy: a new env var or wiring
+   is a deploy step. Sync: edge ↔ cloud compatibility and `edge/compat.json`.
 
 ## Output
 
@@ -70,27 +48,32 @@ heading even when a section is short. Be concrete: file paths, test names, comma
 <2–6 bullets, grouped by module>
 
 ## Spec conformance
+<verification.md's Verdict line>
+
 | Requirement | Status | Evidence |
 |---|---|---|
 | <requirement title> | met / met, untested / not met | `<file_test.go>` (<TestName>) or why not |
 
-Tasks: <n of m checked>; <checked tasks with no code or verification behind them, or "all checked tasks found in the diff">.
-Out of plan: <changes the plan doesn't cover, or "none">.
+<A requirement is "met" only when all its scenarios are proven; "met, untested" when any is
+weak or missing; "not met" when the code doesn't do it.>
+Tasks: <from Task claims>. Test integrity: <unjustified changes, or "none">.
+Out of plan: <from verification.md, or "none">.
 
 ## How to validate
-- Tests: `<path>` (<TestName>) — ran, passed
-- Manual check: <steps a reviewer can follow>
+- Checks: <from Checks run, as ran / passed or failed>
+- Read in full: <the "Read these yourself" files>
+- Manual check: <steps a reviewer can follow in the running app>
 
 ## Risk & blast radius
-<modules touched, migrations and whether they reverse, contract or config changes,
+<risk areas, migrations and whether they reverse, contract or config changes,
 irreversible effects, rollback plan>
 
 ## Assumptions & not verified
-<what you inferred rather than saw, tests you did not run, mismatches between the
-plan and the diff>
+<unverified tasks, weak or missing scenarios, stale verification, uncommitted work>
 
 ## Simple explanation
-<a mermaid diagram for a flow or architecture change; otherwise 2–3 plain bullets>
+<a mermaid diagram for a flow or architecture change, from verification.md's code-drawn
+flow; otherwise 2–3 plain bullets>
 ```
 
 Without an OpenSpec change, *Spec conformance* is one line: "No OpenSpec change; intent
