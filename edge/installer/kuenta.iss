@@ -363,6 +363,8 @@ function NextButtonClick(CurPageID: Integer): Boolean;
 var Msg: String;
 begin
   Result := True;
+  // A silent run still "clicks" Next, and MsgBox ignores /SUPPRESSMSGBOXES; PrepareToInstall does these checks.
+  if WizardSilent then Exit;
   if CurPageID = wpWelcome then
   begin
     if not PreflightDone then
