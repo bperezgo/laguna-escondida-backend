@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { usersApi, rolesApi } from "@/lib/api/users";
 import type {
   Role,
@@ -26,6 +27,7 @@ export default function UsersPageClient({
   initialRoles,
 }: UsersPageClientProps) {
   const { user: currentUser } = usePermissions();
+  const router = useRouter();
 
   const [users, setUsers] = useState<UserWithRoles[]>(initialUsers);
   const [roles, setRoles] = useState<Role[]>(initialRoles);
@@ -35,6 +37,7 @@ export default function UsersPageClient({
 
   const [showForm, setShowForm] = useState<boolean>(false);
   const [editingUser, setEditingUser] = useState<UserWithRoles | null>(null);
+  const [initialRoleIds, setInitialRoleIds] = useState<number[]>([]);
   const [formLoading, setFormLoading] = useState<boolean>(false);
 
   const [resetTarget, setResetTarget] = useState<UserWithRoles | null>(null);
@@ -60,12 +63,14 @@ export default function UsersPageClient({
     }
   };
 
-  const loadRoles = async () => {
+  const loadRoles = async (): Promise<Role[]> => {
     try {
       const fetched = await rolesApi.getAll();
       setRoles(fetched);
+      return fetched;
     } catch (err) {
       console.error("Error loading roles:", err);
+      return [];
     }
   };
 
@@ -77,12 +82,21 @@ export default function UsersPageClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleCreate = async () => {
-    if (roles.length === 0) await loadRoles();
+  const handleCreate = async (roleNames: string[] = []) => {
+    const available = roles.length === 0 ? await loadRoles() : roles;
+    setInitialRoleIds(available.filter((r) => roleNames.includes(r.name)).map((r) => r.id));
     setEditingUser(null);
     setError("");
     setShowForm(true);
   };
+
+  // /users?nuevo=caja comes from Instalar caja: a manager without an email, then the URL is clean again.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("nuevo") !== "caja") return;
+    router.replace("/users");
+    void handleCreate(["manager"]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleEdit = async (user: UserWithRoles) => {
     if (roles.length === 0) await loadRoles();
@@ -210,7 +224,7 @@ export default function UsersPageClient({
           </div>
           <PermissionGate permission={PERMISSIONS.USERS_CREATE}>
             <button
-              onClick={handleCreate}
+              onClick={() => handleCreate()}
               style={{
                 padding: "0.75rem 1.5rem",
                 backgroundColor: "var(--color-primary)",
@@ -282,6 +296,11 @@ export default function UsersPageClient({
           onCreate={handleCreateSubmit}
           onUpdate={handleUpdateSubmit}
           onCancel={handleCancelForm}
+          onChangePassword={() => {
+            setResetTarget(editingUser);
+            handleCancelForm();
+          }}
+          initialRoleIds={initialRoleIds}
           isLoading={formLoading}
           error={error}
         />
