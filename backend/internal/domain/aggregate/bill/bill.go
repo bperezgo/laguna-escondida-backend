@@ -47,7 +47,7 @@ func NewBillFromCreateElectronicInvoiceRequest(invoice *dto.ElectronicInvoice, p
 	totalTip := decimal.Zero
 
 	for _, product := range products {
-		totalAmount = totalAmount.Add(product.unitPrice.Mul(decimal.NewFromInt(int64(product.quantity))))
+		totalAmount = totalAmount.Add(product.total)
 
 		for _, allowance := range product.allowance {
 			allowanceAmount, err := decimal.NewFromString(allowance.Amount)
@@ -161,16 +161,14 @@ func NewBillFromOpenBillWithProducts(openBillWithProducts *dto.OpenBillWithProdu
 		billProducts = append(billProducts, NewBillProduct(
 			productDetail.Product.ID,
 			totalQuantity,
-			productDetail.Product.UnitPrice,
+			productDetail.Product.TotalPriceWithTaxes,
 			productDetail.Product.Name,
 			productDetail.Product.Description,
 			productDetail.Product.Category,
 			productDetail.Product.SKU,
 			[]dto.InvoiceAllowance{},
 			productDetail.Product.VAT,
-			productDetail.Product.VATAmount,
 			productDetail.Product.ICO,
-			productDetail.Product.ICOAmount,
 		))
 	}
 

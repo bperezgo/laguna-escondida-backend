@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"laguna-escondida/backend/internal/domain/aggregate/bill"
 	"laguna-escondida/backend/internal/domain/dto"
 	"laguna-escondida/backend/internal/domain/ports/mocks"
 	"laguna-escondida/backend/internal/domain/tenant"
@@ -74,4 +75,42 @@ func TestSubmitDue_DeliveryFeeIsItsOwnICOItem(t *testing.T) {
 			assert.Equal(t, []dto.InvoiceTax{{TaxCode: dto.TaxCodeICO, TaxAmount: tc.ico.StringFixed(2), Percent: tc.wantPercent}}, delivery.Taxes)
 		})
 	}
+}
+
+func TestInvoiceSubmission_DeliveryFeeInHeaderSums(t *testing.T) {
+	dec := decimal.RequireFromString
+	ctx := tenant.WithOrg(context.Background(), submissionOrgID)
+	pendingRepo := mocks.NewMockPendingInvoiceRepository(t)
+	billRepo := mocks.NewMockBillRepository(t)
+	invoiceClient := mocks.NewMockElectronicInvoiceClient(t)
+	outboxRepo := mocks.NewMockSyncOutboxRepository(t)
+	fee, base, ico, rate := dec("5000"), dec("4629.63"), dec("370.37"), dec("0.08")
+	pending := &dto.PendingInvoice{ID: "pending-h", BillID: "bill-h", PaymentCode: dto.ElectronicInvoicePaymentCodeCash, Status: dto.PendingInvoiceStatusPending}
+	pendingRepo.EXPECT().ListDue(ctx, mock.AnythingOfType("int")).Return([]*dto.PendingInvoice{pending}, nil)
+	billRepo.EXPECT().FindBillForInvoice(ctx, "bill-h").Return(&dto.Bill{
+		ID:        "bill-h",
+		PayAmount: dec("13000"),
+		Products: []dto.BillProduct{bill.NewBillProduct("prod-1", 1, dec("8000"), "Bandeja", nil, "Platos", "SKU001",
+			[]dto.InvoiceAllowance{}, decimal.Zero, rate).ToDTO()},
+		DeliveryFee: &fee, DeliveryFeeBase: &base, DeliveryFeeICO: &ico, DeliveryFeeICORate: &rate,
+	}, nil)
+	billRepo.EXPECT().GetNextConsecutive(mock.Anything, "LAG").Return(153, nil)
+	pendingRepo.EXPECT().AssignConsecutive(ctx, "pending-h", "LAG", 153, mock.AnythingOfType("json.RawMessage")).Return(nil)
+	var sent *dto.CreateElectronicInvoiceRequest
+	invoiceClient.EXPECT().Create(mock.Anything, mock.Anything).
+		Run(func(_ context.Context, req *dto.CreateElectronicInvoiceRequest) { sent = req }).
+		Return(&dto.CreateElectronicInvoiceResponse{CUFE: "c", Tascode: "t"}, nil)
+	billRepo.EXPECT().SetInvoiceResult(mock.Anything, "bill-h", "c", "t").Return(nil)
+	pendingRepo.EXPECT().MarkSubmitted(mock.Anything, "pending-h").Return(nil)
+	outboxRepo.EXPECT().Append(mock.Anything, mock.Anything).Return(nil)
+
+	require.NoError(t, newSubmissionService(t, pendingRepo, billRepo, invoiceClient, outboxRepo).SubmitDue(ctx))
+
+	require.NotNil(t, sent)
+	require.Len(t, sent.Bill.Products, 2)
+	assert.Equal(t, "4629.63", sent.Bill.Products[1].Total.StringFixed(2), "delivery line keeps its stored base")
+	assert.Equal(t, "370.37", sent.Bill.Products[1].Taxes[0].TaxAmount, "delivery line keeps its stored ICO")
+	assert.Equal(t, "12037.04", sent.Bill.TotalAmount.StringFixed(2), "7407.41 + 4629.63")
+	assert.Equal(t, "962.96", sent.Bill.TaxAmount.StringFixed(2), "592.59 + 370.37")
+	assert.Equal(t, "13000.00", sent.Bill.PayAmount.StringFixed(2))
 }

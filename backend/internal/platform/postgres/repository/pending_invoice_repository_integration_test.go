@@ -93,3 +93,29 @@ func containsPendingID(pendings []*dto.PendingInvoice, id string) bool {
 	}
 	return false
 }
+
+// Clearing request_payload re-queues only a pending row; a submitted one is never due again.
+func TestPendingInvoiceRepository_ListDue_ClearedPayload_OnlyPending_Integration(t *testing.T) {
+	db := newApplierTestDB(t)
+	repo := NewPendingInvoiceRepository(db.DB)
+	ctx := lagunaCtx()
+
+	pendingID := seedPendingInvoice(t, db, uuid.NewString(), 365)
+	submittedID := seedPendingInvoice(t, db, uuid.NewString(), 366)
+	require.NoError(t, repo.MarkSubmitted(ctx, submittedID))
+	require.NoError(t, db.DB.Exec("UPDATE pending_invoices SET request_payload = NULL WHERE id IN (?, ?)", pendingID, submittedID).Error)
+
+	due, err := repo.ListDue(ctx, 100)
+	require.NoError(t, err)
+
+	assert.False(t, containsPendingID(due, submittedID), "submitted row is never re-sent")
+	require.True(t, containsPendingID(due, pendingID), "cleared pending row is due for a rebuild")
+	for _, p := range due {
+		if p.ID == pendingID {
+			assert.Nil(t, p.RequestPayload, "payload is rebuilt by the submission service")
+			assert.Equal(t, "LAG", p.Prefix)
+			require.NotNil(t, p.Consecutive)
+			assert.Equal(t, 365, *p.Consecutive, "keeps its consecutive")
+		}
+	}
+}

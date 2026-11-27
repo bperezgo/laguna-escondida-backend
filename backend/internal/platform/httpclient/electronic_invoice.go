@@ -284,7 +284,7 @@ func (c *ElectronicInvoiceClient) Create(
 				PayAmount:      payAmount,
 			},
 			Items: lo.Map(createReq.Bill.Products, func(billProduct dto.BillProduct, _ int) invoiceItem {
-				total := billProduct.UnitPrice.Mul(decimal.NewFromInt(int64(billProduct.Quantity)))
+				total := lineTotal(billProduct)
 
 				name := billProduct.Name
 
@@ -374,6 +374,15 @@ func (c *ElectronicInvoiceClient) Create(
 		Tascode: invoiceResp.InvoiceResult.Document.Tascode,
 		CUFE:    invoiceResp.InvoiceResult.Document.CUFE,
 	}, nil
+}
+
+// lineTotal is the line base the taxes were computed on. Payloads cached before lines carried
+// a Total have none, so those fall back to unit price × quantity as they were built.
+func lineTotal(p dto.BillProduct) decimal.Decimal {
+	if p.Total.IsZero() {
+		return p.UnitPrice.Mul(decimal.NewFromInt(int64(p.Quantity)))
+	}
+	return p.Total
 }
 
 type supportDocumentRequest struct {
