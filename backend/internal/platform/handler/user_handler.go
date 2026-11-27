@@ -250,16 +250,6 @@ func (h *UserHandler) ResetPasswordHandler(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-func (h *UserHandler) GeneratePasswordHandler(c *gin.Context) {
-	generated, err := h.userService.GeneratePassword(c.Request.Context(), c.Param("id"))
-	if err != nil {
-		h.respondUserError(c, err)
-		return
-	}
-	c.Header("Cache-Control", "no-store")
-	c.JSON(http.StatusOK, generated)
-}
-
 func (h *UserHandler) DeleteUserHandler(c *gin.Context) {
 	actingUserID, ok := getActingUserID(c)
 	if !ok {
@@ -299,8 +289,6 @@ func (h *UserHandler) respondUserError(c *gin.Context, err error) {
 		c.JSON(http.StatusConflict, gin.H{"error": "Email is already in use"})
 	case errors.Is(err, domainError.ErrEmailRequired):
 		c.JSON(http.StatusBadRequest, gin.H{"error": "email is required for an admin, accountant, agent or courier"})
-	case errors.Is(err, domainError.ErrUserHasEmail):
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Only a user without an email gets a generated password"})
 	case errors.Is(err, domainError.ErrRoleNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "One or more roles not found"})
 	case errors.Is(err, domainError.ErrInvalidRoleIDs):

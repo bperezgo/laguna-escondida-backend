@@ -5,7 +5,7 @@ User management endpoints. Creating users is an **admin-only** operation guarded
 **Cloud only: user writes.** The box (edge) serves sign-in, `/api/auth/me`, `GET /api/admin/users`, `GET /api/admin/users/:id` and `GET /api/admin/roles`, and gets its users from the cloud's pull. These routes exist only in the cloud; on the box they return `404`:
 
 - `POST /api/users` (admin-key bootstrap)
-- `POST /api/admin/users`, `PUT /api/admin/users/:id`, `POST /api/admin/users/:id/reset-password`, `POST /api/admin/users/:id/generate-password`, `DELETE /api/admin/users/:id`
+- `POST /api/admin/users`, `PUT /api/admin/users/:id`, `POST /api/admin/users/:id/reset-password`, `DELETE /api/admin/users/:id`
 
 People who use the cloud app can also be brought in with an [invitation link](invitations.md).
 
@@ -16,7 +16,6 @@ For authentication (sign in) and reading the current user, see [Authentication](
 | Method | Endpoint      | Description         | Auth      |
 | ------ | ------------- | ------------------- | --------- |
 | POST   | `/api/users`  | Create a new user   | API Key   |
-| POST   | `/api/admin/users/:id/generate-password` | New random password for a user without an email | JWT (`users:update`) |
 
 ---
 
@@ -237,37 +236,25 @@ The created user (without the password) together with its assigned roles.
 
 ---
 
-## Generate a Password
+## Reset a Password
 
-`POST /api/admin/users/:id/generate-password` (JWT with `users:update`, cloud only)
+`POST /api/admin/users/:id/reset-password` (JWT with `users:update`, cloud only)
 
-Sets a new random password for a user **without an email** of the caller's organization, such as the box user created at signup, and returns it. This response is the only place the password ever appears (`Cache-Control: no-store`); the previous password stops working, and the box gets the new one on its next pull. No body.
+Sets the password the admin types for a user of the caller's organization, such as a user without an email who signs in only on the box. The box gets it on its next pull. The password is never returned.
 
-### Example Response (200 OK)
-
-```json
-{
-  "username": "rosa.perez",
-  "password": "<14-character password>"
-}
-```
-
-14 characters from `23456789ABCDEFGHJKMNPQRSTUVWXYZ`.
-
-### Error Responses
-
-**400 Bad Request** — The user has an email (they reset their own password or use Google)
+### Request Body
 
 ```json
 {
-  "error": "Only a user without an email gets a generated password"
+  "password": "NuevaClave123"
 }
 ```
 
-**404 Not Found** — No such user in the caller's organization
+`password` is required, minimum 6 characters.
 
-```json
-{
-  "error": "User not found"
-}
-```
+### Responses
+
+- **204 No Content**: the password changed.
+- **400 Bad Request**: invalid body.
+- **403 Forbidden**: the caller lacks `users:update`.
+- **404 Not Found**: no such user in the caller's organization (another organization's user is also `404`), or the user is managed by an API key.

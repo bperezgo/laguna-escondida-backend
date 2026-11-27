@@ -249,7 +249,6 @@ func registerCloudBackOfficeRoutes(router *gin.Engine, adminAPIKey string, jwtSe
 	adminUsers.POST("/users", handler.RequirePermission(permissions.UsersCreate), h.user.CreateUserHandler)
 	adminUsers.PUT("/users/:id", handler.RequirePermission(permissions.UsersUpdate), h.user.UpdateUserHandler)
 	adminUsers.POST("/users/:id/reset-password", handler.RequirePermission(permissions.UsersUpdate), h.user.ResetPasswordHandler)
-	adminUsers.POST("/users/:id/generate-password", handler.RequirePermission(permissions.UsersUpdate), h.user.GeneratePasswordHandler)
 	adminUsers.DELETE("/users/:id", handler.RequirePermission(permissions.UsersDelete), h.user.DeleteUserHandler)
 
 	// Product routes

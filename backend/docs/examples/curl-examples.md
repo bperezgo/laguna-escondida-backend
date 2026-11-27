@@ -244,13 +244,6 @@ curl -X POST "$BASE_URL/edge/enroll-with-code" \
   -d '{"code": "K7F2-9QXM", "name": "Caja principal"}'
 ```
 
-### Generate the Box User's Password
-
-```bash
-curl -X POST "$BASE_URL/admin/users/$BOX_USER_ID/generate-password" \
-  -H "Authorization: Bearer $TOKEN"
-```
-
 ---
 
 ## Users (cloud only)

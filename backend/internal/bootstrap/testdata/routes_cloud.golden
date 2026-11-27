@@ -8,7 +8,6 @@ POST /api/admin/users laguna-escondida/backend/internal/platform/handler.(*UserH
 DELETE /api/admin/users/:id laguna-escondida/backend/internal/platform/handler.(*UserHandler).DeleteUserHandler-fm
 GET /api/admin/users/:id laguna-escondida/backend/internal/platform/handler.(*UserHandler).GetUserHandler-fm
 PUT /api/admin/users/:id laguna-escondida/backend/internal/platform/handler.(*UserHandler).UpdateUserHandler-fm
-POST /api/admin/users/:id/generate-password laguna-escondida/backend/internal/platform/handler.(*UserHandler).GeneratePasswordHandler-fm
 POST /api/admin/users/:id/reset-password laguna-escondida/backend/internal/platform/handler.(*UserHandler).ResetPasswordHandler-fm
 GET /api/auth/context laguna-escondida/backend/internal/platform/handler.(*UserHandler).SignInContextHandler-fm
 POST /api/auth/google laguna-escondida/backend/internal/platform/handler.(*SignupHandler).GoogleSignInHandler-fm

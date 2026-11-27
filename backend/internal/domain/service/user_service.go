@@ -275,31 +275,6 @@ func (s *UserService) ResetPassword(ctx context.Context, id, newPassword string)
 	return s.userRepo.UpdatePassword(ctx, id, hashedPassword)
 }
 
-const generatedPasswordLength = 14
-
-// GeneratePassword is for box-only users, who have no email to receive one; the result is shown once.
-func (s *UserService) GeneratePassword(ctx context.Context, id string) (*dto.GeneratedPasswordResponse, error) {
-	current, err := s.findStaffUser(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	if current.Email != nil {
-		return nil, domainError.ErrUserHasEmail
-	}
-	password, err := randomReadable(generatedPasswordLength)
-	if err != nil {
-		return nil, err
-	}
-	hashed, err := user.HashPassword(password)
-	if err != nil {
-		return nil, err
-	}
-	if err := s.userRepo.UpdatePassword(ctx, id, hashed); err != nil {
-		return nil, err
-	}
-	return &dto.GeneratedPasswordResponse{Username: current.Username, Password: password}, nil
-}
-
 func (s *UserService) DeleteUser(ctx context.Context, actingUserID, id string) error {
 	if actingUserID == id {
 		return domainError.ErrCannotDeleteSelf

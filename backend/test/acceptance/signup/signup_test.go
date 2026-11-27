@@ -3,7 +3,6 @@ package signup
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 
@@ -194,7 +193,8 @@ func TestSignup_EnrollWithACodeThenSync(t *testing.T) {
 
 	resp = c.node(box.NodeID, box.NodeKey, http.MethodGet, "/api/sync/pull", nil)
 	require.Equal(t, http.StatusOK, resp.status, string(resp.body))
-	assert.Contains(t, string(resp.body), boxUsername(email), "the box user is pulled to the box")
+	assert.Contains(t, string(resp.body), email, "the admin is pulled to the box")
+	assert.NotContains(t, string(resp.body), `"Caja"`, "signup creates no box user")
 
 	billID, invoiceID := uuid.NewString(), uuid.NewString()
 	now := time.Now().UTC()
@@ -218,9 +218,4 @@ func TestSignup_EnrollWithACodeThenSync(t *testing.T) {
 	resp = c.node(box.NodeID, box.NodeKey, http.MethodGet, "/api/sync/pull", nil)
 	assert.Equal(t, http.StatusForbidden, resp.status, string(resp.body))
 	assert.Contains(t, string(resp.body), "organization_suspended", "an expired trial's box is refused as suspended")
-}
-
-func boxUsername(email string) string {
-	local, _, _ := strings.Cut(email, "@")
-	return local
 }
