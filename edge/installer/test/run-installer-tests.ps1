@@ -168,7 +168,7 @@ function Assert-Samples([string] $when) {
   $setupPids = @($s | Where-Object { $_.Name -like '*.tmp' -or $_.Name -like 'KuentaSetup*' } | ForEach-Object Pid)
   $cmds = @($s | Where-Object { $_.Name -eq 'cmd.exe' })
   foreach ($c in ($cmds | Sort-Object Pid -Unique)) { Write-Host "  cmd.exe $($c.Pid) parent $($c.ParentPid): $($c.Cmd)" }
-  Assert (-not @($cmds | Where-Object { $setupPids -contains $_.ParentPid })) "$when : setup started no cmd.exe
+  Assert (-not @($cmds | Where-Object { $setupPids -contains $_.ParentPid })) "$when : setup started no cmd.exe"
   if ([Environment]::UserInteractive) {
     Assert (-not @($s | Where-Object { $_.Visible })) "$when : no window of setup's processes was visible"
   } else { Write-Host '  no desktop: visibility not checked' -ForegroundColor Yellow }
