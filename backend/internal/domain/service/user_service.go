@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"laguna-escondida/backend/internal/domain/aggregate/user"
@@ -28,6 +30,8 @@ type UserService struct {
 	now          func() time.Time
 	// subscriptions is nil on an edge box and wherever billing is not wired.
 	subscriptions *OrganizationAccessService
+	syncState     ports.SyncStateReader
+	usersSeen     atomic.Bool
 }
 
 func NewUserService(userRepo ports.UserRepository, roleRepo ports.RoleRepository, userRoleRepo ports.UserRoleRepository, orgRepo ports.OrganizationRepository, jwtService *JWTService, unitOfWork ports.UnitOfWork, scope tenant.Scope) *UserService {
@@ -554,25 +558,65 @@ func (s *UserService) SignInMode() dto.SignInMode {
 	return dto.SignInModeCloud
 }
 
+// UseSyncState lets an edge box report how its last pull went on the sign-in context. The cloud never sets it.
+func (s *UserService) UseSyncState(reader ports.SyncStateReader) {
+	s.syncState = reader
+}
+
 // SignInContext tells an unauthenticated client which sign-in form to show. It names only the
-// box's own organization, never any other.
+// box's own organization, never any other. On a box it adds whether anyone can sign in yet and, until
+// then, a coarse sync state; nothing else about users or failures leaves through here.
 func (s *UserService) SignInContext(ctx context.Context) (*dto.SignInContextResponse, error) {
 	boxOrgID, pinned := s.scope.Pinned()
 	if !pinned {
 		return &dto.SignInContextResponse{Mode: dto.SignInModeCloud}, nil
 	}
+	resp := &dto.SignInContextResponse{Mode: dto.SignInModeEdge}
+	ready := s.boxHasUsers(ctx, boxOrgID)
+	resp.UsersReady = &ready
+	if !ready {
+		state := s.boxSyncState()
+		resp.Sync = &state
+	}
+
 	org, err := s.orgRepo.Get(ctx, boxOrgID)
 	if err != nil {
-		return nil, fmt.Errorf("sign-in context: failed to load the box's organization: %w", err)
+		slog.ErrorContext(ctx, "sign-in context: failed to load the box's organization", slog.Any("error", err))
+		return resp, nil
 	}
 	name := org.Name
 	if org.DisplayName != nil && *org.DisplayName != "" {
 		name = *org.DisplayName
 	}
-	return &dto.SignInContextResponse{
-		Mode:         dto.SignInModeEdge,
-		Organization: &dto.SignInContextOrganization{Name: name},
-	}, nil
+	resp.Organization = &dto.SignInContextOrganization{Name: name}
+	return resp, nil
+}
+
+// boxHasUsers keeps its first true: a box that has had a user shows the form from then on, and
+// stops querying. A failed lookup counts as ready so the form is never hidden by a database error.
+func (s *UserService) boxHasUsers(ctx context.Context, boxOrgID string) bool {
+	if s.usersSeen.Load() {
+		return true
+	}
+	hasUser, err := s.userRepo.AnyActive(tenant.WithOrg(ctx, boxOrgID))
+	if err != nil {
+		slog.ErrorContext(ctx, "sign-in context: failed to check for users", slog.Any("error", err))
+		return true
+	}
+	if hasUser {
+		s.usersSeen.Store(true)
+	}
+	return hasUser
+}
+
+func (s *UserService) boxSyncState() dto.SyncState {
+	if s.syncState == nil {
+		return dto.SyncStateWaiting
+	}
+	if state := s.syncState.SyncState(); state != "" {
+		return state
+	}
+	return dto.SyncStateWaiting
 }
 
 func (s *UserService) GetCurrentUser(ctx context.Context, userID string) (*dto.CurrentUserResponse, error) {

@@ -11,6 +11,7 @@ import (
 	"laguna-escondida/backend/internal/domain/dto"
 	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/permissions"
+	"laguna-escondida/backend/internal/domain/ports"
 	"laguna-escondida/backend/internal/domain/ports/mocks"
 	"laguna-escondida/backend/internal/domain/tenant"
 
@@ -672,11 +673,18 @@ func TestUserService_SignInContext_Cloud(t *testing.T) {
 	f.orgRepo.AssertNotCalled(t, "Get", mock.Anything, mock.Anything)
 }
 
+type stubSyncState struct{ state dto.SyncState }
+
+func (s stubSyncState) SyncState() dto.SyncState { return s.state }
+
+func syncPtr(s dto.SyncState) *dto.SyncState { return &s }
+
 func TestUserService_SignInContext_Edge(t *testing.T) {
 	f := newUserServiceFixture(t, tenant.PinnedTo(testOrgA))
 	org := lagunaOrg(dto.OrganizationStatusActive)
 	org.Name = "Laguna Escondida"
 	f.orgRepo.On("Get", mock.Anything, testOrgA).Return(org, nil)
+	f.userRepo.On("AnyActive", mock.Anything).Return(true, nil)
 
 	result, err := f.service.SignInContext(context.Background())
 
@@ -684,8 +692,92 @@ func TestUserService_SignInContext_Edge(t *testing.T) {
 	assert.Equal(t, &dto.SignInContextResponse{
 		Mode:         dto.SignInModeEdge,
 		Organization: &dto.SignInContextOrganization{Name: "Laguna Escondida"},
+		UsersReady:   boolPtr(true),
 	}, result)
 	assert.Equal(t, dto.SignInModeEdge, f.service.SignInMode())
+}
+
+func TestUserService_SignInContext_EdgeUsersLookupRunsInTheBoxOrganization(t *testing.T) {
+	f := newUserServiceFixture(t, tenant.PinnedTo(testOrgA))
+	f.orgRepo.On("Get", mock.Anything, testOrgA).Return(lagunaOrg(dto.OrganizationStatusActive), nil)
+	f.userRepo.On("AnyActive", mock.MatchedBy(func(ctx context.Context) bool {
+		org, ok := tenant.OrgFrom(ctx)
+		return ok && org == testOrgA
+	})).Return(true, nil).Once()
+
+	_, err := f.service.SignInContext(context.Background())
+
+	require.NoError(t, err)
+}
+
+func TestUserService_SignInContext_EdgeWithoutUsers(t *testing.T) {
+	cases := []struct {
+		name   string
+		reader ports.SyncStateReader
+		want   dto.SyncState
+	}{
+		{"no reader", nil, dto.SyncStateWaiting},
+		{"no attempt yet", stubSyncState{""}, dto.SyncStateWaiting},
+		{"offline", stubSyncState{dto.SyncStateOffline}, dto.SyncStateOffline},
+		{"failed", stubSyncState{dto.SyncStateFailed}, dto.SyncStateFailed},
+		{"replaced", stubSyncState{dto.SyncStateReplaced}, dto.SyncStateReplaced},
+		{"suspended", stubSyncState{dto.SyncStateSuspended}, dto.SyncStateSuspended},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newUserServiceFixture(t, tenant.PinnedTo(testOrgA))
+			if tc.reader != nil {
+				f.service.UseSyncState(tc.reader)
+			}
+			f.orgRepo.On("Get", mock.Anything, testOrgA).Return(lagunaOrg(dto.OrganizationStatusActive), nil)
+			f.userRepo.On("AnyActive", mock.Anything).Return(false, nil)
+
+			result, err := f.service.SignInContext(context.Background())
+
+			require.NoError(t, err)
+			assert.Equal(t, boolPtr(false), result.UsersReady)
+			assert.Equal(t, syncPtr(tc.want), result.Sync)
+		})
+	}
+}
+
+func TestUserService_SignInContext_EdgeWithUsersHidesTheSyncState(t *testing.T) {
+	f := newUserServiceFixture(t, tenant.PinnedTo(testOrgA))
+	f.service.UseSyncState(stubSyncState{dto.SyncStateOffline})
+	f.orgRepo.On("Get", mock.Anything, testOrgA).Return(lagunaOrg(dto.OrganizationStatusActive), nil)
+	f.userRepo.On("AnyActive", mock.Anything).Return(true, nil)
+
+	result, err := f.service.SignInContext(context.Background())
+
+	require.NoError(t, err)
+	assert.Equal(t, boolPtr(true), result.UsersReady)
+	assert.Nil(t, result.Sync, "a box with users shows the form, online or not")
+}
+
+func TestUserService_SignInContext_EdgeRemembersTheFirstUser(t *testing.T) {
+	f := newUserServiceFixture(t, tenant.PinnedTo(testOrgA))
+	f.orgRepo.On("Get", mock.Anything, testOrgA).Return(lagunaOrg(dto.OrganizationStatusActive), nil)
+	f.userRepo.On("AnyActive", mock.Anything).Return(false, nil).Once()
+	f.userRepo.On("AnyActive", mock.Anything).Return(true, nil).Once()
+
+	for _, want := range []bool{false, true, true, true} {
+		result, err := f.service.SignInContext(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, boolPtr(want), result.UsersReady)
+	}
+	f.userRepo.AssertNumberOfCalls(t, "AnyActive", 2)
+}
+
+func TestUserService_SignInContext_EdgeUserLookupFailsOpen(t *testing.T) {
+	f := newUserServiceFixture(t, tenant.PinnedTo(testOrgA))
+	f.orgRepo.On("Get", mock.Anything, testOrgA).Return(lagunaOrg(dto.OrganizationStatusActive), nil)
+	f.userRepo.On("AnyActive", mock.Anything).Return(false, errors.New("connection refused"))
+
+	result, err := f.service.SignInContext(context.Background())
+
+	require.NoError(t, err)
+	assert.Equal(t, boolPtr(true), result.UsersReady, "a database error never hides the form")
+	assert.Nil(t, result.Sync)
 }
 
 // The sign-in page shows the restaurant's brand, not its legal name.
@@ -696,6 +788,7 @@ func TestUserService_SignInContext_EdgePrefersTheDisplayName(t *testing.T) {
 	displayName := "Laguna Escondida"
 	org.DisplayName = &displayName
 	f.orgRepo.On("Get", mock.Anything, testOrgA).Return(org, nil)
+	f.userRepo.On("AnyActive", mock.Anything).Return(true, nil)
 
 	result, err := f.service.SignInContext(context.Background())
 
@@ -703,15 +796,20 @@ func TestUserService_SignInContext_EdgePrefersTheDisplayName(t *testing.T) {
 	assert.Equal(t, "Laguna Escondida", result.Organization.Name)
 }
 
-func TestUserService_SignInContext_EdgeOrganizationLoadFails(t *testing.T) {
+func TestUserService_SignInContext_EdgeOrganizationMissing(t *testing.T) {
 	f := newUserServiceFixture(t, tenant.PinnedTo(testOrgA))
-	repoErr := errors.New("connection refused")
-	f.orgRepo.On("Get", mock.Anything, testOrgA).Return(nil, repoErr)
+	f.service.UseSyncState(stubSyncState{dto.SyncStateFailed})
+	f.orgRepo.On("Get", mock.Anything, testOrgA).Return(nil, errors.New("not found"))
+	f.userRepo.On("AnyActive", mock.Anything).Return(false, nil)
 
 	result, err := f.service.SignInContext(context.Background())
 
-	assert.Nil(t, result)
-	assert.ErrorIs(t, err, repoErr)
+	require.NoError(t, err)
+	assert.Equal(t, &dto.SignInContextResponse{
+		Mode:       dto.SignInModeEdge,
+		UsersReady: boolPtr(false),
+		Sync:       syncPtr(dto.SyncStateFailed),
+	}, result)
 }
 
 // User creation: a signed-in creator's organization always wins; only the admin-key

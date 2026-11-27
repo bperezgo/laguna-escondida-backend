@@ -51,6 +51,8 @@ func NewEdge(cfg *config.Edge, infra Infra) (*App, error) {
 		return nil, err
 	}
 
+	c.userService.UseSyncState(c.syncStatusTracker)
+
 	exe, exeErr := os.Executable()
 	registerEdgeUpdateRoutes(c.router, c.jwtService, handler.NewEdgeUpdateHandler(newEdgeUpdateService(exe, exeErr, logger)))
 

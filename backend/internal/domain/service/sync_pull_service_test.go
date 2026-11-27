@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"laguna-escondida/backend/internal/domain/dto"
+	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports/mocks"
 
 	"github.com/stretchr/testify/assert"
@@ -127,6 +128,7 @@ func TestPullChanges_PullError_Propagates(t *testing.T) {
 
 	result, err := newPullService(t, client, writer, state).PullChanges(ctx)
 	require.Error(t, err)
+	assert.NotErrorIs(t, err, domainError.ErrPullApplyFailed, "an unreachable cloud is not an apply failure")
 	assert.Nil(t, result)
 	// A failed pull applies nothing.
 	writer.AssertNotCalled(t, "UpsertProducts", mock.Anything, mock.Anything)
@@ -173,4 +175,25 @@ func TestPullChanges_PlateOptionSlotsFailureRollsBack(t *testing.T) {
 
 	_, err := newPullService(t, client, writer, state).PullChanges(ctx)
 	require.ErrorContains(t, err, "replace plate option slots")
+	assert.ErrorIs(t, err, domainError.ErrPullApplyFailed)
+}
+
+func TestPullChanges_UserUpsertFailureIsAnApplyFailure(t *testing.T) {
+	client := mocks.NewMockSyncPullClient(t)
+	writer := mocks.NewMockSyncReferenceWriter(t)
+	state := mocks.NewMockSyncStateRepository(t)
+
+	state.EXPECT().GetPulledCursor(mock.Anything, testCloudNodeID).Return(nil, nil).Once()
+	client.EXPECT().Pull(mock.Anything, mock.Anything).Return(&dto.SyncPullResponse{Cursor: time.Now()}, nil).Once()
+	writer.EXPECT().UpsertProducts(mock.Anything, mock.Anything).Return(nil).Once()
+	writer.EXPECT().UpsertProductResponsibilities(mock.Anything, mock.Anything).Return(nil).Once()
+	writer.EXPECT().UpsertProductIngredients(mock.Anything, mock.Anything).Return(nil).Once()
+	writer.EXPECT().ReplacePlateOptionSlots(mock.Anything, mock.Anything).Return(nil).Once()
+	cause := errors.New("violates foreign key constraint users_organization_id_fkey")
+	writer.EXPECT().UpsertUsers(mock.Anything, mock.Anything).Return(cause).Once()
+
+	_, err := newPullService(t, client, writer, state).PullChanges(context.Background())
+
+	require.ErrorIs(t, err, domainError.ErrPullApplyFailed)
+	assert.ErrorIs(t, err, cause, "the cause stays in the chain for the log")
 }
