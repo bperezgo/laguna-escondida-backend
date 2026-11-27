@@ -58,6 +58,8 @@ The `{tmp}\<script>.err` file goes away: it existed only to avoid an undrained s
 
 The variable is set only when `Input <> ''`, and never for other scripts.
 
+*Decided (owner, on PR #85):* the single-use environment variable replaces stdin for the installer's runs, accepting that setup's elevated process holds the input for the length of one script run.
+
 ### D3. Tests
 
 In `run-installer-tests.ps1`:
