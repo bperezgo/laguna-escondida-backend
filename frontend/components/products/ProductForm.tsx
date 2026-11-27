@@ -11,6 +11,7 @@ import type {
 import { PRODUCT_TYPES, UNITS_OF_MEASURE, PREPARATION_AREAS, PRIORITY_LEVELS, requiresPricing } from "@/types/product";
 import { productsApi } from "@/lib/api/products";
 import { fractionToPercentage } from "@/lib/taxes/percent";
+import { initialSkuField, skuFieldValue, typeSku } from "@/lib/products/sku";
 import { Modal, Input, Select, Textarea, Button } from "@/components/ui";
 import IngredientsEditor from "@/components/products/IngredientsEditor";
 import OptionSlotsEditor from "@/components/products/OptionSlotsEditor";
@@ -22,13 +23,17 @@ interface ProductFormProps {
   ) => Promise<void>;
   onCancel: () => void;
   isLoading?: boolean;
+  takenSkus?: ReadonlySet<string>;
 }
+
+const NO_TAKEN_SKUS: ReadonlySet<string> = new Set();
 
 export default function ProductForm({
   product,
   onSubmit,
   onCancel,
   isLoading = false,
+  takenSkus = NO_TAKEN_SKUS,
 }: ProductFormProps) {
   const [formData, setFormData] = useState({
     name: product?.name || "",
@@ -38,9 +43,12 @@ export default function ProductForm({
     vat: product ? fractionToPercentage(product.vat) : "",
     ico: product ? fractionToPercentage(product.ico) : "",
     description: product?.description || "",
-    sku: product?.sku || "",
     total_price_with_taxes: product?.total_price_with_taxes?.toString() || "",
   });
+
+  const [skuField, setSkuField] = useState(() =>
+    initialSkuField(product ? product.sku || "" : undefined)
+  );
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [categories, setCategories] = useState<string[]>([]);
@@ -61,6 +69,16 @@ export default function ProductForm({
 
   const needsPricing = requiresPricing(formData.product_type);
 
+  const sku = skuFieldValue(
+    skuField,
+    {
+      name: formData.name,
+      productType: formData.product_type,
+      area: hasResponsibility ? responsibilityArea : "",
+    },
+    takenSkus
+  );
+
   useEffect(() => {
     if (product) {
       setFormData({
@@ -71,10 +89,10 @@ export default function ProductForm({
         vat: fractionToPercentage(product.vat),
         ico: fractionToPercentage(product.ico),
         description: product.description || "",
-        sku: product.sku || "",
         total_price_with_taxes:
           product.total_price_with_taxes?.toString() || "",
       });
+      setSkuField(initialSkuField(product.sku || ""));
     }
   }, [product]);
 
@@ -158,9 +176,9 @@ export default function ProductForm({
     }
 
     // SKU: required, min=1, max=255
-    if (!formData.sku.trim()) {
+    if (!sku.trim()) {
       newErrors.sku = "El SKU es requerido";
-    } else if (formData.sku.length > 255) {
+    } else if (sku.length > 255) {
       newErrors.sku = "El SKU debe tener 255 caracteres o menos";
     }
 
@@ -236,7 +254,7 @@ export default function ProductForm({
       category: formData.category.trim(),
       product_type: formData.product_type,
       unit_of_measure: formData.unit_of_measure,
-      sku: formData.sku.trim(),
+      sku: sku.trim(),
       // Reconciled atomically by the backend: object = create/update, null = remove.
       preparation_responsibility: hasResponsibility
         ? {
@@ -417,8 +435,18 @@ export default function ProductForm({
         <Input
           label="SKU *"
           type="text"
-          value={formData.sku}
-          onChange={(e) => handleChange("sku", e.target.value)}
+          value={sku}
+          onChange={(e) => {
+            const value = e.target.value;
+            setSkuField((prev) => typeSku(prev, value));
+            if (errors.sku) {
+              setErrors((prev) => {
+                const next = { ...prev };
+                delete next.sku;
+                return next;
+              });
+            }
+          }}
           error={errors.sku}
           placeholder="Ingresa el SKU"
           maxLength={255}
