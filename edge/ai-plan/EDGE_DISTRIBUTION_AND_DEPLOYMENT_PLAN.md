@@ -82,7 +82,7 @@ come from*, and (b) a *safe* migration/rollback story around that swap.
 
 > ⚠️ **Junction caveat carries to every rung.** The Next bundle uses **junctions with absolute
 > targets** (services plan §Phase 2). A bundle built or unpacked at one path **cannot be moved**
-> to another — it must be assembled/unpacked at its **final install location** (`C:\laguna-edge`).
+> to another — it must be assembled/unpacked at its **final install location** (`C:\kuentapos`).
 > Any Rung-1/2 "copy the artifacts" step must unpack to the install root, not stage-then-move. The
 > backend `edge-node.exe` and the infra binaries have no such constraint.
 

@@ -47,13 +47,13 @@ if ($isApp -and -not $FromSource) {
 $startOrder = 'postgres','edge-node','next','caddy'
 $i = [array]::IndexOf($startOrder, $Service)
 $chain = if ($i -ge 0) { @($startOrder[$i..($startOrder.Count - 1)]) } else { @($Service) }
-$wasRunning = @($chain | Where-Object { (Get-Service "laguna-$_" -ErrorAction SilentlyContinue).Status -eq 'Running' })
+$wasRunning = @($chain | Where-Object { (Get-Service "kuentapos-$_" -ErrorAction SilentlyContinue).Status -eq 'Running' })
 [array]::Reverse($chain)
 foreach ($name in $chain) {
-  $svc = Get-Service "laguna-$name" -ErrorAction SilentlyContinue
+  $svc = Get-Service "kuentapos-$name" -ErrorAction SilentlyContinue
   if (-not $svc -or $svc.Status -eq 'Stopped') { continue }
-  Write-Host "Stopping laguna-$name ..."
-  & sc.exe stop "laguna-$name" | Out-Null
+  Write-Host "Stopping kuentapos-$name ..."
+  & sc.exe stop "kuentapos-$name" | Out-Null
   $svc.WaitForStatus('Stopped', (New-TimeSpan -Seconds 30))
 }
 
@@ -83,7 +83,7 @@ if ($Service -eq 'alloy') {
 
 foreach ($name in $startOrder + @('alloy')) {
   if ($name -ne $Service -and $wasRunning -notcontains $name) { continue }
-  Write-Host "Starting laguna-$name ..."
-  Start-Service "laguna-$name"
+  Write-Host "Starting kuentapos-$name ..."
+  Start-Service "kuentapos-$name"
 }
 Write-Host "Updated $Service."

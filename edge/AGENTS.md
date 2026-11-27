@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Edge appliance for the Laguna Escondida POS: orchestration, config and provisioning for a single
+Edge appliance for the Kuenta POS: orchestration, config and provisioning for a single
 Windows box. No app source lives here; app artifacts come from verified GitHub Releases.
 See `README.md` for the architecture and layout.
 
@@ -15,7 +15,7 @@ See `README.md` for the architecture and layout.
 
 ## Conventions
 
-- Install root on the box is `C:\laguna-edge`.
+- Install root on the box is `C:\kuentapos`.
 - Only Caddy is exposed on the LAN; everything else binds `127.0.0.1`.
 - `env\box.env` is the single source of truth for the box's IP, subnet and hostname.
 - Per-box files under `env/` (no `.example`), `artifacts/`, `certs/` and data dirs are gitignored.

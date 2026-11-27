@@ -53,7 +53,7 @@ jobs:
         working-directory: edge
     env:
       # The scripts (install.ps1 step 5, the Caddyfile storage root) assume this path.
-      EDGE_ROOT: C:\laguna-edge
+      EDGE_ROOT: C:\kuentapos
     steps:
       - name: Checkout code
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -109,13 +109,13 @@ jobs:
 
       # What an admin's click does: the request file is picked up by the real scheduled task
       # (as SYSTEM). The 30-min check can't reach the cloud here, so stage the offer by hand.
-      - name: Owner-triggered update (Laguna Updater task)
+      - name: Owner-triggered update (Kuenta Updater task)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $root  = $env:EDGE_ROOT
           $state = "$root\state"
-          $task = Get-ScheduledTask 'Laguna Updater'
+          $task = Get-ScheduledTask 'Kuenta Updater'
           if ($task.Triggers[0].Repetition.Interval -ne 'PT1M') { throw "task repeats every '$($task.Triggers[0].Repetition.Interval)', expected PT1M" }
 
           $installed = (Get-Content "$root\artifacts\edge-node\RELEASE" -Raw).Trim()
@@ -137,7 +137,7 @@ jobs:
           $available = @{ version = $version; current = $installed; components = @{ 'edge-node' = $target; next = $target } }
           [IO.File]::WriteAllText("$state\update-available.json", ($available | ConvertTo-Json))
           [IO.File]::WriteAllText("$state\update-requested.json", (@{ version = $version; requested_by = 'ci' } | ConvertTo-Json))
-          Start-ScheduledTask 'Laguna Updater'
+          Start-ScheduledTask 'Kuenta Updater'
 
           $deadline = (Get-Date).AddMinutes(12)
           while (-not (Test-Path "$state\update-result.json") -and (Get-Date) -lt $deadline) { Start-Sleep -Seconds 5 }
@@ -158,9 +158,9 @@ jobs:
       - name: Uninstall
         run: |
           & "$env:EDGE_ROOT\scripts\uninstall.ps1"
-          $left = @(Get-Service laguna-* -ErrorAction SilentlyContinue)
+          $left = @(Get-Service kuentapos-* -ErrorAction SilentlyContinue)
           if ($left) { throw "services still registered: $($left.Name -join ', ')" }
-          if (Get-NetFirewallRule -DisplayName 'Laguna POS - Caddy (LAN tablets)' -ErrorAction SilentlyContinue) {
+          if (Get-NetFirewallRule -DisplayName 'Kuenta - Caddy (LAN tablets)' -ErrorAction SilentlyContinue) {
             throw 'firewall rule still present'
           }
           'clean'
@@ -184,7 +184,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: appliance-logs
-          path: C:\laguna-edge\logs
+          path: C:\kuentapos\logs
           if-no-files-found: ignore
           retention-days: 7
 

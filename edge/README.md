@@ -60,7 +60,7 @@ Telemetry is **opt-in** and runs on its own path, separate from the business-dat
 
 ## Deploy (on the Windows box)
 
-> Install-root convention: **`C:\laguna-edge`** — clone/copy this repo there. If you use a
+> Install-root convention: **`C:\kuentapos`** — clone/copy this repo there. If you use a
 > different path, update the absolute `storage` path in `Caddyfile`.
 
 ```powershell

@@ -121,7 +121,7 @@ Write-Host @"
      Then toggle Wi-Fi on the phone to pick up the new DNS.
 
 3. PHONE:
-     - Install certs\laguna-root.crt (Android: Settings > Security > Install a
+     - Install certs\kuentapos-root-ca.crt (Android: Settings > Security > Install a
        certificate > CA certificate.  iPhone: install profile, then
        Settings > General > About > Certificate Trust Settings > enable full trust).
      - Turn OFF Private DNS (Android: Settings > Network > Private DNS > Off).

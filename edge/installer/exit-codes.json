@@ -53,11 +53,11 @@
   },
   "32": {
     "key": "install_failed",
-    "message": "No se pudieron instalar los servicios de la caja. Revise C:\\laguna-edge\\logs."
+    "message": "No se pudieron instalar los servicios de la caja. Revise C:\\kuentapos\\logs."
   },
   "33": {
     "key": "verify_failed",
-    "message": "La caja se instaló pero no responde. Revise C:\\laguna-edge\\logs."
+    "message": "La caja se instaló pero no responde. Revise C:\\kuentapos\\logs."
   },
   "34": {
     "key": "serving_not_synced",
@@ -66,5 +66,9 @@
   "35": {
     "key": "vc_runtime_failed",
     "message": "No se pudo instalar el componente de Microsoft Visual C++ que Kuenta necesita. Reinicie el equipo e intente de nuevo."
+  },
+  "36": {
+    "key": "root_acl_failed",
+    "message": "No se pudieron asegurar los permisos de C:\\kuentapos. No se copió ningún archivo."
   }
 }

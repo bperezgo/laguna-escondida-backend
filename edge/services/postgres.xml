@@ -1,6 +1,6 @@
 <service>
-  <id>laguna-postgres</id>
-  <name>Laguna Escondida - Postgres</name>
+  <id>kuentapos-postgres</id>
+  <name>Kuenta - Postgres</name>
   <description>Local PostgreSQL for the edge node. Bound to 127.0.0.1:5432.</description>
 
   <!-- postgres.exe refuses privileged accounts, so this runs as NetworkService. WinSW 2.x

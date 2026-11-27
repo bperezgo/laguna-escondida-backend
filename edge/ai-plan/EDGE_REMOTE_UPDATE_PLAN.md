@@ -46,7 +46,7 @@ To ship a new frontend build to the one box, someone with hands on it (RDP/conso
    `copy-standalone.js` + junction-repair dance.
 3. `.\scripts\update.ps1 -Service next` — stop, rebuild, restart.
 4. If the orchestration itself changed (`Caddyfile`, `services/*.xml`, a new service like
-   `laguna-alloy`), re-run `.\scripts\install.ps1` elevated instead.
+   `kuentapos-alloy`), re-run `.\scripts\install.ps1` elevated instead.
 5. Eyeball `docs/VALIDATION.md` by hand.
 
 ### Why it doesn't scale — and these are separate problems
@@ -170,7 +170,7 @@ These come from this codebase and this network, and they rule things out:
 ## 4. The shape: desired-state reconciliation
 
 ```
-   developer                 cloud (system of record)              box (C:\laguna-edge)
+   developer                 cloud (system of record)              box (C:\kuentapos)
    ─────────                 ────────────────────────              ────────────────────
    git tag v1.4.0
        │
@@ -248,7 +248,7 @@ management is impossible without that.
 
 ## 6. The updater agent (`laguna-updater`)
 
-A **sixth WinSW service**, modelled on how `laguna-alloy` was added: outside the dependency chain,
+A **sixth WinSW service**, modelled on how `kuentapos-alloy` was added: outside the dependency chain,
 nothing depends on it, so it can never hold up the till.
 
 ### Non-negotiable properties

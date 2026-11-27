@@ -1,6 +1,6 @@
 <service>
-  <id>laguna-next</id>
-  <name>Laguna Escondida - Web App (Next.js)</name>
+  <id>kuentapos-next</id>
+  <name>Kuenta - Web App (Next.js)</name>
   <description>Next.js standalone server. Bound to 127.0.0.1:3000. Only Caddy proxies to it.</description>
 
   <!-- Pinned Node runtime runs the standalone server bundle. -->
@@ -20,7 +20,7 @@
        env\next.env via scripts\build-artifacts.ps1. Setting them here would have no effect
        on the browser bundle. Add one here ONLY if the frontend also reads it server-side. -->
 
-  <depend>laguna-edge-node</depend>
+  <depend>kuentapos-edge-node</depend>
 
   <startmode>Automatic</startmode>
   <onfailure action="restart" delay="10 sec"/>

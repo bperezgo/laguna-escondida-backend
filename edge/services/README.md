@@ -34,23 +34,23 @@ services\next.exe start
 ## Path variables in the XML
 
 - `%BASE%` = the folder containing the wrapper exe = this `services\` folder.
-- `%BASE%\..` = the install root (`C:\laguna-edge`), so artifacts resolve as
+- `%BASE%\..` = the install root (`C:\kuentapos`), so artifacts resolve as
   `%BASE%\..\artifacts\<name>\...`.
 
 ## The services + boot order
 
 | File | Service id | Binds | Depends on |
 |---|---|---|---|
-| `postgres.xml` | `laguna-postgres` | 127.0.0.1:5432 | — |
-| `edge-node.xml` | `laguna-edge-node` | 127.0.0.1:8080 | postgres |
-| `next.xml` | `laguna-next` | 127.0.0.1:3000 | edge-node |
-| `caddy.xml` | `laguna-caddy` | **:443/:80 (LAN)** | next |
-| `alloy.xml` | `laguna-alloy` | 127.0.0.1:4317/:4318/:12345 | — (deliberately none) |
+| `postgres.xml` | `kuentapos-postgres` | 127.0.0.1:5432 | — |
+| `edge-node.xml` | `kuentapos-edge-node` | 127.0.0.1:8080 | postgres |
+| `next.xml` | `kuentapos-next` | 127.0.0.1:3000 | edge-node |
+| `caddy.xml` | `kuentapos-caddy` | **:443/:80 (LAN)** | next |
+| `alloy.xml` | `kuentapos-alloy` | 127.0.0.1:4317/:4318/:12345 | — (deliberately none) |
 
 `<depend>` makes Windows start dependencies first (and refuse to start a service if its
 dependency failed). That gives us: Postgres → edge-node → next → caddy.
 
-**`laguna-alloy` sits outside that chain on purpose.** It is the telemetry sidecar, and
+**`kuentapos-alloy` sits outside that chain on purpose.** It is the telemetry sidecar, and
 because Windows refuses to start a service whose dependency failed, making anything depend
 on it would let a broken sidecar keep the till down. Nothing depends on it and it depends
 on nothing: the app copes with the sidecar being absent, and the sidecar copes with the app

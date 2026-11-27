@@ -1,6 +1,6 @@
 <service>
-  <id>laguna-alloy</id>
-  <name>Laguna Escondida - Telemetry sidecar (Grafana Alloy)</name>
+  <id>kuentapos-alloy</id>
+  <name>Kuenta - Telemetry sidecar (Grafana Alloy)</name>
   <description>Receives the edge node's OTLP logs and traces on 127.0.0.1:4317/:4318, scrapes its Prometheus metrics on 127.0.0.1:9090, buffers to disk within a hard cap while the box is offline, and forwards everything to the cloud telemetry ingest. Holds no Grafana Cloud credentials.</description>
 
   <executable>%BASE%\..\artifacts\alloy\alloy.exe</executable>

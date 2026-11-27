@@ -2,7 +2,7 @@
   updater.ps1 -- owner-triggered appliance updates (edge-node + next, one edge release).
   See docs\UPDATE_PROTOCOL.md.
 
-  install.ps1 registers it as the "Laguna Updater" scheduled task: SYSTEM, every minute.
+  install.ps1 registers it as the "Kuenta Updater" scheduled task: SYSTEM, every minute.
   Each run does at most one thing:
     - an admin pressed "Actualizar" (state\update-requested.json): back up the DB, install the
       staged versions, verify, roll back on failure, write state\update-result.json
@@ -232,15 +232,15 @@ function Restore-Database($file) {
 # again, even mid-restore. Disabling it cancels those restarts; Enable-AppServices undoes it.
 function Stop-AppServices {
   foreach ($name in 'caddy','next','edge-node') {
-    $svc = Get-Service "laguna-$name" -ErrorAction SilentlyContinue
+    $svc = Get-Service "kuentapos-$name" -ErrorAction SilentlyContinue
     if (-not $svc) { continue }
-    Set-Service "laguna-$name" -StartupType Disabled
+    Set-Service "kuentapos-$name" -StartupType Disabled
     $deadline = (Get-Date).AddSeconds(60)
     while ($true) {
       $svc.Refresh()
       if ($svc.Status -eq 'Stopped') { break }
-      if ((Get-Date) -gt $deadline) { throw "laguna-$name did not stop within 60s" }
-      if ($svc.Status -eq 'Running') { & sc.exe stop "laguna-$name" | Out-Null }
+      if ((Get-Date) -gt $deadline) { throw "kuentapos-$name did not stop within 60s" }
+      if ($svc.Status -eq 'Running') { & sc.exe stop "kuentapos-$name" | Out-Null }
       Start-Sleep -Seconds 1
     }
   }
@@ -248,8 +248,8 @@ function Stop-AppServices {
 
 function Enable-AppServices {
   foreach ($name in 'caddy','next','edge-node') {
-    if (Get-Service "laguna-$name" -ErrorAction SilentlyContinue) {
-      Set-Service "laguna-$name" -StartupType Automatic
+    if (Get-Service "kuentapos-$name" -ErrorAction SilentlyContinue) {
+      Set-Service "kuentapos-$name" -StartupType Automatic
     }
   }
 }
@@ -257,7 +257,7 @@ function Enable-AppServices {
 function Start-AllServices {
   Enable-AppServices
   foreach ($name in 'postgres','edge-node','next','caddy','alloy') {
-    if (Get-Service "laguna-$name" -ErrorAction SilentlyContinue) { Start-Service "laguna-$name" }
+    if (Get-Service "kuentapos-$name" -ErrorAction SilentlyContinue) { Start-Service "kuentapos-$name" }
   }
 }
 

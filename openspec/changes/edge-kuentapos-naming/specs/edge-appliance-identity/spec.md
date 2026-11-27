@@ -31,8 +31,8 @@ It SHALL export the box's root CA as `C:\kuentapos\kuentapos-root-ca.crt`. No se
 
 After every install or repair, `C:\kuentapos` SHALL be owned by Administrators. It SHALL grant full control only to Administrators and SYSTEM, and read and execute to Users, and it SHALL NOT inherit the permissions of `C:\`. This SHALL be in place before the installer copies any file.
 - The service grants a box needs (NetworkService on `logs\`, `services\` and the Postgres folder) SHALL still apply.
-- `env\` SHALL stay restricted to Administrators and SYSTEM at every point of an install or repair.
-- When `C:\kuentapos` already exists without a box, files in its program folders SHALL NOT survive the install.
+- `env\`, `state\`, `backups\` and `caddy-data\` SHALL stay restricted to Administrators and SYSTEM at every point of an install or repair.
+- When `C:\kuentapos` already exists without a box, no file in it SHALL survive the install, and links in it SHALL be removed, not followed.
 
 #### Scenario: Standard user cannot change what SYSTEM runs
 
@@ -41,7 +41,7 @@ After every install or repair, `C:\kuentapos` SHALL be owned by Administrators. 
 
 #### Scenario: Standard user cannot read the box's secrets
 
-- **WHEN** a non-administrator tries to read `env\edge-node.env` or `env\alloy-node-key`
+- **WHEN** a non-administrator tries to read `env\edge-node.env`, `env\alloy-node-key` or the Caddy CA key in `caddy-data\`
 - **THEN** Windows denies the read
 
 #### Scenario: Pre-created folder is taken over, not trusted

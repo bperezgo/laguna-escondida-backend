@@ -7,7 +7,7 @@ How a box offers a new backend/frontend to the restaurant and installs it when a
 
 | Piece | Where | Does |
 |---|---|---|
-| `Laguna Updater` scheduled task | registered by `scripts/install.ps1` | runs `scripts/updater.ps1` every minute as SYSTEM |
+| `Kuenta Updater` scheduled task | registered by `scripts/install.ps1` | runs `scripts/updater.ps1` every minute as SYSTEM |
 | `scripts/updater.ps1` | this repo | checks for updates, stages them, installs on request, rolls back |
 | `GET/POST /api/edge/update` | backend (edge mode) | reads the state files; POST only writes `update-requested.json` |
 | Update banner | frontend (admins only) | shows the offer, the progress and the result |
@@ -38,7 +38,7 @@ The offered version is the single edge version. Both apps are always installed a
 The first release after the split must be numbered above the tags the boxes run now, or it is not
 "newer".
 
-## State files (`C:\laguna-edge\state`)
+## State files (`C:\kuentapos\state`)
 
 edge-node finds this folder itself, two levels above the folder it runs from (`<root>\artifacts\edge-node\`), and offers updates only when it exists. No environment variable sets it.
 
@@ -63,7 +63,7 @@ On the next minute tick after the click:
 1. `preparing`: the request must match `update-available.json`. The tags come from that file,
    which the updater wrote itself, never from the request.
 2. `downloading`: re-verify the staged zips (sha256 from the manifest as well).
-3. `backup` (only if edge-node changes): `pg_dump -Fc` to `C:\laguna-edge\backups\`, last 5 kept.
+3. `backup` (only if edge-node changes): `pg_dump -Fc` to `C:\kuentapos\backups\`, last 5 kept.
 4. `installing`: `update.ps1 -Service edge-node -Tag <edge version>`, then `next`.
 5. `verifying`: `verify-install.ps1`, which also checks edge-node reports the new version.
 

@@ -19,7 +19,7 @@ release on its own.
 
 ## Configuration
 
-None. The box reads the updater's state files from the `state` folder at the appliance's install root (`C:\laguna-edge\state`), worked out from where the edge binary runs (`<root>\artifacts\edge-node\`). When that folder does not exist, as on a developer's machine, the feature is off. No environment variable changes the folder.
+None. The box reads the updater's state files from the `state` folder at the appliance's install root (`C:\kuentapos\state`), worked out from where the edge binary runs (`<root>\artifacts\edge-node\`). When that folder does not exist, as on a developer's machine, the feature is off. No environment variable changes the folder.
 
 ---
 

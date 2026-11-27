@@ -4,7 +4,7 @@ The "other document you might need." This is the one to open at the restaurant w
 misbehaves and there's no Claude to ask. Each entry: **symptom → why → fix**. Work top-down;
 the layers map to [`VALIDATION.md`](VALIDATION.md) (Postgres → edge-node → Next → Caddy → edge).
 
-> Install root `C:\laguna-edge`, LAN IP `192.168.0.123` (this box's `EDGE_LAN_IP` from
+> Install root `C:\kuentapos`, LAN IP `192.168.0.123` (this box's `EDGE_LAN_IP` from
 > `env\box.env`). Elevated PowerShell unless noted.
 
 ---
@@ -12,8 +12,8 @@ the layers map to [`VALIDATION.md`](VALIDATION.md) (Postgres → edge-node → N
 ## First move, always: find the failing layer
 
 ```powershell
-Get-Service laguna-* | Format-Table Name, Status, StartType
-Get-ChildItem C:\laguna-edge\logs | Sort-Object LastWriteTime -Desc | Select-Object -First 8 Name, LastWriteTime
+Get-Service kuentapos-* | Format-Table Name, Status, StartType
+Get-ChildItem C:\kuentapos\logs | Sort-Object LastWriteTime -Desc | Select-Object -First 8 Name, LastWriteTime
 ```
 
 The lowest service that is **not Running** is your culprit (the upper ones depend on it). Open
@@ -35,10 +35,10 @@ header_down Location "https?://localhost:3000" ""
 ```
 
 ```powershell
-Select-String -Path C:\laguna-edge\Caddyfile -Pattern 'header_down Location'   # must match
+Select-String -Path C:\kuentapos\Caddyfile -Pattern 'header_down Location'   # must match
 # Then validate + reload (no restart needed):
-& C:\laguna-edge\artifacts\caddy\caddy.exe validate --config C:\laguna-edge\Caddyfile --adapter caddyfile
-& C:\laguna-edge\artifacts\caddy\caddy.exe reload   --config C:\laguna-edge\Caddyfile --adapter caddyfile
+& C:\kuentapos\artifacts\caddy\caddy.exe validate --config C:\kuentapos\Caddyfile --adapter caddyfile
+& C:\kuentapos\artifacts\caddy\caddy.exe reload   --config C:\kuentapos\Caddyfile --adapter caddyfile
 # Verify: Location must be relative.
 curl.exe -k -s -i https://192.168.0.123/ | Select-String "location:"     # -> location: /signin
 ```
@@ -51,28 +51,28 @@ curl.exe -k -s -i https://192.168.0.123/ | Select-String "location:"     # -> lo
 ## A service won't start / sits in StartPending / flaps
 
 ```powershell
-C:\laguna-edge\services\<svc>.exe status
-Get-Content C:\laguna-edge\logs\<svc>.err.log -Tail 50
-Get-Content C:\laguna-edge\logs\<svc>.wrapper.log -Tail 50   # WinSW start/stop/restart events
+C:\kuentapos\services\<svc>.exe status
+Get-Content C:\kuentapos\logs\<svc>.err.log -Tail 50
+Get-Content C:\kuentapos\logs\<svc>.wrapper.log -Tail 50   # WinSW start/stop/restart events
 ```
 
 Then by service:
 
-### laguna-postgres
+### kuentapos-postgres
 - **`will not run as a user with administrative privileges`** → the service is running as
   LocalSystem instead of NetworkService. `install.ps1` sets this via CIM; re-run it, or fix
   manually:
   ```powershell
-  $svc = Get-CimInstance Win32_Service -Filter "Name='laguna-postgres'"
+  $svc = Get-CimInstance Win32_Service -Filter "Name='kuentapos-postgres'"
   Invoke-CimMethod -InputObject $svc -MethodName Change -Arguments @{ StartName='NT AUTHORITY\NetworkService'; StartPassword='' }
-  Start-Service laguna-postgres
+  Start-Service kuentapos-postgres
   ```
 - **`permission denied` / `could not open file` on the data dir** → NetworkService lacks ACLs.
   Re-grant (idempotent):
   ```powershell
-  icacls C:\laguna-edge\artifacts\postgres /grant '*S-1-5-20:(OI)(CI)M' /T /C /Q
-  icacls C:\laguna-edge\logs              /grant '*S-1-5-20:(OI)(CI)M' /C /Q
-  icacls C:\laguna-edge\services          /grant '*S-1-5-20:(OI)(CI)RX' /T /C /Q
+  icacls C:\kuentapos\artifacts\postgres /grant '*S-1-5-20:(OI)(CI)M' /T /C /Q
+  icacls C:\kuentapos\logs              /grant '*S-1-5-20:(OI)(CI)M' /C /Q
+  icacls C:\kuentapos\services          /grant '*S-1-5-20:(OI)(CI)RX' /T /C /Q
   ```
 - **Access denied starting the service (before postgres.exe even runs)** → same as above; the
   `services\` RX grant is the fix. (The wrapper lives under the user profile, which gives
@@ -80,7 +80,7 @@ Then by service:
 - **`could not bind … 5432` / address in use** → another Postgres (e.g. a previously-installed
   official one) owns the port. `Get-NetTCPConnection -LocalPort 5432` to find the PID.
 
-### laguna-edge-node
+### kuentapos-edge-node
 - **Exits immediately, log shows a missing var panic** → an `(required)` field in
   `artifacts\edge-node\.env` is blank. Fix `env\edge-node.env`, then
   `.\scripts\update.ps1 -Service edge-node` (re-stages the `.env`).
@@ -89,7 +89,7 @@ Then by service:
   (VALIDATION §3). To reset the app role password:
   ```powershell
   $env:PGPASSWORD='<superuser-pw>'
-  & C:\laguna-edge\artifacts\postgres\bin\psql.exe -h 127.0.0.1 -U postgres -d postgres `
+  & C:\kuentapos\artifacts\postgres\bin\psql.exe -h 127.0.0.1 -U postgres -d postgres `
     -c "ALTER ROLE laguna PASSWORD 'new-pw';"
   Remove-Item Env:\PGPASSWORD   # then set DB_PASSWORD=new-pw in env and update the service
   ```
@@ -101,7 +101,7 @@ Then by service:
 - **`.env` not found** → `install.ps1` copies `env\edge-node.env` → `artifacts\edge-node\.env`.
   Confirm `env\edge-node.env` exists (not just the `.example`) and re-run install/update.
 
-### laguna-next
+### kuentapos-next
 - **`Error: Cannot find module …` / module resolution fails** → the standalone `node_modules`
   junctions are broken (often from copying `artifacts\next` to a different path — junctions are
   **absolute**). Rebuild in place: `.\scripts\update.ps1 -Service next`.
@@ -109,11 +109,11 @@ Then by service:
   ```powershell
   Get-NetTCPConnection -LocalPort 3000 | Select-Object OwningProcess
   Stop-Process -Id <pid> -Force
-  Start-Service laguna-next
+  Start-Service kuentapos-next
   ```
 
-### laguna-caddy
-- **`dial tcp 127.0.0.1:3000: connectex: No connection`** → Next is down; fix `laguna-next`
+### kuentapos-caddy
+- **`dial tcp 127.0.0.1:3000: connectex: No connection`** → Next is down; fix `kuentapos-next`
   first (Caddy depends on it).
 - **Caddyfile parse error on start** → run `caddy validate` (VALIDATION §6) to see the line.
 
@@ -141,10 +141,10 @@ Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock
 **Fix:** install the root cert on the tablet. Export it from the box:
 
 ```powershell
-Copy-Item C:\laguna-edge\caddy-data\pki\authorities\local\root.crt C:\laguna-edge\laguna-root-ca.crt
+Copy-Item C:\kuentapos\caddy-data\pki\authorities\local\root.crt C:\kuentapos\kuentapos-root-ca.crt
 ```
 
-Transfer `laguna-root-ca.crt` to the tablet and install it as a trusted CA (see
+Transfer `kuentapos-root-ca.crt` to the tablet and install it as a trusted CA (see
 `provisioning\README.md`). One root serves all tablets.
 
 ---
@@ -157,7 +157,7 @@ Check, in order:
 # 1. Is the box actually at the expected IP?
 Get-NetIPAddress -AddressFamily IPv4 | Where-Object IPAddress -like '192.168.0.*'
 # 2. Is the firewall allowing the tablet's IP?
-Get-NetFirewallRule -DisplayName 'Laguna POS - Caddy (LAN tablets)' |
+Get-NetFirewallRule -DisplayName 'Kuenta - Caddy (LAN tablets)' |
   Get-NetFirewallAddressFilter | Format-List RemoteAddress
 # 3. Is Caddy listening on 443?
 netstat -ano | Select-String ':443\s' | Select-String LISTENING
@@ -170,7 +170,7 @@ netstat -ano | Select-String ':443\s' | Select-String LISTENING
   .\scripts\set-lan-ip.ps1        # auto-detects the new IP, or pass -IP 192.168.0.100
   ```
 
-  It updates `env\box.env` **and** the machine env vars **and** restarts `laguna-caddy`, then
+  It updates `env\box.env` **and** the machine env vars **and** restarts `kuentapos-caddy`, then
   proves it worked by reading the cert Caddy actually serves. All three must move together:
   the `Caddyfile` resolves `{$EDGE_LAN_IP}` from the *machine env var* at process start, so
   editing `box.env` alone does nothing, and `caddy reload` alone does nothing (it re-reads the
@@ -215,10 +215,10 @@ Two dirs are not reproducible from source — back them up off-box:
 
 ```powershell
 # CA root (lose it → re-trust every tablet) + the live database.
-Copy-Item C:\laguna-edge\caddy-data <backup>\caddy-data -Recurse -Force
+Copy-Item C:\kuentapos\caddy-data <backup>\caddy-data -Recurse -Force
 # Postgres: use pg_dump for a consistent logical backup (service can stay running):
 $env:PGPASSWORD='<superuser-pw>'
-& C:\laguna-edge\artifacts\postgres\bin\pg_dump.exe -h 127.0.0.1 -U postgres `
+& C:\kuentapos\artifacts\postgres\bin\pg_dump.exe -h 127.0.0.1 -U postgres `
   -d laguna_escondida -F c -f <backup>\laguna_escondida.dump
 Remove-Item Env:\PGPASSWORD
 ```

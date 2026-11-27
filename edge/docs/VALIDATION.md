@@ -10,7 +10,7 @@ on the box.
 > same script after a full install on a clean Windows runner
 > (`.github/workflows/install-smoke.yml`), so most regressions are caught before they reach a box.
 
-> Convention: install root is `C:\laguna-edge`, LAN IP is `192.168.0.123` (this box's
+> Convention: install root is `C:\kuentapos`, LAN IP is `192.168.0.123` (this box's
 > `EDGE_LAN_IP` from `env\box.env` — the single source of truth; substitute yours). `curl.exe`
 > (not the `curl` alias) is used so flags behave like real curl.
 
@@ -30,7 +30,7 @@ Get-NetIPAddress -AddressFamily IPv4 |
   Format-Table IPAddress, InterfaceAlias
 
 # What IP does the config EXPECT?
-Get-Content C:\laguna-edge\env\box.env
+Get-Content C:\kuentapos\env\box.env
 
 # Does the app serve on the box itself, regardless of network address?
 curl.exe -k -s -o NUL -w "local -> %{http_code}`n" https://127.0.0.1/signin   # -> 200 = stack healthy
@@ -51,7 +51,7 @@ curl.exe -k -s -o NUL -w "local -> %{http_code}`n" https://127.0.0.1/signin   # 
 If you only run one thing, run this. All four services Running + a relative redirect = healthy.
 
 ```powershell
-Get-Service laguna-* | Sort-Object Name | Format-Table Name, Status, StartType
+Get-Service kuentapos-* | Sort-Object Name | Format-Table Name, Status, StartType
 curl.exe -k -s -o NUL -w "edge root  -> %{http_code}`n" https://192.168.0.123/
 curl.exe -k -s -o NUL -w "edge signin-> %{http_code}`n" https://192.168.0.123/signin
 ```
@@ -63,7 +63,7 @@ Expected: 4× `Running`, root `-> 307`, signin `-> 200`.
 ## 1. Services are registered and Running
 
 ```powershell
-Get-Service laguna-* | Format-Table Name, Status, StartType
+Get-Service kuentapos-* | Format-Table Name, Status, StartType
 ```
 
 Expected — all four **Running**, **Automatic**:
@@ -71,19 +71,19 @@ Expected — all four **Running**, **Automatic**:
 ```
 Name               Status  StartType
 ----               ------  ---------
-laguna-caddy       Running Automatic
-laguna-edge-node   Running Automatic
-laguna-next        Running Automatic
-laguna-postgres    Running Automatic
+kuentapos-caddy       Running Automatic
+kuentapos-edge-node   Running Automatic
+kuentapos-next        Running Automatic
+kuentapos-postgres    Running Automatic
 ```
 
 Per-service detail via the WinSW wrapper:
 
 ```powershell
-C:\laguna-edge\services\postgres.exe  status
-C:\laguna-edge\services\edge-node.exe status
-C:\laguna-edge\services\next.exe      status
-C:\laguna-edge\services\caddy.exe     status
+C:\kuentapos\services\postgres.exe  status
+C:\kuentapos\services\edge-node.exe status
+C:\kuentapos\services\next.exe      status
+C:\kuentapos\services\caddy.exe     status
 ```
 
 A service stuck in `StartPending` or flapping → check its log (§6) and
@@ -116,7 +116,7 @@ Expected:
 ## 3. Postgres accepts connections
 
 ```powershell
-& C:\laguna-edge\artifacts\postgres\bin\pg_isready.exe -h 127.0.0.1 -p 5432
+& C:\kuentapos\artifacts\postgres\bin\pg_isready.exe -h 127.0.0.1 -p 5432
 # -> 127.0.0.1:5432 - accepting connections
 ```
 
@@ -124,7 +124,7 @@ Confirm the app role + database exist (uses the superuser password from `init-po
 
 ```powershell
 $env:PGPASSWORD = '<postgres-superuser-password>'
-& C:\laguna-edge\artifacts\postgres\bin\psql.exe -h 127.0.0.1 -U postgres -d laguna_escondida `
+& C:\kuentapos\artifacts\postgres\bin\psql.exe -h 127.0.0.1 -U postgres -d laguna_escondida `
   -tAc "select current_database(), current_user;"
 Remove-Item Env:\PGPASSWORD
 # -> laguna_escondida|postgres
@@ -144,7 +144,7 @@ The most common cause is a bad `.env` (missing required var, or `DB_PASSWORD` mi
 can't reach Postgres). Confirm migrations ran and it connected by tailing its log:
 
 ```powershell
-Get-Content C:\laguna-edge\logs\edge-node.out.log -Tail 40
+Get-Content C:\kuentapos\logs\edge-node.out.log -Tail 40
 ```
 
 ---
@@ -170,14 +170,14 @@ curl.exe -s -o NUL -w "next signin -> %{http_code}`n" http://127.0.0.1:3000/sign
 
 ```powershell
 # Validate the Caddyfile parses (does not touch the running server):
-& C:\laguna-edge\artifacts\caddy\caddy.exe validate `
-  --config C:\laguna-edge\Caddyfile --adapter caddyfile
+& C:\kuentapos\artifacts\caddy\caddy.exe validate `
+  --config C:\kuentapos\Caddyfile --adapter caddyfile
 
 # The running server exposes an admin API on localhost:2019:
 curl.exe -s http://localhost:2019/config/ | Select-String "192.168.0.123"   # site is loaded
 
 # The internal CA root must exist and be persisted (tablets trust this):
-Test-Path C:\laguna-edge\caddy-data\pki\authorities\local\root.crt           # -> True
+Test-Path C:\kuentapos\caddy-data\pki\authorities\local\root.crt           # -> True
 ```
 
 ---
@@ -211,7 +211,7 @@ curl.exe    -s -o NUL -w "http   -> %{http_code}`n" http://192.168.0.123/       
 ## 8. Firewall is locked to the LAN
 
 ```powershell
-Get-NetFirewallRule -DisplayName 'Laguna POS - Caddy (LAN tablets)' |
+Get-NetFirewallRule -DisplayName 'Kuenta - Caddy (LAN tablets)' |
   Get-NetFirewallAddressFilter | Format-List RemoteAddress
 # RemoteAddress should be your tablet IPs / subnet, NOT "Any".
 ```

@@ -3,7 +3,7 @@
   the edge node. Creates the data dir, a superuser, and the app role + database.
 
   Run AFTER fetch-artifacts.ps1 has placed the Postgres binaries in artifacts\postgres\.
-  Does NOT need admin (initdb/pg_ctl run as the current user). The laguna-postgres
+  Does NOT need admin (initdb/pg_ctl run as the current user). The kuentapos-postgres
   Windows service (postgres.xml) serves this data dir afterwards.
 
   Example:

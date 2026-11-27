@@ -24,7 +24,7 @@ logging {
 
 // A locked-down file, not an env var, so other processes can't read it.
 local.file "node_key" {
-	filename  = coalesce(sys.env("EDGE_NODE_KEY_FILE"), "C:\\laguna-edge\\env\\alloy-node-key")
+	filename  = coalesce(sys.env("EDGE_NODE_KEY_FILE"), "C:\\kuentapos\\env\\alloy-node-key")
 	is_secret = true
 }
 
@@ -127,13 +127,13 @@ otelcol.processor.batch "cloud" {
 
 // Survives restarts, so a restart mid-outage keeps the backlog.
 otelcol.storage.file "buffer" {
-	directory        = coalesce(sys.env("EDGE_TELEMETRY_BUFFER_DIR"), "C:\\laguna-edge\\alloy-data\\buffer")
+	directory        = coalesce(sys.env("EDGE_TELEMETRY_BUFFER_DIR"), "C:\\kuentapos\\alloy-data\\buffer")
 	create_directory = true
 
 	compaction {
 		on_start                      = true
 		on_rebound                    = true
-		directory                     = coalesce(sys.env("EDGE_TELEMETRY_BUFFER_DIR"), "C:\\laguna-edge\\alloy-data\\buffer")
+		directory                     = coalesce(sys.env("EDGE_TELEMETRY_BUFFER_DIR"), "C:\\kuentapos\\alloy-data\\buffer")
 		rebound_needed_threshold_mib  = 16
 		rebound_trigger_threshold_mib = 8
 	}

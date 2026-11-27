@@ -20,7 +20,7 @@ AppId={{6A1E8C52-3D0B-4B7E-9F4C-5C1D2E7A9B10}
 AppName=Kuenta
 AppVersion={#AppVersion}
 AppPublisher=Kuenta
-DefaultDirName=C:\laguna-edge
+DefaultDirName=C:\kuentapos
 DisableDirPage=yes
 DisableProgramGroupPage=yes
 DisableReadyPage=yes
@@ -57,6 +57,7 @@ Source: "kuenta.ico"; DestDir: "{app}\installer"; Flags: ignoreversion
 Source: "licenses\*"; DestDir: "{app}\licenses"; Flags: recursesubdirs ignoreversion
 Source: "..\scripts\preflight.ps1"; DestDir: "{tmp}"; Flags: dontcopy
 Source: "..\scripts\enroll.ps1"; DestDir: "{tmp}"; Flags: dontcopy
+Source: "..\scripts\lock-root.ps1"; DestDir: "{tmp}"; Flags: dontcopy
 Source: "{#StageDir}\artifacts\vcredist\VC_redist.x64.exe"; DestDir: "{tmp}"; Flags: dontcopy
 
 [InstallDelete]
@@ -89,7 +90,7 @@ Type: files; Name: "{commonprograms}\Kuenta.url"
 
 [Code]
 const
-  Root = 'C:\laguna-edge';
+  Root = 'C:\kuentapos';
   BuiltInCloudUrl = '{#CloudUrl}';
 
 var
@@ -430,6 +431,17 @@ begin
   if DeclinedReplace then Confirm := False;
 end;
 
+// Before any file is copied, so nothing a non-admin planted or can still change reaches the box.
+function LockRoot: Boolean;
+var Args, Output: String;
+begin
+  ExtractTemporaryFile('lock-root.ps1');
+  Args := '-Root "' + Root + '"';
+  if Mode = 'fresh' then Args := Args + ' -Fresh';
+  Result := RunPS(ExpandConstant('{tmp}\lock-root.ps1'), Args, '', Output, False) = 0;
+  Log('lock-root ' + Trim(Output));
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var Msg, EnrollCode, BoxName: String; RC: Integer;
 begin
@@ -466,8 +478,9 @@ begin
   end;
   // A repair replaces files the running services hold open.
   if Mode = 'repair' then
-    Exec(PowerShellExe, '-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Get-Service laguna-* -ErrorAction SilentlyContinue | Stop-Service -Force"',
+    Exec(PowerShellExe, '-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Get-Service kuentapos-* -ErrorAction SilentlyContinue | Stop-Service -Force"',
       '', SW_HIDE, ewWaitUntilTerminated, RC);
+  if not LockRoot then Result := ExitMessage(36);
 end;
 
 // Postgres's binaries need it and do not ship it. Always run: it returns 1638 at once when the

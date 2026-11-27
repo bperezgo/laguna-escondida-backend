@@ -44,12 +44,14 @@ The root stays a fixed path, as it is today: the `Caddyfile` storage root is the
 
 ### D2. The installer locks the root before it copies a file
 
-At the start of `PrepareToInstall`, for fresh and repair modes alike:
+In `PrepareToInstall`, for fresh and repair modes alike, once the preflight and enrollment checks pass (a refused install must leave nothing at the root) and after a repair has stopped the services. The steps live in `scripts\lock-root.ps1`, which the installer extracts to `{tmp}` like `preflight.ps1`:
 1. Create `C:\kuentapos` if it is missing.
 2. Set its owner to Administrators, recursively: `icacls C:\kuentapos /setowner *S-1-5-32-544 /T /C`.
 3. Replace its DACL with full control for Administrators and SYSTEM, read and execute for Users, and no inheritance: `/inheritance:r /grant:r *S-1-5-32-544:(OI)(CI)F *S-1-5-18:(OI)(CI)F *S-1-5-32-545:(OI)(CI)RX`, then `/reset /T` below it, so children inherit only this.
-4. Immediately re-restrict `env\` and `env\alloy-node-key` with the grants `write-box-config.ps1` and `install.ps1` use. Otherwise step 3 would leave the box's secrets readable by Users until `install.ps1` runs.
-5. On a fresh install into a root that already existed, delete its program folders (`scripts`, `services`, `artifacts` except `artifacts\postgres\data`, `installer`, `licenses`) before copying.
+4. Keep `env\`, `env\alloy-node-key`, `state\`, `backups\` and `caddy-data\` (it holds the tablets' CA private key) restricted to Administrators and SYSTEM, with the grants `write-box-config.ps1` and `install.ps1` use. Otherwise step 3 would leave the box's secrets readable by Users until `install.ps1` runs.
+5. On a fresh install into a root that already existed, delete everything in it before copying. Without a box, nothing there is legitimate, and a planted `caddy-data\` CA key or `state\` request would otherwise survive.
+
+`icacls /T` follows directory junctions, which a non-admin can create without privilege. So before anything recursive runs, the script walks the tree top-down, locks each folder before listing it (`/L`, so a link is never followed), and deletes every link it finds. `env\`, `state\`, `backups\` and `caddy-data\` get their exact DACL in one write, so they are never readable by Users, not even for a moment.
 
 `install.ps1`'s existing grants (NetworkService on `logs\`, `services\` and `artifacts\postgres`, and the restricted `state\` and `backups\`) then apply on top, unchanged. Each `icacls` exit code is logged, and a failure stops setup with a new exit code, `root_acl_failed`, before anything is copied.
 
@@ -89,6 +91,13 @@ At the start of `PrepareToInstall`, for fresh and repair modes alike:
 - *Attack classes considered* (`DESKTOP-MOBILE-AND-LOCAL-IPC.md`): install/update/repair path trust (pre-created or writable install folder), local file ownership (an owner keeps WRITE_DAC), DLL planting in a service's folder, and credential-store boundary mismatch (`env\` readable by users during the reset).
 
 **Needs validation (outside the repo):** that a default Windows 11 `C:\` ACL matches the test PC's, so that the CI runner, which may differ, is not the only evidence. Check with `icacls C:\` on a fresh Windows 11. The negative tests (tasks 3.x) prove the fix on the runner either way.
+*Checked (task 5.1, 2026-11-27):* not run on a fresh Windows 11; only source was reviewed. The fix does not depend on that ACL: the root drops inheritance from `C:\`, and the installer test covers the worst case, a standard user who could create the root first. One assumption is unverified: that the runner's Users group can create a folder in `C:\`. If it cannot, the test's pre-create step fails loudly rather than passing.
+
+**Review (task 5.1, 2026-11-27), source only:**
+- *Fixed:* a fresh install kept the pre-created data folders, so a planted Caddy CA key (letting the attacker man-in-the-middle the tablets) or updater request survived. Now everything is deleted.
+- *Fixed:* `caddy-data\` inherited read for Users, so any local user could read the CA private key. It is now restricted like `env\`.
+- *Residual:* a folder could be swapped for a junction between the link check and the DACL write. The attacker needs write access to an empty folder they no longer own, and the worst result is a restrictive ACL on the target (denial of service, not escalation).
+- *Residual:* if the lock-down fails on a repair, the services stay stopped. That costs availability only.
 
 ## Risks / Trade-offs
 

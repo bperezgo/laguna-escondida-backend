@@ -14,10 +14,11 @@ begin
     23: Result := 'No se pudo registrar la caja en Kuenta.';
     30: Result := 'Este equipo tiene datos de una caja pero no su configuración. Contacte a soporte; no se cambió nada.';
     31: Result := 'No se pudo escribir la configuración de la caja.';
-    32: Result := 'No se pudieron instalar los servicios de la caja. Revise C:\laguna-edge\logs.';
-    33: Result := 'La caja se instaló pero no responde. Revise C:\laguna-edge\logs.';
+    32: Result := 'No se pudieron instalar los servicios de la caja. Revise C:\kuentapos\logs.';
+    33: Result := 'La caja se instaló pero no responde. Revise C:\kuentapos\logs.';
     34: Result := 'La caja funciona, pero aún no se ha conectado a Kuenta. El inicio de sesión funcionará cuando tenga conexión.';
     35: Result := 'No se pudo instalar el componente de Microsoft Visual C++ que Kuenta necesita. Reinicie el equipo e intente de nuevo.';
+    36: Result := 'No se pudieron asegurar los permisos de C:\kuentapos. No se copió ningún archivo.';
   else Result := 'Error inesperado (código ' + IntToStr(Code) + ').';
   end;
 end;

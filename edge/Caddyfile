@@ -1,9 +1,9 @@
 # LAN HTTPS reverse proxy: the only service exposed on the LAN.
-# The storage root below must match the install root (C:\laguna-edge).
+# The storage root below must match the install root (C:\kuentapos).
 {
 	# Holds the internal CA root. If this dir is lost, every tablet must re-trust a new root.
 	storage file_system {
-		root C:\laguna-edge\caddy-data
+		root C:\kuentapos\caddy-data
 	}
 }
 
