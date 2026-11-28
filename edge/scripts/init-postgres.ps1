@@ -55,6 +55,23 @@ if (-not $SuperPassword) {
   $SuperPassword = [Convert]::ToBase64String([Guid]::NewGuid().ToByteArray()).Substring(0, 16)
 }
 
+# initdb and postgres drop the caller's admin rights, and the locked root gives Users only read, so
+# the data dir and the server's log are granted to this account's own SID until the temporary server
+# stops. install.ps1 then grants NetworkService, which the service runs as.
+$Me = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+$startLog = Join-Path $Logs 'pg-init.log'
+New-Item -ItemType Directory -Force -Path $Data | Out-Null
+if (-not (Test-Path $startLog)) { New-Item -ItemType File -Path $startLog | Out-Null }
+& icacls $Data /grant "*${Me}:(OI)(CI)M" /C /Q | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "Could not grant this account access to $Data (icacls exit $LASTEXITCODE)" }
+& icacls $startLog /grant "*${Me}:M" /C /Q | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "Could not grant this account access to $startLog (icacls exit $LASTEXITCODE)" }
+
+function Remove-InitGrant {
+  & icacls $Data /remove:g "*$Me" /T /C /Q | Out-Null
+  & icacls $startLog /remove:g "*$Me" /C /Q | Out-Null
+}
+
 # 1. initdb -- create the cluster. Superuser is 'postgres'; password via temp pwfile.
 Step "Initializing cluster at $Data"
 $pwfile = Join-Path $env:TEMP ("pg-super-" + [Guid]::NewGuid().ToString('N') + '.txt')
@@ -66,12 +83,11 @@ try {
   Remove-Item $pwfile -Force -ErrorAction SilentlyContinue
 }
 # 0xC0000135 (STATUS_DLL_NOT_FOUND): Windows could not load initdb at all.
-if ($LASTEXITCODE -eq -1073741515) { throw 'initdb could not start: a DLL is missing (Microsoft Visual C++ runtime x64?)' }
-if ($LASTEXITCODE -ne 0) { throw "initdb failed (exit $LASTEXITCODE)" }
+if ($LASTEXITCODE -eq -1073741515) { Remove-InitGrant; throw 'initdb could not start: a DLL is missing (Microsoft Visual C++ runtime x64?)' }
+if ($LASTEXITCODE -ne 0) { Remove-InitGrant; throw "initdb failed (exit $LASTEXITCODE)" }
 
 # 2. Start a TEMPORARY server (127.0.0.1 only) to create the app role + db.
 Step "Starting a temporary server on 127.0.0.1:$Port"
-$startLog = Join-Path $Logs 'pg-init.log'
 $startOut = Join-Path $Logs 'pg-ctl-start.out'
 $startErr = Join-Path $Logs 'pg-ctl-start.err'
 # The detached server inherits pg_ctl's stdio, so piping or -Wait deadlocks. Redirect to files,
@@ -88,6 +104,8 @@ for ($i = 0; $i -lt 60; $i++) {
 }
 if (-not $ready) {
   Get-Content $startLog, $startErr -ErrorAction SilentlyContinue | Out-Host
+  & $pgctl -D $Data -m immediate stop 2>$null | Out-Null
+  Remove-InitGrant
   throw "Postgres did not become ready on 127.0.0.1:$Port within 30s. See $startLog"
 }
 Write-Host "  server is accepting connections."
@@ -122,6 +140,7 @@ finally {
   Step "Stopping the temporary server"
   & $pgctl -D $Data -w stop | Out-Host
   Remove-Item Env:\PGPASSWORD -ErrorAction SilentlyContinue
+  Remove-InitGrant
 }
 
 Step "Done"
