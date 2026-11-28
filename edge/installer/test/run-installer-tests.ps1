@@ -180,10 +180,14 @@ function Assert-Samples([string] $when) {
     Assert (-not @($s | Where-Object { $_.Cmd.Contains($secret) })) "$when : no command line holds a secret ($($secret.Substring(0, 4))...)"
   }
   # Setup itself (its re-launched .tmp copy) holds the variable while a script runs; nothing else may.
+  # A console host created for one of those two scripts is made while setup still holds the variable.
+  $cmdOf = @{}
+  foreach ($x in $s) { $cmdOf[[int] $x.Pid] = $x.Cmd }
   $leaks = @($s | Where-Object {
     $proc = $_
+    $own = "$($proc.Cmd) $($cmdOf[[int] $proc.ParentPid])"
     $_.HasInput -and $_.Name -notlike '*.tmp' -and $_.Name -notlike 'KuentaSetup*' -and
-      -not ($script:ScriptsThatReadInput | Where-Object { $proc.Cmd -like "*$_*" })
+      -not ($script:ScriptsThatReadInput | Where-Object { $own -like "*$_*" })
   })
   Assert (-not $leaks) "$when : KUENTA_SCRIPT_INPUT only in enroll and write-box-config ($(($leaks | ForEach-Object { $_.Name + ' ' + $_.Cmd }) -join '; '))"
   $script:Samples.Clear()
