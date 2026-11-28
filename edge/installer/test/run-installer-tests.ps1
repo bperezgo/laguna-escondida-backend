@@ -207,15 +207,16 @@ function Assert-Samples([string] $when) {
   }
   # Setup itself (its re-launched .tmp copy) holds the variable while a script runs; nothing else may.
   # A console host created for one of those two scripts is made while setup still holds the variable.
+  # A process that is exiting reports an empty command line; keep the one it was sampled with.
   $cmdOf = @{}
-  foreach ($x in $s) { $cmdOf[[int] $x.Pid] = $x.Cmd }
+  foreach ($x in $s) { if ($x.Cmd) { $cmdOf[[int] $x.Pid] = $x.Cmd } }
   $leaks = @($s | Where-Object {
     $proc = $_
     $own = "$($proc.Cmd) $($cmdOf[[int] $proc.ParentPid])"
     $_.HasInput -and $_.Name -notlike '*.tmp' -and $_.Name -notlike 'KuentaSetup*' -and
       -not ($script:ScriptsThatReadInput | Where-Object { $own -like "*$_*" })
   })
-  Assert (-not $leaks) "$when : KUENTA_SCRIPT_INPUT only in enroll and write-box-config ($(($leaks | ForEach-Object { $_.Name + ' ' + $_.Cmd }) -join '; '))"
+  Assert (-not $leaks) "$when : KUENTA_SCRIPT_INPUT only in enroll and write-box-config ($(($leaks | Sort-Object Pid -Unique | ForEach-Object { "$($_.Name) $($_.Pid) $($_.Cmd) <- parent $($_.ParentPid): $($cmdOf[[int] $_.ParentPid])" }) -join '; '))"
   $script:Samples.Clear()
 }
 function New-StandardUser {
