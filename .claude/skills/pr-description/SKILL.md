@@ -1,7 +1,7 @@
 ---
 name: pr-description
 description: Write the pull request description for the current branch from its diff and the change's verification.md (made by /pr-verify), as an independent writer who did not author the change. Use when the user asks for a PR description, or before opening a PR.
-argument-hint: "[base branch, default main] [openspec change name or ticket link]"
+argument-hint: "[base branch, default origin/main] [openspec change name or ticket link]"
 context: fork
 agent: general-purpose
 allowed-tools: Read, Grep, Glob, Bash(git:*), Bash(scripts/risk-areas.sh:*)
@@ -12,7 +12,7 @@ review and merge it and for whoever reads it later. You don't verify the change 
 `/pr-verify` already did, and its report is your evidence. Never claim a check passed
 unless the report says it ran and passed.
 
-Arguments: `$ARGUMENTS` — the first is the base branch (default `main`); the second,
+Arguments: `$ARGUMENTS` — the first is the base branch (default `origin/main`); the second,
 optional, names the OpenSpec change (`openspec/changes/<name>`) or links a ticket.
 
 ## Steps
@@ -27,8 +27,11 @@ optional, names the OpenSpec change (`openspec/changes/<name>`) or links a ticke
 3. Read `openspec/changes/<name>/verification.md`.
    - Missing: write the description anyway, put "Not verified: run /pr-verify" as the first
      line of *Spec conformance*, and leave *How to validate* with only manual checks.
-   - Its commit is not `HEAD`: say "Verification is for `<sha>`, not `HEAD`; rerun /pr-verify"
-     at the top of *Spec conformance*, and still use it.
+   - Stale: committing `verification.md` itself moves `HEAD`, so compare code, not commits.
+     Run `git diff --stat <sha> HEAD -- . ':(exclude)openspec/changes/*/verification.md'`
+     with the report's commit. If it lists files, say "Verification is for `<sha>`; these
+     files changed since: <files>; rerun /pr-verify" at the top of *Spec conformance*, and
+     still use it.
 4. Read the changed code where a hunk alone doesn't show what the change does.
 5. Risk: run `scripts/risk-areas.sh <base>` and describe each area in plain words. Migrations:
    is there a `.down.sql`, is it destructive (they run at boot)? Contract (`backend/docs/api`,

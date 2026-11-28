@@ -1,11 +1,11 @@
 ---
 name: pr-verify
 description: Verify what an agent actually built on the current branch against its OpenSpec change, as an independent checker who did not write it. Produces evidence (scenario → test → assertion, task claims, weakened tests, a code-drawn flow, the files to read in full) and saves it as the change's verification.md. Use after implementing a change and before /pr-description or merging.
-argument-hint: "[openspec change name] [base branch, default main]"
+argument-hint: "[openspec change name] [base branch, default origin/main]"
 context: fork
 agent: general-purpose
 model: opus
-allowed-tools: Read, Grep, Glob, Write, Bash(git:*), Bash(scripts/risk-areas.sh:*), Bash(go build:*), Bash(go test:*), Bash(go vet:*), Bash(make test:*), Bash(make lint:*), Bash(DB_HOST= make test-acceptance:*), Bash(pnpm test:*), Bash(pnpm lint:*), Bash(openspec:*)
+allowed-tools: Read, Grep, Glob, Write, Bash(git:*), Bash(scripts/risk-areas.sh:*), Bash(go -C backend:*), Bash(make -C backend:*), Bash(pnpm -C frontend:*), Bash(tail:*), Bash(openspec:*)
 ---
 
 You are checking work you did not write, for a person who will decide whether to trust it.
@@ -18,13 +18,18 @@ where the work is proven, where it is only claimed, and which files they must re
 themselves.
 
 Arguments: `$ARGUMENTS`. The first names the change (`openspec/changes/<name>`); without it,
-pick the change directory the diff adds or edits. The second is the base branch (default `main`).
+pick the change directory the diff adds or edits. The second is the base branch (default `origin/main`, so a stale local `main` doesn't
+widen the diff).
+
+Run every command from the repo root; never `cd`. Use `go -C backend`, `make -C backend` and
+`pnpm -C frontend` to run in an app's folder.
 
 ## Steps
 
-1. **Scope.** From the repo root: `git log --oneline <base>..HEAD`, `git diff --stat <base>...HEAD`,
-   `git rev-parse --short HEAD`, `git status --short` (uncommitted work is not part of the
-   check; say so if present). Read the change's `proposal.md`, `design.md`, `tasks.md` and every
+1. **Scope.** `git log --oneline <base>..HEAD`, `git diff --stat <base>...HEAD`,
+   `git rev-parse --short HEAD`, `git status --short`. The checks in step 5 run on the working
+   tree, so if tracked files other than `verification.md` are modified, say under *Checks run*
+   that the results include uncommitted changes. Read the change's `proposal.md`, `design.md`, `tasks.md` and every
    `specs/**/spec.md`.
 
 2. **Scenarios → tests.** For every `#### Scenario` in the delta specs, find the test that
@@ -49,10 +54,12 @@ pick the change directory the diff adds or edits. The second is the base branch 
    spec or design justifies it. Unjustified ones are the top findings: an agent making
    tests pass by changing them.
 
-5. **Run the checks once.** From `backend/` (if it changed): `go build ./...`, `make lint`,
-   `go test -count=1` on the changed packages, and `DB_HOST= make test-acceptance` when
-   acceptance tests changed. From `frontend/` (if it changed): `pnpm lint`, `pnpm test`.
-   Pipe long output through `| tail -40`. Record pass or fail exactly.
+5. **Run the checks once.** If `backend/` changed: `go -C backend build ./...`,
+   `make -C backend lint`, `go -C backend test -count=1` on the changed packages, and
+   `make -C backend test-acceptance DB_HOST=` when acceptance tests changed (the empty
+   `DB_HOST` makes it boot its own testcontainers Postgres). If `frontend/` changed:
+   `pnpm -C frontend lint`, `pnpm -C frontend test`. Pipe long output through `| tail -40`.
+   Record pass or fail exactly.
 
 6. **Flow drawn from the code.** For the change's main flow, draw an ASCII sequence from
    the code only, with `file:line` on each arrow. Then list each place it differs from
