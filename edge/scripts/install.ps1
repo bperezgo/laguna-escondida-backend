@@ -74,8 +74,16 @@ if (($ipU -band $mask) -ne ($netU -band $mask)) {
   throw "EDGE_LAN_IP=$LanIp is not inside EDGE_LAN_CIDR=$LanCidr. Fix env\box.env."
 }
 
+# Dot-sourcing binds lan-config's own -LanIp/-LanCidr/-LanHost in this scope, so pass ours through.
+. (Join-Path $PSScriptRoot 'lan-config.ps1') -NoRun -LanIp $LanIp -LanCidr $LanCidr -LanHost $LanHost
+# Only the first name is checked; a hand-made box may list several.
+$firstHost = "$LanHost".Split(',')[0].Trim()
+if (-not $firstHost) { $firstHost = 'none' }
+$lanCheck = Resolve-LanIdentity $LanIp $LanCidr $firstHost
+if (-not $lanCheck.ok) { throw "env\box.env: $($lanCheck.error)" }
+
 # Composed here, not in the Caddyfile, so a blank host doesn't leave an empty ", <ip>" label.
-if ($LanHost) { $SiteAddr = "$LanHost, $LanIp" } else { $SiteAddr = $LanIp }
+$SiteAddr = Get-SiteAddr $LanHost $LanIp
 
 # Machine scope so the Caddy service resolves the {$...} placeholders.
 [Environment]::SetEnvironmentVariable('EDGE_LAN_IP',    $LanIp,    'Machine')

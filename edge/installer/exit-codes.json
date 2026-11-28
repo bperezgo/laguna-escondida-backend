@@ -70,5 +70,9 @@
   "36": {
     "key": "root_acl_failed",
     "message": "No se pudieron asegurar los permisos de C:\\kuentapos. No se copió ningún archivo."
+  },
+  "37": {
+    "key": "network_invalid",
+    "message": "La red elegida no sirve para la caja."
   }
 }

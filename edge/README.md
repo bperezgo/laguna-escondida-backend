@@ -11,7 +11,7 @@ Full design + rationale: [`ai-plan/EDGE_LAN_SERVING_PLAN.md`](ai-plan/EDGE_LAN_S
 
 ```
 Android tablets (LAN)
-   │  router DNS: pos.laguna.lan -> box IP        (e.g. 192.168.10.10)
+   │  gateway DNS: pos.kuenta.lan -> box IP       (e.g. 192.168.10.10)
    │  HTTPS :443
    ▼
  Caddy            <- the ONLY service exposed on the LAN (TLS via internal CA)
@@ -71,10 +71,15 @@ Telemetry is **opt-in** and runs on its own path, separate from the business-dat
 .\scripts\install.ps1 -AllowedTabletIPs '192.168.10.21','192.168.10.22'
 
 # 3. Provision the LAN + tablets:
-#    - Router: DHCP-reserve the box IP + add DNS  pos.laguna.lan -> box IP
-#    - Tablets: install the Caddy root cert, then open https://pos.laguna.lan
+#    - Gateway (e.g. UniFi): fixed IP for the box + local DNS record  pos.kuenta.lan -> box IP
+#    - Tablets: install the Caddy root cert, then open https://pos.kuenta.lan
 #    See certs\README.md and provisioning\README.md
 ```
+
+The installer serves `pos.kuenta.lan` and the box IP by default. To pick another address, network
+or name, tick **Configurar la red manualmente (avanzado)** on its welcome page; a silent install
+takes `KUENTA_SETUP_LAN_IP`, `KUENTA_SETUP_LAN_CIDR` and `KUENTA_SETUP_LAN_HOST` (`none` = IP only).
+The box never answers DNS: the gateway holds the record.
 
 Manage individual services with `services\<name>.exe status|stop|start` (e.g.
 `services\caddy.exe status`).

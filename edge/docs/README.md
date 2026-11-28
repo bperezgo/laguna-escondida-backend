@@ -20,7 +20,6 @@ and fix the box from these alone. Install root is **`C:\kuentapos`**, LAN IP
 | Doc | What |
 |---|---|
 | [`LAN_SERVING_WALKTHROUGH.md`](LAN_SERVING_WALKTHROUGH.md) | How the Caddy LAN reverse proxy was built up, with reasoning |
-| [`DNS_SETUP_GUIDE.md`](DNS_SETUP_GUIDE.md) / [`DNS_RESTORE_GUIDE.md`](DNS_RESTORE_GUIDE.md) | Optional local-DNS hostname setup + rollback |
 | [`../ai-plan/EDGE_WINDOWS_SERVICES_PLAN.md`](../ai-plan/EDGE_WINDOWS_SERVICES_PLAN.md) | Full Windows-services design + phased plan |
 
 ## The 60-second mental model

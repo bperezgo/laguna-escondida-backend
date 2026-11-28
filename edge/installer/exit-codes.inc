@@ -19,6 +19,7 @@ begin
     34: Result := 'La caja funciona, pero aún no se ha conectado a Kuenta. El inicio de sesión funcionará cuando tenga conexión.';
     35: Result := 'No se pudo instalar el componente de Microsoft Visual C++ que Kuenta necesita. Reinicie el equipo e intente de nuevo.';
     36: Result := 'No se pudieron asegurar los permisos de C:\kuentapos. No se copió ningún archivo.';
+    37: Result := 'La red elegida no sirve para la caja.';
   else Result := 'Error inesperado (código ' + IntToStr(Code) + ').';
   end;
 end;

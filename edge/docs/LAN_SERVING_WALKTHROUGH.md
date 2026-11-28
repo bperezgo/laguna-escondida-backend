@@ -64,7 +64,7 @@ needed to know what it was *for*.
 
 **Findings:**
 - The existing `Caddyfile` is the **production POS config**: HTTPS `:443`, hostname
-  `pos.laguna.lan`, `tls internal`, proxies port **3000**, rejects clients not on
+  `pos.kuenta.lan`, `tls internal`, proxies port **3000**, rejects clients not on
   `192.168.10.0/24`.
 - Your situation differs on three axes: app on **3001**, network **192.168.0.x**, and
   you wanted **plain HTTP** for the test.
@@ -261,10 +261,9 @@ cd C:\Users\USER\dev\laguna-escondida-edge
 Moving from "HTTP on an IP" to "HTTPS on a hostname" adds **two new problems** the simple
 version didn't have:
 
-1. **Name resolution (DNS):** the phone types `https://pos.laguna.lan`; something must
-   translate that to `192.168.0.123`. `pos.laguna.lan` isn't a real public domain, so
-   you must answer it yourself — via **router local DNS** (cleanest) or a **DNS server
-   running on the box**. This depends on your router.
+1. **Name resolution (DNS):** the phone types `https://pos.kuenta.lan`; something must
+   translate that to `192.168.0.123`. `pos.kuenta.lan` isn't a real public domain, so
+   the restaurant's **gateway** (e.g. UniFi) holds a local DNS record for it.
 2. **Certificate trust:** HTTPS needs a certificate the phone trusts. Caddy's
    `tls internal` mints one from a private CA — but no phone trusts that CA until you
    **install Caddy's root certificate** on it. Without it you get a "not secure" warning.
@@ -277,7 +276,7 @@ We adapted the real production config (not a separate file) to this box's realit
 |---|---|---|---|
 | Upstream port | `127.0.0.1:3000` | `127.0.0.1:3001` | your app's actual port |
 | Subnet lock | `192.168.10.0/24` | `192.168.0.0/24` | your actual LAN |
-| Hostname | `pos.laguna.lan` | `pos.laguna.lan` | unchanged |
+| Hostname | `pos.kuenta.lan` | `pos.kuenta.lan` | unchanged |
 | TLS | `tls internal` | `tls internal` | private CA, no public domain needed |
 
 `tls internal` + a hostname site address makes Caddy **automatically** (a) mint a cert
@@ -310,25 +309,11 @@ New-NetFirewallRule -DisplayName "Caddy LAN HTTP 80" -Direction Inbound -Action 
   -Protocol TCP -LocalPort 80 -Profile Private -RemoteAddress LocalSubnet
 ```
 
-### 2. DNS — make `pos.laguna.lan` resolve to `192.168.0.123`
+### 2. DNS — make `pos.kuenta.lan` resolve to `192.168.0.123`
 
-**The deployment router is a TP-Link TL-WR850N**, which has **no local-DNS / host-records
-feature** (its "Dynamic DNS" is for WAN/external names; "Static Routing" is an IP route
-table — neither resolves local names). So we use the **DNS-server-on-the-box** approach:
-
-1. Run **Technitium DNS Server** on the box (script: `scripts/setup-technitium-dns.ps1`).
-   It answers `pos.laguna.lan → 192.168.0.123` and forwards everything else to the
-   internet.
-2. On the TP-Link, point DHCP at the box so every device uses it:
-   - **DHCP → DHCP Settings**: set **Primary DNS = `192.168.0.123`**. Leave Secondary
-     blank (or also the box) — do **not** put a public DNS there, or `pos.laguna.lan`
-     resolution becomes intermittent.
-   - **DHCP → Address Reservation**: bind the box MAC `6C-62-6D-B0-97-8C → 192.168.0.123`.
-3. Renew the lease on a test device (toggle Wi-Fi) so it picks up the new DNS.
-
-> **Port 53 caveat:** Technitium needs UDP/TCP 53. On a Windows box running WSL/Hyper-V,
-> the ICS (`SharedAccess`) service squats on port 53 — the setup script detects this and
-> tells you how to free it. A dedicated edge box without WSL/Hyper-V has 53 free.
+En el gateway (p. ej. UniFi): IP fija para la caja y registro DNS local `pos.kuenta.lan -> <ip>`.
+The box never answers DNS itself. In UniFi the fixed IP is under Client → Fixed IP, and the record
+under the local DNS records of the network settings.
 
 > **Phone gotcha:** disable **Private DNS / DNS-over-TLS** on the phone (Android: Settings →
 > Network → Private DNS → Off), or it bypasses your LAN DNS and the name won't resolve.
@@ -346,7 +331,7 @@ Transfer `certs\kuentapos-root-ca.crt` to the phone, then:
 
 ### Then
 
-On the phone (on the restaurant Wi-Fi): open **`https://pos.laguna.lan`** → no warning,
+On the phone (on the restaurant Wi-Fi): open **`https://pos.kuenta.lan`** → no warning,
 the app loads, and the `Secure` auth cookie works.
 
 ## Running it
@@ -366,6 +351,6 @@ For the real box this is done as a Windows service via `scripts/install.ps1` +
 3. [x] Caddy 2.8.4 in `artifacts\caddy\`
 4. [x] Internal CA generated, root exported to `certs\kuentapos-root-ca.crt`
 5. [ ] Admin: set network Private + open 443/80 firewall
-6. [ ] DNS: `pos.laguna.lan → 192.168.0.123` (router or box DNS) + DHCP reservation
+6. [ ] Gateway: DNS record `pos.kuenta.lan → 192.168.0.123` + fixed IP for the box
 7. [ ] Phone: install `kuentapos-root-ca.crt`, Private DNS off
-8. [ ] Test `https://pos.laguna.lan` from the phone
+8. [ ] Test `https://pos.kuenta.lan` from the phone

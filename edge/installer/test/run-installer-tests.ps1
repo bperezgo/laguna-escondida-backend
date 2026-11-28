@@ -3,7 +3,8 @@
   and by release-edge.yml before a release may publish. Needs an elevated Windows machine with
   the appliance ports free and nothing installed at C:\kuentapos.
 
-  Cases: busy port; invalid code; box already enrolled (409, no /REPLACE); fresh install; re-run as
+  Cases: busy port; invalid code; box already enrolled (409, no /REPLACE); a network IP the PC does not
+  hold; fresh install (name, site address, firewall range, no DNS listener, cert SAN); re-run as
   repair (still one enroll call); uninstall keeps data; reinstall keeps data (still one enroll call);
   enroll.ps1 alone: a valid code, an invalid code, and a 409 then replace with the same code.
   A local standard user pre-creates the root with planted files and a link before the fresh install,
@@ -29,6 +30,31 @@ $stub = Join-Path $PSScriptRoot 'stub-cloud.ps1'
 New-Item -ItemType Directory -Force -Path $Work | Out-Null
 function Step($m) { Write-Host ("`n==> " + $m) -ForegroundColor Cyan }
 function Assert($cond, $msg) { if (-not $cond) { throw "FAIL: $msg" } else { Write-Host "  ok   $msg" -ForegroundColor Green } }
+# Get-NetFirewallAddressFilter reports a.b.c.d/m.m.m.m; box.env holds a.b.c.d/n.
+function ConvertTo-Cidr([string] $addr) {
+  $parts = $addr -split '/'
+  if ($parts.Count -ne 2 -or $parts[1] -notmatch '\.') { return $addr }
+  $bits = 0
+  foreach ($o in $parts[1] -split '\.') { $bits += ([Convert]::ToString([int] $o, 2) -replace '0', '').Length }
+  return "$($parts[0])/$bits"
+}
+function BoxEnv([string] $key) {
+  $l = Get-Content "$root\env\box.env" | Where-Object { $_ -match "^$key=" } | Select-Object -First 1
+  if ($l) { return ($l -split '=', 2)[1].Trim() }
+  return $null
+}
+# The subjectAltName text of the certificate the box serves for $name (SNI); matched by OID, as the name is
+# localized. tls internal issues one certificate per name, so each name and the IP are read apart.
+function Get-ServedSan([string] $ip, [string] $name = $ip) {
+  $tcp = New-Object Net.Sockets.TcpClient($ip, 443)
+  try {
+    $ssl = New-Object Net.Security.SslStream($tcp.GetStream(), $false, { $true })
+    $ssl.AuthenticateAsClient($name)
+    $cert = New-Object Security.Cryptography.X509Certificates.X509Certificate2($ssl.RemoteCertificate)
+    $ssl.Dispose()
+    return (@($cert.Extensions | Where-Object { $_.Oid.Value -eq '2.5.29.17' } | ForEach-Object { $_.Format($false) }) -join ', ')
+  } finally { $tcp.Dispose() }
+}
 
 # kuenta.iss must start nothing with a visible window. Returns the problems found.
 function Test-HiddenLaunches([string] $text) {
@@ -300,6 +326,15 @@ try {
   Assert (-not (Test-Path $root)) 'nothing under C:\kuentapos'
   Assert (Select-String -Path $r.log -Pattern 'already enrolled' -Quiet) 'the log names the cause'
 
+  Step 'Network IP the PC does not hold'
+  $before = Enroll-Calls $ok
+  $env:KUENTA_SETUP_LAN_IP = '192.0.2.1'
+  try { $r = Install $ok 'bad-ip' } finally { Remove-Item Env:\KUENTA_SETUP_LAN_IP -ErrorAction SilentlyContinue }
+  Assert ($r.code -ne 0) "an IP the PC does not hold exits non-zero ($($r.code))"
+  Assert (-not (Test-Path $root)) 'nothing under C:\kuentapos'
+  Assert (Select-String -Path $r.log -Pattern '192.0.2.1' -SimpleMatch -Quiet) 'the log names 192.0.2.1'
+  Assert ((Enroll-Calls $ok) -eq $before) 'no enroll call was made'
+
   Step 'A standard user pre-creates the root'
   Remove-Item $canary -Recurse -Force -ErrorAction SilentlyContinue
   $null = As-User $user ({
@@ -319,6 +354,21 @@ try {
   Step 'Fresh install'
   $r = Install $ok 'fresh' -Sample
   Assert ($r.code -eq 0) "fresh install exits 0 ($($r.code))"
+  $lanIp = BoxEnv 'EDGE_LAN_IP'; $lanCidr = BoxEnv 'EDGE_LAN_CIDR'
+  Write-Host "  Network check: EDGE_LAN_IP=$lanIp EDGE_LAN_CIDR=$lanCidr"
+  Assert ((BoxEnv 'EDGE_LAN_HOST') -eq 'pos.kuenta.lan') 'box.env has EDGE_LAN_HOST=pos.kuenta.lan'
+  $siteAddr = [Environment]::GetEnvironmentVariable('EDGE_SITE_ADDR', 'Machine')
+  Assert ($siteAddr -eq "pos.kuenta.lan, $lanIp") "EDGE_SITE_ADDR is the name and the box IP ($siteAddr)"
+  $fwRemote = @(Get-NetFirewallRule -DisplayName 'Kuenta - Caddy (LAN tablets)' | Get-NetFirewallAddressFilter | ForEach-Object { $_.RemoteAddress })
+  Assert ($fwRemote.Count -eq 1 -and (ConvertTo-Cidr $fwRemote[0]) -eq $lanCidr) "the firewall rule allows exactly $lanCidr ($($fwRemote -join ', '))"
+  $boxPids = @(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like "$root\*" } | ForEach-Object { [int] $_.ProcessId })
+  $dns = @(Get-NetTCPConnection -LocalPort 53 -State Listen -ErrorAction SilentlyContinue) + @(Get-NetUDPEndpoint -LocalPort 53 -ErrorAction SilentlyContinue)
+  Assert (-not @($dns | Where-Object { $boxPids -contains [int] $_.OwningProcess })) 'no box process listens on port 53'
+  $san = Get-ServedSan $lanIp
+  Assert ($san -match [regex]::Escape($lanIp)) "the certificate served on $lanIp names it ($san)"
+  $san = Get-ServedSan $lanIp 'pos.kuenta.lan'
+  Assert ($san -match [regex]::Escape('pos.kuenta.lan')) "the certificate served for pos.kuenta.lan names it ($san)"
+  $boxEnvHash = (Get-FileHash "$root\env\box.env" -Algorithm SHA256).Hash
   Assert-Samples 'fresh install'
   $svcEnv = @(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like "$root\*" })
   Assert ($svcEnv.Count -gt 0) "the box's own processes are running ($($svcEnv.Count))"
@@ -373,6 +423,7 @@ try {
   Step 'Re-run: repair'
   $r = Install $ok 'repair' -Sample
   Assert ($r.code -eq 0) "repair exits 0 ($($r.code))"
+  Assert ((Get-FileHash "$root\env\box.env" -Algorithm SHA256).Hash -eq $boxEnvHash) 'the repair left box.env unchanged'
   Assert-Samples 'repair'
   Assert ((Enroll-Calls $ok) -eq 1) 'still one enroll call'
   Assert ((NodeId) -eq $nodeId) 'the node id is unchanged'

@@ -2,7 +2,7 @@
 
 Caddy serves HTTPS on the LAN using its **own internal Certificate Authority** (`tls internal`
 in the `Caddyfile`). Browsers don't trust that CA by default, so each tablet must install the
-**root certificate** once. After that, `https://pos.laguna.lan` is warning-free and the `Secure`
+**root certificate** once. After that, `https://pos.kuenta.lan` is warning-free and the `Secure`
 auth cookie flows.
 
 ## Where the root cert lives
@@ -32,7 +32,7 @@ artifacts\caddy\caddy.exe trust          # trusts it on the box itself
 1. Transfer `kuentapos-root-ca.crt` to the tablet (USB, or a one-time download).
 2. Settings → Security → **Encryption & credentials → Install a certificate → CA certificate**.
 3. Confirm the security warning (expected for a private CA).
-4. Open `https://pos.laguna.lan` — no warning.
+4. Open `https://pos.kuenta.lan` — no warning.
 
 Android shows a persistent "network may be monitored" notice while a user CA is installed. That's
 normal for a private CA and acceptable on a locked-down kiosk device.
