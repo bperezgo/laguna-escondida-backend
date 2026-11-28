@@ -39,7 +39,7 @@ Telemetry is **opt-in** and runs on its own path, separate from the business-dat
 | `alloy/config.alloy` | Telemetry sidecar pipeline (OTLP in + metrics scrape → cloud ingest) |
 | `services/*.xml` | WinSW Windows-service definitions (one per process) — see `services/README.md` |
 | `scripts/install.ps1` | Register all services + stage edge-node `.env` + firewall rule (run as Admin) |
-| `scripts/uninstall.ps1` | Remove all services + firewall rule |
+| `scripts/uninstall.ps1` | Remove all services + firewall rule (-Purge: also the root certificate and machine variables) |
 | `scripts/verify-install.ps1` | Automated post-install check (services, edge-node version, Next, Caddy HTTPS); also run by the Windows install smoke test in CI |
 | `scripts/fetch-artifacts.ps1` | Download off-the-shelf binaries (Caddy, Alloy, Node, Postgres) and the sha256-verified app releases (edge-node, next) into `artifacts/` |
 | `scripts/update.ps1` | Swap one service to the newest compatible edge release (or `-Tag`) |

@@ -1,9 +1,12 @@
 #requires -RunAsAdministrator
 <#
   uninstall.ps1 — stop & remove all edge services and the firewall rule.
-  Run from an ELEVATED PowerShell:  .\scripts\uninstall.ps1
+  Run from an ELEVATED PowerShell:  .\scripts\uninstall.ps1 [-Purge]
   Does NOT delete artifacts\, caddy-data\, state\ or backups\ (so the CA root survives a reinstall).
+  -Purge also removes the box's root CA from the trust store and the machine variables the scripts
+  set; the installer's uninstaller then deletes the whole folder.
 #>
+param([switch] $Purge)
 # Not SilentlyContinue: a skipped stop leaves a service holding handles on artifacts\.
 $ErrorActionPreference = 'Stop'
 $Root     = Split-Path -Parent $PSScriptRoot
@@ -41,4 +44,18 @@ foreach ($name in $order) {
 Get-NetFirewallRule -DisplayName 'Kuenta - Caddy (LAN tablets)' -ErrorAction SilentlyContinue |
   Remove-NetFirewallRule
 
-Write-Host "Uninstalled. (artifacts\, caddy-data\, alloy-data\, state\ and backups\ left intact.)"
+if ($Purge) {
+  # By thumbprint only: a developer PC can trust other Caddy CAs with the same name.
+  foreach ($crt in (Join-Path $Root 'kuentapos-root-ca.crt'), (Join-Path $Root 'caddy-data\pki\authorities\local\root.crt')) {
+    if (-not (Test-Path $crt)) { continue }
+    $tp = (New-Object Security.Cryptography.X509Certificates.X509Certificate2($crt)).Thumbprint
+    Remove-Item "Cert:\LocalMachine\Root\$tp" -ErrorAction SilentlyContinue
+  }
+  foreach ($name in 'EDGE_LAN_IP', 'EDGE_LAN_CIDR', 'EDGE_SITE_ADDR', 'EDGE_NODE_KEY_FILE', 'EDGE_TELEMETRY_BUFFER_DIR') {
+    [Environment]::SetEnvironmentVariable($name, $null, 'Machine')
+  }
+  Write-Host 'Purged: root certificate and machine variables removed.'
+  Write-Host 'Uninstalled.'
+} else {
+  Write-Host "Uninstalled. (artifacts\, caddy-data\, alloy-data\, state\ and backups\ left intact.)"
+}

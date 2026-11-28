@@ -6,6 +6,8 @@
   Cases: busy port; invalid code; box already enrolled (409, no /REPLACE); a network IP the PC does not
   hold; fresh install (name, site address, firewall range, no DNS listener, cert SAN); re-run as
   repair (still one enroll call); uninstall keeps data; reinstall keeps data (still one enroll call);
+  an uninstall with /PURGE removes everything (a look-alike trusted CA survives), and the next install
+  is fresh and replaces the box in the cloud (/REPLACE);
   enroll.ps1 alone: a valid code, an invalid code, and a 409 then replace with the same code.
   A local standard user pre-creates the root with planted files and a link before the fresh install,
   and after the fresh install and the repair can neither change what SYSTEM runs nor read env\.
@@ -272,6 +274,10 @@ $ok = Start-Stub $Port
 $conflict = Start-Stub ($Port + 1) -Conflict
 $user = $null
 $canary = 'C:\ci-canary'
+$decoyTp = $null
+$machineVars = 'EDGE_LAN_IP', 'EDGE_LAN_CIDR', 'EDGE_SITE_ADDR', 'EDGE_NODE_KEY_FILE', 'EDGE_TELEMETRY_BUFFER_DIR'
+$uninstallKeys = @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall', 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall') |
+  ForEach-Object { "$_\{6A1E8C52-3D0B-4B7E-9F4C-5C1D2E7A9B10}_is1" }
 try {
   $user = New-StandardUser
   Step 'enroll.ps1 against the stub cloud'
@@ -454,10 +460,47 @@ try {
   Assert ($v -eq '42') 'the marker row survived uninstall and reinstall'
   Remove-Item Env:\PGPASSWORD -ErrorAction SilentlyContinue
 
+  Step 'Uninstall removing everything (/PURGE)'
+  $boxTp = (New-Object Security.Cryptography.X509Certificates.X509Certificate2("$root\kuentapos-root-ca.crt")).Thumbprint
+  Assert (Test-Path "Cert:\LocalMachine\Root\$boxTp") "the box's root CA is trusted before the uninstall ($boxTp)"
+  # Same subject as Caddy's CA, so only a match by thumbprint leaves it alone.
+  $decoy = New-SelfSignedCertificate -Subject 'CN=Caddy Local Authority - CI decoy' -CertStoreLocation Cert:\LocalMachine\My
+  $decoyTp = $decoy.Thumbprint
+  Export-Certificate -Cert $decoy -FilePath (Join-Path $Work 'decoy.cer') | Out-Null
+  Import-Certificate -FilePath (Join-Path $Work 'decoy.cer') -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
+  Remove-Item "Cert:\LocalMachine\My\$decoyTp"
+  $unins = Get-ChildItem $root -Filter 'unins*.exe' | Select-Object -First 1
+  Start-Process $unins.FullName -Wait -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/PURGE'
+  foreach ($i in 1..30) { if (-not (Test-Path $root)) { break }; Start-Sleep 1 }
+  Assert (-not (Test-Path $root)) "$root was removed ($(@(Get-ChildItem $root -Recurse -ErrorAction SilentlyContinue | Select-Object -First 5 | ForEach-Object FullName) -join ', '))"
+  Assert (-not (Test-Path "Cert:\LocalMachine\Root\$boxTp")) "the box's root CA is no longer trusted"
+  Assert (Test-Path "Cert:\LocalMachine\Root\$decoyTp") 'a look-alike trusted CA was left alone'
+  foreach ($n in $machineVars) {
+    Assert ($null -eq [Environment]::GetEnvironmentVariable($n, 'Machine')) "the machine variable $n was removed"
+  }
+  Assert (-not @(Get-Service kuentapos-* -ErrorAction SilentlyContinue)) 'no kuentapos service remains'
+  Assert (-not (Get-ScheduledTask 'Kuenta Updater' -ErrorAction SilentlyContinue)) 'the "Kuenta Updater" task was removed'
+  Assert (-not (Get-NetFirewallRule -DisplayName 'Kuenta - Caddy (LAN tablets)' -ErrorAction SilentlyContinue)) 'the firewall rule was removed'
+  Assert (-not @($uninstallKeys | Where-Object { Test-Path $_ })) 'Kuenta is no longer in the installed apps'
+
+  Step 'Fresh install after removing everything'
+  $r = Install $ok 'after-purge' @('/REPLACE')
+  Assert ($r.code -eq 0) "the install after /PURGE exits 0 ($($r.code))"
+  Assert ((Get-Content $r.log) -match 'mode fresh') 'it ran as a fresh install'
+  Assert ((Enroll-Calls $ok) -eq 3) "the cloud's 409 and the replace were the only new enroll calls ($(Enroll-Calls $ok))"
+  & "$root\scripts\verify-install.ps1" -TimeoutSeconds 120
+  Assert ($LASTEXITCODE -eq 0) 'verify-install passes after the fresh install'
+  $dbPw = ((Get-Content "$root\env\edge-node.env" | Where-Object { $_ -match '^DB_PASSWORD=' }) -split '=', 2)[1]
+  $env:PGPASSWORD = $dbPw
+  $v = (& "$root\artifacts\postgres\bin\psql.exe" -h 127.0.0.1 -U laguna -d laguna_escondida -w -tAc "SELECT to_regclass('ci_marker')" | Out-String).Trim()
+  Assert ($v -eq '') "the old database is gone (to_regclass: '$v')"
+  Remove-Item Env:\PGPASSWORD -ErrorAction SilentlyContinue
+
 }
 finally {
   if ($user) { & net.exe user $user.name /delete 2>&1 | Out-Null }
   Remove-Item $canary -Recurse -Force -ErrorAction SilentlyContinue
+  if ($decoyTp) { Remove-Item "Cert:\LocalMachine\Root\$decoyTp" -ErrorAction SilentlyContinue }
   Stop-Stub $conflict
   if (-not $KeepInstalled) { Stop-Stub $ok }
 }
