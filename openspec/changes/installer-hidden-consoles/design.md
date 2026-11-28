@@ -88,9 +88,16 @@ In `run-installer-tests.ps1`:
   - IPC lifecycle: inherited environment reaching grandchildren and later children
   - install path trust: scripts run from `{tmp}` and from the locked-down root, unchanged by this change
 
-**Needs validation:**
-- That `ExecAndLogOutput` with a non-nil `OnLog` writes no output lines to the setup log in 6.4.3. Check by grepping a test install's log for a known stdout marker from a non-`Live` script.
-- That Inno does not log the child's environment. Check the same log for `KUENTA_SCRIPT_INPUT`.
+**Validated in CI** (edge-ci run 46087334874, Inno Setup 6.4.3, fresh install on a Windows runner; the installer compiled and ran every hidden script):
+- Output is not echoed into the setup log when a callback is set: the fresh-install setup log has 0 matches for `"node_key"`, `"node_id"`, `lgn_stub` and the enrollment code, although `enroll.ps1` printed all of them on stdout (the log shows only `run ...enroll.ps1` and `exit 0`).
+- Inno does not log the child's environment: 0 matches for `KUENTA_SCRIPT_INPUT` in the setup log.
+- Sampling setup's process tree every 200 ms during the fresh install showed: no command line with the code or the node key; `KUENTA_SCRIPT_INPUT` only in setup itself, the two scripts that read it and the console host created for them (`conhost.exe`, made while setup still holds the variable); the box's own processes (postgres, edge-node, next, node, caddy) never had it; a standard user is denied (error 5) when it opens an elevated process to read its environment, while the elevated test user can read the canary.
+- The only `cmd.exe` processes are Postgres's own (`pg_ctl` and `initdb` start `postgres.exe` through `cmd /c`); none has setup as its parent.
+
+**Security review (guidance mode over the diff):**
+- Fixed: `RunPS` now clears `KUENTA_SCRIPT_INPUT` before every run, so a value inherited from whoever started setup never reaches a script that does not expect it.
+- Accepted: the `conhost.exe` that Windows creates for `enroll.ps1` and `write-box-config.ps1` holds the variable for a moment. It is a system process in the same elevated boundary.
+- Not part of this change, found by the new tests: `artifacts\edge-node\.env` (a copy of `env\edge-node.env` staged by `install.ps1`) holds the node key outside `env\`, and after the fresh install a standard user can read Caddy's `caddy-data\pki\authorities\local\root.key`. Both are in the `edge-kuentapos-naming` lock-down; the test allows the first as a known copy and fails on the second.
 
 ## Risks / Trade-offs
 

@@ -60,19 +60,11 @@ Step "Initializing cluster at $Data"
 $pwfile = Join-Path $env:TEMP ("pg-super-" + [Guid]::NewGuid().ToString('N') + '.txt')
 Set-Content -Path $pwfile -Value $SuperPassword -NoNewline -Encoding ascii
 try {
-  # initdb drops the Administrators group from its token, and the locked-down root grants write only to
-  # Administrators and SYSTEM, so an admin user could not create the folder. Make it here, for this user.
-  New-Item -ItemType Directory -Force -Path $Data | Out-Null
-  $me = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-  & icacls.exe $Data /grant "*${me}:(OI)(CI)F" | Out-Null
-  # pg_ctl drops it too and writes the temporary server's log in the logs folder.
-  & icacls.exe $Logs /grant "*${me}:(OI)(CI)M" | Out-Null
   & $initdb --pgdata=$Data --username=postgres --pwfile=$pwfile `
             --auth-host=scram-sha-256 --auth-local=trust --encoding=UTF8 | Out-Host
 } finally {
   Remove-Item $pwfile -Force -ErrorAction SilentlyContinue
 }
-if ($LASTEXITCODE -ne 0) { Remove-Item $Data -Recurse -Force -ErrorAction SilentlyContinue }
 # 0xC0000135 (STATUS_DLL_NOT_FOUND): Windows could not load initdb at all.
 if ($LASTEXITCODE -eq -1073741515) { throw 'initdb could not start: a DLL is missing (Microsoft Visual C++ runtime x64?)' }
 if ($LASTEXITCODE -ne 0) { throw "initdb failed (exit $LASTEXITCODE)" }
