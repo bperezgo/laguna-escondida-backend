@@ -29,21 +29,40 @@ Public, no token. Tells the sign-in page whether it is talking to the cloud or a
 }
 ```
 
-### Example Response (200 OK) — edge box
+### Example Response (200 OK) — edge box with users
 
 ```json
 {
   "mode": "edge",
   "organization": {
     "name": "Laguna Escondida"
-  }
+  },
+  "users_ready": true,
+  "sync": null
 }
 ```
 
-| Field               | Type   | Description                                            |
-| ------------------- | ------ | ------------------------------------------------------ |
-| `mode`              | string | `cloud`: sign in with email. `edge`: sign in with username |
-| `organization.name` | string | Edge only. The box's restaurant name                   |
+### Example Response (200 OK) — edge box still waiting for its first user
+
+```json
+{
+  "mode": "edge",
+  "organization": {
+    "name": "Laguna Escondida"
+  },
+  "users_ready": false,
+  "sync": "failed"
+}
+```
+
+| Field               | Type           | Description                                            |
+| ------------------- | -------------- | ------------------------------------------------------ |
+| `mode`              | string         | `cloud`: sign in with email. `edge`: sign in with username |
+| `organization.name` | string         | Edge only. The box's restaurant name. Absent when the box's organization row cannot be read (the response is still `200`) |
+| `users_ready`       | boolean        | Edge only. `true` when the box has at least one active user. Once true it stays true until the box restarts. Absent in the cloud |
+| `sync`              | string or null | Edge only. `null` when `users_ready` is `true`. Otherwise the state of the box's pull from the cloud: `waiting` (last pull succeeded, or none finished yet), `offline` (the cloud was not reachable), `failed` (the cloud answered but its data could not be applied on the box), `replaced` or `suspended` (the cloud refuses the box). Absent in the cloud |
+
+The response never carries user counts, usernames, error text, cloud addresses or timestamps. A client that gets no `users_ready` (the cloud, or an older box) shows the sign-in form.
 
 An edge box running a release older than this endpoint answers `404`; treat that as `edge` with no name.
 

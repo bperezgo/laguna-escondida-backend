@@ -953,3 +953,48 @@ func TestBulkCreateProducts_ValidationFailure(t *testing.T) {
 	assert.Equal(t, 1, result.Errors[0].Index)
 	assert.Equal(t, "SKU-BAD", result.Errors[0].SKU)
 }
+
+func TestCreateProduct_SKUFormat_GeneratedShape(t *testing.T) {
+	tests := []struct {
+		name  string
+		sku   string
+		valid bool
+	}{
+		{"dashed SKU accepted", "COC-BAN-PAI", true},
+		{"space and slash rejected", "COC BAN/PAI", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			service, mockRepo := createTestProductService(t)
+
+			req := &dto.CreateProductRequest{
+				Name:                "Bandeja paisa",
+				Category:            "Platos",
+				ProductType:         "SELLABLE",
+				UnitOfMeasure:       "unit",
+				TotalPriceWithTaxes: "127.0",
+				VAT:                 "19",
+				ICO:                 "8",
+				TaxesFormat:         "percentage",
+				SKU:                 tt.sku,
+			}
+			if tt.valid {
+				mockRepo.On("Create", ctx, mock.Anything).Return(nil)
+			}
+
+			result, err := service.CreateProduct(ctx, req)
+
+			if tt.valid {
+				require.NoError(t, err)
+				assert.Equal(t, tt.sku, result.SKU)
+				return
+			}
+			require.Error(t, err)
+			assert.Nil(t, result)
+			assert.Contains(t, err.Error(), "PRODUCT_INVALID_SKU")
+			mockRepo.AssertNotCalled(t, "Create")
+		})
+	}
+}

@@ -23,8 +23,6 @@ import (
 
 const (
 	maxSlugAttempts       = 20
-	boxUserName           = "Caja"
-	boxUserFallback       = "caja"
 	slugFallback          = "restaurante"
 	maxRestaurantNameRune = 255
 )
@@ -129,34 +127,19 @@ func (s *SignupService) create(ctx context.Context, name, slug, plan, email, goo
 	if err != nil {
 		return nil, err
 	}
-	boxSecret, err := randomSecret(18)
-	if err != nil {
-		return nil, err
-	}
-	boxHash, err := user.HashPassword(boxSecret)
-	if err != nil {
-		return nil, err
-	}
 	admin := &dto.User{ID: uuid.Must(uuid.NewV7()).String(), Username: email, Name: adminName, Email: &email,
 		Password: adminHash, Active: true, CreatedAt: now, UpdatedAt: now}
-	box := &dto.User{ID: uuid.Must(uuid.NewV7()).String(), Username: BoxUsername(email), Name: boxUserName,
-		Password: boxHash, Active: true, CreatedAt: now, UpdatedAt: now}
 
 	err = s.uow.Do(ctx, func(ctx context.Context) error {
 		if createErr := s.orgRepo.Create(ctx, org); createErr != nil {
 			return createErr
 		}
 		ctx = tenant.WithOrg(ctx, org.ID)
-		for _, u := range []struct {
-			user *dto.User
-			role int
-		}{{admin, permissions.RoleAdmin}, {box, permissions.RoleManager}} {
-			if createErr := s.userRepo.Create(ctx, u.user); createErr != nil {
-				return fmt.Errorf("signup: create user: %w", createErr)
-			}
-			if roleErr := s.userRole.Create(ctx, &dto.UserRole{UserID: u.user.ID, RoleID: u.role, CreatedAt: now}); roleErr != nil {
-				return fmt.Errorf("signup: assign role: %w", roleErr)
-			}
+		if createErr := s.userRepo.Create(ctx, admin); createErr != nil {
+			return fmt.Errorf("signup: create user: %w", createErr)
+		}
+		if roleErr := s.userRole.Create(ctx, &dto.UserRole{UserID: admin.ID, RoleID: permissions.RoleAdmin, CreatedAt: now}); roleErr != nil {
+			return fmt.Errorf("signup: assign role: %w", roleErr)
 		}
 		return nil
 	})
@@ -207,19 +190,4 @@ func trimSlug(slug string, max int) string {
 		slug = slug[:max]
 	}
 	return strings.Trim(slug, "-")
-}
-
-// BoxUsername is the email's local part, keeping letters, digits, ".", "_" and "-".
-func BoxUsername(email string) string {
-	local, _, _ := strings.Cut(strings.ToLower(email), "@")
-	var b strings.Builder
-	for _, r := range local {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '.' || r == '_' || r == '-' {
-			b.WriteRune(r)
-		}
-	}
-	if b.Len() < 3 {
-		return boxUserFallback
-	}
-	return b.String()
 }

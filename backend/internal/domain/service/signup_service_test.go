@@ -95,23 +95,16 @@ func TestSignupService_SignUpWithGoogle_DonaRosa(t *testing.T) {
 	assert.Nil(t, f.org.LegalName)
 	assert.Nil(t, f.org.EInvoicing)
 
-	require.Len(t, f.created, 2)
+	require.Len(t, f.created, 1, "signup creates only the admin, no box user")
 	assert.Equal(t, f.org.ID, setup.OrgID)
-	assert.Equal(t, f.created[0].ID, setup.UserID, "the setup token is the admin's, not the box user's")
-	admin, box := f.created[0], f.created[1]
+	assert.Equal(t, f.created[0].ID, setup.UserID, "the setup token is the admin's")
+	admin := f.created[0]
 	assert.Equal(t, "rosa.perez@example.com", admin.Username)
 	assert.Equal(t, "rosa.perez@example.com", *admin.Email)
 	assert.Equal(t, "Rosa Pérez", admin.Name)
 	assert.NotEmpty(t, admin.Password)
-	assert.Equal(t, "rosa.perez", box.Username)
-	assert.Equal(t, "Caja", box.Name)
-	assert.Nil(t, box.Email)
-	assert.NotEmpty(t, box.Password)
 	f.userRoleRepo.AssertCalled(t, "Create", mock.MatchedBy(inOrg(f.org.ID)), mock.MatchedBy(func(r *dto.UserRole) bool {
 		return r.UserID == admin.ID && r.RoleID == permissions.RoleAdmin
-	}))
-	f.userRoleRepo.AssertCalled(t, "Create", mock.MatchedBy(inOrg(f.org.ID)), mock.MatchedBy(func(r *dto.UserRole) bool {
-		return r.UserID == box.ID && r.RoleID == permissions.RoleManager
 	}))
 }
 
@@ -140,17 +133,6 @@ func TestSignupService_SignUpWithGoogle_SlugRaceTriesTheNext(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.NotNil(t, result.Created)
-}
-
-func TestSignupService_SignUpWithGoogle_ShortEmailBoxUserIsCaja(t *testing.T) {
-	f := newSignupFixture(t, nil)
-	f.googleSays("jo@example.com", "Jo")
-	f.expectNewAccount()
-
-	_, err := f.service.SignUpWithGoogle(context.Background(), signupReq("Jo's", "starter"))
-
-	require.NoError(t, err)
-	assert.Equal(t, "caja", f.created[1].Username)
 }
 
 func TestSignupService_SignUpWithGoogle_ExistingEmailIsASignIn(t *testing.T) {
@@ -188,22 +170,21 @@ func TestSignupService_SignUpWithGoogle_AgainWhilePending(t *testing.T) {
 	f.orgRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 }
 
-func TestSignupService_SignUpWithGoogle_BoxUserFailureStoresNothing(t *testing.T) {
+func TestSignupService_SignUpWithGoogle_UserFailureStoresNothing(t *testing.T) {
 	rolledBack := false
 	f := newSignupFixture(t, &rolledBack)
 	f.googleSays("rosa@example.com", "Rosa")
 	f.userRepo.On("FindByEmail", mock.Anything, "rosa@example.com").Return(nil, domainError.ErrUserNotFound)
 	f.orgRepo.On("GetBySlug", mock.Anything, mock.Anything).Return(nil, domainError.ErrOrganizationNotFound)
 	f.orgRepo.On("Create", mock.Anything, mock.Anything).Return(nil)
-	f.userRepo.On("Create", mock.Anything, mock.MatchedBy(func(u *dto.User) bool { return u.Email != nil })).Return(nil)
-	f.userRepo.On("Create", mock.Anything, mock.MatchedBy(func(u *dto.User) bool { return u.Email == nil })).Return(errors.New("disk full"))
-	f.userRoleRepo.On("Create", mock.Anything, mock.Anything).Return(nil)
+	f.userRepo.On("Create", mock.Anything, mock.Anything).Return(nil)
+	f.userRoleRepo.On("Create", mock.Anything, mock.Anything).Return(errors.New("disk full"))
 
 	result, err := f.service.SignUpWithGoogle(context.Background(), signupReq("Doña Rosa", "full"))
 
 	assert.Nil(t, result)
 	assert.Error(t, err)
-	assert.True(t, rolledBack, "the organization and admin are created in the same unit of work as the box user")
+	assert.True(t, rolledBack, "the organization and admin are created in one unit of work")
 }
 
 func TestSignupService_SignUpWithGoogle_EmailRaceIsASignIn(t *testing.T) {
@@ -285,10 +266,4 @@ func TestSlugFromName(t *testing.T) {
 	}
 	assert.Equal(t, "una-cadena-muy-pero-muy-larga-de-rest-20", slugCandidate(SlugFromName("Una cadena muy pero muy larga de restaurante colombiano"), 20))
 	assert.Regexp(t, organizationSlugPattern, slugCandidate("abcdefghij-abcdefghij-abcdefghij-abcdefg", 2))
-}
-
-func TestBoxUsername(t *testing.T) {
-	assert.Equal(t, "rosa.perez", BoxUsername("Rosa.Perez@example.com"))
-	assert.Equal(t, "caja", BoxUsername("jo@example.com"))
-	assert.Equal(t, "ana_m-1", BoxUsername("ana+_m-1@example.com"))
 }

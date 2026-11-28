@@ -3,6 +3,7 @@ package cron
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -110,6 +111,36 @@ func TestEdgeSyncScheduler_RecordRefusal(t *testing.T) {
 			assert.Equal(t, tc.wantRefused, scheduler.recordRefusal(tc.err))
 
 			assert.Equal(t, tc.want, scheduler.tracker.Blocked())
+		})
+	}
+}
+
+func TestEdgeSyncScheduler_PullClassifiesTheFailure(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want dto.SyncState
+	}{
+		{"cloud unreachable", errors.New("pull from cloud: dial tcp: no route"), dto.SyncStateOffline},
+		{"apply failed", fmt.Errorf("%w: upsert users: fk", domainError.ErrPullApplyFailed), dto.SyncStateFailed},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			stateRepo := mocks.NewMockSyncStateRepository(t)
+			stateRepo.EXPECT().GetPulledCursor(mock.Anything, testCloudNodeID).Return(nil, nil).Once()
+			client := mocks.NewMockSyncPullClient(t)
+			client.EXPECT().Pull(mock.Anything, mock.Anything).Return(nil, tc.err).Once()
+			pull := service.NewSyncPullService(passthroughUnitOfWork(t), client, mocks.NewMockSyncReferenceWriter(t), stateRepo,
+				dto.SyncIdentity{CloudNodeID: testCloudNodeID}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+			tracker := syncstatus.NewTracker(0)
+			scheduler, err := NewEdgeSyncScheduler(cronOrganizations(t), cronOrgA, nil, pull, nil, tracker,
+				"* * * * *", "* * * * *", "0 5 * * *", slog.New(slog.NewTextHandler(io.Discard, nil)))
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = scheduler.Stop() })
+
+			scheduler.pull(context.Background())
+
+			assert.Equal(t, tc.want, tracker.SyncState())
 		})
 	}
 }

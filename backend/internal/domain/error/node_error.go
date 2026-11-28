@@ -15,6 +15,8 @@ var (
 	// ErrNodeOrganizationSuspended is only returned to a caller that presented the node's correct key.
 	ErrNodeOrganizationSuspended = errors.New("node organization suspended")
 	ErrNodeNameRequired          = errors.New("box name is required")
+	// ErrPullApplyFailed means the cloud answered a pull but its data could not be applied on the box.
+	ErrPullApplyFailed = errors.New("pull data could not be applied")
 )
 
 // ErrBoxAlreadyEnrolled is also what a lost enrollment race reports.

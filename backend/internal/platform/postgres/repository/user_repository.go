@@ -118,6 +118,18 @@ func (r *UserRepository) FindByID(ctx context.Context, id string) (*dto.User, er
 	return r.toDTO(&model), nil
 }
 
+func (r *UserRepository) AnyActive(ctx context.Context) (bool, error) {
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return false, err
+	}
+	var found []string
+	err = db.WithContext(ctx).Model(&userModel{}).
+		Where("active AND deleted_at IS NULL AND api_key_managed = false").
+		Select("id").Limit(1).Find(&found).Error
+	return len(found) > 0, err
+}
+
 func (r *UserRepository) FindAll(ctx context.Context) ([]*dto.User, error) {
 	db, err := postgres.TenantDB(ctx, r.db)
 	if err != nil {

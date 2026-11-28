@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { productsApi } from "@/lib/api/products";
 import type {
   Product,
@@ -9,6 +9,7 @@ import type {
 } from "@/types/product";
 import ProductList from "@/components/products/ProductList";
 import ProductForm from "@/components/products/ProductForm";
+import { takenSkus } from "@/lib/products/sku";
 import { PermissionGate } from "@/components/permissions";
 import { PERMISSIONS } from "@/lib/permissions";
 
@@ -25,6 +26,10 @@ export default function ProductsPageClient({
   const [showForm, setShowForm] = useState<boolean>(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [formLoading, setFormLoading] = useState<boolean>(false);
+  const organizationSkus = useMemo(
+    () => takenSkus(products.map((p) => p.sku)),
+    [products]
+  );
 
   const loadProducts = async () => {
     try {
@@ -212,6 +217,7 @@ export default function ProductsPageClient({
             onSubmit={handleFormSubmit}
             onCancel={handleCancel}
             isLoading={formLoading}
+            takenSkus={organizationSkus}
           />
         )}
       </div>

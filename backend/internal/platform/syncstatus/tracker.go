@@ -7,6 +7,8 @@ package syncstatus
 import (
 	"sync"
 	"time"
+
+	"laguna-escondida/backend/internal/domain/dto"
 )
 
 // Tracker records whether the edge's most recent cloud contact succeeded and when. It is
@@ -16,6 +18,7 @@ type Tracker struct {
 	mu          sync.RWMutex
 	lastAttempt time.Time
 	lastOK      bool
+	applyFailed bool
 	blocked     Blocked
 	pausedUntil time.Time
 	staleWindow time.Duration
@@ -42,6 +45,7 @@ func (t *Tracker) RecordSuccess() {
 	defer t.mu.Unlock()
 	t.lastAttempt = time.Now()
 	t.lastOK = true
+	t.applyFailed = false
 	t.blocked = ""
 	t.pausedUntil = time.Time{}
 }
@@ -66,6 +70,7 @@ func (t *Tracker) RecordBlocked(reason Blocked) {
 	defer t.mu.Unlock()
 	t.lastAttempt = time.Now()
 	t.lastOK = false
+	t.applyFailed = false
 	t.blocked = reason
 }
 
@@ -81,6 +86,34 @@ func (t *Tracker) RecordFailure() {
 	defer t.mu.Unlock()
 	t.lastAttempt = time.Now()
 	t.lastOK = false
+	t.applyFailed = false
+}
+
+// RecordApplyFailure notes that the cloud answered but its data could not be applied on the box.
+// The box still counts as not online.
+func (t *Tracker) RecordApplyFailure() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.lastAttempt = time.Now()
+	t.lastOK = false
+	t.applyFailed = true
+}
+
+// SyncState is the coarse outcome of the last pull for the sign-in page; empty before the first
+// attempt and after a success. The blocked reason wins over a plain failure.
+func (t *Tracker) SyncState() dto.SyncState {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	switch {
+	case t.blocked != "":
+		return dto.SyncState(t.blocked)
+	case t.lastAttempt.IsZero() || t.lastOK:
+		return ""
+	case t.applyFailed:
+		return dto.SyncStateFailed
+	default:
+		return dto.SyncStateOffline
+	}
 }
 
 // Online reports whether the edge currently considers itself connected to the cloud: the

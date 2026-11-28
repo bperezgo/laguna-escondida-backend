@@ -1,6 +1,6 @@
 <!--
-Generate this with `/pr-description` (a fresh Claude session that reads only the
-diff), then correct it.
+Run `/pr-verify` then `/pr-description` (fresh forks that read only the diff and
+the change), then correct it.
 -->
 
 ## Why (intent)

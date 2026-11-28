@@ -170,8 +170,8 @@ func TestSignupHandler_GoogleSignup_Created(t *testing.T) {
 	d.userRepo.EXPECT().FindByEmail(mock.Anything, "rosa@example.com").Return(nil, domainError.ErrUserNotFound)
 	d.orgRepo.EXPECT().GetBySlug(mock.Anything, "dona-rosa").Return(nil, domainError.ErrOrganizationNotFound)
 	d.orgRepo.EXPECT().Create(mock.Anything, mock.Anything).Return(nil)
-	d.userRepo.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Times(2)
-	d.userRoleRepo.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Times(2)
+	d.userRepo.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Once()
+	d.userRoleRepo.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Once()
 
 	rec := d.do(http.MethodPost, "/api/signup/google", `{"id_token":"tok","restaurant_name":"Doña Rosa","plan":"starter"}`)
 

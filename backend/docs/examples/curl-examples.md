@@ -23,7 +23,9 @@ export ADMIN_API_KEY="your_admin_api_key"
 ### Sign-In Context
 
 Which form to show (public, no token): `{"mode":"cloud"}`, or on an edge box
-`{"mode":"edge","organization":{"name":"Laguna Escondida"}}`.
+`{"mode":"edge","organization":{"name":"Laguna Escondida"},"users_ready":true,"sync":null}`.
+While a new box has no user yet, `users_ready` is `false` and `sync` says why
+(`waiting`, `offline`, `failed`, `replaced`, `suspended`).
 
 ```bash
 curl -s "$BASE_URL/auth/context"
@@ -242,13 +244,6 @@ curl -X POST "$BASE_URL/edge/enrollment-codes" -H "Authorization: Bearer $TOKEN"
 curl -X POST "$BASE_URL/edge/enroll-with-code" \
   -H "Content-Type: application/json" \
   -d '{"code": "K7F2-9QXM", "name": "Caja principal"}'
-```
-
-### Generate the Box User's Password
-
-```bash
-curl -X POST "$BASE_URL/admin/users/$BOX_USER_ID/generate-password" \
-  -H "Authorization: Bearer $TOKEN"
 ```
 
 ---

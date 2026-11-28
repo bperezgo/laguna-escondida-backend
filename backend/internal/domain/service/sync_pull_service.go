@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"laguna-escondida/backend/internal/domain/dto"
+	domainError "laguna-escondida/backend/internal/domain/error"
 	"laguna-escondida/backend/internal/domain/ports"
 )
 
@@ -60,30 +61,30 @@ func (s *SyncPullService) PullChanges(ctx context.Context) (*dto.SyncPullResult,
 
 	if err := s.unitOfWork.Do(ctx, func(ctx context.Context) error {
 		if err := s.writer.UpsertProducts(ctx, resp.Products); err != nil {
-			return fmt.Errorf("upsert products: %w", err)
+			return applyErr("upsert products", err)
 		}
 		// Responsibilities reference products via FK, so they must land after products.
 		if err := s.writer.UpsertProductResponsibilities(ctx, resp.ProductResponsibilities); err != nil {
-			return fmt.Errorf("upsert product responsibilities: %w", err)
+			return applyErr("upsert product responsibilities", err)
 		}
 		// Recipe rows reference products (composite + ingredient) via FK, so they land after products.
 		if err := s.writer.UpsertProductIngredients(ctx, resp.ProductIngredients); err != nil {
-			return fmt.Errorf("upsert product ingredients: %w", err)
+			return applyErr("upsert product ingredients", err)
 		}
 		// Bundle items reference products, so slots land after products too.
 		if err := s.writer.ReplacePlateOptionSlots(ctx, resp.PlateOptionSlots); err != nil {
-			return fmt.Errorf("replace plate option slots: %w", err)
+			return applyErr("replace plate option slots", err)
 		}
 		if err := s.writer.UpsertUsers(ctx, resp.Users); err != nil {
-			return fmt.Errorf("upsert users: %w", err)
+			return applyErr("upsert users", err)
 		}
 		if err := s.writer.UpsertSuppliers(ctx, resp.Suppliers); err != nil {
-			return fmt.Errorf("upsert suppliers: %w", err)
+			return applyErr("upsert suppliers", err)
 		}
 		// Only move the cursor forward; an unchanged response leaves it where it was.
 		if resp.Cursor.After(since) {
 			if err := s.stateRepo.AdvancePulledCursor(ctx, s.syncIdentity.CloudNodeID, resp.Cursor); err != nil {
-				return fmt.Errorf("advance pulled cursor: %w", err)
+				return applyErr("advance pulled cursor", err)
 			}
 		}
 		return nil
@@ -99,4 +100,9 @@ func (s *SyncPullService) PullChanges(ctx context.Context) (*dto.SyncPullResult,
 		ProductIngredients:      len(resp.ProductIngredients),
 		PlateOptionSlots:        len(resp.PlateOptionSlots),
 	}, nil
+}
+
+// applyErr marks a failure inside the apply transaction, so callers can tell it from a failed fetch.
+func applyErr(step string, err error) error {
+	return fmt.Errorf("%w: %s: %w", domainError.ErrPullApplyFailed, step, err)
 }

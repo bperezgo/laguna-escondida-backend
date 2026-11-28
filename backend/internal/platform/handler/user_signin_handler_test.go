@@ -1,11 +1,14 @@
 package handler
 
 import (
+	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	useragg "laguna-escondida/backend/internal/domain/aggregate/user"
 	"laguna-escondida/backend/internal/domain/dto"
@@ -14,6 +17,7 @@ import (
 	"laguna-escondida/backend/internal/domain/ports/mocks"
 	"laguna-escondida/backend/internal/domain/service"
 	"laguna-escondida/backend/internal/domain/tenant"
+	"laguna-escondida/backend/internal/platform/syncstatus"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -27,6 +31,7 @@ type signInDeps struct {
 	userRoleRepo *mocks.MockUserRoleRepository
 	orgRepo      *mocks.MockOrganizationRepository
 	router       *gin.Engine
+	service      *service.UserService
 }
 
 func newSignInDeps(t *testing.T, scope tenant.Scope) signInDeps {
@@ -39,6 +44,7 @@ func newSignInDeps(t *testing.T, scope tenant.Scope) signInDeps {
 		orgRepo:      mocks.NewMockOrganizationRepository(t),
 	}
 	userService := service.NewUserService(d.userRepo, d.roleRepo, d.userRoleRepo, d.orgRepo, service.NewJWTService("test-secret", scope), immediateUnitOfWork{}, scope)
+	d.service = userService
 	h := NewUserHandler(userService, nil, slog.New(slog.DiscardHandler))
 	d.router = gin.New()
 	d.router.POST("/api/auth/signin", h.SignInHandler)
@@ -178,14 +184,69 @@ func TestUserHandler_SignInContext(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rec.Code)
 		assert.JSONEq(t, `{"mode": "cloud"}`, rec.Body.String())
 	})
-	t.Run("edge", func(t *testing.T) {
+	t.Run("edge with users", func(t *testing.T) {
 		d := newSignInDeps(t, tenant.PinnedTo(testOrganizationID))
 		d.orgRepo.EXPECT().Get(mock.Anything, testOrganizationID).Return(activeOrg(), nil)
+		d.userRepo.EXPECT().AnyActive(mock.Anything).Return(true, nil)
 
 		rec := d.do(http.MethodGet, "/api/auth/context", "")
 
 		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.JSONEq(t, `{"mode": "edge", "organization": {"name": "Laguna Escondida"}}`, rec.Body.String())
+		assert.JSONEq(t, `{"mode": "edge", "organization": {"name": "Laguna Escondida"}, "users_ready": true, "sync": null}`, rec.Body.String())
+	})
+	t.Run("edge without users", func(t *testing.T) {
+		d := newSignInDeps(t, tenant.PinnedTo(testOrganizationID))
+		d.orgRepo.EXPECT().Get(mock.Anything, testOrganizationID).Return(activeOrg(), nil)
+		d.userRepo.EXPECT().AnyActive(mock.Anything).Return(false, nil)
+
+		rec := d.do(http.MethodGet, "/api/auth/context", "")
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.JSONEq(t, `{"mode": "edge", "organization": {"name": "Laguna Escondida"}, "users_ready": false, "sync": "waiting"}`, rec.Body.String())
+	})
+	t.Run("edge without its organization row", func(t *testing.T) {
+		d := newSignInDeps(t, tenant.PinnedTo(testOrganizationID))
+		d.orgRepo.EXPECT().Get(mock.Anything, testOrganizationID).Return(nil, errors.New("organization not found"))
+		d.userRepo.EXPECT().AnyActive(mock.Anything).Return(false, nil)
+
+		rec := d.do(http.MethodGet, "/api/auth/context", "")
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.JSONEq(t, `{"mode": "edge", "users_ready": false, "sync": "waiting"}`, rec.Body.String())
+	})
+}
+
+// The endpoint is public: whatever the box knows about its users or about why a pull failed,
+// the body carries only the fixed fields.
+func TestUserHandler_SignInContext_RevealsNoUserDataOrErrorText(t *testing.T) {
+	t.Run("several users", func(t *testing.T) {
+		d := newSignInDeps(t, tenant.PinnedTo(testOrganizationID))
+		d.orgRepo.EXPECT().Get(mock.Anything, testOrganizationID).Return(activeOrg(), nil)
+		d.userRepo.EXPECT().AnyActive(mock.Anything).Return(true, nil)
+
+		rec := d.do(http.MethodGet, "/api/auth/context", "")
+
+		var body map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+		keys := make([]string, 0, len(body))
+		for k := range body {
+			keys = append(keys, k)
+		}
+		assert.ElementsMatch(t, []string{"mode", "organization", "users_ready", "sync"}, keys)
+		assert.JSONEq(t, `{"name": "Laguna Escondida"}`, string(body["organization"]))
+	})
+	t.Run("a failed pull", func(t *testing.T) {
+		d := newSignInDeps(t, tenant.PinnedTo(testOrganizationID))
+		tracker := syncstatus.NewTracker(time.Minute)
+		d.service.UseSyncState(tracker)
+		d.orgRepo.EXPECT().Get(mock.Anything, testOrganizationID).Return(activeOrg(), nil)
+		d.userRepo.EXPECT().AnyActive(mock.Anything).Return(false, nil)
+		tracker.RecordApplyFailure()
+
+		rec := d.do(http.MethodGet, "/api/auth/context", "")
+
+		assert.JSONEq(t, `{"mode": "edge", "organization": {"name": "Laguna Escondida"}, "users_ready": false, "sync": "failed"}`, rec.Body.String())
+		assert.NotContains(t, rec.Body.String(), "users_organization_id_fkey")
 	})
 }
 

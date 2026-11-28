@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"laguna-escondida/backend/internal/domain/dto"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -63,4 +65,30 @@ func TestTracker_PauseAloneDoesNotSetBlocked(t *testing.T) {
 	tr.Pause(time.Now().Add(time.Hour))
 
 	assert.Equal(t, Blocked(""), tr.Blocked())
+}
+
+func TestTracker_SyncState(t *testing.T) {
+	tr := NewTracker(time.Minute)
+	assert.Equal(t, dto.SyncState(""), tr.SyncState(), "before the first attempt")
+
+	tr.RecordFailure()
+	assert.Equal(t, dto.SyncStateOffline, tr.SyncState())
+	assert.False(t, tr.Online())
+
+	tr.RecordApplyFailure()
+	assert.Equal(t, dto.SyncStateFailed, tr.SyncState())
+	assert.False(t, tr.Online(), "an apply failure is still not online")
+	assert.Empty(t, tr.Blocked(), "the status endpoint's view is unchanged")
+
+	tr.RecordFailure()
+	assert.Equal(t, dto.SyncStateOffline, tr.SyncState(), "a later network failure replaces it")
+
+	tr.RecordBlocked(BlockedReplaced)
+	assert.Equal(t, dto.SyncStateReplaced, tr.SyncState())
+	tr.RecordBlocked(BlockedSuspended)
+	assert.Equal(t, dto.SyncStateSuspended, tr.SyncState())
+
+	tr.RecordApplyFailure()
+	tr.RecordSuccess()
+	assert.Equal(t, dto.SyncState(""), tr.SyncState(), "a success clears it")
 }

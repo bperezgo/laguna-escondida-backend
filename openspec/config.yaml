@@ -37,8 +37,18 @@ context: |
 rules:
   proposal:
     - Keep proposals under 500 words
+    - >-
+      End Impact with "Touches:" (the modules and key files the change edits, e.g. backend/internal/domain/aggregate/bill.go,
+      migrations, frontend/app/(main)/orders) and "Depends on:" (other changes that must merge first, or "none"),
+      so changes that can run in parallel are the ones whose Touches don't overlap
     - "In Impact, say whether the change touches a trust boundary: auth/session, roles, tenant (organization) scoping, public or unauthenticated endpoints, webhooks, payments, file uploads/archives, edge↔cloud sync, secrets, or MCP tools"
   design:
+    - >-
+      Include "## Implementation Map", grouped by tasks.md section: every file to create or edit by full path;
+      for each new file, the existing file to copy; new port, function and DTO signatures; the file:line of every
+      hook into existing code (route registration, DI wiring, switch cases, sync entity lists). An implementer
+      reads only these files, so anything missing here gets guessed
+    - Every value the code needs is decided in design.md (limits, defaults, rounding, error codes and messages); none is left to the implementer
     - >-
       Include a "## Security" section before "Risks / Trade-offs", following the security-audit skill's core principles
       (~/.claude/skills/security-audit/SKILL.md). For each trust boundary the change adds or alters, state: the lower-trust
@@ -51,6 +61,15 @@ rules:
   specs:
     - For every trust boundary in design.md Security, add at least one negative scenario (wrong role, other organization's data, unauthenticated caller, forged/replayed webhook, oversized or malformed input) with the expected rejection
   tasks:
+    - >-
+      Write each task so a model with only tasks.md, design.md and the files the Implementation Map lists can do it:
+      name its files by full path, state what to build with no "or", "if needed", "e.g." or "TBD", and end with
+      "Verify:" plus a test name and its cases, or a command and its expected result
+    - Each spec scenario has a task whose Verify names the test that proves it
+    - >-
+      Size each section for one implementing session (about 5 tasks), order sections by dependency with the core
+      first, and mark a section "(parallel-safe with §N)" only when the two touch no file in common
+    - The last planning step is the spec-readiness skill; fix every blocking question it reports before implementing
     - >-
       When design.md has a Security section that isn't N/A, add a last task group "Security review": run the security-audit
       skill in guidance mode (focused review, not the full audit) over the change's diff against the Security section;

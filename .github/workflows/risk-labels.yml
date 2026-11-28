@@ -1,0 +1,54 @@
+name: Risk labels
+
+# Labels the PR with the risk areas its diff touches (scripts/risk-areas.sh) and lists the files
+# per area in the job summary, so a reviewer knows what to read in full. Informational: never fails.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write # creating a missing label
+
+jobs:
+  risk:
+    name: Risk areas
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Label and summarize
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          BASE: origin/${{ github.base_ref }}
+        run: |
+          scripts/risk-areas.sh "$BASE" > risk.tsv
+          wanted=$(cut -f1 risk.tsv | sort -u | sed 's/^/risk:/')
+
+          current=$(gh pr view "$PR" --json labels -q '.labels[].name' | grep '^risk:' || true)
+          for label in $current; do
+            echo "$wanted" | grep -qx "$label" || gh pr edit "$PR" --remove-label "$label"
+          done
+          for label in $wanted; do
+            gh label create "$label" --color D93F0B --description "Diff touches this risk area" 2>/dev/null || true
+            gh pr edit "$PR" --add-label "$label"
+          done
+
+          {
+            echo "## Risk areas"
+            if [ ! -s risk.tsv ]; then
+              echo "None: skim review is enough."
+            else
+              echo "Read these files in full; skim the rest."
+              echo
+              echo "| Area | Status | File |"
+              echo "|---|---|---|"
+              awk -F'\t' '{printf "| %s | %s | `%s` |\n", $1, $2, $3}' risk.tsv
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

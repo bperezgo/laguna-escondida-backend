@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Modal, Input, Button } from "@/components/ui";
+import { Modal, Input, PasswordInput, Button } from "@/components/ui";
 import { EMAIL_REQUIRED_MESSAGE, requiresEmail, roleLabel } from "@/types/user";
 import type {
   Role,
@@ -19,6 +19,10 @@ interface UserFormProps {
   onCreate: (data: CreateUserRequest) => Promise<void>;
   onUpdate: (data: UpdateUserRequest) => Promise<void>;
   onCancel: () => void;
+  /** Edit mode: closes the form and opens the password dialog for this user. */
+  onChangePassword?: () => void;
+  /** Roles ticked when creating; ignored in edit mode. */
+  initialRoleIds?: number[];
   isLoading?: boolean;
   /** The server's rejection of the last submit, shown inside the form. */
   error?: string;
@@ -44,6 +48,8 @@ export default function UserForm({
   onCreate,
   onUpdate,
   onCancel,
+  onChangePassword,
+  initialRoleIds,
   isLoading = false,
   error,
 }: UserFormProps) {
@@ -56,7 +62,7 @@ export default function UserForm({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [active, setActive] = useState<boolean>(user?.user.active ?? true);
   const [selectedRoleIds, setSelectedRoleIds] = useState<number[]>(
-    user?.roles.map((r) => r.id) ?? []
+    user?.roles.map((r) => r.id) ?? initialRoleIds ?? []
   );
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -128,6 +134,7 @@ export default function UserForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setShowPassword(false);
     if (!validate()) return;
 
     if (isEdit) {
@@ -212,36 +219,17 @@ export default function UserForm({
         {!isEdit && (
           <>
             <div>
-              <Input
+              <PasswordInput
                 label="Contraseña *"
-                type={showPassword ? "text" : "password"}
+                shown={showPassword}
+                onShownChange={setShowPassword}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 error={errors.password}
                 placeholder="Mínimo 6 caracteres"
                 autoComplete="new-password"
               />
-              <div
-                style={{
-                  display: "flex",
-                  gap: "1rem",
-                  marginTop: "0.4rem",
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((s) => !s)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    padding: 0,
-                    color: "var(--color-primary)",
-                    cursor: "pointer",
-                    fontSize: "0.8rem",
-                  }}
-                >
-                  {showPassword ? "Ocultar" : "Mostrar"} contraseña
-                </button>
+              <div style={{ marginTop: "0.4rem" }}>
                 <button
                   type="button"
                   onClick={handleGenerate}
@@ -259,9 +247,10 @@ export default function UserForm({
               </div>
             </div>
 
-            <Input
+            <PasswordInput
               label="Confirmar contraseña *"
-              type={showPassword ? "text" : "password"}
+              shown={showPassword}
+              hideToggle
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               error={errors.confirmPassword}
@@ -269,6 +258,14 @@ export default function UserForm({
               autoComplete="new-password"
             />
           </>
+        )}
+
+        {isEdit && onChangePassword && (
+          <div>
+            <Button type="button" variant="secondary" onClick={onChangePassword} disabled={isLoading}>
+              Cambiar contraseña
+            </Button>
+          </div>
         )}
 
         {/* Roles */}
