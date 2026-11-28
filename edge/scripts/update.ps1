@@ -71,7 +71,13 @@ if ($isApp -and $FromSource) {
 # edge-node reads its config from a .env next to the exe; refresh it in case it changed.
 if ($Service -eq 'edge-node') {
   $envSrc = Join-Path $Root 'env\edge-node.env'
-  if (Test-Path $envSrc) { Copy-Item $envSrc (Join-Path $Root 'artifacts\edge-node\.env') -Force }
+  $envDst = Join-Path $Root 'artifacts\edge-node\.env'
+  if (Test-Path $envSrc) {
+    Copy-Item $envSrc $envDst -Force
+    # Same as install.ps1: the copy holds the node key, and artifacts\ is readable by Users.
+    & icacls $envDst /inheritance:r /grant:r '*S-1-5-18:F' '*S-1-5-32-544:F' /C /Q | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Could not restrict $envDst (icacls exit $LASTEXITCODE)" }
+  }
 }
 
 # Alloy reads alloy\config.alloy live, but its per-box settings are MACHINE env vars that
