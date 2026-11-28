@@ -23,6 +23,8 @@ PUT /api/billing/recovery/selection laguna-escondida/backend/internal/platform/h
 POST /api/billing/resume laguna-escondida/backend/internal/platform/handler.(*BillingHandler).ResumeHandler-fm
 GET /api/billing/setup laguna-escondida/backend/internal/platform/handler.(*BillingSetupHandler).StateHandler-fm
 PUT /api/billing/setup/selection laguna-escondida/backend/internal/platform/handler.(*BillingSetupHandler).SelectionHandler-fm
+POST /api/catalog/import laguna-escondida/backend/internal/platform/handler.(*CatalogImportHandler).ApplyHandler-fm
+POST /api/catalog/import/validate laguna-escondida/backend/internal/platform/handler.(*CatalogImportHandler).ValidateHandler-fm
 GET /api/contacts laguna-escondida/backend/internal/platform/handler.(*ContactHandler).ListHandler-fm
 GET /api/contacts/:id laguna-escondida/backend/internal/platform/handler.(*ContactHandler).GetHandler-fm
 GET /api/deliveries/couriers laguna-escondida/backend/internal/platform/handler.(*DeliveryHandler).CouriersHandler-fm

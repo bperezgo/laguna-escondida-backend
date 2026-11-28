@@ -123,8 +123,29 @@ func (r *ProductRepository) Create(ctx context.Context, product *product.Aggrega
 	if err != nil {
 		return err
 	}
+	return db.Create(newProductModel(product)).Error
+}
+
+const createBatchSize = 200
+
+func (r *ProductRepository) CreateMany(ctx context.Context, products []*product.Aggregate) error {
+	if len(products) == 0 {
+		return nil
+	}
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	models := make([]*productModel, len(products))
+	for i, p := range products {
+		models[i] = newProductModel(p)
+	}
+	return db.CreateInBatches(models, createBatchSize).Error
+}
+
+func newProductModel(product *product.Aggregate) *productModel {
 	productDTO := product.ToDTO()
-	model := &productModel{
+	return &productModel{
 		ID:                  productDTO.ID,
 		Name:                productDTO.Name,
 		Category:            productDTO.Category,
@@ -142,12 +163,6 @@ func (r *ProductRepository) Create(ctx context.Context, product *product.Aggrega
 		CreatedAt:           productDTO.CreatedAt,
 		UpdatedAt:           productDTO.UpdatedAt,
 	}
-
-	if err := db.Create(model).Error; err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (r *ProductRepository) Update(ctx context.Context, id string, product *product.Aggregate) error {
@@ -300,6 +315,28 @@ func (r *ProductRepository) CreatePreparationResponsibility(ctx context.Context,
 		CreatedAt: model.CreatedAt,
 		UpdatedAt: model.UpdatedAt,
 	}, nil
+}
+
+func (r *ProductRepository) CreatePreparationResponsibilities(ctx context.Context, responsibilities []*dto.ProductPreparationResponsibility) error {
+	if len(responsibilities) == 0 {
+		return nil
+	}
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	models := make([]*productResponsibilityModel, len(responsibilities))
+	for i, resp := range responsibilities {
+		models[i] = &productResponsibilityModel{
+			ID:        resp.ID,
+			ProductID: resp.ProductID,
+			Area:      resp.Area,
+			Priority:  resp.Priority,
+			CreatedAt: resp.CreatedAt,
+			UpdatedAt: resp.UpdatedAt,
+		}
+	}
+	return db.CreateInBatches(models, createBatchSize).Error
 }
 
 func (r *ProductRepository) UpdatePreparationResponsibility(ctx context.Context, id string, area string, priority int) (*dto.ProductPreparationResponsibility, error) {

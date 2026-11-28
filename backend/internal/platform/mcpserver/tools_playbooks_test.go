@@ -109,3 +109,24 @@ func TestTool_GetPlaybook(t *testing.T) {
 		require.True(t, res.IsError)
 	})
 }
+
+func TestTool_OnboardCatalogPlaybookListedAndServed(t *testing.T) {
+	cs, ctx := connectPlaybookServer(t)
+
+	list, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "list_playbooks"})
+	require.NoError(t, err)
+	assert.Contains(t, toolText(t, list), `"onboard-catalog"`)
+
+	res, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "get_playbook", Arguments: map[string]any{"name": "onboard-catalog"}})
+	require.NoError(t, err)
+	require.False(t, res.IsError)
+	var pb struct {
+		Description string `json:"description"`
+		Content     string `json:"content"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(toolText(t, res)), &pb))
+	assert.NotEmpty(t, pb.Description)
+	for _, step := range []string{"validate_catalog_import", "apply_catalog_import", "expected_digest", "explicit approval", "defaults", "g`, `ml` or `unit`", "opening_stock"} {
+		assert.Contains(t, pb.Content, step)
+	}
+}

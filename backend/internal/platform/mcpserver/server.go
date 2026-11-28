@@ -14,9 +14,27 @@ const serverVersion = "0.1.0"
 // noInput is the input type for tools that take no arguments.
 type noInput struct{}
 
+// ServerOption adjusts what NewMCPServer allows.
+type ServerOption func(*serverOptions)
+
+type serverOptions struct {
+	localFiles bool
+}
+
+// WithLocalFiles lets the catalog import tools read a document by file path. Pass it only on
+// stdio, where the caller is the operator's own machine; over HTTP a path would read the server's files.
+func WithLocalFiles() ServerOption {
+	return func(o *serverOptions) { o.localFiles = true }
+}
+
 // NewMCPServer builds the MCP server with the given toolset. The customer toolset registers
 // only the customer tools, so a customer-facing agent has no staff tool to be talked into.
-func NewMCPServer(c *Client, toolset Toolset) *mcp.Server {
+func NewMCPServer(c *Client, toolset Toolset, opts ...ServerOption) *mcp.Server {
+	var options serverOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+
 	s := mcp.NewServer(&mcp.Implementation{
 		Name:    "laguna-escondida",
 		Version: serverVersion,
@@ -35,6 +53,7 @@ func NewMCPServer(c *Client, toolset Toolset) *mcp.Server {
 	registerProductIngredientTools(s, c)
 	registerOrderTools(s, c)
 	registerStockTools(s, c)
+	registerCatalogImportTools(s, c, options.localFiles)
 	registerSupplierTools(s, c)
 	registerSupplierCatalogTools(s, c)
 	registerPurchaseEntryTools(s, c)

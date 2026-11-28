@@ -927,6 +927,58 @@ curl -X POST "$BASE_URL/orders/pay-order" \
 
 ---
 
+## Catalog Import (cloud only, admin)
+
+Builds a whole catalog from one document. Validate first, then apply with the `digest` the validation returned. See `docs/api/catalog-import.md` for the format.
+
+### Validate a Catalog Document
+
+```bash
+cat > catalog.json <<'JSON'
+{
+  "defaults": { "vat": 0, "ico": 8, "taxes_format": "percentage", "unit_of_measure": "g", "prep_area": "kitchen", "prep_priority": 0 },
+  "ingredients": [
+    { "ref": "arroz-blanco", "name": "Arroz blanco", "category": "Insumos" },
+    { "ref": "arroz-coco", "name": "Arroz de coco", "category": "Insumos" },
+    { "ref": "tilapia-cruda", "name": "Tilapia entera", "category": "Insumos", "unit_of_measure": "unit" }
+  ],
+  "sellables": [
+    { "ref": "coca-400", "name": "Coca-Cola 400ml", "category": "Bebidas", "unit_of_measure": "unit", "total_price_with_taxes": 5000, "prep": { "area": "bar" } }
+  ],
+  "plates": [
+    { "ref": "tilapia", "name": "Tilapia frita", "category": "Platos", "unit_of_measure": "unit", "total_price_with_taxes": 32000,
+      "recipe": [{ "ingredient": "tilapia-cruda", "quantity": 1 }],
+      "slots": [{ "name": "Arroz", "choices": [
+        { "name": "Arroz blanco", "default": true, "items": [{ "ingredient": "arroz-blanco", "quantity": 200 }] },
+        { "name": "Arroz de coco", "items": [{ "ingredient": "arroz-coco", "quantity": 200 }] }
+      ] }] }
+  ],
+  "opening_stock": [{ "product": "arroz-blanco", "counted": 25000 }]
+}
+JSON
+
+curl -X POST "$BASE_URL/catalog/import/validate" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  --data-binary @catalog.json
+```
+
+### Apply the Validated Document
+
+```bash
+DIGEST=$(curl -s -X POST "$BASE_URL/catalog/import/validate" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  --data-binary @catalog.json | jq -r .digest)
+
+jq --arg d "$DIGEST" '. + {expected_digest: $d}' catalog.json | \
+  curl -X POST "$BASE_URL/catalog/import" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    --data-binary @-
+```
+
+---
+
 ## Delivery Zones (cloud only)
 
 ### Create a Zone (admin/manager)

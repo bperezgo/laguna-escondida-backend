@@ -227,6 +227,14 @@ func RegisterDeliveryZoneRoutes(router *gin.Engine, zoneHandler *handler.Deliver
 	zones.DELETE("/:id", handler.RequirePermission(permissions.DeliveryZonesManage), zoneHandler.DeleteHandler)
 }
 
+// registerCatalogImportRoutes is cloud-only, like every catalog write. The dry run needs the
+// permission too: it reads the organization's catalog to report conflicts.
+func registerCatalogImportRoutes(router *gin.Engine, jwtService *service.JWTService, imports *handler.CatalogImportHandler) {
+	g := router.Group("/api/catalog/import", handler.JWTAuthMiddleware(jwtService), handler.RequirePermission(permissions.CatalogImport))
+	g.POST("/validate", imports.ValidateHandler)
+	g.POST("", imports.ApplyHandler)
+}
+
 // backOfficeHandlers back the cloud's accounting and the writes to data the box only pulls.
 type backOfficeHandlers struct {
 	product           *handler.ProductHandler

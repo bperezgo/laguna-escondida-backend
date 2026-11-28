@@ -8,6 +8,7 @@ import (
 
 type ProductIngredientRepository interface {
 	Create(ctx context.Context, ingredient *dto.ProductIngredient) error
+	CreateMany(ctx context.Context, ingredients []*dto.ProductIngredient) error
 	Update(ctx context.Context, id string, ingredient *dto.ProductIngredient) error
 	Delete(ctx context.Context, id string) error
 	FindByID(ctx context.Context, id string) (*dto.ProductIngredient, error)

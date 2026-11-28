@@ -39,7 +39,7 @@ func registerStockTools(s *mcp.Server, c *Client) {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "create_stock",
-		Description: "Create a stock record for a product (edge mode only).",
+		Description: "Create a stock record for a product (cloud only).",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in createStockInput) (*mcp.CallToolResult, any, error) {
 		body, err := c.Post(ctx, "/api/stock", in.Body)
 		if err != nil {
@@ -50,7 +50,7 @@ func registerStockTools(s *mcp.Server, c *Client) {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "adjust_stock",
-		Description: "Add to or decrease a product's stock by a signed amount (edge mode only).",
+		Description: "Add to or decrease a product's stock by a signed amount (cloud only).",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in adjustStockInput) (*mcp.CallToolResult, any, error) {
 		path := "/api/stock/" + url.PathEscape(in.Body.ProductID) + "/add-or-decrease"
 		body, err := c.Put(ctx, path, in.Body)
@@ -62,7 +62,7 @@ func registerStockTools(s *mcp.Server, c *Client) {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "delete_stock",
-		Description: "Delete a product's stock record (edge mode only).",
+		Description: "Delete a product's stock record (cloud only).",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in deleteStockInput) (*mcp.CallToolResult, any, error) {
 		body, err := c.Delete(ctx, "/api/stock/"+url.PathEscape(in.ProductID))
 		if err != nil {
@@ -73,7 +73,7 @@ func registerStockTools(s *mcp.Server, c *Client) {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "bulk_upsert_stock",
-		Description: "Create or update stock for multiple products in one request (edge mode only).",
+		Description: "Create or update stock for multiple products in one request (cloud only).",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in bulkStockInput) (*mcp.CallToolResult, any, error) {
 		body, err := c.Post(ctx, "/api/stock/bulk", in.Body)
 		if err != nil {
