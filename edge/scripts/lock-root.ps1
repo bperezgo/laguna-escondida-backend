@@ -121,6 +121,16 @@ if ($Fresh -and $existed) {
   }
 }
 
+# Created here, locked, so whatever writes into them later (Caddy's CA key in caddy-data\) inherits
+# Administrators and SYSTEM only, not the root's read access for Users.
+foreach ($name in $Restricted) {
+  $dir = Join-Path $Root $name
+  if (-not (Test-Path -LiteralPath $dir)) {
+    New-Item -ItemType Directory -Path $dir | Out-Null
+    Set-ExactAcl $dir $false
+  }
+}
+
 # No link is left, so recursing is safe. Restricted folders keep their own DACL and only their
 # contents inherit it.
 Icacls @($Root, '/setowner', '*S-1-5-32-544', '/T', '/C', '/L', '/Q')
