@@ -339,10 +339,10 @@ try {
   $hits += Select-String -Path $r.log -Pattern $code -SimpleMatch -List
   Assert (-not $hits) 'no file or log holds the enrollment code'
   # The node key belongs in the two env files and nowhere else.
-  $nk = Get-ChildItem $root -Recurse -File -ErrorAction SilentlyContinue |
+  $nk = @(Get-ChildItem $root -Recurse -File -ErrorAction SilentlyContinue |
     Where-Object { $_.Length -lt 5MB -and $_.Extension -in '.env', '.log', '.json', '.xml', '.txt', '.out', '.err' -and $_.FullName -notlike "$root\env\*" } |
-    Select-String -Pattern $script:Secrets[1] -SimpleMatch -List
-  $nk += Select-String -Path $r.log -Pattern $script:Secrets[1] -SimpleMatch -List
+    Select-String -Pattern $script:Secrets[1] -SimpleMatch -List)
+  $nk += @(Select-String -Path $r.log -Pattern $script:Secrets[1] -SimpleMatch -List)
   Assert (-not $nk) "the node key is only in env\ ($(($nk | ForEach-Object Path) -join ', '))"
   Assert ((Test-Path "$env:PUBLIC\Desktop\Kuenta.lnk") -or (Test-Path "$env:PUBLIC\Desktop\Kuenta.url")) 'the Kuenta shortcut exists'
   Assert (-not @(Get-Service laguna-* -ErrorAction SilentlyContinue)) 'no laguna service exists'
