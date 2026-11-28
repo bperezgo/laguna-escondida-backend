@@ -8,15 +8,19 @@ base="${1:-origin/main}"
 cd "$(git rev-parse --show-toplevel)"
 
 git diff --name-status --no-renames "$base"...HEAD | while IFS=$'\t' read -r status path; do
-  # Plans and prose are reviewed as text; only the API contract docs carry risk.
+  # Plans and prose are reviewed as text; only the API contract docs and the files that
+  # steer agents (skills, hooks, permissions, AGENTS.md/CLAUDE.md) carry risk.
   case "$path" in
-    backend/docs/api/*) ;;
+    backend/docs/api/* | .claude/* | AGENTS.md | CLAUDE.md | */AGENTS.md | */CLAUDE.md | openspec/config.yaml) ;;
     openspec/* | *.md) continue ;;
   esac
 
   areas=""
   add() { areas="$areas $1"; }
 
+  case "$path" in
+    .claude/* | AGENTS.md | CLAUDE.md | */AGENTS.md | */CLAUDE.md | openspec/config.yaml) add agent-config ;;
+  esac
   case "$path" in
     backend/internal/platform/postgres/migrations/*) add migration ;;
   esac
