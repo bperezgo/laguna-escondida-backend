@@ -1,11 +1,11 @@
 ---
-description: Create an isolated git worktree + branch for a ticket so its work never collides with other tickets (pipeline setup, runs before /refine)
+description: Create an isolated git worktree + branch for a ticket so its work never collides with other tickets (runs before the OpenSpec change is proposed)
 argument-hint: "<TICKET-ID> (e.g. BSP-18)"
 ---
 
 You are setting up an **isolated workspace** for a ticket: one ticket = one branch = one git
 worktree, so parallel ticket sessions never touch the same files. This is step 0, before
-`/refine` → `/spec-tests` → `/build`.
+the OpenSpec flow in `docs/WORKFLOW.md`.
 
 Ticket: **$ARGUMENTS**
 
@@ -47,8 +47,8 @@ still untracked in the main tree, and report each:
 10. **Verify** the worktree is healthy: `git -C "$wt" status -sb` (shows the new branch) and confirm
     `docs/plans/$ARGUMENTS*.md` landed.
 11. **Tell the user how to work in it.** Print:
-    - *In a new terminal:* `cd "<wt>" && claude`, then run `/refine $ARGUMENTS`
-      (or `/spec-tests $ARGUMENTS` if the spec is already signed off).
+    - *In a new terminal:* `cd "<wt>" && claude`, then explore or propose the change
+      (or apply it if `openspec/changes/<name>/` is already signed off).
     - The status line there will show `🎫 $ARGUMENTS` (parsed from the branch).
     - **Or** offer to move *this* session into the worktree now (via the `EnterWorktree` tool).
     - **Cleanup when merged:** from the main repo, `git worktree remove "<wt>"` then delete the branch.

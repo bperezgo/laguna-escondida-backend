@@ -75,6 +75,10 @@ rules:
       skill in guidance mode (focused review, not the full audit) over the change's diff against the Security section;
       fix confirmed findings, and record needs-validation items in design.md
     - Each negative security scenario in specs gets a test task (backend acceptance or handler test)
+    - >-
+      Tests come first: in each section that adds or changes behavior, the first task writes the tests that the
+      section's later Verify lines name, and its Verify is that they fail for the expected reason (an assertion, or
+      the missing symbol the section adds); the implementation tasks follow. Docs-only and wiring-only sections are exempt
 
 operations:
   apply:
@@ -83,6 +87,10 @@ operations:
       - Backend: from backend/, run targeted tests (go test ./internal/domain/service -run TestXxx) while iterating; full make test/lint once at section end, piped through | tail -40
       - Don't read backend/docs/playbooks/ARCHITECTURE.md unless the task touches DI wiring or a new aggregate
       - If the spec is ambiguous, stop and append the question to design.md "Open questions" — never invent a decision
+      - Red before green: run each section's test task and confirm it fails for the expected reason before writing implementation code
+      - >-
+        Never edit, delete, skip or loosen a test to make it pass, whether this section wrote it or it already existed.
+        If a test looks wrong, stop and append the question to design.md "Open questions"
   archive:
     guidance:
       - Summarize the archive outcome before finishing

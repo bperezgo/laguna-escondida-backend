@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Stop-hook guardrail for the /refine -> /spec-tests -> /build pipeline.
+# Stop-hook guardrail: an implementation turn can't end while the Go suite is red.
 #
 # Once NON-test .go files have changed in the working tree (i.e. a build is in
 # progress), refuse to let the turn end while the Go tests are red. Skips
-# entirely when only .md / *_test.go / config files changed, so /refine and
-# /spec-tests turns are never blocked.
+# entirely when only .md / *_test.go / config files changed, so planning and
+# test-writing turns are never blocked.
 #
 # Two escape hatches keep this from ever looping forever:
-#   1. .claude/.tdd-escalate  — a sentinel the /build stage drops when it hits
+#   1. .claude/.tdd-escalate  — a sentinel the implementing agent drops when it hits
 #      its attempts budget and is intentionally handing a blocker to the human.
 #      Honored once, then cleared.
 #   2. a backstop counter — after N consecutive blocks on the same stuck turn,
@@ -36,7 +36,7 @@ if [ -z "$changed_impl" ]; then
   exit 0
 fi
 
-# Escape hatch 1: intentional escalation from /build. Honor once, then clear.
+# Escape hatch 1: intentional escalation. Honor once, then clear.
 if [ -f "$esc" ]; then
   rm -f "$esc" "$count_file"
   exit 0
@@ -64,7 +64,7 @@ fi
 {
   echo "BLOCKED (attempt ${n}/5): implementation .go files changed but the Go suite is not green."
   echo "A ticket is only 'done' when the tests pass. Fix the failures below, then finish."
-  echo "If genuinely stuck, the /build stage should hit its attempts budget, drop the"
+  echo "If genuinely stuck, drop the"
   echo ".claude/.tdd-escalate sentinel, and hand the blocker to the developer."
   echo
   echo "--- go build (tail) ---"
