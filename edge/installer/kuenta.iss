@@ -108,6 +108,9 @@ var
 function SetEnvironmentVariable(lpName: String; lpValue: Cardinal): Boolean;
   external 'SetEnvironmentVariableW@kernel32.dll stdcall';
 
+function SetEnvironmentVariableStr(lpName, lpValue: String): Boolean;
+  external 'SetEnvironmentVariableW@kernel32.dll stdcall';
+
 // Started from pwsh 7, setup inherits its PSModulePath, and Windows PowerShell 5.1 then loads
 // PowerShell 7's modules and fails. Without the variable, 5.1 builds its own default.
 procedure ClearInheritedModulePath;
@@ -202,38 +205,55 @@ begin
   else Result := '';
 end;
 
-// Runs a script with its stdin fed from Input. The enrollment code travels only through that pipe: it is
-// never an argument and never logged.
-function RunPS(const Script, Args, Input: String; var Output: String; Live: Boolean): Integer;
-var Sh, Ex: Variant; Line, Lbl, ErrFile: String; Err: AnsiString;
+// Per-run state of RunPS, read by RunLog: Inno's callback is a plain procedure, so it cannot capture locals.
+var
+  RunOutput: String;     // stdout of the current run
+  RunErr: String;        // stderr of the current run
+  RunLive: Boolean;      // log stdout as progress and drive the status label
+
+// Called by ExecAndLogOutput for each output line. Passing a callback also keeps Inno from writing the
+// lines to the setup log itself, which matters because enroll.ps1 prints the node key.
+procedure RunLog(const S: String; const Error, FirstLine: Boolean);
+var Lbl: String;
 begin
+  if Error then
+  begin
+    RunErr := RunErr + S + #10;
+    Exit;
+  end;
+  RunOutput := RunOutput + S + #10;
+  if RunLive then
+  begin
+    Log('progress ' + S);
+    Lbl := StepLabel(JsonField(S, 'step'));
+    if (Lbl <> '') and (JsonField(S, 'status') = 'start') then
+      WizardForm.StatusLabel.Caption := Lbl;
+  end;
+end;
+
+// Runs a script with no console window. A script that takes secret input gets it, for the length of this
+// one call, in KUENTA_SCRIPT_INPUT: never an argument, a file or a log line (the script removes it first).
+function RunPS(const Script, Args, Input: String; var Output: String; Live: Boolean): Integer;
+var RC: Integer;
+begin
+  RunOutput := '';
+  RunErr := '';
+  RunLive := Live;
   Output := '';
   Log('run ' + Script + ' ' + Args);
-  // stderr goes to a file: a second pipe that nobody drains can fill up and hang the script.
-  ErrFile := ExpandConstant('{tmp}\') + ExtractFileName(Script) + '.err';
-  DeleteFile(ErrFile);
-  Sh := CreateOleObject('WScript.Shell');
-  Ex := Sh.Exec('cmd.exe /d /s /c ""' + PowerShellExe + '" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' +
-    Script + '" ' + Args + ' 2>"' + ErrFile + '""');
-  if Input <> '' then Ex.StdIn.Write(Input + #13#10);
-  Ex.StdIn.Close;
-  while not Ex.StdOut.AtEndOfStream do
-  begin
-    Line := Ex.StdOut.ReadLine;
-    Output := Output + Line + #10;
-    if Live then
-    begin
-      Log('progress ' + Line);
-      Lbl := StepLabel(JsonField(Line, 'step'));
-      if (Lbl <> '') and (JsonField(Line, 'status') = 'start') then
-        WizardForm.StatusLabel.Caption := Lbl;
-    end;
+  if Input <> '' then SetEnvironmentVariableStr('KUENTA_SCRIPT_INPUT', Input);
+  try
+    if not ExecAndLogOutput(PowerShellExe, '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + Script + '" ' + Args,
+      '', SW_HIDE, ewWaitUntilTerminated, RC, @RunLog) then
+      RC := -1;
+  finally
+    if Input <> '' then SetEnvironmentVariable('KUENTA_SCRIPT_INPUT', 0);
   end;
-  while Ex.Status = 0 do Sleep(50);
-  Result := Ex.ExitCode;
+  Output := RunOutput;
+  Result := RC;
   Log('exit ' + IntToStr(Result));
-  if (Result <> 0) and LoadStringFromFile(ErrFile, Err) and (Trim(String(Err)) <> '') then
-    Log('stderr ' + Copy(Trim(String(Err)), 1, 2000));
+  if (Result <> 0) and (Trim(RunErr) <> '') then
+    Log('stderr ' + Copy(Trim(RunErr), 1, 2000));
 end;
 
 function DetectMode: String;
