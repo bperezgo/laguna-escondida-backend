@@ -10,8 +10,10 @@ import type {
 import ProductList from "@/components/products/ProductList";
 import ProductForm from "@/components/products/ProductForm";
 import { takenSkus } from "@/lib/products/sku";
+import Link from "next/link";
 import { PermissionGate } from "@/components/permissions";
-import { PERMISSIONS } from "@/lib/permissions";
+import { PERMISSIONS, usePermissions } from "@/lib/permissions";
+import { showGridLink } from "@/lib/catalogGrid/access";
 
 interface ProductsPageClientProps {
   initialProducts: Product[];
@@ -20,6 +22,12 @@ interface ProductsPageClientProps {
 export default function ProductsPageClient({
   initialProducts,
 }: ProductsPageClientProps) {
+  const { isLoading: permissionsLoading, isEdge, hasPermission } = usePermissions();
+  const gridLink = showGridLink({
+    isLoading: permissionsLoading,
+    isEdge,
+    canImport: hasPermission(PERMISSIONS.CATALOG_IMPORT),
+  });
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
@@ -159,6 +167,22 @@ export default function ProductsPageClient({
               Administra los productos de tu restaurante
             </p>
           </div>
+          <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
+          {gridLink && (
+            <Link
+              href="/products/importar"
+              style={{
+                padding: "0.75rem 1.25rem",
+                border: "1px solid var(--color-primary)",
+                borderRadius: "var(--radius-sm)",
+                color: "var(--color-primary)",
+                fontWeight: 500,
+                textDecoration: "none",
+              }}
+            >
+              Catálogo inicial
+            </Link>
+          )}
           <PermissionGate permission={PERMISSIONS.PRODUCTS_CREATE}>
             <button
               onClick={handleCreate}
@@ -184,6 +208,7 @@ export default function ProductsPageClient({
               + Crear Producto
             </button>
           </PermissionGate>
+          </div>
         </div>
 
         {/* Error Message */}
