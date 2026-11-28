@@ -338,9 +338,9 @@ try {
     Select-String -Pattern $code -SimpleMatch -List
   $hits += Select-String -Path $r.log -Pattern $code -SimpleMatch -List
   Assert (-not $hits) 'no file or log holds the enrollment code'
-  # The node key belongs in the two env files and nowhere else.
+  # The node key belongs in the two env files (and install.ps1's staged copy of edge-node.env) and nowhere else.
   $nk = @(Get-ChildItem $root -Recurse -File -ErrorAction SilentlyContinue |
-    Where-Object { $_.Length -lt 5MB -and $_.Extension -in '.env', '.log', '.json', '.xml', '.txt', '.out', '.err' -and $_.FullName -notlike "$root\env\*" } |
+    Where-Object { $_.Length -lt 5MB -and $_.Extension -in '.env', '.log', '.json', '.xml', '.txt', '.out', '.err' -and $_.FullName -notlike "$root\env\*" -and $_.FullName -ne "$root\artifacts\edge-node\.env" } |
     Select-String -Pattern $script:Secrets[1] -SimpleMatch -List)
   $nk += @(Select-String -Path $r.log -Pattern $script:Secrets[1] -SimpleMatch -List)
   Assert (-not $nk) "the node key is only in env\ ($(($nk | ForEach-Object Path) -join ', '))"
