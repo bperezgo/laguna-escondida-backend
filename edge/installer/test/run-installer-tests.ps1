@@ -43,12 +43,13 @@ function BoxEnv([string] $key) {
   if ($l) { return ($l -split '=', 2)[1].Trim() }
   return $null
 }
-# The subjectAltName text of the certificate served on https://<ip>; matched by OID, as the name is localized.
-function Get-ServedSan([string] $ip) {
+# The subjectAltName text of the certificate the box serves for $name (SNI); matched by OID, as the name is
+# localized. tls internal issues one certificate per name, so each name and the IP are read apart.
+function Get-ServedSan([string] $ip, [string] $name = $ip) {
   $tcp = New-Object Net.Sockets.TcpClient($ip, 443)
   try {
     $ssl = New-Object Net.Security.SslStream($tcp.GetStream(), $false, { $true })
-    $ssl.AuthenticateAsClient($ip)
+    $ssl.AuthenticateAsClient($name)
     $cert = New-Object Security.Cryptography.X509Certificates.X509Certificate2($ssl.RemoteCertificate)
     $ssl.Dispose()
     return (@($cert.Extensions | Where-Object { $_.Oid.Value -eq '2.5.29.17' } | ForEach-Object { $_.Format($false) }) -join ', ')
@@ -364,7 +365,9 @@ try {
   $dns = @(Get-NetTCPConnection -LocalPort 53 -State Listen -ErrorAction SilentlyContinue) + @(Get-NetUDPEndpoint -LocalPort 53 -ErrorAction SilentlyContinue)
   Assert (-not @($dns | Where-Object { $boxPids -contains [int] $_.OwningProcess })) 'no box process listens on port 53'
   $san = Get-ServedSan $lanIp
-  Assert ($san -match [regex]::Escape('pos.kuenta.lan') -and $san -match [regex]::Escape($lanIp)) "the served certificate names pos.kuenta.lan and $lanIp ($san)"
+  Assert ($san -match [regex]::Escape($lanIp)) "the certificate served on $lanIp names it ($san)"
+  $san = Get-ServedSan $lanIp 'pos.kuenta.lan'
+  Assert ($san -match [regex]::Escape('pos.kuenta.lan')) "the certificate served for pos.kuenta.lan names it ($san)"
   $boxEnvHash = (Get-FileHash "$root\env\box.env" -Algorithm SHA256).Hash
   Assert-Samples 'fresh install'
   $svcEnv = @(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like "$root\*" })

@@ -5,7 +5,7 @@
 See proposal.md for the motivation. Today:
 
 - `edge/scripts/write-box-config.ps1:43-58` takes the IP from the adapter of the default route. Line 66 then writes `box.env` with `EDGE_LAN_HOST=` (blank).
-- `edge/scripts/install.ps1:52,78-86` builds `EDGE_SITE_ADDR` = `"<host>, <ip>"` (or `<ip>`) and sets it as a machine env var. The `Caddyfile` site is `{$EDGE_SITE_ADDR}`, so `tls internal` issues one certificate for every name and IP in it. `verify-install.ps1:139-143` already checks the name with `--resolve` when `EDGE_LAN_HOST` is set. No change is needed there.
+- `edge/scripts/install.ps1:52,78-86` builds `EDGE_SITE_ADDR` = `"<host>, <ip>"` (or `<ip>`) and sets it as a machine env var. The `Caddyfile` site is `{$EDGE_SITE_ADDR}`, so `tls internal` issues a certificate for each name and the IP in it, all from the same internal CA. It issues one per name, picked by SNI, not one for all: the first edge-ci run showed the certificate served on the IP names only the IP. `verify-install.ps1:139-143` already checks the name with `--resolve` when `EDGE_LAN_HOST` is set. No change is needed there.
 - `edge/scripts/set-lan-ip.ps1:150-157` updates `EDGE_LAN_IP`/`EDGE_LAN_CIDR` but not `EDGE_SITE_ADDR`, so Caddy keeps the old address.
 - The wizard (`edge/installer/kuenta.iss`) has two pages: welcome, then sign-in (`SignInPage`, created at `:390`). The single-use code is spent in `NextButtonClick` (`:426`) for an interactive install, and in `PrepareToInstall` (`:467-491`) for a silent one.
 - The gateway (UniFi in the owner's restaurant) pins the box's IP and holds `pos.kuenta.lan -> <ip>`. The box never answers DNS.
@@ -255,7 +255,8 @@ The trust boundary is the box's LAN exposure.
 - *Fixed:* `set-lan-ip.ps1` checked the typed `-Cidr` but wrote it as typed. It now writes the normalized `lan_cidr`.
 - *Allowlist before `RunPS`.* Typed values reach `RunPS` only through `CheckNetwork`. The network page runs the D5 allowlist on the CIDR and the name, and the IP comes from the `-List` output. Silent mode runs the same allowlist on all three variables, which is broader than D5. The `write-box-config.ps1` call carries only `NetIp`/`NetCidr`/`NetHost` from a passed check.
 - *Accepted, out of scope:* `install.ps1 -AllowedTabletIPs` still lets an elevated admin set the firewall rule's addresses by hand. The installer never passes it.
-- *Needs validation (still open at implementation):* the UniFi record and fixed IP, tablet DNS, and the CI runner's private address (the `Network check:` line of the first edge-ci run).
+- *CI runner address (validated):* the first edge-ci run's `Network check:` line shows `EDGE_LAN_IP=10.1.0.9 EDGE_LAN_CIDR=10.1.0.0/20`, a private /20 that passes D4.
+- *Needs validation (still open):* the UniFi record and fixed IP, and tablet DNS. Both are checked on the owner's reinstall.
 
 ## Risks / Trade-offs
 

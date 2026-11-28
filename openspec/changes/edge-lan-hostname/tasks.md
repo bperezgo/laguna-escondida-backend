@@ -34,7 +34,7 @@ Windows PowerShell 5.1 targets. `test-lan-config.ps1` runs anywhere with `pwsh` 
   - (c) The firewall rule `Kuenta - Caddy (LAN tablets)` has exactly one remote address, and it equals `EDGE_LAN_CIDR` from `box.env` after mask-to-prefix normalization. Add a local `function ConvertTo-Cidr([string]$addr)` in `run-installer-tests.ps1` next to `Assert`: `a.b.c.d/m.m.m.m` becomes `a.b.c.d/<set bits>`, and `/n` is returned unchanged.
   - (d) No process whose `ExecutablePath` is under `C:\kuentapos` listens on port 53: check `Get-NetTCPConnection -LocalPort 53 -State Listen` and `Get-NetUDPEndpoint -LocalPort 53` against their `OwningProcess`.
 
-  - (e) The certificate served on `https://<EDGE_LAN_IP>` has a subjectAltName (OID `2.5.29.17`) containing both `pos.kuenta.lan` and `EDGE_LAN_IP`. Copy the read from `edge/scripts/set-lan-ip.ps1:204-215` (`TcpClient` + `SslStream`, match by OID).
+  - (e) The certificate served on `https://<EDGE_LAN_IP>` has a subjectAltName (OID `2.5.29.17`) containing `EDGE_LAN_IP`, and the one served for SNI `pos.kuenta.lan` contains `pos.kuenta.lan` (`tls internal` issues one certificate per name). Copy the read from `edge/scripts/set-lan-ip.ps1:204-215` (`TcpClient` + `SslStream`, match by OID).
 
   The repair assert comes last because it needs the repair step. After the `repair exits 0` assert (`:375`), add: (f) the SHA-256 of `box.env` equals the hash taken right after the fresh install.
 

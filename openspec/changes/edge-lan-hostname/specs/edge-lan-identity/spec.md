@@ -8,7 +8,7 @@ Defines the local name and address an edge box serves the POS on, so devices in 
 
 ### Requirement: A box serves the POS on its local name and its IP
 
-A box SHALL serve the POS over HTTPS on every local name its configuration lists and on its LAN IP, with one certificate from the box's internal CA whose subject alternative names hold each name and the IP. A box configured with no name SHALL serve on its IP only. The box SHALL NOT answer DNS queries; the gateway resolves the name.
+A box SHALL serve the POS over HTTPS on every local name its configuration lists and on its LAN IP, each with a certificate from the box's internal CA whose subject alternative names hold that name or the IP. A box configured with no name SHALL serve on its IP only. The box SHALL NOT answer DNS queries; the gateway resolves the name.
 
 #### Scenario: Name and IP both work
 
@@ -44,11 +44,11 @@ A box SHALL accept HTTPS and HTTP connections only from addresses inside its con
 
 ### Requirement: Changing an installed box's IP keeps its name working
 
-When the LAN IP of an installed box is changed with the box's IP-change tool, the box SHALL serve afterwards on its configured names and the new IP, with a certificate whose subject alternative names hold the new IP. It SHALL no longer serve on the old IP. The configured names and the internal root CA SHALL NOT change, so devices that already trust the box need no new certificate.
+When the LAN IP of an installed box is changed with the box's IP-change tool, the box SHALL serve afterwards on its configured names and the new IP, with certificates whose subject alternative names hold the new IP and each name. It SHALL no longer serve on the old IP. The configured names and the internal root CA SHALL NOT change, so devices that already trust the box need no new certificate.
 
 #### Scenario: IP changes, name keeps working
 
 - **GIVEN** a box serving `pos.kuenta.lan` on `192.168.1.50`
 - **WHEN** its IP is changed to `192.168.1.60` and the gateway record is updated to `192.168.1.60`
 - **THEN** `https://pos.kuenta.lan` and `https://192.168.1.60` load the POS with no certificate warning on an already provisioned tablet
-- **AND** the certificate the box serves holds `192.168.1.60` and `pos.kuenta.lan`, and not `192.168.1.50`
+- **AND** the certificates the box serves hold `192.168.1.60` and `pos.kuenta.lan`, and none holds `192.168.1.50`
