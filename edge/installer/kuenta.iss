@@ -114,6 +114,10 @@ var
   NetListed: Boolean;
   ListError: String;
   Purge: Boolean;        // uninstall: also remove the box's data
+  BusyPage: TOutputMarqueeProgressWizardPage;
+  Busy: Boolean;         // a script started from a wizard button is running
+  BusyTimer: LongWord;
+  BusyNextEnabled, BusyBackEnabled, BusyCancelEnabled: Boolean;
 
 // lpValue 0 (NULL) removes the variable from this process and from everything it starts.
 function SetEnvironmentVariable(lpName: String; lpValue: Cardinal): Boolean;
@@ -233,6 +237,7 @@ begin
     Exit;
   end;
   RunOutput := RunOutput + S + #10;
+  if Busy and not WizardSilent then BusyPage.Animate;
   if RunLive then
   begin
     Log('progress ' + S);
@@ -265,6 +270,58 @@ begin
   Log('exit ' + IntToStr(Result));
   if (Result <> 0) and (Trim(RunErr) <> '') then
     Log('stderr ' + Copy(Trim(RunErr), 1, 2000));
+end;
+
+function SetTimer(hWnd, nIDEvent, uElapse: LongWord; lpTimerFunc: NativeInt): LongWord;
+  external 'SetTimer@user32.dll stdcall';
+function KillTimer(hWnd, uIDEvent: LongWord): Boolean;
+  external 'KillTimer@user32.dll stdcall';
+
+// The marquee moves only when Animate is called, so a timer drives it while a script runs.
+procedure BusyTick(Wnd, Msg, IdEvent, Time: LongWord);
+begin
+  BusyPage.Animate;
+end;
+
+// Shows the working page and disables the buttons; a second call only changes the text.
+procedure BeginBusy(const Msg: String);
+begin
+  if WizardSilent then
+  begin
+    Busy := True;
+    Exit;
+  end;
+  if Busy then
+  begin
+    BusyPage.SetText(Msg, '');
+    Exit;
+  end;
+  Busy := True;
+  BusyNextEnabled := WizardForm.NextButton.Enabled;
+  BusyBackEnabled := WizardForm.BackButton.Enabled;
+  BusyCancelEnabled := WizardForm.CancelButton.Enabled;
+  BusyPage.SetText(Msg, '');
+  BusyPage.Show;
+  // After Show, which may set the buttons itself.
+  WizardForm.NextButton.Enabled := False;
+  WizardForm.BackButton.Enabled := False;
+  WizardForm.CancelButton.Enabled := False;
+  BusyPage.Animate;
+  BusyTimer := SetTimer(0, 0, 100, CreateCallback(@BusyTick));
+end;
+
+procedure EndBusy;
+begin
+  if not WizardSilent and Busy then
+  begin
+    if BusyTimer <> 0 then KillTimer(0, BusyTimer);
+    BusyTimer := 0;
+    BusyPage.Hide;
+    WizardForm.NextButton.Enabled := BusyNextEnabled;
+    WizardForm.BackButton.Enabled := BusyBackEnabled;
+    WizardForm.CancelButton.Enabled := BusyCancelEnabled;
+  end;
+  Busy := False;
 end;
 
 function DetectMode: String;
@@ -408,7 +465,6 @@ begin
   begin
     ListError := JsonField(Output, 'error');
     if ListError = '' then ListError := ExitMessage(37);
-    MsgBox(ListError, mbError, MB_OK);
     Exit;
   end;
   Rest := Output;
@@ -457,7 +513,12 @@ begin
   if ReplaceBox then Flag := 'true' else Flag := 'false';
   Input := '{"code":"' + JsonEscape(Code) + '","replace":' + Flag +
            ',"name":"' + JsonEscape(BoxName) + '","cloud_url":"' + JsonEscape(CloudUrl) + '"}';
-  Result := RunPS(ExpandConstant('{tmp}\enroll.ps1'), '', Input, Output, False);
+  BeginBusy('Conectando con Kuenta…');
+  try
+    Result := RunPS(ExpandConstant('{tmp}\enroll.ps1'), '', Input, Output, False);
+  finally
+    EndBusy;
+  end;
 end;
 
 // Enrolls with the code; on a 409 asks (or reads /REPLACE) before replacing with the same code. Msg is
@@ -580,6 +641,7 @@ begin
   SignInPage.Add('Código:', False);
   SignInPage.Add('Nombre de la caja:', False);
   SignInPage.Values[1] := GetComputerNameString;
+  BusyPage := CreateOutputMarqueeProgressPage('Un momento', 'Kuenta está trabajando. No cierre esta ventana.');
   if Mode = 'repair' then
     WizardForm.WelcomeLabel2.Caption := 'Este equipo ya tiene una caja de Kuenta. Se repetirá la instalación de los programas ' +
       'y servicios; sus datos y su configuración no cambian.' + #13#10#13#10 + 'Haga clic en Siguiente para continuar.';
@@ -593,30 +655,51 @@ begin
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
-var Msg, Cidr: String;
+var Msg, Cidr, NetMsg: String;
 begin
   Result := True;
+  // A press that arrives while a script runs must not start a second check or enrollment.
+  if Busy then
+  begin
+    Result := False;
+    Exit;
+  end;
   // A silent run still "clicks" Next, and MsgBox ignores /SUPPRESSMSGBOXES; PrepareToInstall does these checks.
   if WizardSilent then Exit;
   if CurPageID = wpWelcome then
   begin
-    if not PreflightDone then
-    begin
-      if DoPreflight(Msg) <> 0 then
+    Msg := '';
+    // Messages wait until the working page is gone, so they're never hidden behind it.
+    try
+      if not PreflightDone then
       begin
-        MsgBox(Msg, mbError, MB_OK);
-        Result := False;
-      end
-      else
-        PreflightDone := True;
-    end;
-    // With the box ticked a failed default only means the owner must pick on the network page.
-    if Result and (Mode = 'fresh') then
-      if not CheckNetwork('', '', '', Msg) and not NetworkBox.Checked then
-      begin
-        MsgBox(Msg, mbError, MB_OK);
-        Result := False;
+        BeginBusy('Revisando el equipo…');
+        if DoPreflight(Msg) <> 0 then Result := False else PreflightDone := True;
       end;
+      if Result and (Mode = 'fresh') then
+      begin
+        BeginBusy('Revisando la red…');
+        // With the box ticked a failed default only means the owner must pick on the network page.
+        if CheckNetwork('', '', '', NetMsg) then
+          NetMsg := ''
+        else if not NetworkBox.Checked then
+        begin
+          Msg := NetMsg;
+          Result := False;
+        end;
+        if Result and NetworkBox.Checked and not NetListed then
+        begin
+          ListAddresses;
+          if NetHost <> '' then HostEdit.Text := NetHost else HostEdit.Text := DefaultLanHost;
+        end;
+      end;
+    finally
+      EndBusy;
+    end;
+    if not Result then
+      MsgBox(Msg, mbError, MB_OK)
+    else if NetworkBox.Checked and (ListError <> '') then
+      MsgBox(ListError, mbError, MB_OK);
   end
   else if CurPageID = NetworkPage.ID then
   begin
@@ -629,7 +712,15 @@ begin
     end;
     Cidr := Trim(CidrEdit.Text);
     Msg := NetCharsMessage('', Cidr, Trim(HostEdit.Text));
-    if Msg = '' then CheckNetwork(AddrIp[IpCombo.ItemIndex], Cidr, HostOrNone(HostEdit.Text), Msg);
+    if Msg = '' then
+    begin
+      BeginBusy('Revisando la red…');
+      try
+        CheckNetwork(AddrIp[IpCombo.ItemIndex], Cidr, HostOrNone(HostEdit.Text), Msg);
+      finally
+        EndBusy;
+      end;
+    end;
     if Msg <> '' then
     begin
       MsgBox(Msg, mbError, MB_OK);
@@ -659,8 +750,14 @@ begin
   end;
 end;
 
+function BackButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := not Busy;
+end;
+
 procedure CancelButtonClick(CurPageID: Integer; var Cancel, Confirm: Boolean);
 begin
+  if Busy then Cancel := False;
   if DeclinedReplace then Confirm := False;
 end;
 
@@ -810,15 +907,6 @@ end;
 procedure CurPageChanged(CurPageID: Integer);
 var Txt, Addr: String;
 begin
-  if CurPageID = NetworkPage.ID then
-  begin
-    if not NetListed then
-    begin
-      ListAddresses;
-      if NetHost <> '' then HostEdit.Text := NetHost else HostEdit.Text := DefaultLanHost;
-    end;
-    Exit;
-  end;
   if CurPageID <> wpFinished then Exit;
   if FailCode <> 0 then
     Txt := 'Kuenta no se terminó de instalar: ' + ExitMessage(FailCode)

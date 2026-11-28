@@ -11,7 +11,8 @@
   enroll.ps1 alone: a valid code, an invalid code, and a 409 then replace with the same code.
   A local standard user pre-creates the root with planted files and a link before the fresh install,
   and after the fresh install and the repair can neither change what SYSTEM runs nor read env\.
-  No console window: kuenta.iss is checked statically (no WScript.Shell, every Exec* hidden), and while
+  No console window: kuenta.iss is checked statically (no WScript.Shell, every Exec* hidden, and the wizard
+  refuses presses while a check runs), and while
   the fresh install and the repair run, setup's process tree is sampled every 200 ms: no cmd.exe, no visible
   window, no enrollment code or node key on a command line, and KUENTA_SCRIPT_INPUT only in the two
   scripts that read it. A standard user cannot read an elevated process's environment.
@@ -69,6 +70,24 @@ function Test-HiddenLaunches([string] $text) {
     $call = $code.Substring($m.Index, $end - $m.Index)
     if ($call -notmatch 'SW_HIDE') { $problems += "a $($m.Groups[1].Value) call without SW_HIDE: $(($call -replace '\s+', ' ').Substring(0, [Math]::Min(80, $call.Length)))" }
   }
+  return $problems
+}
+
+# kuenta.iss must ignore presses while a script runs from a wizard button. Returns the problems found.
+function Test-BusyGuards([string] $text) {
+  $body = {
+    param($name)
+    $m = [regex]::Match($text, "(?ms)^(?:function|procedure)\s+$name\b.*?^end;")
+    if ($m.Success) { $m.Value } else { '' }
+  }
+  $problems = @()
+  $next = & $body 'NextButtonClick'
+  $guard = $next.IndexOf('if Busy then'); $silent = $next.IndexOf('if WizardSilent then Exit')
+  if ($guard -lt 0 -or $silent -lt 0 -or $guard -gt $silent) { $problems += 'NextButtonClick does not refuse while busy' }
+  $enroll = & $body 'DoEnroll'
+  if (-not $enroll.Contains('BeginBusy(') -or -not $enroll.Contains('EndBusy')) { $problems += 'DoEnroll runs without the working page' }
+  if ((& $body 'ListAddresses').Contains('MsgBox(')) { $problems += 'ListAddresses shows a dialog' }
+  if (-not (& $body 'BackButtonClick').Contains('not Busy')) { $problems += 'Back is not refused while busy' }
   return $problems
 }
 
@@ -295,6 +314,9 @@ try {
   Assert (-not $found) "kuenta.iss starts nothing with a window ($($found -join '; '))"
   Assert (@(Test-HiddenLaunches ($iss + "`n  Sh := CreateOleObject('WScript.Shell');")).Count -eq 1) 'the check catches WScript.Shell'
   Assert (@(Test-HiddenLaunches ($iss + "`n  Exec('a.exe', '', '', SW_SHOW, ewWaitUntilTerminated, RC);")).Count -eq 1) 'the check catches an Exec that is not SW_HIDE'
+  $found = @(Test-BusyGuards $iss)
+  Assert (-not $found) "the wizard refuses presses while it waits ($($found -join '; '))"
+  Assert (@(Test-BusyGuards ($iss -replace 'if Busy then', 'if False then')).Count -eq 1) 'the check catches a missing busy guard'
 
   Step 'A standard user cannot read an elevated process environment'
   $env:KUENTA_SCRIPT_INPUT = 'ci-input-canary'
