@@ -5,11 +5,11 @@ using the right model at each step and keeping your review effort where it
 matters. Follow it top to bottom for every new change.
 
 ```
- Opus                      Opus                 Sonnet (subagents)         you + Opus          you
- /openspec-explore  ─▶  capture/propose  ─▶  apply section by section  ─▶  review  ─▶  PR + /openspec-archive-change
- decide, one        proposal, specs,      fresh context per section,     run it, trace
- question at        design (+Impl Map),   commit per green section,      scenarios→tests,
- a time             tasks (with verify)   CHECKPOINT after the core      read hotspots
+ Opus                   Opus                   Sonnet (subagents)           you + Opus        you
+ /grill or           propose: proposal,     apply section by section,    review: run it,   PR +
+ /openspec-explore   specs, design (+Impl   tests red → green, fresh     trace scenarios   /openspec-archive-change
+ one decision at     Map), tasks (tests     context per section, commit  → tests, read
+ a time              first, with verify)    per green section            hotspots
      GATE 1              GATE 2                 GATE 3 (checkpoint)          GATE 4
 ```
 
@@ -37,7 +37,12 @@ instead.
   mode, so `make` and `go` don't need approval each time. Otherwise "hands-off"
   means approving every test run.
 
-## 1. Explore (Opus): `/openspec-explore <idea>`
+## 1. Explore (Opus): `/grill <idea>` or `/openspec-explore <idea>`
+
+Use `/grill` when you know what you want and need every decision pinned down: it asks one
+question at a time with a recommended answer, asks for the test case behind each behavior,
+and ends with a Decisions / Test cases list. Use `/openspec-explore` when the idea itself is
+still open. Either way, propose in the same session.
 
 - The session reads the code and specs before asking anything, then settles
   **one decision at a time**, starting with the decisions others depend on.
@@ -62,6 +67,8 @@ Before leaving Opus, check that:
   step (a test, a command, or an observable result).
 - Tasks are grouped into sections small enough for one session each, ordered
   by dependency, with the core or architecture first.
+- Each behavior section starts with a task that writes its tests and checks
+  they fail; implementation follows (`rules.tasks` in `openspec/config.yaml`).
 
 If anything is missing, ask:
 
