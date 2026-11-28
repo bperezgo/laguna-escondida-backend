@@ -110,6 +110,9 @@ if (-not (Test-Path $EnvSrc)) {
 }
 New-Item -ItemType Directory -Force -Path (Split-Path $EnvDst) | Out-Null
 Copy-Item $EnvSrc $EnvDst -Force
+# The copy holds the node key and the DB password, and artifacts\ is readable by Users.
+& icacls $EnvDst /inheritance:r /grant:r '*S-1-5-18:F' '*S-1-5-32-544:F' /C /Q | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "Could not restrict $EnvDst (icacls exit $LASTEXITCODE)" }
 Write-Host "Staged edge-node config -> $EnvDst"
 
 # --- 1c. Grant NetworkService (S-1-5-20) what kuentapos-postgres needs ---------------

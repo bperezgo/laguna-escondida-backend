@@ -118,6 +118,7 @@ function Assert-Locked($u, [string] $when) {
       @('write', "$root\scripts\updater.ps1"), @('write', "$root\services\edge-node.xml"),
       @('create', "$root\artifacts\postgres\bin\ci-probe.dll"), @('create', "$root\scripts\ci-probe.ps1"),
       @('read', "$root\env\edge-node.env"), @('read', "$root\env\alloy-node-key"),
+      @('read', "$root\artifacts\edge-node\.env"),
       @('read', "$root\caddy-data\pki\authorities\local\root.key"))) {
     $got = Probe $u $t[0] $t[1]
     if ($got -eq 'allowed' -and $t[0] -eq 'create') { Remove-Item $t[1] -Force }
