@@ -58,6 +58,7 @@ Source: "licenses\*"; DestDir: "{app}\licenses"; Flags: recursesubdirs ignorever
 Source: "..\scripts\preflight.ps1"; DestDir: "{tmp}"; Flags: dontcopy
 Source: "..\scripts\enroll.ps1"; DestDir: "{tmp}"; Flags: dontcopy
 Source: "..\scripts\lock-root.ps1"; DestDir: "{tmp}"; Flags: dontcopy
+Source: "..\scripts\lan-config.ps1"; DestDir: "{tmp}"; Flags: dontcopy
 Source: "{#StageDir}\artifacts\vcredist\VC_redist.x64.exe"; DestDir: "{tmp}"; Flags: dontcopy
 
 [InstallDelete]
@@ -103,6 +104,14 @@ var
   PreflightDone: Boolean;
   SyncWarning: Boolean;
   FailCode: Integer;     // a post-install step's exit code; setup exits with it
+  NetworkPage: TWizardPage;
+  NetworkBox: TNewCheckBox;
+  IpCombo: TNewComboBox;
+  CidrEdit, HostEdit: TNewEdit;
+  AddrIp, AddrCidr: TArrayOfString;
+  NetIp, NetCidr, NetHost: String;  // the last network check that passed
+  NetListed: Boolean;
+  ListError: String;
 
 // lpValue 0 (NULL) removes the variable from this process and from everything it starts.
 function SetEnvironmentVariable(lpName: String; lpValue: Cardinal): Boolean;
@@ -320,6 +329,125 @@ begin
   if Result <> 0 then Log('preflight failed: ' + Msg + ' ' + Trim(Output));
 end;
 
+function LanConfigScript: String;
+begin
+  ExtractTemporaryFile('lan-config.ps1');
+  Result := ExpandConstant('{tmp}\lan-config.ps1');
+end;
+
+// Windows PowerShell drops an empty "" argument under -File, so a blank value is left out (its default applies).
+function NetArg(const Name, Value: String): String;
+begin
+  Result := '';
+  if Value <> '' then Result := ' -' + Name + ' "' + Value + '"';
+end;
+
+function CheckNetwork(const Ip, Cidr, Host: String; var Msg: String): Boolean;
+var Output: String;
+begin
+  Msg := '';
+  Result := RunPS(LanConfigScript, '-Check' + NetArg('LanIp', Ip) + NetArg('LanCidr', Cidr) + NetArg('LanHost', Host),
+    '', Output, False) = 0;
+  if Result then
+  begin
+    NetIp := JsonField(Output, 'lan_ip');
+    NetCidr := JsonField(Output, 'lan_cidr');
+    NetHost := JsonField(Output, 'lan_host');
+    Log('network check: ' + NetIp + ' ' + NetCidr + ' ' + NetHost);
+  end
+  else
+  begin
+    Msg := JsonField(Output, 'error');
+    if Msg = '' then Msg := ExitMessage(37);
+  end;
+end;
+
+// Keeps typed values safe to quote on the command line; lan-config.ps1 does the real check.
+function OnlyNetChars(const S: String): Boolean;
+var I: Integer; C: Char;
+begin
+  Result := True;
+  for I := 1 to Length(S) do
+  begin
+    C := S[I];
+    if not (((C >= '0') and (C <= '9')) or ((C >= 'a') and (C <= 'z')) or ((C >= 'A') and (C <= 'Z')) or
+            (C = '.') or (C = '-') or (C = '/')) then
+    begin
+      Result := False;
+      Exit;
+    end;
+  end;
+end;
+
+// '' when the values may go to lan-config.ps1, otherwise its message for the offending one.
+function NetCharsMessage(const Ip, Cidr, Host: String): String;
+begin
+  Result := '';
+  if not OnlyNetChars(Ip) then Result := 'La IP ' + Ip + ' no es válida.'
+  else if not OnlyNetChars(Cidr) then Result := 'La red ' + Cidr + ' no es válida. Escríbala como 192.168.1.0/24.'
+  else if not OnlyNetChars(Host) then
+    Result := 'El nombre ' + Host + ' no es válido. Use letras minúsculas, números, guiones y puntos, por ejemplo pos.kuenta.lan.';
+end;
+
+function HostOrNone(const H: String): String;
+begin
+  if Trim(H) = '' then Result := 'none' else Result := Trim(H);
+end;
+
+procedure ListAddresses;
+var Output, Rest, Line: String; P, N: Integer;
+begin
+  NetListed := True;
+  ListError := '';
+  IpCombo.Items.Clear;
+  SetArrayLength(AddrIp, 0);
+  SetArrayLength(AddrCidr, 0);
+  if RunPS(LanConfigScript, '-List', '', Output, False) <> 0 then
+  begin
+    ListError := JsonField(Output, 'error');
+    if ListError = '' then ListError := ExitMessage(37);
+    MsgBox(ListError, mbError, MB_OK);
+    Exit;
+  end;
+  Rest := Output;
+  while Rest <> '' do
+  begin
+    P := Pos(#10, Rest);
+    if P = 0 then
+    begin
+      Line := Rest;
+      Rest := '';
+    end
+    else
+    begin
+      Line := Copy(Rest, 1, P - 1);
+      Rest := Copy(Rest, P + 1, Length(Rest));
+    end;
+    Line := Trim(Line);
+    if JsonField(Line, 'ip') <> '' then
+    begin
+      N := GetArrayLength(AddrIp);
+      SetArrayLength(AddrIp, N + 1);
+      SetArrayLength(AddrCidr, N + 1);
+      AddrIp[N] := JsonField(Line, 'ip');
+      AddrCidr[N] := JsonField(Line, 'cidr');
+      IpCombo.Items.Add(AddrIp[N] + ' (' + JsonField(Line, 'alias') + ')');
+    end;
+  end;
+  if GetArrayLength(AddrIp) = 0 then
+    ListError := 'Este equipo no tiene ninguna dirección de red IPv4.'
+  else
+  begin
+    IpCombo.ItemIndex := 0;
+    CidrEdit.Text := AddrCidr[0];
+  end;
+end;
+
+procedure IpComboChange(Sender: TObject);
+begin
+  if IpCombo.ItemIndex >= 0 then CidrEdit.Text := AddrCidr[IpCombo.ItemIndex];
+end;
+
 function DoEnroll(const Code, BoxName: String; ReplaceBox: Boolean; var Output: String): Integer;
 var Input, Flag: String;
 begin
@@ -385,9 +513,66 @@ begin
   end;
 end;
 
+function AddNetLabel(const Caption: String; Top: Integer): TNewStaticText;
+begin
+  Result := TNewStaticText.Create(NetworkPage);
+  Result.Parent := NetworkPage.Surface;
+  Result.Caption := Caption;
+  Result.Left := 0;
+  Result.Top := Top;
+  Result.Width := NetworkPage.SurfaceWidth;
+end;
+
+function AddNetEdit(Lbl: TNewStaticText): TNewEdit;
+begin
+  Result := TNewEdit.Create(NetworkPage);
+  Result.Parent := NetworkPage.Surface;
+  Result.Left := 0;
+  Result.Top := Lbl.Top + Lbl.Height + ScaleY(4);
+  Result.Width := NetworkPage.SurfaceWidth;
+end;
+
+procedure CreateNetworkPage;
+var Lbl, HintText: TNewStaticText;
+begin
+  NetworkPage := CreateCustomPage(wpWelcome, 'Red del local', 'Confirme cómo los equipos del restaurante llegan a la caja');
+  Lbl := AddNetLabel('IP de esta caja:', 0);
+  IpCombo := TNewComboBox.Create(NetworkPage);
+  IpCombo.Parent := NetworkPage.Surface;
+  IpCombo.Style := csDropDownList;
+  IpCombo.Left := 0;
+  IpCombo.Top := Lbl.Top + Lbl.Height + ScaleY(4);
+  IpCombo.Width := NetworkPage.SurfaceWidth;
+  IpCombo.OnChange := @IpComboChange;
+  Lbl := AddNetLabel('Red permitida:', IpCombo.Top + IpCombo.Height + ScaleY(12));
+  CidrEdit := AddNetEdit(Lbl);
+  Lbl := AddNetLabel('Nombre local:', CidrEdit.Top + CidrEdit.Height + ScaleY(12));
+  HostEdit := AddNetEdit(Lbl);
+  HintText := TNewStaticText.Create(NetworkPage);
+  HintText.Parent := NetworkPage.Surface;
+  HintText.AutoSize := False;
+  HintText.WordWrap := True;
+  HintText.Left := 0;
+  HintText.Top := HostEdit.Top + HostEdit.Height + ScaleY(12);
+  HintText.Width := NetworkPage.SurfaceWidth;
+  HintText.Height := ScaleY(48);
+  HintText.Caption := 'Deje el nombre vacío para usar solo la IP. El router debe tener este nombre apuntando a la IP elegida, ' +
+    'y esa IP fija para este equipo.';
+end;
+
 procedure InitializeWizard;
 begin
-  SignInPage := CreateInputQueryPage(wpWelcome, 'Conecte la caja a Kuenta',
+  // The label fills the page by default; shrinking it to its text leaves room for the checkbox below.
+  WizardForm.WelcomeLabel2.AutoSize := True;
+  NetworkBox := TNewCheckBox.Create(WizardForm);
+  NetworkBox.Parent := WizardForm.WelcomePage;
+  NetworkBox.Left := WizardForm.WelcomeLabel2.Left;
+  NetworkBox.Top := WizardForm.WelcomeLabel2.Top + WizardForm.WelcomeLabel2.Height + ScaleY(12);
+  NetworkBox.Width := WizardForm.WelcomeLabel2.Width;
+  NetworkBox.Caption := 'Configurar la red manualmente (avanzado)';
+  NetworkBox.Visible := Mode = 'fresh';
+  CreateNetworkPage;
+  SignInPage := CreateInputQueryPage(NetworkPage.ID, 'Conecte la caja a Kuenta',
     'Escriba el código de instalación de su restaurante',
     'Encuéntralo en la nube: Instalar caja. El código vale 30 minutos y sirve una sola vez.');
   SignInPage.Add('Código:', False);
@@ -402,10 +587,11 @@ function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Result := False;
   if PageID = SignInPage.ID then Result := (Mode <> 'fresh') or (EnrollJson <> '');
+  if PageID = NetworkPage.ID then Result := (Mode <> 'fresh') or not NetworkBox.Checked;
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
-var Msg: String;
+var Msg, Cidr: String;
 begin
   Result := True;
   // A silent run still "clicks" Next, and MsgBox ignores /SUPPRESSMSGBOXES; PrepareToInstall does these checks.
@@ -421,6 +607,30 @@ begin
       end
       else
         PreflightDone := True;
+    end;
+    if Result and (Mode = 'fresh') then
+      if not CheckNetwork('', '', '', Msg) then
+      begin
+        MsgBox(Msg, mbError, MB_OK);
+        Result := False;
+      end;
+  end
+  else if CurPageID = NetworkPage.ID then
+  begin
+    if IpCombo.ItemIndex < 0 then
+    begin
+      if ListError <> '' then Msg := ListError else Msg := 'Este equipo no tiene ninguna dirección de red IPv4.';
+      MsgBox(Msg, mbError, MB_OK);
+      Result := False;
+      Exit;
+    end;
+    Cidr := Trim(CidrEdit.Text);
+    Msg := NetCharsMessage('', Cidr, Trim(HostEdit.Text));
+    if Msg = '' then CheckNetwork(AddrIp[IpCombo.ItemIndex], Cidr, HostOrNone(HostEdit.Text), Msg);
+    if Msg <> '' then
+    begin
+      MsgBox(Msg, mbError, MB_OK);
+      Result := False;
     end;
   end
   else if CurPageID = SignInPage.ID then
@@ -484,6 +694,15 @@ begin
         Log(Result);
         Exit;
       end;
+      Msg := NetCharsMessage(GetEnv('KUENTA_SETUP_LAN_IP'), GetEnv('KUENTA_SETUP_LAN_CIDR'), GetEnv('KUENTA_SETUP_LAN_HOST'));
+      if Msg = '' then
+        CheckNetwork(GetEnv('KUENTA_SETUP_LAN_IP'), GetEnv('KUENTA_SETUP_LAN_CIDR'), GetEnv('KUENTA_SETUP_LAN_HOST'), Msg);
+      if Msg <> '' then
+      begin
+        Log('network check failed: ' + Msg);
+        Result := ExitMessage(37) + ' ' + Msg;
+        Exit;
+      end;
       if not TryEnroll(EnrollCode, BoxName, Msg) then
       begin
         Result := Msg;
@@ -527,7 +746,8 @@ begin
   if Mode = 'fresh' then
   begin
     WizardForm.StatusLabel.Caption := 'Escribiendo la configuración de la caja...';
-    Code := RunPS(Root + '\scripts\write-box-config.ps1', '', EnrollJson, Output, False);
+    Code := RunPS(Root + '\scripts\write-box-config.ps1', '-LanIp "' + NetIp + '" -LanCidr "' + NetCidr + '" -LanHost "' +
+      HostOrNone(NetHost) + '"', EnrollJson, Output, False);
     EnrollJson := '';
     if Code <> 0 then
     begin
@@ -551,9 +771,51 @@ begin
   end;
 end;
 
-procedure CurPageChanged(CurPageID: Integer);
-var Txt: String;
+// What other devices open, and what the gateway must hold. A repair reads it from env\box.env.
+function FinishAddresses: String;
+var Lines: TArrayOfString; I: Integer; S, Ip, Host: String;
 begin
+  Ip := NetIp;
+  Host := NetHost;
+  if Mode = 'repair' then
+  begin
+    Ip := '';
+    Host := '';
+    if LoadStringsFromFile(Root + '\env\box.env', Lines) then
+      for I := 0 to GetArrayLength(Lines) - 1 do
+      begin
+        S := Trim(Lines[I]);
+        if Pos('EDGE_LAN_IP=', S) = 1 then Ip := Trim(Copy(S, 13, Length(S)));
+        if Pos('EDGE_LAN_HOST=', S) = 1 then
+        begin
+          Host := Trim(Copy(S, 15, Length(S)));
+          if Pos(',', Host) > 0 then Host := Trim(Copy(Host, 1, Pos(',', Host) - 1));
+        end;
+      end;
+  end;
+  Result := '';
+  if Ip = '' then Exit;
+  if Host <> '' then
+    Result := 'Desde otros equipos del restaurante abra https://' + Host + ' (o https://' + Ip + ').' + #13#10 +
+      'En el router, el nombre ' + Host + ' debe apuntar a ' + Ip + ' (registro ' + Host + ' -> ' + Ip +
+      '), y esa IP debe estar fija para este equipo.'
+  else
+    Result := 'Desde otros equipos del restaurante abra https://' + Ip + '.' + #13#10 +
+      'En el router, esa IP debe estar fija para este equipo.';
+end;
+
+procedure CurPageChanged(CurPageID: Integer);
+var Txt, Addr: String;
+begin
+  if CurPageID = NetworkPage.ID then
+  begin
+    if not NetListed then
+    begin
+      ListAddresses;
+      HostEdit.Text := NetHost;
+    end;
+    Exit;
+  end;
   if CurPageID <> wpFinished then Exit;
   if FailCode <> 0 then
     Txt := 'Kuenta no se terminó de instalar: ' + ExitMessage(FailCode)
@@ -561,6 +823,11 @@ begin
     Txt := 'Kuenta quedó instalado para ' + OrgName + '.'
   else
     Txt := 'Kuenta quedó instalado y funcionando.';
+  if FailCode = 0 then
+  begin
+    Addr := FinishAddresses;
+    if Addr <> '' then Txt := Txt + #13#10#13#10 + Addr;
+  end;
   if SyncWarning then
     Txt := Txt + #13#10#13#10 + 'Atención: ' + ExitMessage(34);
   WizardForm.FinishedLabel.Caption := Txt;

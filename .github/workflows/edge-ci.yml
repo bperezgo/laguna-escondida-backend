@@ -74,6 +74,9 @@ jobs:
             throw 'appliance ports are in use'
           }
 
+      - name: 'Unit: lan-config'
+        run: pwsh -File scripts/test-lan-config.ps1
+
       # The installer is the one way a box gets installed, so this builds it from the working tree
       # (apps from the newest published edge release) and drives it silently against a stub
       # cloud: busy port, 409, fresh install, repair, uninstall keeps data, reinstall.

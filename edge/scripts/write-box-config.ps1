@@ -7,21 +7,25 @@
   Then env\ is restricted to Administrators and SYSTEM.
 
   Refuses to run when env\edge-node.env already holds a NODE_ID: an existing box is never
-  reconfigured. Exit codes: installer\exit-codes.json (0, 31). On 31, stdout holds {"ok":false,"error"}.
+  reconfigured. Exit codes: installer\exit-codes.json (0, 31, 37). On failure, stdout holds {"ok":false,"error"}.
+  The network (-LanIp, -LanCidr, -LanHost) is checked by lan-config.ps1; blanks take its defaults.
 #>
 [CmdletBinding()]
 param(
   [string] $Root,
-  # Tests on a runner with several adapters can pin the address instead of the default route's.
   [string] $LanIp,
-  [int]    $PrefixLength
+  [string] $LanCidr,
+  [string] $LanHost
 )
 $ErrorActionPreference = 'Stop'
 # Windows PowerShell 5.1 leaves $PSScriptRoot empty in param() defaults.
 if (-not $Root) { $Root = Split-Path -Parent $PSScriptRoot }
 
+# Dot-sourcing binds lan-config's own -LanIp/-LanCidr/-LanHost in this scope, so pass ours through.
+. (Join-Path $PSScriptRoot 'lan-config.ps1') -NoRun -LanIp $LanIp -LanCidr $LanCidr -LanHost $LanHost
+
 # The installer reads only stdout, so failures are reported there.
-function Fail($msg) { @{ ok = $false; error = $msg } | ConvertTo-Json -Compress | Write-Output; exit 31 }
+function Fail($msg, [int]$code = 31) { ConvertTo-AsciiJson ([ordered]@{ ok = $false; error = $msg }) | Write-Output; exit $code }
 trap { Fail "line $($_.InvocationInfo.ScriptLineNumber): $($_.Exception.Message)" }
 
 # Parsed apart so a parse error, which quotes its input, never prints the node key.
@@ -40,22 +44,8 @@ if ((Test-Path $nodeEnv) -and (Select-String -Path $nodeEnv -Pattern '^\s*NODE_I
   Fail 'env\edge-node.env already holds a box identity; not overwriting it'
 }
 
-# --- network: the interface of the default IPv4 route ----------------------------------
-if (-not $LanIp) {
-  $route = Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue |
-    Sort-Object { $_.RouteMetric + (Get-NetIPInterface -InterfaceIndex $_.InterfaceIndex -AddressFamily IPv4).InterfaceMetric } |
-    Select-Object -First 1
-  if (-not $route) { Fail 'no default IPv4 route: this PC has no network' }
-  $addr = Get-NetIPAddress -InterfaceIndex $route.InterfaceIndex -AddressFamily IPv4 |
-    Where-Object { $_.IPAddress -notlike '169.254.*' } | Select-Object -First 1
-  if (-not $addr) { Fail 'the default network has no IPv4 address' }
-  $LanIp = $addr.IPAddress; $PrefixLength = $addr.PrefixLength
-}
-$ipBytes = [Net.IPAddress]::Parse($LanIp).GetAddressBytes()
-$mask = [uint32]([math]::Pow(2, 32) - [math]::Pow(2, 32 - $PrefixLength))
-$maskBytes = [BitConverter]::GetBytes($mask); [Array]::Reverse($maskBytes)
-$net = 0..3 | ForEach-Object { $ipBytes[$_] -band $maskBytes[$_] }
-$cidr = "$($net -join '.')/$PrefixLength"
+$net = Resolve-LanIdentity $LanIp $LanCidr $LanHost
+if (-not $net.ok) { Fail $net.error 37 }
 
 # --- database password: 32 random bytes, base64url -------------------------------------
 $rnd = New-Object byte[] 32
@@ -63,7 +53,7 @@ $rng = [Security.Cryptography.RandomNumberGenerator]::Create(); $rng.GetBytes($r
 $dbPassword = [Convert]::ToBase64String($rnd).TrimEnd('=').Replace('+', '-').Replace('/', '_')
 
 New-Item -ItemType Directory -Force -Path $envDir | Out-Null
-Set-Content (Join-Path $envDir 'box.env') -Encoding ascii -Value @("EDGE_LAN_IP=$LanIp", "EDGE_LAN_CIDR=$cidr", 'EDGE_LAN_HOST=')
+Set-Content (Join-Path $envDir 'box.env') -Encoding ascii -Value @("EDGE_LAN_IP=$($net.lan_ip)", "EDGE_LAN_CIDR=$($net.lan_cidr)", "EDGE_LAN_HOST=$($net.lan_host)")
 
 # Same approach as the CI smoke test: start from the template so a variable the backend
 # starts requiring, or a renamed one, fails the build instead of a customer's box.
@@ -100,5 +90,5 @@ if (Select-String -Path $nodeEnv -Pattern 'CHANGE_ME' -Quiet) { Remove-Item $nod
 & icacls.exe $envDir /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' | Out-Null
 if ($LASTEXITCODE -ne 0) { Fail "icacls failed ($LASTEXITCODE)" }
 
-@{ lan_ip = $LanIp; lan_cidr = $cidr } | ConvertTo-Json -Compress | Write-Output
+ConvertTo-AsciiJson ([ordered]@{ lan_ip = $net.lan_ip; lan_cidr = $net.lan_cidr; lan_host = $net.lan_host }) | Write-Output
 exit 0

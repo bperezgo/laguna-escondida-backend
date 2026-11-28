@@ -13,7 +13,7 @@
   because Caddy binds the OLD address. Three things have to move together:
 
     1. env\box.env            — the repo's source of truth (install.ps1 preflights against it)
-    2. machine env vars       — what the Caddy service ACTUALLY resolves {$EDGE_LAN_IP} from
+    2. machine env vars       — what the Caddy service ACTUALLY resolves {$EDGE_SITE_ADDR} from
     3. the kuentapos-caddy service — only re-reads the env vars on process start, not on reload
 
   Editing box.env alone does nothing. `caddy reload` alone does nothing (it re-reads the
@@ -39,6 +39,7 @@ $ErrorActionPreference = 'Stop'
 $Root     = Split-Path -Parent $PSScriptRoot
 $BoxEnv   = Join-Path $Root 'env\box.env'
 $CaddyExe = Join-Path $Root 'services\caddy.exe'
+. (Join-Path $PSScriptRoot 'lan-config.ps1') -NoRun
 
 if (-not (Test-Path $BoxEnv))   { throw "Missing $BoxEnv. Copy env\box.env.example to env\box.env first." }
 if (-not (Test-Path $CaddyExe)) { throw "kuentapos-caddy is not installed (no $CaddyExe). Run scripts\install.ps1 first." }
@@ -53,12 +54,6 @@ function Convert-IpToUInt32([string]$ip) {
 function Get-MaskFromPrefix([int]$prefix) {
   # 0xFFFFFFFFL forces Int64 (bare 0xFFFFFFFF parses as Int32 -1); -band keeps the low 32 bits.
   return [uint32]((0xFFFFFFFFL -shl (32 - $prefix)) -band 0xFFFFFFFFL)
-}
-function Get-NetworkCidr([string]$ip, [int]$prefix) {
-  $netU  = (Convert-IpToUInt32 $ip) -band (Get-MaskFromPrefix $prefix)
-  $bytes = [System.BitConverter]::GetBytes([uint32]$netU)
-  [Array]::Reverse($bytes)                                        # back to network order
-  return ("{0}/{1}" -f ([System.Net.IPAddress]::new($bytes)).ToString(), $prefix)
 }
 # Rewrite one KEY=value line in place, preserving every comment in the file. Appends the
 # key if it is somehow absent, so the file is always left valid for install.ps1 to read.
@@ -135,10 +130,19 @@ if (-not $Cidr) {
     if (-not $detectedPrefix) {
       $detectedPrefix = (Get-NetIPAddress -IPAddress $IP -AddressFamily IPv4).PrefixLength
     }
-    $Cidr = Get-NetworkCidr $IP $detectedPrefix
+    $Cidr = Get-DefaultLanCidr $IP $detectedPrefix
     Write-Warning "$IP is outside the old subnet $oldCidr. Deriving new EDGE_LAN_CIDR=$Cidr."
   }
 }
+
+# Only the first name is checked; a hand-made box may list several.
+$firstHost = "$($box['EDGE_LAN_HOST'])".Split(',')[0].Trim()
+if (-not $firstHost) { $firstHost = 'none' }
+$lanCheck = Resolve-LanIdentity $IP $Cidr $firstHost
+if (-not $lanCheck.ok) { throw "$($lanCheck.error) Pass -Cidr with a private network of /16 or narrower." }
+# The checked, normalized network is what reaches box.env, the firewall and Caddy.
+$Cidr = $lanCheck.lan_cidr
+$SiteAddr = Get-SiteAddr $box['EDGE_LAN_HOST'] $IP
 
 $cidrChanged = ($Cidr -ne $oldCidr)
 Write-Host ""
@@ -153,8 +157,10 @@ Write-Host "Updated $BoxEnv"
 
 [Environment]::SetEnvironmentVariable('EDGE_LAN_IP',   $IP,   'Machine')
 [Environment]::SetEnvironmentVariable('EDGE_LAN_CIDR', $Cidr, 'Machine')
-$env:EDGE_LAN_IP   = $IP
-$env:EDGE_LAN_CIDR = $Cidr
+[Environment]::SetEnvironmentVariable('EDGE_SITE_ADDR', $SiteAddr, 'Machine')
+$env:EDGE_LAN_IP    = $IP
+$env:EDGE_LAN_CIDR  = $Cidr
+$env:EDGE_SITE_ADDR = $SiteAddr
 Write-Host "Updated machine env vars"
 
 # --- 4. Firewall — only when the SUBNET moved ----------------------------------------

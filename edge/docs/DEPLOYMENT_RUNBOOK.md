@@ -142,6 +142,11 @@ Configuration: instead of editing files, pipe an enrollment result into the same
 .\scripts\setup-box.ps1                                        # database, services, verification, shortcut
 ```
 
+`write-box-config.ps1` takes the network as `-LanIp`, `-LanCidr` and `-LanHost`. Each one is optional: a blank
+value takes the default-route address, that address's network and `pos.kuenta.lan`, and `-LanHost none` makes an
+IP-only box. `scripts\lan-config.ps1 -List` shows the addresses this PC holds. A value that fails the check (an IP
+the PC does not hold, a network that is not private or is wider than `/16`, a bad name) exits 37 and writes nothing.
+
 Or step by step: `init-postgres.ps1 -DbPassword <the DB_PASSWORD in env\edge-node.env>` (refuses an
 existing data directory unless `-SkipIfInitialized`; `-Force` **wipes** it), `install.ps1`,
 `verify-install.ps1` (`-WaitForSync` also waits for the first sync).
