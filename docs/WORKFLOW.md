@@ -6,7 +6,7 @@ matters. Follow it top to bottom for every new change.
 
 ```
  Opus                      Opus                 Sonnet (subagents)         you + Opus          you
- /opsx:explore  ─▶  capture/propose  ─▶  apply section by section  ─▶  review  ─▶  PR + /opsx:archive
+ /openspec-explore  ─▶  capture/propose  ─▶  apply section by section  ─▶  review  ─▶  PR + /openspec-archive-change
  decide, one        proposal, specs,      fresh context per section,     run it, trace
  question at        design (+Impl Map),   commit per green section,      scenarios→tests,
  a time             tasks (with verify)   CHECKPOINT after the core      read hotspots
@@ -37,7 +37,7 @@ instead.
   mode, so `make` and `go` don't need approval each time. Otherwise "hands-off"
   means approving every test run.
 
-## 1. Explore (Opus): `/opsx:explore <idea>`
+## 1. Explore (Opus): `/openspec-explore <idea>`
 
 - The session reads the code and specs before asking anything, then settles
   **one decision at a time**, starting with the decisions others depend on.
@@ -88,7 +88,7 @@ Most control and most of your time. For each section N:
 
 ```
 claude --model sonnet
-> /opsx:apply <change> — only section N. Read design.md "Implementation Map" first;
+> /openspec-apply-change <change> — only section N. Read design.md "Implementation Map" first;
   read only the files it lists. Stop when section N is checked off.
 ```
 
@@ -103,7 +103,7 @@ The main session stays small: it only receives each subagent's summary.
 claude --model sonnet
 > Implement openspec change <change>, one section of tasks.md at a time, sections 0→N in order.
   For each section, spawn ONE general-purpose subagent with model sonnet and this brief:
-   - "Run /opsx:apply <change> for section N only. Read design.md 'Implementation Map' first; read only listed files.
+   - "Run /openspec-apply-change <change> for section N only. Read design.md 'Implementation Map' first; read only listed files.
       Run targeted tests while iterating; run make lint + go test ./... from backend/ at the end (and pnpm lint/test from frontend/ if it changed), output piped through tail -40.
       If a task needs changing an existing test assertion, or the spec is ambiguous, STOP and report it — don't decide.
       Reply with: tasks checked, files changed, test/lint result, blockers."
@@ -214,7 +214,7 @@ Treat findings as leads to verify, not verdicts.
    path-filtered (`backend-ci`, `frontend-ci`, `landing-ci`, `edge-ci`). The
    appliance in `edge/` consumes the apps only as release artifacts, never their
    source, and its Windows install smoke test runs only when `edge/**` changes.
-3. Run `/opsx:archive <change>` to fold the delta specs into
+3. Run `/openspec-archive-change <change>` to fold the delta specs into
    `openspec/specs/`.
 
 ### Releasing
@@ -248,9 +248,8 @@ Each channel has its own tag prefix and cadence; a bare `v*` tag does nothing.
 **Tests-green Stop hook** (`.claude/hooks/tests-green-gate.sh`):
 - Once non-test `.go` files have changed, it runs (in `backend/`) `go build ./... && go test
   ./...` and blocks the turn from ending while the suite is red.
-- After 5 consecutive blocks it releases and tells the agent to escalate. In
-  the legacy `/build`, dropping `.claude/.tdd-escalate` hands control back
-  early.
+- After 5 consecutive blocks it releases and tells the agent to escalate.
+  Dropping `.claude/.tdd-escalate` hands control back early.
 - **Gotcha:** it looks at the working tree, not at what this session edited.
   A read-only session (explore, review) in a tree with another change's
   red, uncommitted work gets blocked too. Commit or stash the other work,
@@ -269,15 +268,3 @@ Each channel has its own tag prefix and cadence; a bare `v*` tag does nothing.
   ticket.
 - One change means one branch, ideally one worktree (`/ticket-start`), so
   parallel changes can't collide.
-
-## Legacy: `/refine → /spec-tests → /build`
-
-The earlier pipeline driven by Linear tickets, with its context in
-`docs/plans/<TICKET>_*.md`. OpenSpec replaces it.
-
-- `/refine` turned a ticket into atomic `AC1..ACn`.
-- `/spec-tests` wrote failing tests, with an adversarial critic.
-- `/build` implemented to green under the Stop hook.
-
-Its best idea lives on in step 4.2: review the tests, not the boilerplate.
-Use it only for tickets already in flight on it.

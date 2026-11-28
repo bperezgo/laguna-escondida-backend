@@ -1,6 +1,6 @@
 ---
 name: spec-readiness
-description: Cold-read an OpenSpec change as the implementing model would (Sonnet, no planning context) and report every question it would need answered, per section, before anyone implements it. Use as the last step of planning, before /opsx:apply, and after any edit to a change's tasks or design.
+description: Cold-read an OpenSpec change as the implementing model would (Sonnet, no planning context) and report every question it would need answered, per section, before anyone implements it. Use as the last step of planning, before /openspec-apply-change, and after any edit to a change's tasks or design.
 argument-hint: "<openspec change name>"
 context: fork
 agent: general-purpose
