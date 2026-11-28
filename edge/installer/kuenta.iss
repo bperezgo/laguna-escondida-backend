@@ -93,6 +93,7 @@ Type: files; Name: "{commonprograms}\Kuenta.url"
 const
   Root = 'C:\kuentapos';
   BuiltInCloudUrl = '{#CloudUrl}';
+  DefaultLanHost = 'pos.kuenta.lan';  // only when the default network check failed; lan-config.ps1 owns it
 
 var
   SignInPage: TInputQueryWizardPage;
@@ -608,8 +609,9 @@ begin
       else
         PreflightDone := True;
     end;
+    // With the box ticked a failed default only means the owner must pick on the network page.
     if Result and (Mode = 'fresh') then
-      if not CheckNetwork('', '', '', Msg) then
+      if not CheckNetwork('', '', '', Msg) and not NetworkBox.Checked then
       begin
         MsgBox(Msg, mbError, MB_OK);
         Result := False;
@@ -812,7 +814,7 @@ begin
     if not NetListed then
     begin
       ListAddresses;
-      HostEdit.Text := NetHost;
+      if NetHost <> '' then HostEdit.Text := NetHost else HostEdit.Text := DefaultLanHost;
     end;
     Exit;
   end;
