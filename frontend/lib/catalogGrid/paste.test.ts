@@ -110,11 +110,25 @@ test("a pasted type that takes an ingredient out of plates is reported before it
     ],
   };
   const toSellable = { type: "paste" as const, startId: "arroz", startColumn: "type" as const, order: ["arroz", "p"], cells: pasteCells("Producto", "type") };
-  assert.deepEqual(pasteImpact(start, toSellable), ["Bandeja"]);
+  assert.deepEqual(pasteImpact(start, toSellable), { plates: ["Bandeja"], platesLosingDetail: [] });
   assert.deepEqual(start.rows[1].recipe.length, 1, "the impact check changes nothing");
 
   const toBoth = { ...toSellable, cells: pasteCells("Ambos", "type") };
-  assert.deepEqual(pasteImpact(start, toBoth), []);
+  assert.equal(pasteImpact(start, toBoth), null);
   const names = { ...toSellable, startColumn: "name" as const, cells: pasteCells("Arroz blanco", "name") };
-  assert.deepEqual(pasteImpact(start, names), []);
+  assert.equal(pasteImpact(start, names), null);
+});
+
+test("Changing a plate's type by paste is reported before it is applied", () => {
+  const start: GridState = {
+    unmatched: [],
+    rows: [
+      { ...newRow("INGREDIENT", "arroz"), name: "Arroz" },
+      { ...newRow("COMPOSITE", "p"), name: "Bandeja", recipe: [{ key: "l1", ingredientId: rowRef("arroz"), quantity: "200" }] },
+      { ...newRow("COMPOSITE", "q"), name: "Plato vacío" },
+    ],
+  };
+  const action = { type: "paste" as const, startId: "p", startColumn: "type" as const, order: ["arroz", "p", "q"], cells: pasteCells("Producto\nProducto", "type") };
+  assert.deepEqual(pasteImpact(start, action), { plates: [], platesLosingDetail: ["Bandeja"] });
+  assert.equal(start.rows[1].recipe.length, 1, "the impact check changes nothing");
 });
