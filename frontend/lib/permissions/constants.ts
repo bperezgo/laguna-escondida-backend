@@ -17,6 +17,9 @@ export const PERMISSIONS = {
   PRODUCTS_UPDATE: "products:update",
   PRODUCTS_DELETE: "products:delete",
 
+  // Whole-catalog import (cloud only, admin only)
+  CATALOG_IMPORT: "catalog:import",
+
   // Stock
   STOCK_READ: "stock:read",
   STOCK_CREATE: "stock:create",

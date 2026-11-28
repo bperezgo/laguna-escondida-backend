@@ -2,7 +2,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { PlateOptionSlot } from "../../types/product.ts";
 import {
+  addItem,
   draftsFromSaved,
+  findDraftProblem,
+  removeItem,
+  updateChoiceIn,
+  updateItem,
+  updateSlotIn,
   draftsToRequest,
   move,
   newChoice,
@@ -147,4 +153,38 @@ test("move swaps neighbours and ignores the edges", () => {
   assert.deepEqual(move(["a", "b", "c"], 1, -1), ["b", "a", "c"]);
   assert.deepEqual(move(["a", "b", "c"], 2, 1), ["a", "b", "c"]);
   assert.deepEqual(move(["a", "b", "c"], 0, -1), ["a", "b", "c"]);
+});
+
+test("the problem names the slot it is in", () => {
+  const good = slot({ key: "good" });
+  const noDefault = slot({
+    key: "bad",
+    name: "Proteína",
+    choices: [
+      { key: "x", name: "Pollo", isDefault: false, items: [] },
+      { key: "y", name: "Res", isDefault: false, items: [] },
+    ],
+  });
+  const problem = findDraftProblem([good, noDefault], PLATE);
+  assert.equal(problem?.slotKey, "bad");
+  assert.match(problem?.message ?? "", /exactamente una opción predeterminada/);
+  assert.equal(findDraftProblem([good], PLATE), null);
+});
+
+test("the plain editor's updates touch only the targeted slot, choice and item", () => {
+  const a = slot({ key: "a" });
+  const b = slot({ key: "b", name: "Bebida" });
+  const renamed = updateSlotIn([a, b], "b", (s) => ({ ...s, name: "Jugo" }));
+  assert.deepEqual(renamed.map((s) => s.name), ["Arroz", "Jugo"]);
+  assert.equal(renamed[0], a);
+
+  const withItem = updateChoiceIn([a], "a", "a", addItem);
+  const item = withItem[0].choices[0].items[0];
+  assert.deepEqual({ id: item.ingredientProductId, qty: item.quantity }, { id: "", qty: "1" });
+
+  const picked = updateChoiceIn(withItem, "a", "a", (c) => updateItem(c, item.key, { ingredientProductId: "arroz", quantity: "200" }));
+  assert.deepEqual(picked[0].choices[0].items[0], { key: item.key, ingredientProductId: "arroz", quantity: "200" });
+
+  const removed = updateChoiceIn(picked, "a", "a", (c) => removeItem(c, item.key));
+  assert.deepEqual(removed[0].choices[0].items, []);
 });

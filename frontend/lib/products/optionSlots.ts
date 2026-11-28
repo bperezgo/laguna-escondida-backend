@@ -83,44 +83,100 @@ function slotLabel(s: SlotDraft, index: number): string {
   return s.name.trim() || `#${index + 1}`;
 }
 
+export interface DraftProblem {
+  slotKey: string;
+  message: string;
+}
+
 // Mirrors the backend rules so the admin sees the problem before saving; the backend stays the authority.
-export function validateDrafts(drafts: SlotDraft[], plateId: string): string | null {
-  const slotNames = new Set<string>();
+export function findDraftProblem(drafts: SlotDraft[], plateId: string): DraftProblem | null {
   for (let i = 0; i < drafts.length; i++) {
-    const slot = drafts[i];
-    const label = slotLabel(slot, i);
-    const name = slot.name.trim().toLowerCase();
-    if (!name) return `El grupo ${label} necesita un nombre`;
-    if (slotNames.has(name)) return `Hay dos grupos llamados "${slot.name.trim()}"`;
-    slotNames.add(name);
+    const message = slotProblem(drafts, i, plateId);
+    if (message) return { slotKey: drafts[i].key, message };
+  }
+  return null;
+}
 
-    if (slot.choices.length === 0) return `El grupo "${label}" necesita al menos una opción`;
-    const defaults = slot.choices.filter((c) => c.isDefault).length;
-    if (defaults !== 1) return `El grupo "${label}" debe tener exactamente una opción predeterminada`;
+export function validateDrafts(drafts: SlotDraft[], plateId: string): string | null {
+  return findDraftProblem(drafts, plateId)?.message ?? null;
+}
 
-    const choiceNames = new Set<string>();
-    for (const choice of slot.choices) {
-      const cname = choice.name.trim().toLowerCase();
-      if (!cname) return `Una opción del grupo "${label}" no tiene nombre`;
-      if (choiceNames.has(cname)) return `El grupo "${label}" tiene dos opciones "${choice.name.trim()}"`;
-      choiceNames.add(cname);
+function slotProblem(drafts: SlotDraft[], i: number, plateId: string): string | null {
+  const slot = drafts[i];
+  const label = slotLabel(slot, i);
+  const name = slot.name.trim().toLowerCase();
+  if (!name) return `El grupo ${label} necesita un nombre`;
+  const earlier = drafts.slice(0, i).some((s) => s.name.trim().toLowerCase() === name);
+  if (earlier) return `Hay dos grupos llamados "${slot.name.trim()}"`;
 
-      const ingredients = new Set<string>();
-      for (const item of choice.items) {
-        if (!item.ingredientProductId) return `Selecciona el ingrediente en "${choice.name.trim()}"`;
-        if (item.ingredientProductId === plateId) return `"${choice.name.trim()}" no puede incluir el mismo plato`;
-        if (ingredients.has(item.ingredientProductId)) {
-          return `"${choice.name.trim()}" repite un ingrediente`;
-        }
-        ingredients.add(item.ingredientProductId);
-        const qty = Number(item.quantity);
-        if (item.quantity.trim() === "" || !Number.isInteger(qty) || qty < 1) {
-          return `Las cantidades de "${choice.name.trim()}" deben ser números enteros desde 1`;
-        }
+  if (slot.choices.length === 0) return `El grupo "${label}" necesita al menos una opción`;
+  const defaults = slot.choices.filter((c) => c.isDefault).length;
+  if (defaults !== 1) return `El grupo "${label}" debe tener exactamente una opción predeterminada`;
+
+  const choiceNames = new Set<string>();
+  for (const choice of slot.choices) {
+    const cname = choice.name.trim().toLowerCase();
+    if (!cname) return `Una opción del grupo "${label}" no tiene nombre`;
+    if (choiceNames.has(cname)) return `El grupo "${label}" tiene dos opciones "${choice.name.trim()}"`;
+    choiceNames.add(cname);
+
+    const ingredients = new Set<string>();
+    for (const item of choice.items) {
+      if (!item.ingredientProductId) return `Selecciona el ingrediente en "${choice.name.trim()}"`;
+      if (item.ingredientProductId === plateId) return `"${choice.name.trim()}" no puede incluir el mismo plato`;
+      if (ingredients.has(item.ingredientProductId)) {
+        return `"${choice.name.trim()}" repite un ingrediente`;
+      }
+      ingredients.add(item.ingredientProductId);
+      const qty = Number(item.quantity);
+      if (item.quantity.trim() === "" || !Number.isInteger(qty) || qty < 1) {
+        return `Las cantidades de "${choice.name.trim()}" deben ser números enteros desde 1`;
       }
     }
   }
   return null;
+}
+
+export function updateSlotIn(
+  drafts: SlotDraft[],
+  slotKey: string,
+  fn: (s: SlotDraft) => SlotDraft,
+): SlotDraft[] {
+  return drafts.map((s) => (s.key === slotKey ? fn(s) : s));
+}
+
+export function updateChoiceIn(
+  drafts: SlotDraft[],
+  slotKey: string,
+  choiceKey: string,
+  fn: (c: ChoiceDraft) => ChoiceDraft,
+): SlotDraft[] {
+  return updateSlotIn(drafts, slotKey, (s) => ({
+    ...s,
+    choices: s.choices.map((c) => (c.key === choiceKey ? fn(c) : c)),
+  }));
+}
+
+export function addItem(choice: ChoiceDraft): ChoiceDraft {
+  return {
+    ...choice,
+    items: [...choice.items, { key: draftKey(), ingredientProductId: "", quantity: "1" }],
+  };
+}
+
+export function updateItem(
+  choice: ChoiceDraft,
+  itemKey: string,
+  patch: Partial<Omit<ItemDraft, "key">>,
+): ChoiceDraft {
+  return {
+    ...choice,
+    items: choice.items.map((it) => (it.key === itemKey ? { ...it, ...patch } : it)),
+  };
+}
+
+export function removeItem(choice: ChoiceDraft, itemKey: string): ChoiceDraft {
+  return { ...choice, items: choice.items.filter((it) => it.key !== itemKey) };
 }
 
 export function setDefaultChoice(slot: SlotDraft, choiceKey: string): SlotDraft {
