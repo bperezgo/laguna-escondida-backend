@@ -63,7 +63,11 @@ func main() {
 	}
 
 	client := mcpserver.NewClient(cfg)
-	server := mcpserver.NewMCPServer(client, cfg.Toolset)
+	var serverOpts []mcpserver.ServerOption
+	if *stdioMode {
+		serverOpts = append(serverOpts, mcpserver.WithLocalFiles())
+	}
+	server := mcpserver.NewMCPServer(client, cfg.Toolset, serverOpts...)
 
 	if *stdioMode {
 		runStdio(server, cfg.APIBaseURL)

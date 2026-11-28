@@ -9,6 +9,7 @@ import (
 
 type ProductRepository interface {
 	Create(ctx context.Context, product *product.Aggregate) error
+	CreateMany(ctx context.Context, products []*product.Aggregate) error
 	Update(ctx context.Context, id string, product *product.Aggregate) error
 	Delete(ctx context.Context, id string) error
 	FindAll(ctx context.Context, filter dto.ListProductsRequest) ([]*dto.Product, error)
@@ -18,6 +19,7 @@ type ProductRepository interface {
 	FindBySKUs(ctx context.Context, skus []string) ([]*dto.Product, error)
 	FindAllCategories(ctx context.Context) ([]string, error)
 	CreatePreparationResponsibility(ctx context.Context, productID, area string, priority int) (*dto.ProductPreparationResponsibility, error)
+	CreatePreparationResponsibilities(ctx context.Context, responsibilities []*dto.ProductPreparationResponsibility) error
 	UpdatePreparationResponsibility(ctx context.Context, id string, area string, priority int) (*dto.ProductPreparationResponsibility, error)
 	DeletePreparationResponsibility(ctx context.Context, id string) error
 	FindPreparationResponsibilityByID(ctx context.Context, id string) (*dto.ProductPreparationResponsibility, error)

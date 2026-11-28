@@ -24,6 +24,9 @@ const (
 	ProductsDelete Permission = "products:delete"
 )
 
+// CatalogImport creates a whole catalog from one import document; only admin holds it.
+const CatalogImport Permission = "catalog:import"
+
 // Stock permissions
 const (
 	StockRead   Permission = "stock:read"
@@ -194,6 +197,8 @@ func AllPermissions() []Permission {
 		ProductsRead, ProductsCreate, ProductsUpdate, ProductsDelete,
 		// Stock
 		StockRead, StockCreate, StockUpdate, StockDelete,
+		// Catalog import
+		CatalogImport,
 		// Invoices
 		InvoicesRead, InvoicesCreate, InvoicesExport,
 		// Commands

@@ -137,3 +137,10 @@ func TestGet(t *testing.T) {
 		assert.False(t, ok)
 	})
 }
+
+func TestGet_OnboardCatalog(t *testing.T) {
+	pb, ok := Get("onboard-catalog")
+	require.True(t, ok)
+	assert.Contains(t, pb.Content, "# Onboard a restaurant's catalog")
+	assert.Contains(t, Names(), "onboard-catalog")
+}

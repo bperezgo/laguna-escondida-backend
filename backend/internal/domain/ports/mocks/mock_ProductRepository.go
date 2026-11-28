@@ -71,6 +71,100 @@ func (_c *MockProductRepository_Create_Call) RunAndReturn(run func(context.Conte
 	return _c
 }
 
+// CreateMany provides a mock function with given fields: ctx, products
+func (_m *MockProductRepository) CreateMany(ctx context.Context, products []*product.Aggregate) error {
+	ret := _m.Called(ctx, products)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateMany")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, []*product.Aggregate) error); ok {
+		r0 = rf(ctx, products)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockProductRepository_CreateMany_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateMany'
+type MockProductRepository_CreateMany_Call struct {
+	*mock.Call
+}
+
+// CreateMany is a helper method to define mock.On call
+//   - ctx context.Context
+//   - products []*product.Aggregate
+func (_e *MockProductRepository_Expecter) CreateMany(ctx interface{}, products interface{}) *MockProductRepository_CreateMany_Call {
+	return &MockProductRepository_CreateMany_Call{Call: _e.mock.On("CreateMany", ctx, products)}
+}
+
+func (_c *MockProductRepository_CreateMany_Call) Run(run func(ctx context.Context, products []*product.Aggregate)) *MockProductRepository_CreateMany_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]*product.Aggregate))
+	})
+	return _c
+}
+
+func (_c *MockProductRepository_CreateMany_Call) Return(_a0 error) *MockProductRepository_CreateMany_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockProductRepository_CreateMany_Call) RunAndReturn(run func(context.Context, []*product.Aggregate) error) *MockProductRepository_CreateMany_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CreatePreparationResponsibilities provides a mock function with given fields: ctx, responsibilities
+func (_m *MockProductRepository) CreatePreparationResponsibilities(ctx context.Context, responsibilities []*dto.ProductPreparationResponsibility) error {
+	ret := _m.Called(ctx, responsibilities)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreatePreparationResponsibilities")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, []*dto.ProductPreparationResponsibility) error); ok {
+		r0 = rf(ctx, responsibilities)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockProductRepository_CreatePreparationResponsibilities_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreatePreparationResponsibilities'
+type MockProductRepository_CreatePreparationResponsibilities_Call struct {
+	*mock.Call
+}
+
+// CreatePreparationResponsibilities is a helper method to define mock.On call
+//   - ctx context.Context
+//   - responsibilities []*dto.ProductPreparationResponsibility
+func (_e *MockProductRepository_Expecter) CreatePreparationResponsibilities(ctx interface{}, responsibilities interface{}) *MockProductRepository_CreatePreparationResponsibilities_Call {
+	return &MockProductRepository_CreatePreparationResponsibilities_Call{Call: _e.mock.On("CreatePreparationResponsibilities", ctx, responsibilities)}
+}
+
+func (_c *MockProductRepository_CreatePreparationResponsibilities_Call) Run(run func(ctx context.Context, responsibilities []*dto.ProductPreparationResponsibility)) *MockProductRepository_CreatePreparationResponsibilities_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]*dto.ProductPreparationResponsibility))
+	})
+	return _c
+}
+
+func (_c *MockProductRepository_CreatePreparationResponsibilities_Call) Return(_a0 error) *MockProductRepository_CreatePreparationResponsibilities_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockProductRepository_CreatePreparationResponsibilities_Call) RunAndReturn(run func(context.Context, []*dto.ProductPreparationResponsibility) error) *MockProductRepository_CreatePreparationResponsibilities_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreatePreparationResponsibility provides a mock function with given fields: ctx, productID, area, priority
 func (_m *MockProductRepository) CreatePreparationResponsibility(ctx context.Context, productID string, area string, priority int) (*dto.ProductPreparationResponsibility, error) {
 	ret := _m.Called(ctx, productID, area, priority)

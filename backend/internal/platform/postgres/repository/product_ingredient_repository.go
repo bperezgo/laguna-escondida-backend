@@ -76,6 +76,28 @@ func (r *ProductIngredientRepository) Create(ctx context.Context, ingredient *dt
 	return db.Create(model).Error
 }
 
+func (r *ProductIngredientRepository) CreateMany(ctx context.Context, ingredients []*dto.ProductIngredient) error {
+	if len(ingredients) == 0 {
+		return nil
+	}
+	db, err := postgres.TenantDB(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	models := make([]*productIngredientModel, len(ingredients))
+	for i, ingredient := range ingredients {
+		models[i] = &productIngredientModel{
+			ID:                  ingredient.ID,
+			CompositeProductID:  ingredient.CompositeProductID,
+			IngredientProductID: ingredient.IngredientProductID,
+			DefaultQuantity:     ingredient.DefaultQuantity,
+			CreatedAt:           ingredient.CreatedAt,
+			UpdatedAt:           ingredient.UpdatedAt,
+		}
+	}
+	return db.CreateInBatches(models, createBatchSize).Error
+}
+
 func (r *ProductIngredientRepository) Update(ctx context.Context, id string, ingredient *dto.ProductIngredient) error {
 	db, err := postgres.TenantDB(ctx, r.db)
 	if err != nil {

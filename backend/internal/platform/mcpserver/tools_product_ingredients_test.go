@@ -46,7 +46,7 @@ func TestPlateOptionSlotTools_PathsAndBodies(t *testing.T) {
 func TestNewMCPServer_FullToolsetCount(t *testing.T) {
 	names := toolNames(t, connectInMemory(t, NewMCPServer(testClient("http://backend.invalid"), ToolsetFull)))
 
-	assert.Len(t, names, 100, "keep the count in docs/mcp-server.md in step")
+	assert.Len(t, names, 102, "keep the count in docs/mcp-server.md in step")
 	assert.Contains(t, names, "get_plate_option_slots")
 	assert.Contains(t, names, "set_plate_option_slots")
 	assert.NotContains(t, names, "configure_side_dish")

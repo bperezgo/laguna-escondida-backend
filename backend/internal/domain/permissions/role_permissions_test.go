@@ -400,3 +400,10 @@ func TestRequiresEmail(t *testing.T) {
 	assert.False(t, RequiresEmail([]int{RoleServer, RoleCooker}))
 	assert.False(t, RequiresEmail(nil))
 }
+
+func TestGetPermissionsForRoles_CatalogImportOnlyForAdmin(t *testing.T) {
+	assert.Contains(t, GetPermissionsForRoles([]int{RoleAdmin}), CatalogImport)
+	for _, role := range []int{RoleManager, RoleCooker, RoleAccountant, RoleServer, RoleAgent, RoleCourier} {
+		assert.NotContains(t, GetPermissionsForRoles([]int{role}), CatalogImport, "role %d", role)
+	}
+}

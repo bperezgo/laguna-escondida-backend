@@ -9,7 +9,7 @@ the system conversationally.
 - **Transport:** Streamable HTTP (`POST /mcp`) for remote clients, or stdio
   (`--stdio`) for a local client that launches the binary directly (Claude Desktop)
 - **Coverage:** two toolsets, chosen at startup with `MCP_TOOLSET`:
-  - `full` (default): 100 staff tools — one per request/response endpoint (streaming SSE,
+  - `full` (default): 102 staff tools — one per request/response endpoint (streaming SSE,
     node-to-node sync, and edge ticket printing are intentionally excluded), plus one
     host-local file utility (`extract_archive`) and two read-only playbook discovery tools
     (`list_playbooks`, `get_playbook` — see [Playbooks](#playbooks)).
@@ -135,13 +135,14 @@ files from paths on your own machine.
   `update_support_document_urls` send the `X-API-Key` header
   (`LAGUNA_ADMIN_API_KEY`) instead of a JWT.
 
-## Tool catalog (full toolset, 100)
+## Tool catalog (full toolset, 102)
 
 - **Products (7):** `create_product`, `bulk_create_products`, `list_products`, `get_product`, `update_product`, `delete_product`, `list_product_categories`
 - **Product responsibilities (4):** `create_product_responsibility`, `get_product_responsibility`, `update_product_responsibility`, `delete_product_responsibility`
 - **Product ingredients (6):** `add_product_ingredient`, `list_product_ingredients`, `update_product_ingredient`, `remove_product_ingredient`, `get_plate_option_slots`, `set_plate_option_slots` (cloud only; replaces the plate's whole slot list — see [`docs/api/products.md`](api/products.md#plate-option-slots))
 - **Orders (12):** `create_order`, `list_active_orders`, `get_order`, `update_order`, `delete_order`, `list_closed_orders_today`, `get_closed_order`, `pay_order`, `complete_order_product`, `uncomplete_order_product`, `set_order_product_in_progress`, `cancel_order_product`
 - **Stock (5):** `list_stock`, `create_stock`, `adjust_stock`, `delete_stock`, `bulk_upsert_stock`
+- **Catalog import (2, cloud only, admin):** `validate_catalog_import` (dry run: problems, summary and `digest`), `apply_catalog_import` (needs `expected_digest`; all or nothing) — take the document inline as `document`, or as `file_path` to a JSON file **only over stdio**: over HTTP a `file_path` is refused before anything is read. Files are capped at 2 MiB. Follow the `onboard-catalog` playbook; see [`docs/api/catalog-import.md`](api/catalog-import.md).
 - **Suppliers (5):** `create_supplier`, `list_suppliers`, `get_supplier`, `update_supplier`, `delete_supplier`
 - **Supplier catalog (5):** `add_supplier_product`, `update_supplier_product`, `remove_supplier_product`, `list_supplier_products`, `list_product_suppliers`
 - **Purchase entries (6):** `create_purchase_entry`, `list_purchase_entries`, `get_purchase_entry`, `list_supplier_purchase_entries`, `upload_purchase_entry_document`, `export_purchase_entries_csv`
