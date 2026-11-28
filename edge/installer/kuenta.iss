@@ -113,6 +113,7 @@ var
   NetIp, NetCidr, NetHost: String;  // the last network check that passed
   NetListed: Boolean;
   ListError: String;
+  Purge: Boolean;        // uninstall: also remove the box's data
 
 // lpValue 0 (NULL) removes the variable from this process and from everything it starts.
 function SetEnvironmentVariable(lpName: String; lpValue: Cardinal): Boolean;
@@ -848,12 +849,38 @@ begin
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
-var RC: Integer;
+var RC: Integer; Args: String;
 begin
   if CurUninstallStep = usUninstall then
-    Exec(PowerShellExe, '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}\scripts\uninstall.ps1') + '"',
-      '', SW_HIDE, ewWaitUntilTerminated, RC)
+  begin
+    // After Inno's own confirmation, before anything is removed. No is the default, and a silent run keeps the data.
+    Purge := HasSwitch('PURGE');
+    if not Purge and not UninstallSilent then
+      Purge := SuppressibleMsgBox('¿Desea borrar también los datos de esta caja (base de datos, configuración, copias de ' +
+        'seguridad y certificados)?' + #13#10#13#10 + 'Lo que la caja no haya sincronizado con Kuenta se perderá. Si responde No, ' +
+        'podrá reinstalar Kuenta y la caja seguirá igual.', mbConfirmation, MB_YESNO or MB_DEFBUTTON2, IDNO) = IDYES;
+    Log('purge ' + IntToStr(Ord(Purge)));
+    Args := '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}\scripts\uninstall.ps1') + '"';
+    if Purge then Args := Args + ' -Purge';
+    Exec(PowerShellExe, Args, '', SW_HIDE, ewWaitUntilTerminated, RC);
+  end
+  // Inno has removed its own files and the services are gone, so nothing holds the folder open.
+  else if (CurUninstallStep = usPostUninstall) and Purge then
+  begin
+    DelTree(Root, True, True, True);
+    Log('purge folder removed: ' + IntToStr(Ord(not DirExists(Root))));
+  end
   else if CurUninstallStep = usDone then
-    SuppressibleMsgBox('Kuenta se desinstaló. Los datos del restaurante (base de datos, configuración, copias de seguridad ' +
-      'y certificados) se conservaron en ' + Root + '.', mbInformation, MB_OK, IDOK);
+  begin
+    // Inno may still be deleting unins000.* here, so the root folder itself is not the test.
+    if not Purge then
+      SuppressibleMsgBox('Kuenta se desinstaló. Los datos del restaurante (base de datos, configuración, copias de seguridad ' +
+        'y certificados) se conservaron en ' + Root + '.', mbInformation, MB_OK, IDOK)
+    else if not DirExists(Root + '\env') and not DirExists(Root + '\artifacts') then
+      SuppressibleMsgBox('Kuenta se desinstaló y se borraron los datos de esta caja. La próxima instalación empezará desde cero.',
+        mbInformation, MB_OK, IDOK)
+    else
+      SuppressibleMsgBox('Kuenta se desinstaló, pero no se pudo borrar todo en ' + Root + '. Reinicie el equipo y borre esa ' +
+        'carpeta antes de instalar de nuevo.', mbError, MB_OK, IDOK);
+  end;
 end;

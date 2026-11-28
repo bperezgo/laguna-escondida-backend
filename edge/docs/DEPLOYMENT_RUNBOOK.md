@@ -69,8 +69,15 @@ programs are brought up to the installer's version (never downgraded). A PC with
 configuration is refused: contact support, nothing is changed.
 
 **Uninstall** (Windows Settings → Apps → Kuenta) removes the services, updater task, firewall rule,
-programs and shortcuts, and keeps `env\`, the database, `backups\`, `caddy-data\`, `state\` and
-`logs\`. Running the installer afterwards repairs the box with its data.
+programs and shortcuts, then asks whether to also delete the box's data (**No** is the default):
+
+- **No** keeps `env\`, the database, `backups\`, `caddy-data\`, `state\` and `logs\`. Running the
+  installer afterwards repairs the box with its data.
+- **Sí** also deletes `C:\kuentapos`, the box's root CA from the PC's trusted certificates and the
+  machine variables (`EDGE_*`). The next install is a fresh one. The cloud still has the old box, so
+  the installer asks to replace it; answer yes. Whatever the box had not synced is lost.
+
+A silent uninstall (`unins000.exe /VERYSILENT /SUPPRESSMSGBOXES`) keeps the data; add `/PURGE` to delete it.
 
 **Assisted or scripted install** (also what CI does):
 
