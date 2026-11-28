@@ -55,7 +55,7 @@ Plain table with inputs, as `BulkStockTable` does, plus arrow, Enter and Tab mov
 
 ### D7. Loading a JSON document
 
-The file is read in the browser with `File.text()` after checking `file.size <= 2 MiB`, parsed with `JSON.parse`, and checked against a hand-written shape check that rejects unknown sections and fields (same rule as the server). Ids are created fresh for each entry, refs are mapped to them, and `existing` entries are resolved against the organization's product list loaded by the page. An `existing` entry that matches nothing is kept as a marked link, so the user sees it before checking. No import endpoint is called on load. Parsed values are assigned field by field into new objects, never merged into existing ones.
+The file is read in the browser with `File.text()` after checking `file.size <= 2 MiB`, parsed with `JSON.parse`, and checked against a hand-written shape check that rejects unknown sections and fields (same rule as the server). It also refuses what the grid cannot hold without changing its meaning: a `taxes_format` other than `percentage`, a price, taxes or `prep` on an `INGREDIENT`, and an `opening_stock` count for a product the document does not create or for a plate. So a loaded file is never altered without the user seeing why. Ids are created fresh for each entry, refs are mapped to them, and `existing` entries are resolved against the organization's product list loaded by the page. An `existing` entry that matches nothing is kept as a marked link, so the user sees it before checking. No import endpoint is called on load. Parsed values are assigned field by field into new objects, never merged into existing ones.
 
 ### D8. Paste
 

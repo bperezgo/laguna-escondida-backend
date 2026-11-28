@@ -132,6 +132,14 @@ test("Create refused by the server", async () => {
     const got = await createCatalog(fetchFn, document, { digest: "abc", documentHash: "h" }, () => cleared++);
     assert.equal(got.kind, "refused", String(answer.status));
     assert.equal(cleared, 0, "the draft is kept");
+    if (got.kind !== "refused") continue;
+    if (answer.status === 500) {
+      assert.deepEqual(got.outcome, { kind: "error", status: 500, message: "boom" });
+    } else {
+      assert.equal(got.outcome.kind, "result");
+      const returned = got.outcome.kind === "result" ? got.outcome.result.problems : [];
+      assert.deepEqual(returned, (answer.body as CatalogImportResult).problems, "the problems come back to be shown");
+    }
   }
 });
 
@@ -148,11 +156,11 @@ test("errors that are not problems come back as messages", async () => {
   }
 });
 
-test("Agent document reviewed: loading calls no endpoint", () => {
-  const { calls } = server([]);
+test("Agent document reviewed: loading never reaches the network", () => {
+  const source = readFileSync(join(import.meta.dirname, "fromDocument.ts"), "utf8");
+  assert.equal(/\bfetch\b|XMLHttpRequest|from "\.\/check/.test(source), false);
   const doc = { sellables: [{ ref: "a", name: "Coca", category: "Bebidas", total_price_with_taxes: 5000 }] };
   assert.ok(parseDocumentText(JSON.stringify(doc), []).ok);
-  assert.equal(calls.length, 0);
 });
 
 test("Markup in a name: the grid never renders raw HTML", () => {

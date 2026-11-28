@@ -45,6 +45,12 @@ test("unknown sections and wrong types are refused", () => {
     { ingredients: [{ ref: "a", name: "x", category: "y", product_type: "SELLABLE" }] },
     { plates: [{ ref: "p", name: "x", category: "y", recipe: [{ ingredient: "a", quantity: "1" }] }] },
     [],
+    { defaults: { taxes_format: "fixed" } },
+    { sellables: [{ ref: "a", name: "x", category: "y", vat: 0.19, taxes_format: "fixed" }] },
+    { ingredients: [{ ref: "a", name: "x", category: "y", total_price_with_taxes: 1000 }] },
+    { ingredients: [{ ref: "a", name: "x", category: "y", prep: { area: "kitchen" } }] },
+    { existing: [{ ref: "lim", name: "Limón" }], opening_stock: [{ product: "lim", counted: 5 }] },
+    { opening_stock: [{ product: "nadie", counted: 5 }] },
   ]) {
     const got = parseDocumentText(JSON.stringify(doc), []);
     assert.equal(!got.ok && got.reason, "invalid_shape", JSON.stringify(doc));
@@ -59,6 +65,13 @@ test("a __proto__ key does not change Object.prototype", () => {
   assert.equal(parseDocumentText(nested, []).ok, false);
   assert.equal(({} as Record<string, unknown>).polluted, undefined);
   assert.equal(Object.prototype.hasOwnProperty.call(Object.prototype, "polluted"), false);
+});
+
+test("an ingredient marked BOTH keeps its price and taxes", () => {
+  const doc = { ingredients: [{ ref: "p", name: "Patacón", category: "x", product_type: "BOTH", total_price_with_taxes: 4000, vat: 0, ico: 8, taxes_format: "percentage" }] };
+  const got = parseDocumentText(JSON.stringify(doc), []);
+  assert.ok(got.ok);
+  assert.deepEqual([got.state.rows[0].type, got.state.rows[0].price, got.state.rows[0].ico], ["BOTH", "4000", "8"]);
 });
 
 test("defaults are folded into the rows", () => {

@@ -119,12 +119,17 @@ function reviveState(raw: unknown): GridState | null {
 
 export function loadDraft(storage: StorageLike | null, organizationId: string, userId: string): LoadedDraft {
   if (!storage) return { state: null, available: false };
+  let text: string | null;
   try {
-    const text = storage.getItem(draftStorageKey(organizationId, userId));
-    if (text === null) return { state: null, available: true };
-    return { state: reviveState(JSON.parse(text)), available: true };
+    text = storage.getItem(draftStorageKey(organizationId, userId));
   } catch {
     return { state: null, available: false };
+  }
+  if (text === null) return { state: null, available: true };
+  try {
+    return { state: reviveState(JSON.parse(text)), available: true };
+  } catch {
+    return { state: null, available: true };
   }
 }
 

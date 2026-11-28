@@ -81,7 +81,7 @@ test("an unknown version or an unreadable value is ignored", () => {
   storage.setItem(key, JSON.stringify({ version: 2, state: grid(1) }));
   assert.equal(loadDraft(storage, "org-a", "user-1").state, null);
   storage.setItem(key, "{oops");
-  assert.equal(loadDraft(storage, "org-a", "user-1").state, null);
+  assert.deepEqual(loadDraft(storage, "org-a", "user-1"), { state: null, available: true }, "storage still works");
 });
 
 test("a tampered row is rebuilt from known fields only", () => {

@@ -9,6 +9,7 @@ import {
   gridSkus,
   ingredientCandidates,
   newRow,
+  pasteImpact,
   platesUsing,
   typeChangeImpact,
   type Column,
@@ -237,7 +238,15 @@ export default function CatalogGrid({ organizationId, userId, existing }: Catalo
     const before = state.rows.length;
     const cells = pasteCells(text, at.column);
     const order = filtered.map((r) => r.id);
-    dispatch({ type: "paste", startId: at.rowId, startColumn: at.column, order, cells });
+    const action = { type: "paste" as const, startId: at.rowId, startColumn: at.column, order, cells };
+    const plates = pasteImpact(state, action);
+    if (
+      plates.length > 0 &&
+      !window.confirm(`Lo pegado cambia el tipo de ingredientes que usan: ${plates.join(", ")}. Se quitarán de esas recetas y opciones. ¿Pegar?`)
+    ) {
+      return;
+    }
+    dispatch(action);
     const room = 1000 - before;
     const needed = Math.max(0, order.indexOf(at.rowId) + cells.length - order.length);
     if (needed > room) setStatus({ tone: "info", text: "El catálogo admite hasta 1.000 filas; el resto de lo pegado no se agregó." });

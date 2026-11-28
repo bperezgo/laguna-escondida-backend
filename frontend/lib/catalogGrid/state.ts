@@ -156,6 +156,18 @@ export function platesUsing(state: GridState, ids: readonly string[]): string[] 
     .map((r) => r.name.trim() || "(sin nombre)");
 }
 
+// The plates a paste would take rows out of, because a pasted type turns an ingredient into
+// something that can't be in a recipe. The UI asks before dispatching when this is not empty.
+export function pasteImpact(state: GridState, action: Extract<GridAction, { type: "paste" }>): string[] {
+  const after = gridReducer(state, action);
+  const left: string[] = [];
+  for (const before of state.rows) {
+    const next = after.rows.find((r) => r.id === before.id);
+    if (next && isIngredientType(before.type) && !isIngredientType(next.type)) left.push(before.id);
+  }
+  return left.length > 0 ? platesUsing(state, left) : [];
+}
+
 export interface TypeChangeImpact {
   plates: string[];
   dropsPlateDetail: boolean;

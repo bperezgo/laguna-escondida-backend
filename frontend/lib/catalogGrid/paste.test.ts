@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseClipboard, pasteCell, pasteCells } from "./paste.ts";
-import { EMPTY_STATE, gridReducer, gridSkus, newRow, type GridState } from "./state.ts";
+import { EMPTY_STATE, gridReducer, gridSkus, newRow, pasteImpact, rowRef, type GridState } from "./state.ts";
 import { parseAmount } from "./values.ts";
 
 test("Paste names and prices", () => {
@@ -99,4 +99,22 @@ test("quoted cells keep tabs and newlines", () => {
     ["Arroz\ncon pollo", "12000"],
     ['Say "hi"', "1"],
   ]);
+});
+
+test("a pasted type that takes an ingredient out of plates is reported before it is applied", () => {
+  const start: GridState = {
+    unmatched: [],
+    rows: [
+      { ...newRow("INGREDIENT", "arroz"), name: "Arroz" },
+      { ...newRow("COMPOSITE", "p"), name: "Bandeja", recipe: [{ key: "l1", ingredientId: rowRef("arroz"), quantity: "200" }] },
+    ],
+  };
+  const toSellable = { type: "paste" as const, startId: "arroz", startColumn: "type" as const, order: ["arroz", "p"], cells: pasteCells("Producto", "type") };
+  assert.deepEqual(pasteImpact(start, toSellable), ["Bandeja"]);
+  assert.deepEqual(start.rows[1].recipe.length, 1, "the impact check changes nothing");
+
+  const toBoth = { ...toSellable, cells: pasteCells("Ambos", "type") };
+  assert.deepEqual(pasteImpact(start, toBoth), []);
+  const names = { ...toSellable, startColumn: "name" as const, cells: pasteCells("Arroz blanco", "name") };
+  assert.deepEqual(pasteImpact(start, names), []);
 });

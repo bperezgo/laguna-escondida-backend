@@ -73,6 +73,14 @@ function bool(o: Obj, key: string, where: string): boolean {
   return v;
 }
 
+// The grid shows and sends percentages, so another format would be read with the wrong meaning.
+function percentageFormat(o: Obj, where: string): void {
+  const format = str(o, "taxes_format", where);
+  if (format !== undefined && format !== "percentage") {
+    throw new ShapeError(`${where}.taxes_format debe ser "percentage"`);
+  }
+}
+
 function fold(s: string): string {
   return s.trim().toLowerCase();
 }
@@ -94,7 +102,7 @@ interface Pending {
 function readDefaults(value: Json): Defaults {
   if (value === undefined) return {};
   const o = object(value, DEFAULT_FIELDS, "defaults");
-  str(o, "taxes_format", "defaults");
+  percentageFormat(o, "defaults");
   return {
     vat: num(o, "vat", "defaults"),
     ico: num(o, "ico", "defaults"),
@@ -125,7 +133,13 @@ function readEntry(
   if (unit === undefined) row.unit = "";
   else if (GRID_UNITS.indexOf(unit as UnitOfMeasure) >= 0) row.unit = unit as UnitOfMeasure;
   else row.marks = { ...row.marks, unit: true };
-  str(o, "taxes_format", where);
+  percentageFormat(o, where);
+  // The import refuses these on an INGREDIENT; refusing them here keeps them from vanishing on load.
+  if (type === "INGREDIENT") {
+    for (const key of ["total_price_with_taxes", "vat", "ico", "taxes_format", "prep"]) {
+      if (o[key] !== undefined) throw new ShapeError(`${where}.${key} no aplica a un INGREDIENT; usa product_type BOTH para venderlo`);
+    }
+  }
 
   const price = num(o, "total_price_with_taxes", where);
   const vat = num(o, "vat", where) ?? d.vat;
@@ -261,7 +275,13 @@ export function documentToState(value: Json, existing: readonly ExistingProduct[
   for (const r of rows) byRef.set(rowRef(r.id), r);
   for (const count of counts) {
     const target = byRef.get(refs.get(count.product) ?? "");
-    if (target && target.type !== "COMPOSITE") target.stock = String(count.counted);
+    if (!target) {
+      throw new ShapeError(`opening_stock "${count.product}" no es un producto que el documento crea`);
+    }
+    if (target.type === "COMPOSITE") {
+      throw new ShapeError(`opening_stock "${count.product}" es un plato, que no lleva stock propio`);
+    }
+    target.stock = String(count.counted);
   }
   return { rows, unmatched };
 }
